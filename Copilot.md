@@ -76,11 +76,15 @@ tabletopcontrol/
 
 ---
 
-## Performance Targets
+## Performance Notes
 
-- The Canvas renderer must sustain **≥ 30 fps** on a Raspberry Pi 4 for a 4K image scaled to a 1080p output.
+- The Canvas renderer is **event-driven, not a real-time animation loop**. It redraws only when:
+  - A new scene/map is loaded.
+  - Fog-of-war or obstruction state changes.
+  - (Future) A token moves on the map.
+  Sustained frame rate is therefore **not a concern**; correctness and low redraw latency on triggered events are what matter.
 - Audio latency for SFX playback should be **< 200 ms**.
-- Startup time should be **< 5 seconds** on a Raspberry Pi 4.
+- Startup time should be reasonable on a Raspberry Pi 4; no hard target is set.
 
 ---
 
