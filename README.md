@@ -68,7 +68,28 @@ The application will expose a lightweight HTTP interface so that external device
 
 ## Getting Started
 
-> _Build instructions and setup steps will be added once the initial project scaffold is in place._
+### Prerequisites
+
+- **JDK 17** (Temurin or any OpenJDK 17 distribution)
+- No separate Gradle installation required — the project ships with the Gradle wrapper
+
+### Build
+
+```bash
+./gradlew build
+```
+
+### Run
+
+```bash
+./gradlew :core:run
+```
+
+### Test
+
+```bash
+./gradlew test
+```
 
 ---
 
