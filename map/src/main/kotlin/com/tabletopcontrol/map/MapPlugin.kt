@@ -417,6 +417,11 @@ class MapPlugin : DmPlugin {
 
         val section = VBox(4.0, canvasPane, controlsRow)
         VBox.setVgrow(canvasPane, Priority.ALWAYS)
+
+        // Eagerly initialize the fog grid so both the table view and the DM minimap
+        // display fog as soon as the DM panel is shown, without requiring any button press.
+        ensureFogInitialized()
+
         return section
     }
 
