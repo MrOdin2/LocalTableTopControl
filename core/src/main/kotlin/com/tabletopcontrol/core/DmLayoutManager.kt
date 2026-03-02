@@ -57,7 +57,7 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
     /**
      * Reads live divider positions from the JavaFX scene graph, updates [layoutRoot],
-     * and persists the result to [LayoutSerializer.configFile].
+     * and persists the result using [LayoutSerializer.save].
      *
      * Call this method immediately before the application exits.
      */
