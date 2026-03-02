@@ -108,6 +108,14 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var viewportOffsetY: Double = 0.0
 
+    /**
+     * When `true`, tokens whose grid cell is covered by unrevealed fog-of-war are
+     * not drawn.  Set this to `true` for the player-facing table view so that tokens
+     * cannot be seen through the fog; leave it at `false` (the default) for the DM
+     * minimap so tokens remain visible and can be dragged regardless of fog state.
+     */
+    var hideTokensInFog: Boolean = false
+
     /** Current list of tokens to draw on the map. */
     private val tokens = mutableListOf<Token>()
 
@@ -471,6 +479,11 @@ class MapRenderer(private val canvas: Canvas) {
      * Each token fills its grid cell (radius ≈ 45 % of the cell size) and is
      * centred on the cell.  The active token receives an additional orange outline
      * so the DM and players can immediately see whose turn it is.
+     *
+     * When [hideTokensInFog] is `true`, tokens whose grid cell is not yet revealed
+     * in [fogOfWar] are skipped — this prevents players from seeing token positions
+     * that are hidden behind the fog on the table view.  Tokens outside the fog grid
+     * bounds, or when fog is not active, are always drawn.
      */
     private fun drawTokens() {
         if (tokens.isEmpty()) return
@@ -481,7 +494,18 @@ class MapRenderer(private val canvas: Canvas) {
         val originY = canvas.height / 2.0 + gridCalibration.offsetY
         val r = cellPx * 0.45
 
+        val fow = fogOfWar
+
         for (token in tokens) {
+            // Hide tokens that are in unrevealed fog cells on the player-facing view.
+            if (hideTokensInFog && fow != null) {
+                val fogCol = token.col - fogColOffset
+                val fogRow = token.row - fogRowOffset
+                if (fogCol >= 0 && fogCol < fow.cols && fogRow >= 0 && fogRow < fow.rows
+                    && !fow.isRevealed(fogCol, fogRow)
+                ) continue
+            }
+
             val cx = originX + (token.col + 0.5) * cellPx
             val cy = originY + (token.row + 0.5) * cellPx
 

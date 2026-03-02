@@ -98,6 +98,7 @@ class MapPlugin : DmPlugin {
     override fun createTableView(): Node {
         val canvas = Canvas()
         val renderer = MapRenderer(canvas)
+        renderer.hideTokensInFog = true
         return object : Pane() {
             init {
                 children.add(canvas)
