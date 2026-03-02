@@ -16,6 +16,7 @@ application {
 dependencies {
     implementation(kotlin("stdlib"))
     runtimeOnly(project(":map"))
+    runtimeOnly(project(":audio"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("io.mockk:mockk:1.13.10")
