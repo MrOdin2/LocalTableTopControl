@@ -1,5 +1,11 @@
 plugins {
     kotlin("jvm")
+    id("org.openjfx.javafxplugin")
+}
+
+javafx {
+    version = "21"
+    modules = listOf("javafx.controls", "javafx.graphics", "javafx.base")
 }
 
 dependencies {
