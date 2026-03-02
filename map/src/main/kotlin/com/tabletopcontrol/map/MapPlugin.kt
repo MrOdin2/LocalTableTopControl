@@ -4,12 +4,14 @@ import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import javafx.geometry.Insets
 import javafx.scene.Node
+import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
+import javafx.scene.layout.Pane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
@@ -28,6 +30,33 @@ class MapPlugin : DmPlugin {
 
     override val displayName: String = "Map"
     override val iconPath: String? = null
+
+    /**
+     * Creates the table-screen [Node] — a [Canvas] backed by a [MapRenderer] that
+     * subscribes to map events and redraws on demand.
+     *
+     * The canvas is sized to fill its parent via a [Pane] that overrides
+     * [Pane.layoutChildren]; this ensures the canvas always covers the full
+     * table-screen area regardless of window size.
+     */
+    override fun createTableView(): Node {
+        val canvas = Canvas()
+        val renderer = MapRenderer(canvas)
+        return object : Pane() {
+            init {
+                children.add(canvas)
+            }
+
+            override fun layoutChildren() {
+                // Only resize and redraw when the available area actually changes.
+                if (canvas.width != width || canvas.height != height) {
+                    canvas.width = width
+                    canvas.height = height
+                    renderer.redraw()
+                }
+            }
+        }
+    }
 
     /**
      * Creates the DM-panel [Node] containing all map controls.
