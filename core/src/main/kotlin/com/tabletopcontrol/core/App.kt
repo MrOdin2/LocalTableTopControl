@@ -7,11 +7,11 @@ import javafx.scene.Scene
 import javafx.scene.control.Button
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
-import javafx.scene.control.Tab
-import javafx.scene.control.TabPane
+import javafx.scene.control.ToolBar
 import javafx.scene.layout.BorderPane
-import javafx.scene.layout.StackPane
-import javafx.scene.layout.VBox
+import javafx.scene.layout.HBox
+import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
@@ -23,9 +23,10 @@ import javafx.util.StringConverter
  * Responsibilities:
  * 1. Discovering and loading plugins via [PluginLoader].
  * 2. Initialising the two-screen layout — a full-screen **table view** driven by
- *    plugin-provided content and a **DM control panel** on a separate [Stage] with
- *    one tab per plugin.
- * 3. Gracefully shutting down all plugins when the application exits.
+ *    plugin-provided content and a **DM control panel** on a separate [Stage].
+ * 3. Managing the DM panel's recursive split-pane layout via [DmLayoutManager].
+ * 4. Gracefully shutting down all plugins and persisting the layout when the
+ *    application exits.
  */
 class App : Application() {
 
@@ -34,6 +35,9 @@ class App : Application() {
 
     /** All loaded plugins; cached here so [stop] can shut them down cleanly. */
     private lateinit var plugins: List<DmPlugin>
+
+    /** Manages the recursive split-pane layout of the DM panel. */
+    private var dmLayoutManager: DmLayoutManager? = null
 
     override fun start(primaryStage: Stage) {
         // Discover plugins first so both scenes can reference them.
@@ -60,7 +64,9 @@ class App : Application() {
     }
 
     override fun stop() {
-        // Give every plugin the chance to release its resources
+        // Persist the current split-pane layout before shutting down.
+        dmLayoutManager?.saveLayout()
+        // Give every plugin the chance to release its resources.
         plugins.forEach { it.onShutdown() }
     }
 
@@ -88,37 +94,31 @@ class App : Application() {
     /**
      * Builds the DM panel [Scene].
      *
-     * Each loaded plugin gets its own [Tab] (non-closable) containing the node
-     * returned by [DmPlugin.createView].  A built-in **Display** tab is always
-     * appended at the end, allowing the DM to choose which screen the Table View
-     * is shown on.
+     * The panel uses a recursive split-pane layout managed by [DmLayoutManager].
+     * On the very first run the layout contains a single pane showing the first
+     * loaded plugin; subsequent runs restore the previously saved layout from disk.
+     *
+     * A toolbar at the top allows the DM to move the table view to any connected screen.
      */
     private fun buildDmScene(plugins: List<DmPlugin>, tableStage: Stage): Scene {
-        val tabPane = TabPane()
-        if (plugins.isEmpty()) {
-            val placeholder = Tab("—", StackPane(Label("DM Panel — no plugins loaded")))
-            placeholder.isClosable = false
-            tabPane.tabs.add(placeholder)
-        } else {
-            plugins.forEach { plugin ->
-                val tab = Tab(plugin.displayName, plugin.createView())
-                tab.isClosable = false
-                tabPane.tabs.add(tab)
-            }
-        }
-        tabPane.tabs.add(buildDisplayTab(tableStage))
-        return Scene(tabPane, 800.0, 600.0)
+        val layoutManager = DmLayoutManager(plugins).also { dmLayoutManager = it }
+
+        val root = BorderPane()
+        root.top = buildDisplayToolbar(tableStage)
+        root.center = layoutManager.container
+
+        return Scene(root, 1280.0, 720.0)
     }
 
     /**
-     * Builds the built-in **Display** tab that lets the DM choose which screen
-     * the Table View is shown on.
+     * Builds a slim toolbar at the top of the DM panel that lets the DM choose
+     * which screen the Table View is shown on and move it there.
      *
      * Moving the Table View to another screen temporarily exits fullscreen,
      * repositions the window to the target screen's origin, then re-enters
      * fullscreen so it fills that display.
      */
-    private fun buildDisplayTab(tableStage: Stage): Tab {
+    private fun buildDisplayToolbar(tableStage: Stage): ToolBar {
         val screens = Screen.getScreens()
 
         val screenCombo = ComboBox<Screen>()
@@ -146,12 +146,11 @@ class App : Application() {
             }
         }
 
-        val content = VBox(8.0, Label("Table View screen:"), screenCombo, moveButton)
-        content.padding = Insets(16.0)
+        // Spacer pushes screen controls to the right so the layout area is uncluttered.
+        val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
+        val label = Label("Table View screen:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
 
-        val tab = Tab("Display", content)
-        tab.isClosable = false
-        return tab
+        return ToolBar(spacer, label, screenCombo, moveButton)
     }
 }
 

@@ -47,6 +47,46 @@ tabletopcontrol/
 
 ---
 
+## DM Panel Layout System
+
+The DM Panel uses a **recursive split-pane layout** so the DM can view and control all plugins simultaneously from a single window, without switching tabs.
+
+### Design
+
+- The layout is modelled as an immutable binary tree (`PaneNode`):
+  - `Leaf(pluginName)` — shows one plugin.
+  - `Split(orientation, dividerPosition, first, second)` — divides the space between two child `PaneNode`s.
+- `DmLayoutManager` converts the tree into a live JavaFX node hierarchy (nested `SplitPane`s) and handles structural changes.
+- On a structural change (split / close / change plugin) the entire sub-tree is rebuilt from the new tree model.
+- On shutdown, `syncDividers` walks the live JavaFX hierarchy to read the current divider positions back into the tree before persisting it.
+
+### Persistence
+
+- The layout is serialised as a compact S-expression and stored in `~/.tabletopcontrol/dm-layout.conf`:
+  ```
+  leaf(Map)
+  split(HORIZONTAL,0.5,leaf(Map),split(VERTICAL,0.3,leaf(Audio),leaf(Tracker)))
+  ```
+- On startup the saved file is loaded and the layout restored; if the file is absent or corrupt the default layout (single pane, first plugin) is used.
+
+### Right-Click Context Menu
+
+Right-click anywhere on a leaf pane to access:
+- **Add Panel to Right** — splits horizontally; new pane appears on the right.
+- **Add Panel Below** — splits vertically; new pane appears below.
+- **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
+- **Close Pane** — remove this pane (disabled when only one pane remains).
+
+### Key Files
+
+| Path | Purpose |
+|------|---------|
+| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `removeNode` helpers |
+| `core/src/.../LayoutSerializer.kt` | S-expression serialiser/deserialiser; file I/O |
+| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu, divider sync |
+
+---
+
 ## Coding Conventions
 
 - **Language:** Kotlin idioms are preferred over Java-style patterns (data classes, extension functions, sealed classes, coroutines where appropriate).
