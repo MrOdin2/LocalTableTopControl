@@ -45,12 +45,20 @@ object LayoutSerializer {
      *
      * @return The parsed tree, or `null` if [text] is empty, blank, or malformed.
      */
-    fun deserialize(text: String): PaneNode? =
-        try {
-            Parser(text.trim()).parseNode()
+    fun deserialize(text: String): PaneNode? {
+        return try {
+            val trimmed = text.trim()
+            if (trimmed.isEmpty()) {
+                null
+            } else {
+                val node = Parser(trimmed).parseNode()
+                val canonical = serialize(node)
+                if (canonical == trimmed) node else null
+            }
         } catch (_: Exception) {
             null
         }
+    }
 
     // ── Persistence ──────────────────────────────────────────────────────────
 
