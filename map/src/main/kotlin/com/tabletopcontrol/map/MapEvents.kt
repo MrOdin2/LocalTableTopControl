@@ -31,8 +31,37 @@ data class FogOfWarCellEvent(val col: Int, val row: Int, val revealed: Boolean)
 data class FogOfWarResetEvent(val revealAll: Boolean)
 
 /**
- * Event fired when the DM changes the map calibration.
+ * Event fired when the DM applies new map-image calibration.
  *
  * @property calibration the new [MapCalibration] to apply.
  */
 data class MapCalibrationEvent(val calibration: MapCalibration)
+
+/**
+ * Event fired when the DM applies new grid calibration.
+ *
+ * @property calibration the new [GridCalibration] to apply.
+ */
+data class GridCalibrationEvent(val calibration: GridCalibration)
+
+/**
+ * Event fired to enable or disable the grid calibration overlay.
+ *
+ * When [active] is `true` the renderer draws a crosshair at the canvas centre
+ * so the DM can align the grid origin.  Set to `false` when the calibration
+ * dialog is closed.
+ *
+ * @property active `true` to show the crosshair; `false` to hide it.
+ */
+data class GridCalibrationModeEvent(val active: Boolean)
+
+/**
+ * Event fired to enable or disable the map calibration overlay.
+ *
+ * When [active] is `true` the renderer draws a red dot at the canvas centre
+ * so the DM can align a reference point on the map image.  Set to `false`
+ * when the calibration dialog is closed.
+ *
+ * @property active `true` to show the centre dot; `false` to hide it.
+ */
+data class MapCalibrationModeEvent(val active: Boolean)

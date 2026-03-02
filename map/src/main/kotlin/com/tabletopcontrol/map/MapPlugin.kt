@@ -2,34 +2,55 @@ package com.tabletopcontrol.map
 
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
+import javafx.event.ActionEvent
 import javafx.geometry.Insets
+import javafx.geometry.Orientation
 import javafx.scene.Node
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
+import javafx.scene.control.ButtonType
 import javafx.scene.control.CheckBox
+import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
+import javafx.scene.input.MouseButton
+import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
+import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
+import javafx.stage.Window
+import kotlin.math.floor
 
 /**
- * DM-panel plugin that exposes map-viewer controls.
+ * DM-panel plugin that exposes map-viewer controls and a live minimap preview.
  *
  * Controls provided:
+ * - **Minimap preview** — a scaled-down live view of the table screen, showing the
+ *   current map image, grid overlay, and fog-of-war state.
  * - **Load map** — opens a file chooser and publishes [MapLoadEvent].
- * - **Scale / calibration** — input fields for pixels-per-unit and scale factor,
- *   publishing [MapCalibrationEvent] on apply.
- * - **Grid** — toggle checkbox and cell-size field, publishing [GridUpdateEvent].
+ * - **Calibrate Map…** — opens a pop-up dialog for adjusting the map image
+ *   scale and centre offset; publishes [MapCalibrationEvent] on every field change
+ *   for live feedback and restores the original calibration if the dialog is cancelled.
+ * - **Grid** — toggle checkbox and apply button, publishing [GridUpdateEvent].
+ * - **Calibrate Grid…** — opens a pop-up dialog for adjusting the grid cell size,
+ *   scale, and centre offset; publishes [GridCalibrationEvent] on every field change
+ *   for live feedback and restores the original calibration if the dialog is cancelled.
  * - **Fog of war** — reveal-all / hide-all buttons, publishing [FogOfWarResetEvent].
  */
 class MapPlugin : DmPlugin {
 
     override val displayName: String = "Map"
     override val iconPath: String? = null
+
+    /** The most recently confirmed map calibration; used to restore on dialog cancel. */
+    private var lastMapCalibration: MapCalibration = MapCalibration()
+
+    /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
+    private var lastGridCalibration: GridCalibration = GridCalibration()
 
     /**
      * Creates the table-screen [Node] — a [Canvas] backed by a [MapRenderer] that
@@ -61,22 +82,22 @@ class MapPlugin : DmPlugin {
     /**
      * Creates the DM-panel [Node] containing all map controls.
      *
-     * Each control publishes an event on the [EventBus]; the [MapRenderer]
-     * (running on the table screen) subscribes to those events and redraws.
+     * The central element is a [Canvas] minimap that fills all available vertical
+     * space in the pane and mirrors the table screen.  Below it a compact two-row
+     * toolbar holds every control so they consume minimal fixed space:
+     * - Row 1 — Load map button, path readout, Calibrate Map button.
+     * - Row 2 — Show grid checkbox, Apply Grid, Calibrate Grid, Reveal All, Hide All.
      */
     override fun createView(): Node {
-        val vbox = VBox(8.0).apply { padding = Insets(10.0) }
+        val vbox = VBox(4.0).apply { padding = Insets(4.0) }
+
+        val minimapSection = buildMinimapSection()
+        VBox.setVgrow(minimapSection, Priority.ALWAYS)
 
         vbox.children.addAll(
-            Label("Map Controls"),
+            minimapSection,
             Separator(),
-            buildLoadSection(),
-            Separator(),
-            buildCalibrationSection(),
-            Separator(),
-            buildGridSection(),
-            Separator(),
-            buildFogOfWarSection(),
+            buildCompactControls(),
         )
 
         return vbox
@@ -92,29 +113,247 @@ class MapPlugin : DmPlugin {
         errorLabel.text = message
     }
 
-    /** Clears the red border on [field] and hides [errorLabel]. */
-    private fun clearFieldError(field: TextField, errorLabel: Label) {
-        field.style = ""
-        errorLabel.text = ""
-    }
-
     /** Clears red borders and error text from all [fields] and resets [errorLabel]. */
     private fun clearAllFieldErrors(vararg fields: TextField, errorLabel: Label) {
         fields.forEach { it.style = "" }
         errorLabel.text = ""
     }
 
-    /** Builds the "Load map" control row. */
-    private fun buildLoadSection(): VBox {
+    /**
+     * Wraps [field] in an [HBox] with decrement (`−`) and increment (`+`) buttons.
+     *
+     * Each button adjusts the field's numeric value by [step] and then invokes
+     * [onChanged] so the caller can publish a live calibration event.
+     *
+     * @param field     the [TextField] to wrap.
+     * @param step      amount to add or subtract on each button press.
+     * @param onChanged callback invoked after each button-triggered change.
+     * @return an [HBox] containing `[−] [field] [+]`.
+     */
+    private fun buildStepRow(field: TextField, step: Double, onChanged: () -> Unit): HBox {
+        fun adjust(delta: Double) {
+            val current = field.text.toDoubleOrNull() ?: 0.0
+            field.text = formatDouble(current + delta)
+            onChanged()
+        }
+        val decBtn = Button("−").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Decrease by $step")
+            setOnAction { adjust(-step) }
+        }
+        val incBtn = Button("+").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Increase by $step")
+            setOnAction { adjust(step) }
+        }
+        HBox.setHgrow(field, Priority.ALWAYS)
+        return HBox(4.0, decBtn, field, incBtn)
+    }
+
+    /**
+     * Formats [value] as a compact string: whole numbers are shown without a
+     * decimal point; fractional values are shown with up to four significant digits.
+     */
+    private fun formatDouble(value: Double): String =
+        if (value == floor(value) && !value.isInfinite()) {
+            value.toLong().toString()
+        } else {
+            "%.4g".format(value)
+        }
+
+    /**
+     * Builds the minimap preview section.
+     *
+     * A [Canvas] is placed inside a [Pane] subclass that resizes it to fill all
+     * available space on every layout pass, so the minimap grows and shrinks with
+     * the DM panel.  A second [MapRenderer] instance is created for this canvas and
+     * automatically subscribes to all map events, keeping the content in sync with
+     * the table screen.
+     *
+     * The minimap has its own independent viewport that does **not** affect the
+     * table-view renderer:
+     * - **Drag** (left button) on the canvas to pan.
+     * - **Scroll wheel** to zoom in/out around the canvas centre.
+     * - **`−`/`+`** buttons to zoom out/in by 25 % per click.
+     * - **◀ ▶ ▲ ▼** buttons to pan by 20 canvas-space pixels per click.
+     * - **Reset** button to restore the default view (scale 1, no offset).
+     */
+    private fun buildMinimapSection(): VBox {
+        val minimapCanvas = Canvas(1.0, 1.0)
+        val minimapRenderer = MapRenderer(minimapCanvas)
+
+        // A Pane that keeps the canvas sized to fill its layout bounds.
+        val canvasPane = object : Pane() {
+            init {
+                children.add(minimapCanvas)
+                style = "-fx-border-color: gray;"
+                minHeight = 80.0
+            }
+
+            override fun layoutChildren() {
+                // Use a 0.5 px threshold to avoid superfluous redraws during
+                // sub-pixel layout adjustments.
+                if (Math.abs(minimapCanvas.width - width) > 0.5 ||
+                    Math.abs(minimapCanvas.height - height) > 0.5
+                ) {
+                    minimapCanvas.width = width
+                    minimapCanvas.height = height
+                    minimapRenderer.redraw()
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Pan step (canvas-space pixels per button press)
+        // ------------------------------------------------------------------
+        val panStep = 20.0
+        val zoomFactor = 1.25
+        val minScale = 0.125
+        val maxScale = 8.0
+
+        fun resetViewport() {
+            minimapRenderer.viewportScale = 1.0
+            minimapRenderer.viewportOffsetX = 0.0
+            minimapRenderer.viewportOffsetY = 0.0
+            minimapRenderer.redraw()
+        }
+
+        // ------------------------------------------------------------------
+        // Mouse drag to pan
+        // ------------------------------------------------------------------
+        var dragStartX = 0.0
+        var dragStartY = 0.0
+        var dragStartOffX = 0.0
+        var dragStartOffY = 0.0
+
+        minimapCanvas.setOnMousePressed { e ->
+            if (e.button == MouseButton.PRIMARY) {
+                dragStartX = e.x
+                dragStartY = e.y
+                dragStartOffX = minimapRenderer.viewportOffsetX
+                dragStartOffY = minimapRenderer.viewportOffsetY
+            }
+        }
+        minimapCanvas.setOnMouseDragged { e ->
+            if (e.isPrimaryButtonDown) {
+                minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
+                minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
+                minimapRenderer.redraw()
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Scroll wheel to zoom from the canvas centre
+        // ------------------------------------------------------------------
+        minimapCanvas.setOnScroll { e ->
+            val factor = if (e.deltaY > 0) zoomFactor else 1.0 / zoomFactor
+            minimapRenderer.viewportScale =
+                (minimapRenderer.viewportScale * factor).coerceIn(minScale, maxScale)
+            minimapRenderer.redraw()
+        }
+
+        // ------------------------------------------------------------------
+        // Zoom buttons
+        // ------------------------------------------------------------------
+        val zoomOutBtn = Button("−").apply {
+            tooltip = Tooltip("Zoom out (minimap only)")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportScale =
+                    (minimapRenderer.viewportScale / zoomFactor).coerceAtLeast(minScale)
+                minimapRenderer.redraw()
+            }
+        }
+        val zoomInBtn = Button("+").apply {
+            tooltip = Tooltip("Zoom in (minimap only)")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportScale =
+                    (minimapRenderer.viewportScale * zoomFactor).coerceAtMost(maxScale)
+                minimapRenderer.redraw()
+            }
+        }
+        val resetBtn = Button("Reset").apply {
+            tooltip = Tooltip("Reset minimap zoom and pan to default")
+            setOnAction { resetViewport() }
+        }
+
+        // ------------------------------------------------------------------
+        // Pan buttons
+        // ------------------------------------------------------------------
+        val panLeft = Button("◀").apply {
+            tooltip = Tooltip("Pan view left")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetX -= panStep
+                minimapRenderer.redraw()
+            }
+        }
+        val panRight = Button("▶").apply {
+            tooltip = Tooltip("Pan view right")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetX += panStep
+                minimapRenderer.redraw()
+            }
+        }
+        val panUp = Button("▲").apply {
+            tooltip = Tooltip("Pan view up")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetY -= panStep
+                minimapRenderer.redraw()
+            }
+        }
+        val panDown = Button("▼").apply {
+            tooltip = Tooltip("Pan view down")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetY += panStep
+                minimapRenderer.redraw()
+            }
+        }
+
+        val controlsRow = HBox(
+            4.0,
+            zoomOutBtn, zoomInBtn, resetBtn,
+            Label("  "),
+            panLeft, panUp, panDown, panRight,
+        )
+
+        val section = VBox(4.0, canvasPane, controlsRow)
+        VBox.setVgrow(canvasPane, Priority.ALWAYS)
+        return section
+    }
+
+    // -------------------------------------------------------------------------
+    // Compact controls toolbar
+    // -------------------------------------------------------------------------
+
+    /**
+     * Builds the compact two-row controls strip shown below the minimap.
+     *
+     * **Row 1 — Map image:**
+     * `[Load Map…]  [path readout (grows)]  [Calibrate Map…]`
+     *
+     * **Row 2 — Grid & Fog of war:**
+     * `[☐ Show grid]  [Apply Grid]  [Calibrate Grid…]  │  [Reveal All]  [Hide All]`
+     *
+     * Every element publishes the appropriate [EventBus] event; the calibration
+     * buttons open their respective pop-up dialogs.
+     */
+    private fun buildCompactControls(): VBox {
+        // --- Row 1: Map image ---
         val pathField = TextField().apply {
             isEditable = false
             promptText = "No map loaded"
             tooltip = Tooltip("Path to the currently loaded map image")
         }
+        HBox.setHgrow(pathField, Priority.ALWAYS)
 
-        val loadBtn = Button("Load map…").apply {
+        val loadBtn = Button("Load Map…").apply {
             tooltip = Tooltip("Open a map image file")
-            setOnAction {
+            setOnAction { e ->
                 val chooser = FileChooser().apply {
                     title = "Select map image"
                     extensionFilters.addAll(
@@ -122,8 +361,7 @@ class MapPlugin : DmPlugin {
                         FileChooser.ExtensionFilter("All files", "*.*"),
                     )
                 }
-                // Use the button's own window as owner so the dialog is modal to the DM panel.
-                val owner = (it.source as? Button)?.scene?.window
+                val owner = (e.source as? Button)?.scene?.window
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     pathField.text = file.absolutePath
@@ -132,103 +370,283 @@ class MapPlugin : DmPlugin {
             }
         }
 
-        return VBox(4.0, Label("Map image"), loadBtn, pathField)
-    }
-
-    /** Builds the calibration (scale + offset) control section. */
-    private fun buildCalibrationSection(): VBox {
-        val pxPerUnitField = TextField("50").apply {
-            tooltip = Tooltip("Image pixels that equal one game unit (e.g. 5 ft)")
-        }
-        val scaleField = TextField("1.0").apply {
-            tooltip = Tooltip("Uniform zoom factor (1.0 = no zoom)")
-        }
-        val offsetXField = TextField("0").apply {
-            tooltip = Tooltip("Horizontal offset in canvas pixels")
-        }
-        val offsetYField = TextField("0").apply {
-            tooltip = Tooltip("Vertical offset in canvas pixels")
-        }
-        val errorLabel = Label().apply { textFill = Color.RED }
-
-        val applyBtn = Button("Apply calibration").apply {
-            setOnAction {
-                val ppu = pxPerUnitField.text.toDoubleOrNull()
-                val scale = scaleField.text.toDoubleOrNull()
-                val ox = offsetXField.text.toDoubleOrNull()
-                val oy = offsetYField.text.toDoubleOrNull()
-
-                // Clear all errors before re-validating to avoid stale highlights.
-                clearAllFieldErrors(pxPerUnitField, scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
-
-                when {
-                    ppu == null || ppu <= 0 ->
-                        showFieldError(pxPerUnitField, errorLabel, "Pixels per unit must be a positive number.")
-                    scale == null || scale <= 0 ->
-                        showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
-                    ox == null ->
-                        showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
-                    oy == null ->
-                        showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
-                    else ->
-                        EventBus.publish(MapCalibrationEvent(MapCalibration(ppu, ox, oy, scale)))
-                }
+        val calibrateMapBtn = Button("Calibrate Map…").apply {
+            tooltip = Tooltip("Adjust map image scale and centre position")
+            setOnAction { e ->
+                showMapCalibrationDialog((e.source as? Button)?.scene?.window)
             }
         }
 
-        return VBox(
-            4.0,
-            Label("Calibration"),
-            Label("Pixels per unit:"), pxPerUnitField,
-            Label("Scale:"), scaleField,
-            Label("Offset X:"), offsetXField,
-            Label("Offset Y:"), offsetYField,
-            applyBtn,
-            errorLabel,
-        )
-    }
+        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn)
 
-    /** Builds the grid overlay control section. */
-    private fun buildGridSection(): VBox {
-        val cellSizeField = TextField("1.0").apply {
-            tooltip = Tooltip("Grid cell size in game units")
+        // --- Row 2: Grid + Fog of war ---
+        val visibleCheck = CheckBox("Show Grid").apply {
+            isSelected = false
+            tooltip = Tooltip("Toggle grid overlay visibility")
         }
-        val visibleCheck = CheckBox("Show grid").apply { isSelected = false }
-        val errorLabel = Label().apply { textFill = Color.RED }
 
-        val applyBtn = Button("Apply grid").apply {
+        val applyGridBtn = Button("Apply Grid").apply {
+            tooltip = Tooltip("Publish the current grid visibility setting")
             setOnAction {
-                // Hiding the grid does not require a valid cell size.
-                if (!visibleCheck.isSelected) {
-                    clearFieldError(cellSizeField, errorLabel)
-                    EventBus.publish(GridUpdateEvent(null))
-                    return@setOnAction
-                }
-                val cellSize = cellSizeField.text.toDoubleOrNull()
-                if (cellSize == null || cellSize <= 0) {
-                    showFieldError(cellSizeField, errorLabel, "Cell size must be a positive number.")
-                } else {
-                    clearFieldError(cellSizeField, errorLabel)
-                    EventBus.publish(GridUpdateEvent(GridConfig(cellSizeInUnits = cellSize)))
-                }
+                EventBus.publish(
+                    if (!visibleCheck.isSelected) GridUpdateEvent(null)
+                    else GridUpdateEvent(GridConfig()),
+                )
             }
         }
 
-        return VBox(4.0, Label("Grid"), Label("Cell size (units):"), cellSizeField, visibleCheck, applyBtn, errorLabel)
-    }
+        val calibrateGridBtn = Button("Calibrate Grid…").apply {
+            tooltip = Tooltip("Adjust grid cell size and centre position")
+            setOnAction { e ->
+                showGridCalibrationDialog((e.source as? Button)?.scene?.window)
+            }
+        }
 
-    /** Builds the fog-of-war control section. */
-    private fun buildFogOfWarSection(): VBox {
-        val revealAllBtn = Button("Reveal all").apply {
+        val revealAllBtn = Button("Reveal All").apply {
             tooltip = Tooltip("Remove fog from the entire map")
             setOnAction { EventBus.publish(FogOfWarResetEvent(revealAll = true)) }
         }
 
-        val hideAllBtn = Button("Hide all").apply {
+        val hideAllBtn = Button("Hide All").apply {
             tooltip = Tooltip("Cover the entire map with fog")
             setOnAction { EventBus.publish(FogOfWarResetEvent(revealAll = false)) }
         }
 
-        return VBox(4.0, Label("Fog of war"), revealAllBtn, hideAllBtn)
+        val fowSep = Separator(Orientation.VERTICAL)
+        val gridFowRow = HBox(4.0, visibleCheck, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
+
+        return VBox(4.0, mapRow, gridFowRow)
+    }
+
+    // -------------------------------------------------------------------------
+    // Calibration dialogs
+    // -------------------------------------------------------------------------
+
+    /**
+     * Opens the map-image calibration dialog.
+     *
+     * While the dialog is open a red dot is shown at the canvas centre on the
+     * table view (via [MapCalibrationModeEvent]) so the DM can align a reference
+     * point on the map image.
+     *
+     * Every field change immediately publishes a [MapCalibrationEvent] for live
+     * feedback in the minimap and table view.  Clicking **Apply** confirms the
+     * current values; clicking **Cancel** or closing the dialog restores the
+     * calibration that was active when the dialog opened.
+     *
+     * @param owner optional owner window for modality.
+     */
+    private fun showMapCalibrationDialog(owner: Window?) {
+        val saved = lastMapCalibration
+
+        val dialog = Dialog<ButtonType>().apply {
+            title = "Calibrate Map"
+            headerText = "Adjust the map image scale and position.\n" +
+                "A red dot marks the canvas centre — align it with a known reference point on the map.\n" +
+                "Changes are previewed live; Cancel restores the previous calibration."
+            initOwner(owner)
+        }
+
+        EventBus.publish(MapCalibrationModeEvent(active = true))
+
+        val scaleField = TextField(formatDouble(saved.scale)).apply {
+            tooltip = Tooltip("Uniform zoom factor (1.0 = no zoom)")
+            prefColumnCount = 8
+        }
+        val offsetXField = TextField(formatDouble(saved.offsetX)).apply {
+            tooltip = Tooltip("Horizontal displacement of the image centre from the canvas centre (px)")
+            prefColumnCount = 8
+        }
+        val offsetYField = TextField(formatDouble(saved.offsetY)).apply {
+            tooltip = Tooltip("Vertical displacement of the image centre from the canvas centre (px)")
+            prefColumnCount = 8
+        }
+        val errorLabel = Label().apply { textFill = Color.RED }
+
+        /** Attempts to parse current field values and publish a live preview event. */
+        fun tryPublishLive() {
+            val scale = scaleField.text.toDoubleOrNull() ?: return
+            val ox = offsetXField.text.toDoubleOrNull() ?: return
+            val oy = offsetYField.text.toDoubleOrNull() ?: return
+            if (scale <= 0) return
+            EventBus.publish(MapCalibrationEvent(MapCalibration(scale, ox, oy)))
+        }
+
+        // Attach live-feedback listeners to all three fields.
+        scaleField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetXField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetYField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+
+        dialog.dialogPane.content = VBox(
+            8.0,
+            Label("Scale:"), buildStepRow(scaleField, 0.05) { tryPublishLive() },
+            Label("Offset X (px from centre):"), buildStepRow(offsetXField, 5.0) { tryPublishLive() },
+            Label("Offset Y (px from centre):"), buildStepRow(offsetYField, 5.0) { tryPublishLive() },
+            errorLabel,
+        )
+        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+
+        var confirmed = false
+
+        // Validate on Apply — consume the event to keep the dialog open on error.
+        dialog.dialogPane.lookupButton(ButtonType.APPLY)
+            .addEventFilter(ActionEvent.ACTION) { evt ->
+                val scale = scaleField.text.toDoubleOrNull()
+                val ox = offsetXField.text.toDoubleOrNull()
+                val oy = offsetYField.text.toDoubleOrNull()
+
+                clearAllFieldErrors(scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
+
+                when {
+                    scale == null || scale <= 0 -> {
+                        showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
+                        evt.consume()
+                    }
+                    ox == null -> {
+                        showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
+                        evt.consume()
+                    }
+                    oy == null -> {
+                        showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
+                        evt.consume()
+                    }
+                    else -> {
+                        lastMapCalibration = MapCalibration(scale, ox, oy)
+                        EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                        confirmed = true
+                    }
+                }
+            }
+
+        dialog.setOnHidden {
+            EventBus.publish(MapCalibrationModeEvent(active = false))
+            // Restore the saved calibration when the dialog is dismissed without Apply.
+            if (!confirmed) {
+                lastMapCalibration = saved
+                EventBus.publish(MapCalibrationEvent(saved))
+            }
+        }
+
+        dialog.showAndWait()
+    }
+
+    /**
+     * Opens the grid calibration dialog.
+     *
+     * While the dialog is open a yellow crosshair is shown through the canvas
+     * centre on the table view (via [GridCalibrationModeEvent]).  The intersection
+     * marks the scale origin and grid origin for all scale operations.
+     *
+     * Every field change immediately publishes a [GridCalibrationEvent] for live
+     * feedback in the minimap and table view.  Clicking **Apply** confirms the
+     * current values; clicking **Cancel** or closing the dialog restores the
+     * calibration that was active when the dialog opened.
+     *
+     * @param owner optional owner window for modality.
+     */
+    private fun showGridCalibrationDialog(owner: Window?) {
+        val saved = lastGridCalibration
+
+        val dialog = Dialog<ButtonType>().apply {
+            title = "Calibrate Grid"
+            headerText = "Adjust the grid cell size and position.\n" +
+                "A yellow crosshair marks the canvas centre — this is the origin for all scale operations.\n" +
+                "Changes are previewed live; Cancel restores the previous calibration."
+            initOwner(owner)
+        }
+
+        EventBus.publish(GridCalibrationModeEvent(active = true))
+
+        val cellSizeField = TextField(formatDouble(saved.cellSizeInPixels)).apply {
+            tooltip = Tooltip("Grid cell size in canvas pixels at scale 1.0")
+            prefColumnCount = 8
+        }
+        val scaleField = TextField(formatDouble(saved.scale)).apply {
+            tooltip = Tooltip("Zoom factor applied from the canvas centre (1.0 = no zoom)")
+            prefColumnCount = 8
+        }
+        val offsetXField = TextField(formatDouble(saved.offsetX)).apply {
+            tooltip = Tooltip("Horizontal displacement of the grid origin from the canvas centre (px)")
+            prefColumnCount = 8
+        }
+        val offsetYField = TextField(formatDouble(saved.offsetY)).apply {
+            tooltip = Tooltip("Vertical displacement of the grid origin from the canvas centre (px)")
+            prefColumnCount = 8
+        }
+        val errorLabel = Label().apply { textFill = Color.RED }
+
+        /** Attempts to parse current field values and publish a live preview event. */
+        fun tryPublishLive() {
+            val cellSize = cellSizeField.text.toDoubleOrNull() ?: return
+            val scale = scaleField.text.toDoubleOrNull() ?: return
+            val ox = offsetXField.text.toDoubleOrNull() ?: return
+            val oy = offsetYField.text.toDoubleOrNull() ?: return
+            if (cellSize <= 0 || scale <= 0) return
+            EventBus.publish(GridCalibrationEvent(GridCalibration(cellSize, scale, ox, oy)))
+        }
+
+        // Attach live-feedback listeners to all four fields.
+        cellSizeField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        scaleField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetXField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetYField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+
+        dialog.dialogPane.content = VBox(
+            8.0,
+            Label("Cell size (px):"), buildStepRow(cellSizeField, 1.0) { tryPublishLive() },
+            Label("Scale:"), buildStepRow(scaleField, 0.05) { tryPublishLive() },
+            Label("Offset X (px from centre):"), buildStepRow(offsetXField, 1.0) { tryPublishLive() },
+            Label("Offset Y (px from centre):"), buildStepRow(offsetYField, 1.0) { tryPublishLive() },
+            errorLabel,
+        )
+        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+
+        var confirmed = false
+
+        // Validate on Apply — consume the event to keep the dialog open on error.
+        dialog.dialogPane.lookupButton(ButtonType.APPLY)
+            .addEventFilter(ActionEvent.ACTION) { evt ->
+                val cellSize = cellSizeField.text.toDoubleOrNull()
+                val scale = scaleField.text.toDoubleOrNull()
+                val ox = offsetXField.text.toDoubleOrNull()
+                val oy = offsetYField.text.toDoubleOrNull()
+
+                clearAllFieldErrors(cellSizeField, scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
+
+                when {
+                    cellSize == null || cellSize <= 0 -> {
+                        showFieldError(cellSizeField, errorLabel, "Cell size must be a positive number.")
+                        evt.consume()
+                    }
+                    scale == null || scale <= 0 -> {
+                        showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
+                        evt.consume()
+                    }
+                    ox == null -> {
+                        showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
+                        evt.consume()
+                    }
+                    oy == null -> {
+                        showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
+                        evt.consume()
+                    }
+                    else -> {
+                        lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
+                        EventBus.publish(GridCalibrationEvent(lastGridCalibration))
+                        confirmed = true
+                    }
+                }
+            }
+
+        dialog.setOnHidden {
+            EventBus.publish(GridCalibrationModeEvent(active = false))
+            // Restore the saved calibration when the dialog is dismissed without Apply.
+            if (!confirmed) {
+                lastGridCalibration = saved
+                EventBus.publish(GridCalibrationEvent(saved))
+            }
+        }
+
+        dialog.showAndWait()
     }
 }
