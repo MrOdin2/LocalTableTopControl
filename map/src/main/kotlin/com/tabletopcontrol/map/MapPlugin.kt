@@ -4,6 +4,7 @@ import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import javafx.event.ActionEvent
 import javafx.geometry.Insets
+import javafx.geometry.Orientation
 import javafx.scene.Node
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
@@ -81,25 +82,22 @@ class MapPlugin : DmPlugin {
     /**
      * Creates the DM-panel [Node] containing all map controls.
      *
-     * The central element is a [Canvas] minimap that mirrors the table screen at a
-     * reduced scale.  Each control publishes an event on the [EventBus]; the
-     * [MapRenderer] instances (table view and minimap) subscribe to those events.
+     * The central element is a [Canvas] minimap that fills all available vertical
+     * space in the pane and mirrors the table screen.  Below it a compact two-row
+     * toolbar holds every control so they consume minimal fixed space:
+     * - Row 1 — Load map button, path readout, Calibrate Map button.
+     * - Row 2 — Show grid checkbox, Apply Grid, Calibrate Grid, Reveal All, Hide All.
      */
     override fun createView(): Node {
-        val vbox = VBox(8.0).apply { padding = Insets(10.0) }
+        val vbox = VBox(4.0).apply { padding = Insets(4.0) }
+
+        val minimapSection = buildMinimapSection()
+        VBox.setVgrow(minimapSection, Priority.ALWAYS)
 
         vbox.children.addAll(
-            Label("Map Controls"),
+            minimapSection,
             Separator(),
-            buildMinimapSection(),
-            Separator(),
-            buildLoadSection(),
-            Separator(),
-            buildMapCalibrationSection(),
-            Separator(),
-            buildGridSection(),
-            Separator(),
-            buildFogOfWarSection(),
+            buildCompactControls(),
         )
 
         return vbox
@@ -166,8 +164,11 @@ class MapPlugin : DmPlugin {
     /**
      * Builds the minimap preview section.
      *
-     * A [MapRenderer] is created for the minimap canvas and automatically subscribes
-     * to all map events, so the content stays in sync with the table screen.
+     * A [Canvas] is placed inside a [Pane] subclass that resizes it to fill all
+     * available space on every layout pass, so the minimap grows and shrinks with
+     * the DM panel.  A second [MapRenderer] instance is created for this canvas and
+     * automatically subscribes to all map events, keeping the content in sync with
+     * the table screen.
      *
      * The minimap has its own independent viewport that does **not** affect the
      * table-view renderer:
@@ -178,12 +179,29 @@ class MapPlugin : DmPlugin {
      * - **Reset** button to restore the default view (scale 1, no offset).
      */
     private fun buildMinimapSection(): VBox {
-        val minimapCanvas = Canvas(320.0, 180.0).apply {
-            style = "-fx-border-color: gray;"
-            isFocusTraversable = false
-        }
-        // The renderer subscribes to all map events in its init block.
+        val minimapCanvas = Canvas(1.0, 1.0)
         val minimapRenderer = MapRenderer(minimapCanvas)
+
+        // A Pane that keeps the canvas sized to fill its layout bounds.
+        val canvasPane = object : Pane() {
+            init {
+                children.add(minimapCanvas)
+                style = "-fx-border-color: gray;"
+                minHeight = 80.0
+            }
+
+            override fun layoutChildren() {
+                // Use a 0.5 px threshold to avoid superfluous redraws during
+                // sub-pixel layout adjustments.
+                if (Math.abs(minimapCanvas.width - width) > 0.5 ||
+                    Math.abs(minimapCanvas.height - height) > 0.5
+                ) {
+                    minimapCanvas.width = width
+                    minimapCanvas.height = height
+                    minimapRenderer.redraw()
+                }
+            }
+        }
 
         // ------------------------------------------------------------------
         // Pan step (canvas-space pixels per button press)
@@ -303,20 +321,39 @@ class MapPlugin : DmPlugin {
             panLeft, panUp, panDown, panRight,
         )
 
-        return VBox(4.0, Label("Preview (drag to pan, scroll to zoom)"), minimapCanvas, controlsRow)
+        val section = VBox(4.0, canvasPane, controlsRow)
+        VBox.setVgrow(canvasPane, Priority.ALWAYS)
+        return section
     }
 
-    /** Builds the "Load map" control row. */
-    private fun buildLoadSection(): VBox {
+    // -------------------------------------------------------------------------
+    // Compact controls toolbar
+    // -------------------------------------------------------------------------
+
+    /**
+     * Builds the compact two-row controls strip shown below the minimap.
+     *
+     * **Row 1 — Map image:**
+     * `[Load Map…]  [path readout (grows)]  [Calibrate Map…]`
+     *
+     * **Row 2 — Grid & Fog of war:**
+     * `[☐ Show grid]  [Apply Grid]  [Calibrate Grid…]  │  [Reveal All]  [Hide All]`
+     *
+     * Every element publishes the appropriate [EventBus] event; the calibration
+     * buttons open their respective pop-up dialogs.
+     */
+    private fun buildCompactControls(): VBox {
+        // --- Row 1: Map image ---
         val pathField = TextField().apply {
             isEditable = false
             promptText = "No map loaded"
             tooltip = Tooltip("Path to the currently loaded map image")
         }
+        HBox.setHgrow(pathField, Priority.ALWAYS)
 
-        val loadBtn = Button("Load map…").apply {
+        val loadBtn = Button("Load Map…").apply {
             tooltip = Tooltip("Open a map image file")
-            setOnAction {
+            setOnAction { e ->
                 val chooser = FileChooser().apply {
                     title = "Select map image"
                     extensionFilters.addAll(
@@ -324,8 +361,7 @@ class MapPlugin : DmPlugin {
                         FileChooser.ExtensionFilter("All files", "*.*"),
                     )
                 }
-                // Use the button's own window as owner so the dialog is modal to the DM panel.
-                val owner = (it.source as? Button)?.scene?.window
+                val owner = (e.source as? Button)?.scene?.window
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     pathField.text = file.absolutePath
@@ -334,65 +370,52 @@ class MapPlugin : DmPlugin {
             }
         }
 
-        return VBox(4.0, Label("Map image"), loadBtn, pathField)
-    }
-
-    /**
-     * Builds the map-calibration section.
-     *
-     * Instead of inline fields, calibration is handled through a pop-up dialog so
-     * the DM can focus on aligning the map image while the live table view (or
-     * minimap) shows the calibration overlay.
-     */
-    private fun buildMapCalibrationSection(): VBox {
-        val calibrateBtn = Button("Calibrate Map…").apply {
+        val calibrateMapBtn = Button("Calibrate Map…").apply {
             tooltip = Tooltip("Adjust map image scale and centre position")
-            setOnAction {
-                val owner = (it.source as? Button)?.scene?.window
-                showMapCalibrationDialog(owner)
-            }
-        }
-        return VBox(4.0, Label("Map Calibration"), calibrateBtn)
-    }
-
-    /** Builds the grid overlay control section. */
-    private fun buildGridSection(): VBox {
-        val visibleCheck = CheckBox("Show grid").apply { isSelected = false }
-
-        val applyBtn = Button("Apply grid").apply {
-            setOnAction {
-                if (!visibleCheck.isSelected) {
-                    EventBus.publish(GridUpdateEvent(null))
-                } else {
-                    EventBus.publish(GridUpdateEvent(GridConfig()))
-                }
+            setOnAction { e ->
+                showMapCalibrationDialog((e.source as? Button)?.scene?.window)
             }
         }
 
-        val calibrateBtn = Button("Calibrate Grid…").apply {
+        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn)
+
+        // --- Row 2: Grid + Fog of war ---
+        val visibleCheck = CheckBox("Show Grid").apply {
+            isSelected = false
+            tooltip = Tooltip("Toggle grid overlay visibility")
+        }
+
+        val applyGridBtn = Button("Apply Grid").apply {
+            tooltip = Tooltip("Publish the current grid visibility setting")
+            setOnAction {
+                EventBus.publish(
+                    if (!visibleCheck.isSelected) GridUpdateEvent(null)
+                    else GridUpdateEvent(GridConfig()),
+                )
+            }
+        }
+
+        val calibrateGridBtn = Button("Calibrate Grid…").apply {
             tooltip = Tooltip("Adjust grid cell size and centre position")
-            setOnAction {
-                val owner = (it.source as? Button)?.scene?.window
-                showGridCalibrationDialog(owner)
+            setOnAction { e ->
+                showGridCalibrationDialog((e.source as? Button)?.scene?.window)
             }
         }
 
-        return VBox(4.0, Label("Grid"), visibleCheck, applyBtn, calibrateBtn)
-    }
-
-    /** Builds the fog-of-war control section. */
-    private fun buildFogOfWarSection(): VBox {
-        val revealAllBtn = Button("Reveal all").apply {
+        val revealAllBtn = Button("Reveal All").apply {
             tooltip = Tooltip("Remove fog from the entire map")
             setOnAction { EventBus.publish(FogOfWarResetEvent(revealAll = true)) }
         }
 
-        val hideAllBtn = Button("Hide all").apply {
+        val hideAllBtn = Button("Hide All").apply {
             tooltip = Tooltip("Cover the entire map with fog")
             setOnAction { EventBus.publish(FogOfWarResetEvent(revealAll = false)) }
         }
 
-        return VBox(4.0, Label("Fog of war"), revealAllBtn, hideAllBtn)
+        val fowSep = Separator(Orientation.VERTICAL)
+        val gridFowRow = HBox(4.0, visibleCheck, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
+
+        return VBox(4.0, mapRow, gridFowRow)
     }
 
     // -------------------------------------------------------------------------
