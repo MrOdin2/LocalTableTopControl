@@ -26,6 +26,19 @@ import com.tabletopcontrol.core.EventBus
  * Both the grid and map image are calibrated independently and both use the canvas
  * centre as their scale origin, so the grid can be shown without any map image loaded.
  *
+ * ### Viewport pan/zoom (minimap use-case)
+ *
+ * [viewportScale], [viewportOffsetX], and [viewportOffsetY] let a second renderer
+ * instance (e.g. the DM-panel minimap) zoom and pan its view independently from
+ * the table-view renderer.  These fields are **not** driven by any [EventBus] event
+ * and default to an identity transform (scale 1.0, no offset), so the table-view
+ * renderer is unaffected.
+ *
+ * The viewport transform is applied around the canvas centre:
+ * - Positive [viewportScale] values zoom in/out from the canvas centre.
+ * - [viewportOffsetX]/[viewportOffsetY] shift the entire rendered scene in
+ *   canvas-space pixels (positive = shift content right/down).
+ *
  * @param canvas the [Canvas] to draw on; must be attached to a scene before
  *               calling [redraw].
  */
@@ -54,6 +67,25 @@ class MapRenderer(private val canvas: Canvas) {
 
     /** When `true` a red dot is drawn at the canvas centre. */
     private var mapCalibrationMode: Boolean = false
+
+    /**
+     * Viewport zoom factor applied to this canvas only, independent of [mapCalibration]
+     * and [gridCalibration].  Values > 1 zoom in; values < 1 zoom out.  Defaults to
+     * `1.0` (no zoom).  The zoom origin is the canvas centre.
+     */
+    var viewportScale: Double = 1.0
+
+    /**
+     * Viewport horizontal pan offset in canvas-space pixels.  Positive values shift
+     * all rendered content to the right.  Defaults to `0.0`.
+     */
+    var viewportOffsetX: Double = 0.0
+
+    /**
+     * Viewport vertical pan offset in canvas-space pixels.  Positive values shift
+     * all rendered content downwards.  Defaults to `0.0`.
+     */
+    var viewportOffsetY: Double = 0.0
 
     init {
         attachToEventBus()
@@ -131,16 +163,31 @@ class MapRenderer(private val canvas: Canvas) {
      *
      * Call this whenever something that affects the visible state changes
      * (new map loaded, fog-of-war updated, grid toggled, calibration changed, etc.).
+     *
+     * The [viewportScale]/[viewportOffsetX]/[viewportOffsetY] viewport transform is
+     * applied around the canvas centre before all content layers are drawn, so each
+     * renderer instance can have an independent pan/zoom view.
      */
     fun redraw() {
+        // Background always fills the entire canvas regardless of viewport transform.
         gc.fill = Color.BLACK
         gc.fillRect(0.0, 0.0, canvas.width, canvas.height)
+
+        // Apply viewport transform: zoom from the canvas centre then pan.
+        gc.save()
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        gc.translate(cx + viewportOffsetX, cy + viewportOffsetY)
+        gc.scale(viewportScale, viewportScale)
+        gc.translate(-cx, -cy)
 
         drawMapImage()
         drawGrid()
         drawFogOfWar()
         drawGridCalibrationOverlay()
         drawMapCalibrationOverlay()
+
+        gc.restore()
     }
 
     // -------------------------------------------------------------------------

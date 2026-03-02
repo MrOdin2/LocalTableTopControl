@@ -14,6 +14,7 @@ import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
+import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
@@ -166,15 +167,143 @@ class MapPlugin : DmPlugin {
      * Builds the minimap preview section.
      *
      * A [MapRenderer] is created for the minimap canvas and automatically subscribes
-     * to all map events, so the preview stays in sync with the table screen.
+     * to all map events, so the content stays in sync with the table screen.
+     *
+     * The minimap has its own independent viewport that does **not** affect the
+     * table-view renderer:
+     * - **Drag** (left button) on the canvas to pan.
+     * - **Scroll wheel** to zoom in/out around the canvas centre.
+     * - **`−`/`+`** buttons to zoom out/in by 25 % per click.
+     * - **◀ ▶ ▲ ▼** buttons to pan by 20 canvas-space pixels per click.
+     * - **Reset** button to restore the default view (scale 1, no offset).
      */
     private fun buildMinimapSection(): VBox {
         val minimapCanvas = Canvas(320.0, 180.0).apply {
             style = "-fx-border-color: gray;"
+            isFocusTraversable = false
         }
         // The renderer subscribes to all map events in its init block.
-        MapRenderer(minimapCanvas)
-        return VBox(4.0, Label("Preview"), minimapCanvas)
+        val minimapRenderer = MapRenderer(minimapCanvas)
+
+        // ------------------------------------------------------------------
+        // Pan step (canvas-space pixels per button press)
+        // ------------------------------------------------------------------
+        val panStep = 20.0
+        val zoomFactor = 1.25
+        val minScale = 0.125
+        val maxScale = 8.0
+
+        fun resetViewport() {
+            minimapRenderer.viewportScale = 1.0
+            minimapRenderer.viewportOffsetX = 0.0
+            minimapRenderer.viewportOffsetY = 0.0
+            minimapRenderer.redraw()
+        }
+
+        // ------------------------------------------------------------------
+        // Mouse drag to pan
+        // ------------------------------------------------------------------
+        var dragStartX = 0.0
+        var dragStartY = 0.0
+        var dragStartOffX = 0.0
+        var dragStartOffY = 0.0
+
+        minimapCanvas.setOnMousePressed { e ->
+            if (e.button == MouseButton.PRIMARY) {
+                dragStartX = e.x
+                dragStartY = e.y
+                dragStartOffX = minimapRenderer.viewportOffsetX
+                dragStartOffY = minimapRenderer.viewportOffsetY
+            }
+        }
+        minimapCanvas.setOnMouseDragged { e ->
+            if (e.isPrimaryButtonDown) {
+                minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
+                minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
+                minimapRenderer.redraw()
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Scroll wheel to zoom from the canvas centre
+        // ------------------------------------------------------------------
+        minimapCanvas.setOnScroll { e ->
+            val factor = if (e.deltaY > 0) zoomFactor else 1.0 / zoomFactor
+            minimapRenderer.viewportScale =
+                (minimapRenderer.viewportScale * factor).coerceIn(minScale, maxScale)
+            minimapRenderer.redraw()
+        }
+
+        // ------------------------------------------------------------------
+        // Zoom buttons
+        // ------------------------------------------------------------------
+        val zoomOutBtn = Button("−").apply {
+            tooltip = Tooltip("Zoom out (minimap only)")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportScale =
+                    (minimapRenderer.viewportScale / zoomFactor).coerceAtLeast(minScale)
+                minimapRenderer.redraw()
+            }
+        }
+        val zoomInBtn = Button("+").apply {
+            tooltip = Tooltip("Zoom in (minimap only)")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportScale =
+                    (minimapRenderer.viewportScale * zoomFactor).coerceAtMost(maxScale)
+                minimapRenderer.redraw()
+            }
+        }
+        val resetBtn = Button("Reset").apply {
+            tooltip = Tooltip("Reset minimap zoom and pan to default")
+            setOnAction { resetViewport() }
+        }
+
+        // ------------------------------------------------------------------
+        // Pan buttons
+        // ------------------------------------------------------------------
+        val panLeft = Button("◀").apply {
+            tooltip = Tooltip("Pan view left")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetX -= panStep
+                minimapRenderer.redraw()
+            }
+        }
+        val panRight = Button("▶").apply {
+            tooltip = Tooltip("Pan view right")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetX += panStep
+                minimapRenderer.redraw()
+            }
+        }
+        val panUp = Button("▲").apply {
+            tooltip = Tooltip("Pan view up")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetY -= panStep
+                minimapRenderer.redraw()
+            }
+        }
+        val panDown = Button("▼").apply {
+            tooltip = Tooltip("Pan view down")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                minimapRenderer.viewportOffsetY += panStep
+                minimapRenderer.redraw()
+            }
+        }
+
+        val controlsRow = HBox(
+            4.0,
+            zoomOutBtn, zoomInBtn, resetBtn,
+            Label("  "),
+            panLeft, panUp, panDown, panRight,
+        )
+
+        return VBox(4.0, Label("Preview (drag to pan, scroll to zoom)"), minimapCanvas, controlsRow)
     }
 
     /** Builds the "Load map" control row. */
