@@ -44,16 +44,24 @@ class MapRenderer(private val canvas: Canvas) {
      * canvas is immediately ready after this call returns.
      *
      * @param resourcePath file-system path or classpath URI of the image file.
-     * @return `true` if the image was loaded without errors; `false` otherwise.
+     * @return [Result.success] when the image is loaded and drawn; [Result.failure]
+     *         with a descriptive exception when loading fails.
      */
-    fun loadImage(resourcePath: String): Boolean {
+    fun loadImage(resourcePath: String): Result<Unit> {
         val image = Image(resourcePath, false)
         return if (image.isError) {
-            false
+            val cause = image.exception
+            if (cause != null) {
+                Result.failure(cause)
+            } else {
+                Result.failure(
+                    IllegalStateException("Failed to load map image from '$resourcePath': unknown image loading error.")
+                )
+            }
         } else {
             mapImage = image
             redraw()
-            true
+            Result.success(Unit)
         }
     }
 
