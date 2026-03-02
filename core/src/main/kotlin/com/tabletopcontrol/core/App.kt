@@ -8,6 +8,7 @@ import javafx.scene.control.TabPane
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.StackPane
 import javafx.stage.Stage
+import javafx.stage.StageStyle
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -35,7 +36,10 @@ class App : Application() {
         // Table screen — displayed on the external monitor / projector
         primaryStage.apply {
             title = "TabletopControl — Table View"
+            initStyle(StageStyle.UNDECORATED)
             scene = buildTableScene(plugins)
+            isFullScreen = true
+            setOnCloseRequest { dmStage.close() }
             show()
         }
 
@@ -43,6 +47,7 @@ class App : Application() {
         dmStage = Stage().apply {
             title = "TabletopControl — DM Panel"
             scene = buildDmScene(plugins)
+            setOnCloseRequest { primaryStage.close() }
             show()
         }
     }
