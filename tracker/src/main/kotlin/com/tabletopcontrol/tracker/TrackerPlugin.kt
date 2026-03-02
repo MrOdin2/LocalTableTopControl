@@ -1,6 +1,11 @@
 package com.tabletopcontrol.tracker
 
+import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenRemovedEvent
+import com.tabletopcontrol.core.TokensResetEvent
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.scene.Node
@@ -17,6 +22,7 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
+import javafx.scene.paint.Color
 
 /**
  * DM-panel plugin providing a combined initiative and HP/AC tracker.
@@ -47,6 +53,13 @@ class TrackerPlugin : DmPlugin {
 
     /** Shared combatant state; persists across pane rebuilds within a session. */
     private val tracker = InitiativeTracker()
+
+    /**
+     * Monotonically increasing counter for assigning token colours.  Never resets on
+     * removal, so the next added token always gets a colour not already in use among
+     * recently added tokens (up to [TOKEN_COLORS].size combatants).
+     */
+    private var tokenColorIndex: Int = 0
 
     override fun createView(): Node {
         val roundLabel = Label(roundText()).apply {
@@ -79,6 +92,8 @@ class TrackerPlugin : DmPlugin {
                 }
                 if (alert.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
                     tracker.reset()
+                    tokenColorIndex = 0
+                    EventBus.publish(TokensResetEvent())
                     refresh()
                 }
             }
@@ -89,6 +104,7 @@ class TrackerPlugin : DmPlugin {
             tooltip = Tooltip("Advance to the next combatant")
             setOnAction {
                 tracker.next()
+                EventBus.publish(ActiveTokenChangedEvent(tracker.currentEntry?.name))
                 refresh()
             }
         }
@@ -148,7 +164,10 @@ class TrackerPlugin : DmPlugin {
         val addBtn = Button("+").apply {
             tooltip = Tooltip("Add combatant")
             setOnAction {
-                tracker.add("Combatant ${tracker.entries.size + 1}", 0)
+                val name = "Combatant ${tracker.entries.size + 1}"
+                val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
+                tracker.add(name, 0)
+                EventBus.publish(TokenAddedEvent(name, color))
                 refresh()
             }
         }
@@ -188,7 +207,9 @@ class TrackerPlugin : DmPlugin {
         val removeBtn = Button("×").apply {
             tooltip = Tooltip("Remove this combatant")
             setOnAction {
+                val name = tracker.entries[index].name
                 tracker.remove(index)
+                EventBus.publish(TokenRemovedEvent(name))
                 refresh()
             }
         }
@@ -275,6 +296,18 @@ class TrackerPlugin : DmPlugin {
         private const val CARD_STYLE_DRAG_OVER =
             "-fx-border-color: #4488ff; -fx-border-radius: 4; " +
                 "-fx-background-color: #e8f0ff; -fx-background-radius: 4;"
+
+        /** Distinct token fill colours cycled when combatants are added. */
+        private val TOKEN_COLORS = listOf(
+            Color.color(0.25, 0.55, 1.00),   // cornflower blue
+            Color.color(0.18, 0.72, 0.18),   // lime green
+            Color.color(0.85, 0.20, 0.20),   // red
+            Color.color(0.65, 0.20, 0.85),   // purple
+            Color.color(0.10, 0.75, 0.75),   // teal
+            Color.color(0.90, 0.75, 0.10),   // gold
+            Color.color(0.90, 0.40, 0.70),   // pink
+            Color.color(0.95, 0.50, 0.10),   // orange
+        )
     }
 
     /** Returns the resting style for a card at [index] based on whether it is the active combatant. */

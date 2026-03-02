@@ -4,7 +4,12 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
+import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenMovedEvent
+import com.tabletopcontrol.core.TokenRemovedEvent
+import com.tabletopcontrol.core.TokensResetEvent
 import kotlin.math.floor
 
 /**
@@ -103,6 +108,19 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var viewportOffsetY: Double = 0.0
 
+    /** Current list of tokens to draw on the map. */
+    private val tokens = mutableListOf<Token>()
+
+    /** Display name of the currently active combatant, or `null` when none is active. */
+    private var activeTokenName: String? = null
+
+    /**
+     * Monotonically increasing counter used to assign a unique initial column to each
+     * new token.  Never resets on removal, so columns are never reused after a token
+     * is removed and a new one is added.
+     */
+    private var nextTokenCol: Int = 0
+
     init {
         attachToEventBus()
     }
@@ -148,6 +166,32 @@ class MapRenderer(private val canvas: Canvas) {
         }
         EventBus.subscribe<MapCalibrationModeEvent> { event ->
             mapCalibrationMode = event.active
+            redraw()
+        }
+        EventBus.subscribe<TokenAddedEvent> { event ->
+            // Place each new token at the next unused column at row 0.
+            tokens.add(Token(event.name, nextTokenCol++, 0, event.color))
+            redraw()
+        }
+        EventBus.subscribe<TokenRemovedEvent> { event ->
+            tokens.removeIf { it.name == event.name }
+            redraw()
+        }
+        EventBus.subscribe<TokenMovedEvent> { event ->
+            val idx = tokens.indexOfFirst { it.name == event.name }
+            if (idx >= 0) {
+                tokens[idx] = tokens[idx].copy(col = event.col, row = event.row)
+                redraw()
+            }
+        }
+        EventBus.subscribe<ActiveTokenChangedEvent> { event ->
+            activeTokenName = event.name
+            redraw()
+        }
+        EventBus.subscribe<TokensResetEvent> {
+            tokens.clear()
+            activeTokenName = null
+            nextTokenCol = 0
             redraw()
         }
     }
@@ -206,6 +250,7 @@ class MapRenderer(private val canvas: Canvas) {
         drawMapImage()
         drawGrid()
         drawFogOfWar()
+        drawTokens()
         drawGridCalibrationOverlay()
         drawMapCalibrationOverlay()
 
@@ -379,6 +424,78 @@ class MapRenderer(private val canvas: Canvas) {
         // Bounds check.
         if (fogCol < 0 || fogCol >= fow.cols || fogRow < 0 || fogRow >= fow.rows) return null
         return Pair(fogCol, fogRow)
+    }
+
+    /**
+     * Converts canvas-space mouse coordinates to the corresponding grid cell indices,
+     * accounting for the current viewport transform.
+     *
+     * This is the inverse of the grid-drawing transform and is used to determine
+     * which grid cell the DM is pointing at, for both fog painting and token dragging.
+     *
+     * @param canvasX canvas-space X coordinate (e.g. from a mouse event).
+     * @param canvasY canvas-space Y coordinate.
+     * @return zero-based `(col, row)` grid cell indices.
+     */
+    fun canvasCoordsToGridCell(canvasX: Double, canvasY: Double): Pair<Int, Int> {
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
+        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
+        val originX = cx + gridCalibration.offsetX
+        val originY = cy + gridCalibration.offsetY
+        val col = floor((worldX - originX) / cellPx).toInt()
+        val row = floor((worldY - originY) / cellPx).toInt()
+        return Pair(col, row)
+    }
+
+    /**
+     * Returns the token whose grid cell contains the given canvas-space coordinates,
+     * or `null` if no token occupies that cell.
+     *
+     * Used by the DM-panel minimap to detect which token the DM is about to drag.
+     *
+     * @param canvasX canvas-space X coordinate.
+     * @param canvasY canvas-space Y coordinate.
+     * @return the [Token] at that grid cell, or `null`.
+     */
+    fun tokenAtCanvasCoords(canvasX: Double, canvasY: Double): Token? {
+        val (col, row) = canvasCoordsToGridCell(canvasX, canvasY)
+        return tokens.find { it.col == col && it.row == row }
+    }
+
+    /**
+     * Draws all tokens as filled circles above the fog-of-war layer.
+     *
+     * Each token fills its grid cell (radius ≈ 45 % of the cell size) and is
+     * centred on the cell.  The active token receives an additional orange outline
+     * so the DM and players can immediately see whose turn it is.
+     */
+    private fun drawTokens() {
+        if (tokens.isEmpty()) return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0) return
+
+        val originX = canvas.width / 2.0 + gridCalibration.offsetX
+        val originY = canvas.height / 2.0 + gridCalibration.offsetY
+        val r = cellPx * 0.45
+
+        for (token in tokens) {
+            val cx = originX + (token.col + 0.5) * cellPx
+            val cy = originY + (token.row + 0.5) * cellPx
+
+            // Fill the token circle.
+            gc.fill = token.color
+            gc.fillOval(cx - r, cy - r, r * 2, r * 2)
+
+            // Draw an orange outline on the active token.
+            if (token.name == activeTokenName) {
+                gc.stroke = Color.ORANGE
+                gc.lineWidth = 3.0
+                gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
+            }
+        }
     }
 
     /**

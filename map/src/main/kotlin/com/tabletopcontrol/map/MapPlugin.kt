@@ -2,6 +2,7 @@ package com.tabletopcontrol.map
 
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenMovedEvent
 import javafx.event.ActionEvent
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -206,7 +207,9 @@ class MapPlugin : DmPlugin {
      *
      * The minimap has its own independent viewport that does **not** affect the
      * table-view renderer:
-     * - **Drag** (left button) on the canvas to pan (when no fog tool is active).
+     * - **Drag** (left button) on the canvas to pan (when no fog tool is active and
+     *   the cursor is not over a token).
+     * - **Drag** over a token to move it to a new grid cell (publishes [TokenMovedEvent]).
      * - **Scroll wheel** to zoom in/out around the canvas centre.
      * - **`−`/`+`** buttons to zoom out/in by 25 % per click.
      * - **◀ ▶ ▲ ▼** buttons to pan by 20 canvas-space pixels per click.
@@ -262,12 +265,14 @@ class MapPlugin : DmPlugin {
         var fogTool: FogTool = FogTool.NONE
 
         // ------------------------------------------------------------------
-        // Mouse drag to pan / fog paint
+        // Mouse drag to pan / fog paint / token drag
         // ------------------------------------------------------------------
         var dragStartX = 0.0
         var dragStartY = 0.0
         var dragStartOffX = 0.0
         var dragStartOffY = 0.0
+        /** Name of the token currently being dragged, or `null` when not dragging a token. */
+        var draggingTokenName: String? = null
 
         minimapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
@@ -280,11 +285,17 @@ class MapPlugin : DmPlugin {
                         )
                     }
                 } else {
-                    // Pan mode: record the drag start position.
-                    dragStartX = e.x
-                    dragStartY = e.y
-                    dragStartOffX = minimapRenderer.viewportOffsetX
-                    dragStartOffY = minimapRenderer.viewportOffsetY
+                    // Check if the cursor is over a token — if so, start token drag.
+                    val token = minimapRenderer.tokenAtCanvasCoords(e.x, e.y)
+                    if (token != null) {
+                        draggingTokenName = token.name
+                    } else {
+                        // Pan mode: record the drag start position.
+                        dragStartX = e.x
+                        dragStartY = e.y
+                        dragStartOffX = minimapRenderer.viewportOffsetX
+                        dragStartOffY = minimapRenderer.viewportOffsetY
+                    }
                 }
             }
         }
@@ -298,11 +309,20 @@ class MapPlugin : DmPlugin {
                             FogOfWarCellEvent(cell.first, cell.second, revealed = fogTool == FogTool.ERASE),
                         )
                     }
+                } else if (draggingTokenName != null) {
+                    // Token drag: move token to the grid cell under the cursor.
+                    val (col, row) = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
+                    EventBus.publish(TokenMovedEvent(draggingTokenName!!, col, row))
                 } else {
                     minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
                     minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
                     minimapRenderer.redraw()
                 }
+            }
+        }
+        minimapCanvas.setOnMouseReleased { e ->
+            if (e.button == MouseButton.PRIMARY) {
+                draggingTokenName = null
             }
         }
 
