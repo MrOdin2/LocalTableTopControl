@@ -68,9 +68,23 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
     // ── Layout building ──────────────────────────────────────────────────────
 
-    /** Returns a [PaneNode.Leaf] for the first loaded plugin, or a placeholder name. */
+    /**
+     * Returns the initial layout tree to use when no saved layout file exists.
+     *
+     * When plugins are available, returns a [PaneNode.Leaf] for the first loaded plugin.
+     * When the plugin list is empty, returns a sentinel [PaneNode.Leaf] with an empty name
+     * so [buildLeafView] can display a dedicated "no plugins loaded" placeholder instead of
+     * the generic "Plugin not found" error message.
+     */
     private fun defaultLayout(): PaneNode =
-        PaneNode.Leaf(plugins.firstOrNull()?.displayName ?: "Map")
+        if (plugins.isEmpty()) PaneNode.Leaf("") else PaneNode.Leaf(plugins.first().displayName)
+
+    /**
+     * Builds the placeholder node shown in the DM panel when no plugins are loaded.
+     * This is a distinct path from the generic "plugin not found" error message.
+     */
+    private fun buildEmptyPlaceholder(): Node =
+        StackPane(Label("DM Panel — no plugins loaded").apply { padding = Insets(16.0) })
 
     /**
      * Replaces [layoutRoot] with [newRoot] and rebuilds the entire JavaFX sub-tree
@@ -93,11 +107,14 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
     }
 
     private fun buildLeafView(leaf: PaneNode.Leaf): Node {
-        val content: Node = pluginMap[leaf.pluginName]?.createView()
-            ?: Label("Plugin not found: ${leaf.pluginName}").apply {
-                padding = Insets(16.0)
-                style = "-fx-text-fill: #cc4444;"
-            }
+        val content: Node = when {
+            leaf.pluginName.isEmpty() -> buildEmptyPlaceholder()
+            else -> pluginMap[leaf.pluginName]?.createView()
+                ?: Label("Plugin not found: ${leaf.pluginName}").apply {
+                    padding = Insets(16.0)
+                    style = "-fx-text-fill: #cc4444;"
+                }
+        }
         val wrapper = StackPane(content)
         wrapper.setOnContextMenuRequested { event ->
             buildContextMenu(leaf).show(wrapper, event.screenX, event.screenY)
