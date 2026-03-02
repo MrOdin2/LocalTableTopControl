@@ -104,7 +104,7 @@ class FogOfWarStateTest {
     }
 
     @Test
-    fun `cellSizeInUnits defaults to 1_0`() {
+    fun `cellSizeInUnits defaults to 1.0`() {
         assertEquals(1.0, fow.cellSizeInUnits)
     }
 }
