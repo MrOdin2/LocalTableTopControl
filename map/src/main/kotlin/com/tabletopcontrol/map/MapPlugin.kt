@@ -14,11 +14,14 @@ import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
+import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
+import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
 import javafx.stage.Window
+import kotlin.math.floor
 
 /**
  * DM-panel plugin that exposes map-viewer controls and a live minimap preview.
@@ -28,16 +31,24 @@ import javafx.stage.Window
  *   current map image, grid overlay, and fog-of-war state.
  * - **Load map** — opens a file chooser and publishes [MapLoadEvent].
  * - **Calibrate Map…** — opens a pop-up dialog for adjusting the map image
- *   scale and centre offset; publishes [MapCalibrationEvent].
+ *   scale and centre offset; publishes [MapCalibrationEvent] on every field change
+ *   for live feedback and restores the original calibration if the dialog is cancelled.
  * - **Grid** — toggle checkbox and apply button, publishing [GridUpdateEvent].
  * - **Calibrate Grid…** — opens a pop-up dialog for adjusting the grid cell size,
- *   scale, and centre offset; publishes [GridCalibrationEvent].
+ *   scale, and centre offset; publishes [GridCalibrationEvent] on every field change
+ *   for live feedback and restores the original calibration if the dialog is cancelled.
  * - **Fog of war** — reveal-all / hide-all buttons, publishing [FogOfWarResetEvent].
  */
 class MapPlugin : DmPlugin {
 
     override val displayName: String = "Map"
     override val iconPath: String? = null
+
+    /** The most recently confirmed map calibration; used to restore on dialog cancel. */
+    private var lastMapCalibration: MapCalibration = MapCalibration()
+
+    /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
+    private var lastGridCalibration: GridCalibration = GridCalibration()
 
     /**
      * Creates the table-screen [Node] — a [Canvas] backed by a [MapRenderer] that
@@ -108,6 +119,48 @@ class MapPlugin : DmPlugin {
         fields.forEach { it.style = "" }
         errorLabel.text = ""
     }
+
+    /**
+     * Wraps [field] in an [HBox] with decrement (`−`) and increment (`+`) buttons.
+     *
+     * Each button adjusts the field's numeric value by [step] and then invokes
+     * [onChanged] so the caller can publish a live calibration event.
+     *
+     * @param field     the [TextField] to wrap.
+     * @param step      amount to add or subtract on each button press.
+     * @param onChanged callback invoked after each button-triggered change.
+     * @return an [HBox] containing `[−] [field] [+]`.
+     */
+    private fun buildStepRow(field: TextField, step: Double, onChanged: () -> Unit): HBox {
+        fun adjust(delta: Double) {
+            val current = field.text.toDoubleOrNull() ?: 0.0
+            field.text = formatDouble(current + delta)
+            onChanged()
+        }
+        val decBtn = Button("−").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Decrease by $step")
+            setOnAction { adjust(-step) }
+        }
+        val incBtn = Button("+").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Increase by $step")
+            setOnAction { adjust(step) }
+        }
+        HBox.setHgrow(field, Priority.ALWAYS)
+        return HBox(4.0, decBtn, field, incBtn)
+    }
+
+    /**
+     * Formats [value] as a compact string: whole numbers are shown without a
+     * decimal point; fractional values are shown with up to four significant digits.
+     */
+    private fun formatDouble(value: Double): String =
+        if (value == floor(value) && !value.isInfinite()) {
+            value.toLong().toString()
+        } else {
+            "%.4g".format(value)
+        }
 
     /**
      * Builds the minimap preview section.
@@ -222,41 +275,66 @@ class MapPlugin : DmPlugin {
      *
      * While the dialog is open a red dot is shown at the canvas centre on the
      * table view (via [MapCalibrationModeEvent]) so the DM can align a reference
-     * point on the map image.  Pressing **Apply** publishes [MapCalibrationEvent].
-     * The overlay is removed when the dialog closes.
+     * point on the map image.
+     *
+     * Every field change immediately publishes a [MapCalibrationEvent] for live
+     * feedback in the minimap and table view.  Clicking **Apply** confirms the
+     * current values; clicking **Cancel** or closing the dialog restores the
+     * calibration that was active when the dialog opened.
      *
      * @param owner optional owner window for modality.
      */
     private fun showMapCalibrationDialog(owner: Window?) {
+        val saved = lastMapCalibration
+
         val dialog = Dialog<ButtonType>().apply {
             title = "Calibrate Map"
             headerText = "Adjust the map image scale and position.\n" +
-                "A red dot marks the canvas centre on the table view — align it with a known reference point on the map."
+                "A red dot marks the canvas centre — align it with a known reference point on the map.\n" +
+                "Changes are previewed live; Cancel restores the previous calibration."
             initOwner(owner)
         }
 
         EventBus.publish(MapCalibrationModeEvent(active = true))
-        dialog.setOnHidden { EventBus.publish(MapCalibrationModeEvent(active = false)) }
 
-        val scaleField = TextField("1.0").apply {
+        val scaleField = TextField(formatDouble(saved.scale)).apply {
             tooltip = Tooltip("Uniform zoom factor (1.0 = no zoom)")
+            prefColumnCount = 8
         }
-        val offsetXField = TextField("0").apply {
+        val offsetXField = TextField(formatDouble(saved.offsetX)).apply {
             tooltip = Tooltip("Horizontal displacement of the image centre from the canvas centre (px)")
+            prefColumnCount = 8
         }
-        val offsetYField = TextField("0").apply {
+        val offsetYField = TextField(formatDouble(saved.offsetY)).apply {
             tooltip = Tooltip("Vertical displacement of the image centre from the canvas centre (px)")
+            prefColumnCount = 8
         }
         val errorLabel = Label().apply { textFill = Color.RED }
 
+        /** Attempts to parse current field values and publish a live preview event. */
+        fun tryPublishLive() {
+            val scale = scaleField.text.toDoubleOrNull() ?: return
+            val ox = offsetXField.text.toDoubleOrNull() ?: return
+            val oy = offsetYField.text.toDoubleOrNull() ?: return
+            if (scale <= 0) return
+            EventBus.publish(MapCalibrationEvent(MapCalibration(scale, ox, oy)))
+        }
+
+        // Attach live-feedback listeners to all three fields.
+        scaleField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetXField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetYField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+
         dialog.dialogPane.content = VBox(
             8.0,
-            Label("Scale:"), scaleField,
-            Label("Offset X (px from centre):"), offsetXField,
-            Label("Offset Y (px from centre):"), offsetYField,
+            Label("Scale:"), buildStepRow(scaleField, 0.05) { tryPublishLive() },
+            Label("Offset X (px from centre):"), buildStepRow(offsetXField, 5.0) { tryPublishLive() },
+            Label("Offset Y (px from centre):"), buildStepRow(offsetYField, 5.0) { tryPublishLive() },
             errorLabel,
         )
         dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+
+        var confirmed = false
 
         // Validate on Apply — consume the event to keep the dialog open on error.
         dialog.dialogPane.lookupButton(ButtonType.APPLY)
@@ -280,9 +358,22 @@ class MapPlugin : DmPlugin {
                         showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
                         evt.consume()
                     }
-                    else -> EventBus.publish(MapCalibrationEvent(MapCalibration(scale, ox, oy)))
+                    else -> {
+                        lastMapCalibration = MapCalibration(scale, ox, oy)
+                        EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                        confirmed = true
+                    }
                 }
             }
+
+        dialog.setOnHidden {
+            EventBus.publish(MapCalibrationModeEvent(active = false))
+            // Restore the saved calibration when the dialog is dismissed without Apply.
+            if (!confirmed) {
+                lastMapCalibration = saved
+                EventBus.publish(MapCalibrationEvent(saved))
+            }
+        }
 
         dialog.showAndWait()
     }
@@ -292,46 +383,73 @@ class MapPlugin : DmPlugin {
      *
      * While the dialog is open a yellow crosshair is shown through the canvas
      * centre on the table view (via [GridCalibrationModeEvent]).  The intersection
-     * marks the scale origin and grid origin for all scale operations.  Pressing
-     * **Apply** publishes [GridCalibrationEvent].  The overlay is removed when the
-     * dialog closes.
+     * marks the scale origin and grid origin for all scale operations.
+     *
+     * Every field change immediately publishes a [GridCalibrationEvent] for live
+     * feedback in the minimap and table view.  Clicking **Apply** confirms the
+     * current values; clicking **Cancel** or closing the dialog restores the
+     * calibration that was active when the dialog opened.
      *
      * @param owner optional owner window for modality.
      */
     private fun showGridCalibrationDialog(owner: Window?) {
+        val saved = lastGridCalibration
+
         val dialog = Dialog<ButtonType>().apply {
             title = "Calibrate Grid"
             headerText = "Adjust the grid cell size and position.\n" +
-                "A yellow crosshair marks the canvas centre on the table view — this is the origin for all scale operations."
+                "A yellow crosshair marks the canvas centre — this is the origin for all scale operations.\n" +
+                "Changes are previewed live; Cancel restores the previous calibration."
             initOwner(owner)
         }
 
         EventBus.publish(GridCalibrationModeEvent(active = true))
-        dialog.setOnHidden { EventBus.publish(GridCalibrationModeEvent(active = false)) }
 
-        val cellSizeField = TextField("50").apply {
+        val cellSizeField = TextField(formatDouble(saved.cellSizeInPixels)).apply {
             tooltip = Tooltip("Grid cell size in canvas pixels at scale 1.0")
+            prefColumnCount = 8
         }
-        val scaleField = TextField("1.0").apply {
+        val scaleField = TextField(formatDouble(saved.scale)).apply {
             tooltip = Tooltip("Zoom factor applied from the canvas centre (1.0 = no zoom)")
+            prefColumnCount = 8
         }
-        val offsetXField = TextField("0").apply {
+        val offsetXField = TextField(formatDouble(saved.offsetX)).apply {
             tooltip = Tooltip("Horizontal displacement of the grid origin from the canvas centre (px)")
+            prefColumnCount = 8
         }
-        val offsetYField = TextField("0").apply {
+        val offsetYField = TextField(formatDouble(saved.offsetY)).apply {
             tooltip = Tooltip("Vertical displacement of the grid origin from the canvas centre (px)")
+            prefColumnCount = 8
         }
         val errorLabel = Label().apply { textFill = Color.RED }
 
+        /** Attempts to parse current field values and publish a live preview event. */
+        fun tryPublishLive() {
+            val cellSize = cellSizeField.text.toDoubleOrNull() ?: return
+            val scale = scaleField.text.toDoubleOrNull() ?: return
+            val ox = offsetXField.text.toDoubleOrNull() ?: return
+            val oy = offsetYField.text.toDoubleOrNull() ?: return
+            if (cellSize <= 0 || scale <= 0) return
+            EventBus.publish(GridCalibrationEvent(GridCalibration(cellSize, scale, ox, oy)))
+        }
+
+        // Attach live-feedback listeners to all four fields.
+        cellSizeField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        scaleField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetXField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+        offsetYField.textProperty().addListener { _, _, _ -> tryPublishLive() }
+
         dialog.dialogPane.content = VBox(
             8.0,
-            Label("Cell size (px):"), cellSizeField,
-            Label("Scale:"), scaleField,
-            Label("Offset X (px from centre):"), offsetXField,
-            Label("Offset Y (px from centre):"), offsetYField,
+            Label("Cell size (px):"), buildStepRow(cellSizeField, 1.0) { tryPublishLive() },
+            Label("Scale:"), buildStepRow(scaleField, 0.05) { tryPublishLive() },
+            Label("Offset X (px from centre):"), buildStepRow(offsetXField, 1.0) { tryPublishLive() },
+            Label("Offset Y (px from centre):"), buildStepRow(offsetYField, 1.0) { tryPublishLive() },
             errorLabel,
         )
         dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+
+        var confirmed = false
 
         // Validate on Apply — consume the event to keep the dialog open on error.
         dialog.dialogPane.lookupButton(ButtonType.APPLY)
@@ -360,9 +478,22 @@ class MapPlugin : DmPlugin {
                         showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
                         evt.consume()
                     }
-                    else -> EventBus.publish(GridCalibrationEvent(GridCalibration(cellSize, scale, ox, oy)))
+                    else -> {
+                        lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
+                        EventBus.publish(GridCalibrationEvent(lastGridCalibration))
+                        confirmed = true
+                    }
                 }
             }
+
+        dialog.setOnHidden {
+            EventBus.publish(GridCalibrationModeEvent(active = false))
+            // Restore the saved calibration when the dialog is dismissed without Apply.
+            if (!confirmed) {
+                lastGridCalibration = saved
+                EventBus.publish(GridCalibrationEvent(saved))
+            }
+        }
 
         dialog.showAndWait()
     }
