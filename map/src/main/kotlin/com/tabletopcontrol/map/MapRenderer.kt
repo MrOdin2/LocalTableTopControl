@@ -37,6 +37,36 @@ class MapRenderer(private val canvas: Canvas) {
     /** Fog-of-war cell state, or `null` when fog of war is not active. */
     var fogOfWar: FogOfWarState? = null
 
+    init {
+        attachToEventBus()
+    }
+
+    /**
+     * Subscribes to map-related events published by [MapPlugin] via [EventBus]
+     * so that this renderer can update the canvas in response.
+     *
+     * The exact mutation of [mapImage], [calibration], [gridConfig], and
+     * [fogOfWar] may be performed elsewhere; this method at minimum ensures
+     * that the renderer is event-driven and repaints when relevant events fire.
+     */
+    private fun attachToEventBus() {
+        EventBus.subscribe<MapLoadEvent> {
+            redraw()
+        }
+        EventBus.subscribe<MapCalibrationEvent> {
+            redraw()
+        }
+        EventBus.subscribe<GridUpdateEvent> {
+            redraw()
+        }
+        EventBus.subscribe<FogOfWarResetEvent> {
+            redraw()
+        }
+        EventBus.subscribe<FogOfWarCellEvent> {
+            redraw()
+        }
+    }
+
     /**
      * Loads the map image from [resourcePath] and triggers a full redraw.
      *
