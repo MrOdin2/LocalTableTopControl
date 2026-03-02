@@ -21,6 +21,7 @@ import javafx.scene.input.TransferMode
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 
@@ -61,6 +62,12 @@ class TrackerPlugin : DmPlugin {
      */
     private var tokenColorIndex: Int = 0
 
+    /**
+     * Maps each combatant name to the token colour that was assigned when it was added.
+     * Used to render the matching colour swatch on each tracker card.
+     */
+    private val tokenColors: MutableMap<String, Color> = mutableMapOf()
+
     override fun createView(): Node {
         val roundLabel = Label(roundText()).apply {
             style = "-fx-font-weight: bold;"
@@ -93,6 +100,7 @@ class TrackerPlugin : DmPlugin {
                 if (alert.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
                     tracker.reset()
                     tokenColorIndex = 0
+                    tokenColors.clear()
                     EventBus.publish(TokensResetEvent())
                     refresh()
                 }
@@ -167,6 +175,7 @@ class TrackerPlugin : DmPlugin {
                 val name = "Combatant ${tracker.entries.size + 1}"
                 val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
                 tracker.add(name, 0)
+                tokenColors[name] = color
                 EventBus.publish(TokenAddedEvent(name, color))
                 refresh()
             }
@@ -180,8 +189,11 @@ class TrackerPlugin : DmPlugin {
      * Builds a single combatant card for the entry at [index].
      *
      * The card is a [VBox] with two rows:
-     * - **Name row**: `[Name field (grows)] [×]`
+     * - **Name row**: `[color swatch] [Name field (grows)] [×]`
      * - **Stats row**: `AC: [field]  HP: [field]`
+     *
+     * The color swatch is a small filled circle whose color matches the combatant's
+     * map token, making it easy to pair cards with tokens at a glance.
      *
      * The card is both a drag source and a drop target; dropping another card
      * onto this card reorders the two in the initiative list.
@@ -209,6 +221,7 @@ class TrackerPlugin : DmPlugin {
             setOnAction {
                 val name = tracker.entries[index].name
                 tracker.remove(index)
+                tokenColors.remove(name)
                 EventBus.publish(TokenRemovedEvent(name))
                 refresh()
             }
@@ -234,7 +247,17 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
-        val nameRow = HBox(4.0, nameField, removeBtn).also {
+        // Color swatch — a small circle whose fill matches the combatant's map token.
+        val swatchColor = tokenColors[entry.name]
+        val swatch = Region().apply {
+            minWidth = 14.0; maxWidth = 14.0
+            minHeight = 14.0; maxHeight = 14.0
+            val hex = swatchColor?.let { colorToHex(it) } ?: "#cccccc"
+            style = "-fx-background-color: $hex; -fx-background-radius: 7;"
+            Tooltip.install(this, Tooltip("Map token colour"))
+        }
+
+        val nameRow = HBox(4.0, swatch, nameField, removeBtn).also {
             HBox.setHgrow(nameField, Priority.ALWAYS)
         }
         val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)
@@ -297,17 +320,38 @@ class TrackerPlugin : DmPlugin {
             "-fx-border-color: #4488ff; -fx-border-radius: 4; " +
                 "-fx-background-color: #e8f0ff; -fx-background-radius: 4;"
 
-        /** Distinct token fill colours cycled when combatants are added. */
-        private val TOKEN_COLORS = listOf(
-            Color.color(0.25, 0.55, 1.00),   // cornflower blue
-            Color.color(0.18, 0.72, 0.18),   // lime green
-            Color.color(0.85, 0.20, 0.20),   // red
-            Color.color(0.65, 0.20, 0.85),   // purple
-            Color.color(0.10, 0.75, 0.75),   // teal
-            Color.color(0.90, 0.75, 0.10),   // gold
-            Color.color(0.90, 0.40, 0.70),   // pink
-            Color.color(0.95, 0.50, 0.10),   // orange
-        )
+        /**
+         * 64 perceptually distinct token colours generated from 16 evenly spaced hues
+         * across the full colour wheel, each at four (saturation × brightness) variants:
+         * - Vivid   (s=1.0, b=0.90) — first pass through the wheel
+         * - Light   (s=0.55, b=1.0) — second pass
+         * - Dark    (s=1.0, b=0.55) — third pass
+         * - Muted   (s=0.45, b=0.80) — fourth pass
+         *
+         * Interleaved so successive adds cycle through the four variant rings before
+         * repeating a hue.
+         */
+        private val TOKEN_COLORS: List<Color> = run {
+            val hues = List(16) { it * 22.5 }
+            val variants = listOf(
+                Pair(1.00, 0.90),   // vivid
+                Pair(0.55, 1.00),   // light
+                Pair(1.00, 0.55),   // dark
+                Pair(0.45, 0.80),   // muted
+            )
+            // Interleave: for each position i, take hue[i%16] and variant[i/16]
+            List(64) { i -> Color.hsb(hues[i % 16], variants[i / 16].first, variants[i / 16].second) }
+        }
+
+        /**
+         * Converts a JavaFX [Color] to a CSS hex string (e.g. `"#ff8800"`).
+         */
+        fun colorToHex(color: Color): String =
+            "#%02x%02x%02x".format(
+                (color.red * 255).toInt(),
+                (color.green * 255).toInt(),
+                (color.blue * 255).toInt(),
+            )
     }
 
     /** Returns the resting style for a card at [index] based on whether it is the active combatant. */
