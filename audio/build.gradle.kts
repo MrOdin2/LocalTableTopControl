@@ -3,6 +3,8 @@ plugins {
     id("org.openjfx.javafxplugin")
 }
 
+extra["requiredJavafxModules"] = listOf("javafx.media")
+
 javafx {
     version = "21"
     modules = listOf("javafx.controls", "javafx.graphics", "javafx.base", "javafx.media")

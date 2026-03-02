@@ -4,9 +4,20 @@ plugins {
     application
 }
 
+rootProject.subprojects
+    .filter { it.name != "core" }
+    .forEach { evaluationDependsOn(it.path) }
+
+val pluginModules = rootProject.subprojects
+    .filter { it.name != "core" }
+    .flatMap {
+        @Suppress("UNCHECKED_CAST")
+        (it.findProperty("requiredJavafxModules") as? List<String>) ?: emptyList()
+    }
+
 javafx {
     version = "21"
-    modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.base")
+    modules = (listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.base") + pluginModules).distinct()
 }
 
 application {
