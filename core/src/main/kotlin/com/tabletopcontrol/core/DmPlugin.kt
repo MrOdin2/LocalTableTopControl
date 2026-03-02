@@ -31,6 +31,18 @@ interface DmPlugin {
     fun createView(): Node
 
     /**
+     * Creates and returns the JavaFX [Node] that this plugin contributes to the table
+     * (player-facing) screen, or `null` if the plugin has no table-screen presence.
+     *
+     * The returned node will be displayed on the external monitor / projector.
+     * This method may be called more than once; implementations should return a
+     * fresh node on each invocation.
+     *
+     * The default implementation returns `null`.
+     */
+    fun createTableView(): Node? = null
+
+    /**
      * Called when the application is shutting down.
      *
      * Plugins should release any resources (audio handles, file handles, etc.) here.
