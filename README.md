@@ -27,6 +27,25 @@ No flashy animations, no heavy 3D models; just the tools you actually need at th
   - Sound effects
 - **Initiative Tracker** — manage turn order for players and enemies.
 - **Monster HP Tracker** — track hit points for encounters.
+- **Split-Pane Layout** — display multiple plugin panels simultaneously without switching tabs.
+
+---
+
+## DM Panel Layout System
+
+The DM Panel uses a recursive **split-pane layout** inspired by modern IDEs (VS Code, IntelliJ) and Blender.
+
+### How it Works
+
+- On first launch, the panel shows a single plugin pane (the first loaded plugin).
+- **Right-click** anywhere on a pane to open the context menu:
+  - *Add Panel to Right* — splits the current pane left/right and places a new plugin on the right.
+  - *Add Panel Below* — splits the current pane top/bottom and places a new plugin below.
+  - *Change Plugin…* — swaps the plugin shown in the current pane.
+  - *Close Pane* — removes the current pane (disabled when it is the only remaining pane).
+- **Drag the divider** between any two panes to resize them freely.
+- Both halves of a split can themselves be split again — the nesting is unlimited.
+- When the application closes, the current layout (including divider positions) is saved to `~/.tabletopcontrol/dm-layout.conf` and automatically restored on the next start-up.
 
 ---
 
