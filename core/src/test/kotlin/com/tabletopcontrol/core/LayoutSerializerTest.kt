@@ -73,6 +73,11 @@ class LayoutSerializerTest {
     }
 
     @Test
+    fun `deserialize returns null for valid node followed by trailing junk`() {
+        assertNull(LayoutSerializer.deserialize("leaf(Map)garbage"))
+    }
+
+    @Test
     fun `deserialize handles plugin names with spaces`() {
         val node = PaneNode.Leaf("My Plugin")
         assertEquals(node, LayoutSerializer.deserialize(LayoutSerializer.serialize(node)))
