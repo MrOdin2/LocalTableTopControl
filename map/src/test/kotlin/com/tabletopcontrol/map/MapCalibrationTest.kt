@@ -44,16 +44,16 @@ class MapCalibrationTest {
     }
 
     @Test
-    fun `negative pixelsPerUnit throws`() {
+    fun `zero pixelsPerUnit throws`() {
         assertThrows<IllegalArgumentException> {
-            MapCalibration(pixelsPerUnit = -1.0)
+            MapCalibration(pixelsPerUnit = 0.0)
         }
     }
 
     @Test
-    fun `zero scale throws`() {
+    fun `negative pixelsPerUnit throws`() {
         assertThrows<IllegalArgumentException> {
-            MapCalibration(scale = 0.0)
+            MapCalibration(pixelsPerUnit = -1.0)
         }
     }
 
