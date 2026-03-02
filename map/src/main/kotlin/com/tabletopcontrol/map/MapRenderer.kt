@@ -4,6 +4,7 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
+import com.tabletopcontrol.core.EventBus
 
 /**
  * Renders the tabletop map onto a JavaFX [Canvas].
@@ -50,19 +51,24 @@ class MapRenderer(private val canvas: Canvas) {
      * that the renderer is event-driven and repaints when relevant events fire.
      */
     private fun attachToEventBus() {
-        EventBus.subscribe<MapLoadEvent> {
+        EventBus.subscribe<MapLoadEvent> { event ->
+            loadImage(event.resourcePath)
+        }
+        EventBus.subscribe<MapCalibrationEvent> { event ->
+            calibration = event.calibration
             redraw()
         }
-        EventBus.subscribe<MapCalibrationEvent> {
+        EventBus.subscribe<GridUpdateEvent> { event ->
+            gridConfig = event.config
             redraw()
         }
-        EventBus.subscribe<GridUpdateEvent> {
+        EventBus.subscribe<FogOfWarResetEvent> { event ->
+            if (event.revealAll) fogOfWar?.revealAll() else fogOfWar?.hideAll()
             redraw()
         }
-        EventBus.subscribe<FogOfWarResetEvent> {
-            redraw()
-        }
-        EventBus.subscribe<FogOfWarCellEvent> {
+        EventBus.subscribe<FogOfWarCellEvent> { event ->
+            if (event.revealed) fogOfWar?.revealCell(event.col, event.row)
+            else fogOfWar?.hideCell(event.col, event.row)
             redraw()
         }
     }

@@ -11,6 +11,7 @@ import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.VBox
+import javafx.scene.paint.Color
 import javafx.stage.FileChooser
 
 /**
@@ -56,6 +57,24 @@ class MapPlugin : DmPlugin {
     // Section builders
     // -------------------------------------------------------------------------
 
+    /** Sets a red border on [field] and displays [message] in [errorLabel]. */
+    private fun showFieldError(field: TextField, errorLabel: Label, message: String) {
+        field.style = "-fx-border-color: red;"
+        errorLabel.text = message
+    }
+
+    /** Clears the red border on [field] and hides [errorLabel]. */
+    private fun clearFieldError(field: TextField, errorLabel: Label) {
+        field.style = ""
+        errorLabel.text = ""
+    }
+
+    /** Clears red borders and error text from all [fields] and resets [errorLabel]. */
+    private fun clearAllFieldErrors(vararg fields: TextField, errorLabel: Label) {
+        fields.forEach { it.style = "" }
+        errorLabel.text = ""
+    }
+
     /** Builds the "Load map" control row. */
     private fun buildLoadSection(): VBox {
         val pathField = TextField().apply {
@@ -74,7 +93,9 @@ class MapPlugin : DmPlugin {
                         FileChooser.ExtensionFilter("All files", "*.*"),
                     )
                 }
-                val file = chooser.showOpenDialog(null)
+                // Use the button's own window as owner so the dialog is modal to the DM panel.
+                val owner = (it.source as? Button)?.scene?.window
+                val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     pathField.text = file.absolutePath
                     EventBus.publish(MapLoadEvent(file.toURI().toString()))
@@ -99,15 +120,29 @@ class MapPlugin : DmPlugin {
         val offsetYField = TextField("0").apply {
             tooltip = Tooltip("Vertical offset in canvas pixels")
         }
+        val errorLabel = Label().apply { textFill = Color.RED }
 
         val applyBtn = Button("Apply calibration").apply {
             setOnAction {
-                val ppu = pxPerUnitField.text.toDoubleOrNull() ?: return@setOnAction
-                val scale = scaleField.text.toDoubleOrNull() ?: return@setOnAction
-                val ox = offsetXField.text.toDoubleOrNull() ?: return@setOnAction
-                val oy = offsetYField.text.toDoubleOrNull() ?: return@setOnAction
-                if (ppu > 0 && scale > 0) {
-                    EventBus.publish(MapCalibrationEvent(MapCalibration(ppu, ox, oy, scale)))
+                val ppu = pxPerUnitField.text.toDoubleOrNull()
+                val scale = scaleField.text.toDoubleOrNull()
+                val ox = offsetXField.text.toDoubleOrNull()
+                val oy = offsetYField.text.toDoubleOrNull()
+
+                // Clear all errors before re-validating to avoid stale highlights.
+                clearAllFieldErrors(pxPerUnitField, scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
+
+                when {
+                    ppu == null || ppu <= 0 ->
+                        showFieldError(pxPerUnitField, errorLabel, "Pixels per unit must be a positive number.")
+                    scale == null || scale <= 0 ->
+                        showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
+                    ox == null ->
+                        showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
+                    oy == null ->
+                        showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
+                    else ->
+                        EventBus.publish(MapCalibrationEvent(MapCalibration(ppu, ox, oy, scale)))
                 }
             }
         }
@@ -120,6 +155,7 @@ class MapPlugin : DmPlugin {
             Label("Offset X:"), offsetXField,
             Label("Offset Y:"), offsetYField,
             applyBtn,
+            errorLabel,
         )
     }
 
@@ -129,22 +165,27 @@ class MapPlugin : DmPlugin {
             tooltip = Tooltip("Grid cell size in game units")
         }
         val visibleCheck = CheckBox("Show grid").apply { isSelected = false }
+        val errorLabel = Label().apply { textFill = Color.RED }
 
         val applyBtn = Button("Apply grid").apply {
             setOnAction {
                 // Hiding the grid does not require a valid cell size.
                 if (!visibleCheck.isSelected) {
+                    clearFieldError(cellSizeField, errorLabel)
                     EventBus.publish(GridUpdateEvent(null))
                     return@setOnAction
                 }
-                val cellSize = cellSizeField.text.toDoubleOrNull() ?: return@setOnAction
-                if (cellSize > 0) {
+                val cellSize = cellSizeField.text.toDoubleOrNull()
+                if (cellSize == null || cellSize <= 0) {
+                    showFieldError(cellSizeField, errorLabel, "Cell size must be a positive number.")
+                } else {
+                    clearFieldError(cellSizeField, errorLabel)
                     EventBus.publish(GridUpdateEvent(GridConfig(cellSizeInUnits = cellSize)))
                 }
             }
         }
 
-        return VBox(4.0, Label("Grid"), Label("Cell size (units):"), cellSizeField, visibleCheck, applyBtn)
+        return VBox(4.0, Label("Grid"), Label("Cell size (units):"), cellSizeField, visibleCheck, applyBtn, errorLabel)
     }
 
     /** Builds the fog-of-war control section. */
