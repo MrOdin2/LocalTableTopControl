@@ -65,3 +65,22 @@ data class GridCalibrationModeEvent(val active: Boolean)
  * @property active `true` to show the centre dot; `false` to hide it.
  */
 data class MapCalibrationModeEvent(val active: Boolean)
+
+/**
+ * Event fired to initialise or reinitialise the fog-of-war grid.
+ *
+ * Both the table-view renderer and the DM-panel minimap renderer subscribe to
+ * this event and create fresh, independent [FogOfWarState] instances with the
+ * given dimensions.  All prior cell state is discarded.
+ *
+ * Fog array cell `(0, 0)` corresponds to grid position `(colOffset, rowOffset)`,
+ * so negative offsets centre the grid coverage around the grid origin.
+ *
+ * @property cols      number of columns in the fog grid; must be positive.
+ * @property rows      number of rows in the fog grid; must be positive.
+ * @property colOffset grid-column index that maps to fog array column 0.
+ *                     Fog cells cover grid columns [colOffset .. colOffset+cols-1].
+ * @property rowOffset grid-row index that maps to fog array row 0.
+ *                     Fog cells cover grid rows [rowOffset .. rowOffset+rows-1].
+ */
+data class FogOfWarSetupEvent(val cols: Int, val rows: Int, val colOffset: Int, val rowOffset: Int)

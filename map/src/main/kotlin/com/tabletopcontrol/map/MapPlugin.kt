@@ -14,6 +14,7 @@ import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
+import javafx.scene.control.ToggleButton
 import javafx.scene.control.Tooltip
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
@@ -24,6 +25,9 @@ import javafx.scene.paint.Color
 import javafx.stage.FileChooser
 import javafx.stage.Window
 import kotlin.math.floor
+
+/** Active fog-of-war painting tool for the DM minimap canvas. */
+private enum class FogTool { NONE, DRAW, ERASE }
 
 /**
  * DM-panel plugin that exposes map-viewer controls and a live minimap preview.
@@ -51,6 +55,36 @@ class MapPlugin : DmPlugin {
 
     /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
     private var lastGridCalibration: GridCalibration = GridCalibration()
+
+    /**
+     * Whether the fog-of-war grid has been initialised via [FogOfWarSetupEvent].
+     * Set to `true` the first time [ensureFogInitialized] is called.
+     */
+    private var fogInitialized = false
+
+    /**
+     * Publishes [FogOfWarSetupEvent] the first time it is called, creating a fog grid
+     * centred on the grid origin and large enough to cover a typical tabletop display.
+     *
+     * The grid spans [halfFogCells]×2 cells in each dimension, so fog cells cover grid
+     * columns and rows in the range `[-halfFogCells .. halfFogCells-1]`.  With the
+     * default 50 px cell size this provides ±5 000 px of coverage in every direction.
+     *
+     * Subsequent calls are no-ops; the fog persists until the plugin is replaced.
+     */
+    private fun ensureFogInitialized() {
+        if (fogInitialized) return
+        val halfFogCells = 100
+        EventBus.publish(
+            FogOfWarSetupEvent(
+                cols = halfFogCells * 2,
+                rows = halfFogCells * 2,
+                colOffset = -halfFogCells,
+                rowOffset = -halfFogCells,
+            ),
+        )
+        fogInitialized = true
+    }
 
     /**
      * Creates the table-screen [Node] — a [Canvas] backed by a [MapRenderer] that
@@ -172,15 +206,19 @@ class MapPlugin : DmPlugin {
      *
      * The minimap has its own independent viewport that does **not** affect the
      * table-view renderer:
-     * - **Drag** (left button) on the canvas to pan.
+     * - **Drag** (left button) on the canvas to pan (when no fog tool is active).
      * - **Scroll wheel** to zoom in/out around the canvas centre.
      * - **`−`/`+`** buttons to zoom out/in by 25 % per click.
      * - **◀ ▶ ▲ ▼** buttons to pan by 20 canvas-space pixels per click.
      * - **Reset** button to restore the default view (scale 1, no offset).
+     * - **Draw Fog** / **Erase Fog** toggle buttons to activate the fog paint tool;
+     *   left-click or drag on the canvas to cover or uncover cells.
      */
     private fun buildMinimapSection(): VBox {
         val minimapCanvas = Canvas(1.0, 1.0)
         val minimapRenderer = MapRenderer(minimapCanvas)
+        // DM can see through fog on the minimap; players see fully opaque fog on the table view.
+        minimapRenderer.fogOpacity = 0.5
 
         // A Pane that keeps the canvas sized to fill its layout bounds.
         val canvasPane = object : Pane() {
@@ -219,7 +257,12 @@ class MapPlugin : DmPlugin {
         }
 
         // ------------------------------------------------------------------
-        // Mouse drag to pan
+        // Fog paint tool state
+        // ------------------------------------------------------------------
+        var fogTool: FogTool = FogTool.NONE
+
+        // ------------------------------------------------------------------
+        // Mouse drag to pan / fog paint
         // ------------------------------------------------------------------
         var dragStartX = 0.0
         var dragStartY = 0.0
@@ -228,17 +271,38 @@ class MapPlugin : DmPlugin {
 
         minimapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
-                dragStartX = e.x
-                dragStartY = e.y
-                dragStartOffX = minimapRenderer.viewportOffsetX
-                dragStartOffY = minimapRenderer.viewportOffsetY
+                if (fogTool != FogTool.NONE) {
+                    // Fog painting: determine the clicked cell and publish an event.
+                    val cell = minimapRenderer.canvasCoordsToFogCell(e.x, e.y)
+                    if (cell != null) {
+                        EventBus.publish(
+                            FogOfWarCellEvent(cell.first, cell.second, revealed = fogTool == FogTool.ERASE),
+                        )
+                    }
+                } else {
+                    // Pan mode: record the drag start position.
+                    dragStartX = e.x
+                    dragStartY = e.y
+                    dragStartOffX = minimapRenderer.viewportOffsetX
+                    dragStartOffY = minimapRenderer.viewportOffsetY
+                }
             }
         }
         minimapCanvas.setOnMouseDragged { e ->
             if (e.isPrimaryButtonDown) {
-                minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
-                minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
-                minimapRenderer.redraw()
+                if (fogTool != FogTool.NONE) {
+                    // Fog painting: paint every cell the mouse passes over.
+                    val cell = minimapRenderer.canvasCoordsToFogCell(e.x, e.y)
+                    if (cell != null) {
+                        EventBus.publish(
+                            FogOfWarCellEvent(cell.first, cell.second, revealed = fogTool == FogTool.ERASE),
+                        )
+                    }
+                } else {
+                    minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
+                    minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
+                    minimapRenderer.redraw()
+                }
             }
         }
 
@@ -314,15 +378,50 @@ class MapPlugin : DmPlugin {
             }
         }
 
+        // ------------------------------------------------------------------
+        // Fog paint tool buttons (inline with zoom/pan)
+        // ------------------------------------------------------------------
+        val drawFogBtn = ToggleButton("Draw Fog").apply {
+            tooltip = Tooltip("Draw fog: click/drag on map to cover cells with fog")
+        }
+        val eraseFogBtn = ToggleButton("Erase Fog").apply {
+            tooltip = Tooltip("Erase fog: click/drag on map to reveal cells")
+        }
+        drawFogBtn.setOnAction {
+            if (drawFogBtn.isSelected) {
+                eraseFogBtn.isSelected = false
+                fogTool = FogTool.DRAW
+                ensureFogInitialized()
+            } else {
+                fogTool = FogTool.NONE
+            }
+        }
+        eraseFogBtn.setOnAction {
+            if (eraseFogBtn.isSelected) {
+                drawFogBtn.isSelected = false
+                fogTool = FogTool.ERASE
+                ensureFogInitialized()
+            } else {
+                fogTool = FogTool.NONE
+            }
+        }
+
         val controlsRow = HBox(
             4.0,
             zoomOutBtn, zoomInBtn, resetBtn,
             Label("  "),
             panLeft, panUp, panDown, panRight,
+            Label("  "),
+            drawFogBtn, eraseFogBtn,
         )
 
         val section = VBox(4.0, canvasPane, controlsRow)
         VBox.setVgrow(canvasPane, Priority.ALWAYS)
+
+        // Eagerly initialize the fog grid so both the table view and the DM minimap
+        // display fog as soon as the DM panel is shown, without requiring any button press.
+        ensureFogInitialized()
+
         return section
     }
 
@@ -339,8 +438,9 @@ class MapPlugin : DmPlugin {
      * **Row 2 — Grid & Fog of war:**
      * `[☐ Show grid]  [Apply Grid]  [Calibrate Grid…]  │  [Reveal All]  [Hide All]`
      *
-     * Every element publishes the appropriate [EventBus] event; the calibration
-     * buttons open their respective pop-up dialogs.
+     * [Reveal All] and [Hide All] auto-initialise the fog grid (via [ensureFogInitialized])
+     * if it has not already been created.  Every element publishes the appropriate
+     * [EventBus] event; the calibration buttons open their respective pop-up dialogs.
      */
     private fun buildCompactControls(): VBox {
         // --- Row 1: Map image ---
@@ -404,12 +504,18 @@ class MapPlugin : DmPlugin {
 
         val revealAllBtn = Button("Reveal All").apply {
             tooltip = Tooltip("Remove fog from the entire map")
-            setOnAction { EventBus.publish(FogOfWarResetEvent(revealAll = true)) }
+            setOnAction {
+                ensureFogInitialized()
+                EventBus.publish(FogOfWarResetEvent(revealAll = true))
+            }
         }
 
         val hideAllBtn = Button("Hide All").apply {
             tooltip = Tooltip("Cover the entire map with fog")
-            setOnAction { EventBus.publish(FogOfWarResetEvent(revealAll = false)) }
+            setOnAction {
+                ensureFogInitialized()
+                EventBus.publish(FogOfWarResetEvent(revealAll = false))
+            }
         }
 
         val fowSep = Separator(Orientation.VERTICAL)
