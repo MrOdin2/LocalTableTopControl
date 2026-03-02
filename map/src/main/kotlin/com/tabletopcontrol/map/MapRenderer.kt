@@ -214,7 +214,39 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
+     * Returns the world-space rectangle visible on the canvas after the viewport
+     * transform is applied, as `[xMin, xMax, yMin, yMax]`.
+     *
+     * The viewport transform maps world coordinates to canvas coordinates via:
+     * ```
+     * canvasX = cx + viewportOffsetX + viewportScale * (worldX − cx)
+     * ```
+     * Inverting this gives the world-space position of each canvas edge.
+     *
+     * When the viewport is the identity transform (scale=1, offsets=0) the result
+     * is exactly `[0, canvasWidth, 0, canvasHeight]`, preserving the original
+     * table-view behaviour.
+     */
+    private fun visibleWorldBounds(): DoubleArray {
+        val w = canvas.width
+        val h = canvas.height
+        val cx = w / 2.0
+        val cy = h / 2.0
+        val xMin = (0.0 - cx - viewportOffsetX) / viewportScale + cx
+        val xMax = (w   - cx - viewportOffsetX) / viewportScale + cx
+        val yMin = (0.0 - cy - viewportOffsetY) / viewportScale + cy
+        val yMax = (h   - cy - viewportOffsetY) / viewportScale + cy
+        return doubleArrayOf(xMin, xMax, yMin, yMax)
+    }
+
+    /**
      * Draws the grid overlay using [gridCalibration] with the canvas centre as origin.
+     *
+     * Lines are drawn across the full world-space visible extent (computed from the
+     * current [viewportScale]/[viewportOffsetX]/[viewportOffsetY]) so that the grid
+     * fills the entire canvas regardless of how far the DM has panned or zoomed the
+     * minimap.  For the table-view renderer (identity viewport) the visible extent
+     * equals the canvas bounds, so behaviour is unchanged.
      *
      * The grid works independently of whether a map image is loaded.
      */
@@ -233,19 +265,20 @@ class MapRenderer(private val canvas: Canvas) {
         val originX = w / 2.0 + gridCalibration.offsetX
         val originY = h / 2.0 + gridCalibration.offsetY
 
-        // Vertical lines: find the first line at or to the left of x = 0.
-        var x = originX % cellPx
-        if (x < 0) x += cellPx
-        while (x <= w) {
-            gc.strokeLine(x, 0.0, x, h)
+        val bounds = visibleWorldBounds()
+        val xMin = bounds[0]; val xMax = bounds[1]; val yMin = bounds[2]; val yMax = bounds[3]
+
+        // Vertical lines: first line at or to the right of xMin via ceil.
+        var x = originX + Math.ceil((xMin - originX) / cellPx) * cellPx
+        while (x <= xMax) {
+            gc.strokeLine(x, yMin, x, yMax)
             x += cellPx
         }
 
-        // Horizontal lines: find the first line at or above y = 0.
-        var y = originY % cellPx
-        if (y < 0) y += cellPx
-        while (y <= h) {
-            gc.strokeLine(0.0, y, w, y)
+        // Horizontal lines: first line at or above yMin via ceil.
+        var y = originY + Math.ceil((yMin - originY) / cellPx) * cellPx
+        while (y <= yMax) {
+            gc.strokeLine(xMin, y, xMax, y)
             y += cellPx
         }
     }
