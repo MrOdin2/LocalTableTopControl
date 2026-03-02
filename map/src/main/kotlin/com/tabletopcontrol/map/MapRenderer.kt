@@ -5,6 +5,7 @@ import javafx.scene.canvas.GraphicsContext
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
 import com.tabletopcontrol.core.EventBus
+import kotlin.math.floor
 
 /**
  * Renders the tabletop map onto a JavaFX [Canvas].
@@ -62,6 +63,21 @@ class MapRenderer(private val canvas: Canvas) {
     /** Fog-of-war cell state, or `null` when fog of war is not active. */
     var fogOfWar: FogOfWarState? = null
 
+    /**
+     * Opacity of unrevealed fog-of-war tiles, in the range [0.0, 1.0].
+     *
+     * Set to `1.0` for the table view so players cannot see through the fog at all,
+     * and to a lower value (e.g. `0.5`) for the DM minimap so the underlying map
+     * remains visible beneath the fog.  Defaults to `1.0`.
+     */
+    var fogOpacity: Double = 1.0
+
+    /** Grid-column offset: fog array column 0 corresponds to grid column [fogColOffset]. */
+    private var fogColOffset: Int = 0
+
+    /** Grid-row offset: fog array row 0 corresponds to grid row [fogRowOffset]. */
+    private var fogRowOffset: Int = 0
+
     /** When `true` a yellow crosshair is drawn at the canvas centre. */
     private var gridCalibrationMode: Boolean = false
 
@@ -118,6 +134,12 @@ class MapRenderer(private val canvas: Canvas) {
         EventBus.subscribe<FogOfWarCellEvent> { event ->
             if (event.revealed) fogOfWar?.revealCell(event.col, event.row)
             else fogOfWar?.hideCell(event.col, event.row)
+            redraw()
+        }
+        EventBus.subscribe<FogOfWarSetupEvent> { event ->
+            fogColOffset = event.colOffset
+            fogRowOffset = event.rowOffset
+            fogOfWar = FogOfWarState(event.cols, event.rows)
             redraw()
         }
         EventBus.subscribe<GridCalibrationModeEvent> { event ->
@@ -287,30 +309,76 @@ class MapRenderer(private val canvas: Canvas) {
      * Covers unrevealed fog-of-war cells with a semi-transparent overlay.
      *
      * Cell positions are determined by [gridCalibration] so that fog cells always
-     * align with the grid.
+     * align with the grid, whether the grid is visible or not.  Only cells that
+     * overlap the world-space visible area are drawn for performance.
+     *
+     * Opacity is controlled by [fogOpacity]: `1.0` for a fully opaque player-facing
+     * table view; lower values (e.g. `0.5`) for the DM minimap.
      */
     private fun drawFogOfWar() {
         val fow = fogOfWar ?: return
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
 
-        gc.fill = Color.color(0.0, 0.0, 0.0, 0.75)
+        gc.fill = Color.color(0.0, 0.0, 0.0, fogOpacity.coerceIn(0.0, 1.0))
 
-        // Fog cell (0, 0) starts at the grid origin (canvas centre + offset).
+        // Fog cell (0, 0) is displaced from the grid origin by (fogColOffset, fogRowOffset) cells.
         val originX = canvas.width / 2.0 + gridCalibration.offsetX
         val originY = canvas.height / 2.0 + gridCalibration.offsetY
 
+        // Cull cells outside the world-space visible area for performance.
+        val bounds = visibleWorldBounds()
+        val visXMin = bounds[0]; val visXMax = bounds[1]
+        val visYMin = bounds[2]; val visYMax = bounds[3]
+
         for (col in 0 until fow.cols) {
+            val cellX = originX + (col + fogColOffset) * cellPx
+            if (cellX + cellPx <= visXMin || cellX >= visXMax) continue
             for (row in 0 until fow.rows) {
-                if (!fow.isRevealed(col, row)) {
-                    gc.fillRect(
-                        originX + col * cellPx,
-                        originY + row * cellPx,
-                        cellPx,
-                        cellPx,
-                    )
-                }
+                if (fow.isRevealed(col, row)) continue
+                val cellY = originY + (row + fogRowOffset) * cellPx
+                if (cellY + cellPx <= visYMin || cellY >= visYMax) continue
+                gc.fillRect(cellX, cellY, cellPx, cellPx)
             }
         }
+    }
+
+    /**
+     * Converts canvas-space mouse coordinates to the corresponding fog-of-war
+     * cell indices, accounting for the current viewport transform.
+     *
+     * This is used by the DM-panel minimap to determine which cell the DM clicked
+     * or dragged over when the fog paint/erase tool is active.
+     *
+     * Returns `null` when no fog state is active or the coordinates fall outside
+     * the fog grid bounds.
+     *
+     * @param canvasX canvas-space X coordinate (e.g. from a mouse event).
+     * @param canvasY canvas-space Y coordinate.
+     * @return zero-based `(col, row)` fog array indices, or `null` if out of bounds.
+     */
+    fun canvasCoordsToFogCell(canvasX: Double, canvasY: Double): Pair<Int, Int>? {
+        val fow = fogOfWar ?: return null
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+
+        // Inverse viewport transform: canvas coords → world coords.
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
+        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
+
+        // World coords → grid cell indices.
+        val originX = cx + gridCalibration.offsetX
+        val originY = cy + gridCalibration.offsetY
+        val gridCol = floor((worldX - originX) / cellPx).toInt()
+        val gridRow = floor((worldY - originY) / cellPx).toInt()
+
+        // Grid cell → fog array index.
+        val fogCol = gridCol - fogColOffset
+        val fogRow = gridRow - fogRowOffset
+
+        // Bounds check.
+        if (fogCol < 0 || fogCol >= fow.cols || fogRow < 0 || fogRow >= fow.rows) return null
+        return Pair(fogCol, fogRow)
     }
 
     /**
