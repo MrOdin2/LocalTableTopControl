@@ -99,6 +99,10 @@ class MapPlugin : DmPlugin {
         val canvas = Canvas()
         val renderer = MapRenderer(canvas)
         renderer.hideTokensInFog = true
+        // Release EventBus subscriptions when the canvas is removed from the scene.
+        canvas.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) renderer.dispose()
+        }
         return object : Pane() {
             init {
                 children.add(canvas)
@@ -223,6 +227,10 @@ class MapPlugin : DmPlugin {
         val minimapRenderer = MapRenderer(minimapCanvas)
         // DM can see through fog on the minimap; players see fully opaque fog on the table view.
         minimapRenderer.fogOpacity = 0.5
+        // Release EventBus subscriptions when the canvas is removed from the scene.
+        minimapCanvas.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) minimapRenderer.dispose()
+        }
 
         // A Pane that keeps the canvas sized to fill its layout bounds.
         val canvasPane = object : Pane() {

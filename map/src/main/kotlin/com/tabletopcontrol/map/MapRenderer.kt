@@ -129,6 +129,12 @@ class MapRenderer(private val canvas: Canvas) {
      */
     private var nextTokenCol: Int = 0
 
+    /**
+     * All active [EventBus.Subscription] handles for this renderer.
+     * Populated in [attachToEventBus] and released en masse in [dispose].
+     */
+    private val subscriptions = mutableListOf<EventBus.Subscription>()
+
     init {
         attachToEventBus()
     }
@@ -136,72 +142,87 @@ class MapRenderer(private val canvas: Canvas) {
     /**
      * Subscribes to map-related events published by [MapPlugin] via [EventBus]
      * so that this renderer can update the canvas in response.
+     *
+     * Every subscription handle is stored in [subscriptions] so that [dispose]
+     * can unregister them all when the renderer is no longer needed.
      */
     private fun attachToEventBus() {
-        EventBus.subscribe<MapLoadEvent> { event ->
+        subscriptions += EventBus.subscribe<MapLoadEvent> { event ->
             loadImage(event.resourcePath)
         }
-        EventBus.subscribe<MapCalibrationEvent> { event ->
+        subscriptions += EventBus.subscribe<MapCalibrationEvent> { event ->
             mapCalibration = event.calibration
             redraw()
         }
-        EventBus.subscribe<GridCalibrationEvent> { event ->
+        subscriptions += EventBus.subscribe<GridCalibrationEvent> { event ->
             gridCalibration = event.calibration
             redraw()
         }
-        EventBus.subscribe<GridUpdateEvent> { event ->
+        subscriptions += EventBus.subscribe<GridUpdateEvent> { event ->
             gridConfig = event.config
             redraw()
         }
-        EventBus.subscribe<FogOfWarResetEvent> { event ->
+        subscriptions += EventBus.subscribe<FogOfWarResetEvent> { event ->
             if (event.revealAll) fogOfWar?.revealAll() else fogOfWar?.hideAll()
             redraw()
         }
-        EventBus.subscribe<FogOfWarCellEvent> { event ->
+        subscriptions += EventBus.subscribe<FogOfWarCellEvent> { event ->
             if (event.revealed) fogOfWar?.revealCell(event.col, event.row)
             else fogOfWar?.hideCell(event.col, event.row)
             redraw()
         }
-        EventBus.subscribe<FogOfWarSetupEvent> { event ->
+        subscriptions += EventBus.subscribe<FogOfWarSetupEvent> { event ->
             fogColOffset = event.colOffset
             fogRowOffset = event.rowOffset
             fogOfWar = FogOfWarState(event.cols, event.rows)
             redraw()
         }
-        EventBus.subscribe<GridCalibrationModeEvent> { event ->
+        subscriptions += EventBus.subscribe<GridCalibrationModeEvent> { event ->
             gridCalibrationMode = event.active
             redraw()
         }
-        EventBus.subscribe<MapCalibrationModeEvent> { event ->
+        subscriptions += EventBus.subscribe<MapCalibrationModeEvent> { event ->
             mapCalibrationMode = event.active
             redraw()
         }
-        EventBus.subscribe<TokenAddedEvent> { event ->
+        subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             // Place each new token at the next unused column at row 0.
             tokens.add(Token(event.id, event.name, nextTokenCol++, 0, event.color))
             redraw()
         }
-        EventBus.subscribe<TokenRemovedEvent> { event ->
+        subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
             tokens.removeIf { it.id == event.id }
             redraw()
         }
-        EventBus.subscribe<TokenMovedEvent> { event ->
+        subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
             val idx = tokens.indexOfFirst { it.id == event.id }
             if (idx >= 0) {
                 tokens[idx] = tokens[idx].copy(col = event.col, row = event.row)
                 redraw()
             }
         }
-        EventBus.subscribe<ActiveTokenChangedEvent> { event ->
+        subscriptions += EventBus.subscribe<ActiveTokenChangedEvent> { event ->
             activeTokenId = event.id
             redraw()
         }
-        EventBus.subscribe<TokensResetEvent> {
+        subscriptions += EventBus.subscribe<TokensResetEvent> {
             tokens.clear()
             activeTokenId = null
             nextTokenCol = 0
             redraw()
         }
+    }
+
+    /**
+     * Unregisters all [EventBus] subscriptions held by this renderer.
+     *
+     * Call this when the renderer's canvas is removed from the scene graph to
+     * prevent the renderer from processing events and redrawing after it is no
+     * longer visible, and to allow it to be garbage-collected.
+     */
+    fun dispose() {
+        subscriptions.forEach { it.unsubscribe() }
+        subscriptions.clear()
     }
 
     /**
