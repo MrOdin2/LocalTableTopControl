@@ -119,8 +119,8 @@ class MapRenderer(private val canvas: Canvas) {
     /** Current list of tokens to draw on the map. */
     private val tokens = mutableListOf<Token>()
 
-    /** Display name of the currently active combatant, or `null` when none is active. */
-    private var activeTokenName: String? = null
+    /** Stable ID of the currently active combatant's token, or `null` when none is active. */
+    private var activeTokenId: String? = null
 
     /**
      * Monotonically increasing counter used to assign a unique initial column to each
@@ -178,27 +178,27 @@ class MapRenderer(private val canvas: Canvas) {
         }
         EventBus.subscribe<TokenAddedEvent> { event ->
             // Place each new token at the next unused column at row 0.
-            tokens.add(Token(event.name, nextTokenCol++, 0, event.color))
+            tokens.add(Token(event.id, event.name, nextTokenCol++, 0, event.color))
             redraw()
         }
         EventBus.subscribe<TokenRemovedEvent> { event ->
-            tokens.removeIf { it.name == event.name }
+            tokens.removeIf { it.id == event.id }
             redraw()
         }
         EventBus.subscribe<TokenMovedEvent> { event ->
-            val idx = tokens.indexOfFirst { it.name == event.name }
+            val idx = tokens.indexOfFirst { it.id == event.id }
             if (idx >= 0) {
                 tokens[idx] = tokens[idx].copy(col = event.col, row = event.row)
                 redraw()
             }
         }
         EventBus.subscribe<ActiveTokenChangedEvent> { event ->
-            activeTokenName = event.name
+            activeTokenId = event.id
             redraw()
         }
         EventBus.subscribe<TokensResetEvent> {
             tokens.clear()
-            activeTokenName = null
+            activeTokenId = null
             nextTokenCol = 0
             redraw()
         }
@@ -514,7 +514,7 @@ class MapRenderer(private val canvas: Canvas) {
             gc.fillOval(cx - r, cy - r, r * 2, r * 2)
 
             // Draw an orange outline on the active token.
-            if (token.name == activeTokenName) {
+            if (token.id == activeTokenId) {
                 gc.stroke = Color.ORANGE
                 gc.lineWidth = 3.0
                 gc.strokeOval(cx - r, cy - r, r * 2, r * 2)

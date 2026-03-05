@@ -24,6 +24,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import java.util.UUID
 
 /**
  * DM-panel plugin providing a combined initiative and HP/AC tracker.
@@ -63,7 +64,15 @@ class TrackerPlugin : DmPlugin {
     private var tokenColorIndex: Int = 0
 
     /**
-     * Maps each combatant name to the token colour that was assigned when it was added.
+     * Stable UUIDs for each combatant, parallel to [tracker.entries].
+     * `tokenIds[i]` is the id of `tracker.entries[i]`.  Must be kept in sync
+     * whenever entries are added, removed, moved, or cleared.
+     */
+    private val tokenIds: MutableList<String> = mutableListOf()
+
+    /**
+     * Maps each combatant's stable id to the token colour that was assigned when it
+     * was added.  Keyed by id (not name) so colour lookups survive renames.
      * Used to render the matching colour swatch on each tracker card.
      */
     private val tokenColors: MutableMap<String, Color> = mutableMapOf()
@@ -100,6 +109,7 @@ class TrackerPlugin : DmPlugin {
                 if (alert.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
                     tracker.reset()
                     tokenColorIndex = 0
+                    tokenIds.clear()
                     tokenColors.clear()
                     EventBus.publish(TokensResetEvent())
                     refresh()
@@ -112,7 +122,12 @@ class TrackerPlugin : DmPlugin {
             tooltip = Tooltip("Advance to the next combatant")
             setOnAction {
                 tracker.next()
-                EventBus.publish(ActiveTokenChangedEvent(tracker.currentEntry?.name))
+                EventBus.publish(
+                    ActiveTokenChangedEvent(
+                        tokenIds.getOrNull(tracker.currentIndex),
+                        tracker.currentEntry?.name,
+                    ),
+                )
                 refresh()
             }
         }
@@ -174,12 +189,22 @@ class TrackerPlugin : DmPlugin {
             setOnAction {
                 val name = "Combatant ${tracker.entries.size + 1}"
                 val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
-                val previousActive = tracker.currentEntry?.name
+                val id = UUID.randomUUID().toString()
+                val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
                 tracker.add(name, 0)
-                tokenColors[name] = color
-                EventBus.publish(TokenAddedEvent(name, color))
-                if (tracker.currentEntry?.name != previousActive) {
-                    EventBus.publish(ActiveTokenChangedEvent(tracker.currentEntry?.name))
+                // tracker.add() sorts by initiative; with all initiatives equal (0) the
+                // new entry goes to the end (stable sort), so appending the id is correct.
+                tokenIds.add(id)
+                tokenColors[id] = color
+                EventBus.publish(TokenAddedEvent(id, name, color))
+                // When the tracker was empty before, currentIndex advances from -1 to 0.
+                if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
+                    EventBus.publish(
+                        ActiveTokenChangedEvent(
+                            tokenIds.getOrNull(tracker.currentIndex),
+                            tracker.currentEntry?.name,
+                        ),
+                    )
                 }
                 refresh()
             }
@@ -223,11 +248,18 @@ class TrackerPlugin : DmPlugin {
         val removeBtn = Button("×").apply {
             tooltip = Tooltip("Remove this combatant")
             setOnAction {
+                val id = tokenIds[index]
                 val name = tracker.entries[index].name
                 tracker.remove(index)
-                tokenColors.remove(name)
-                EventBus.publish(TokenRemovedEvent(name))
-                EventBus.publish(ActiveTokenChangedEvent(tracker.currentEntry?.name))
+                tokenIds.removeAt(index)
+                tokenColors.remove(id)
+                EventBus.publish(TokenRemovedEvent(id, name))
+                EventBus.publish(
+                    ActiveTokenChangedEvent(
+                        tokenIds.getOrNull(tracker.currentIndex),
+                        tracker.currentEntry?.name,
+                    ),
+                )
                 refresh()
             }
         }
@@ -253,7 +285,7 @@ class TrackerPlugin : DmPlugin {
         }
 
         // Color swatch — a small circle whose fill matches the combatant's map token.
-        val swatchColor = tokenColors[entry.name]
+        val swatchColor = tokenIds.getOrNull(index)?.let { tokenColors[it] }
         val swatch = Region().apply {
             minWidth = 14.0; maxWidth = 14.0
             minHeight = 14.0; maxHeight = 14.0
@@ -301,6 +333,9 @@ class TrackerPlugin : DmPlugin {
             val fromIdx = e.dragboard.getString().toIntOrNull()
             if (fromIdx != null && fromIdx != index) {
                 tracker.move(fromIdx, index)
+                // Keep the id list in sync with the reordered entries.
+                val movedId = tokenIds.removeAt(fromIdx)
+                tokenIds.add(index, movedId)
                 refresh()
             }
             e.isDropCompleted = true
@@ -328,13 +363,14 @@ class TrackerPlugin : DmPlugin {
         /**
          * 64 perceptually distinct token colours generated from 16 evenly spaced hues
          * across the full colour wheel, each at four (saturation × brightness) variants:
-         * - Vivid   (s=1.0, b=0.90) — first pass through the wheel
-         * - Light   (s=0.55, b=1.0) — second pass
-         * - Dark    (s=1.0, b=0.55) — third pass
-         * - Muted   (s=0.45, b=0.80) — fourth pass
+         * - Vivid   (s=1.0, b=0.90) — adds 1–16
+         * - Light   (s=0.55, b=1.0) — adds 17–32
+         * - Dark    (s=1.0, b=0.55) — adds 33–48
+         * - Muted   (s=0.45, b=0.80) — adds 49–64
          *
-         * Interleaved so successive adds cycle through the four variant rings before
-         * repeating a hue.
+         * Successive adds cycle through all 16 hues within a variant group before
+         * moving on to the next variant, maximising perceptual distance between
+         * consecutively added combatants.
          */
         private val TOKEN_COLORS: List<Color> = run {
             val hues = List(16) { it * 22.5 }
@@ -344,7 +380,6 @@ class TrackerPlugin : DmPlugin {
                 Pair(1.00, 0.55),   // dark
                 Pair(0.45, 0.80),   // muted
             )
-            // Interleave: for each position i, take hue[i%16] and variant[i/16]
             List(64) { i -> Color.hsb(hues[i % 16], variants[i / 16].first, variants[i / 16].second) }
         }
 

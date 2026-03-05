@@ -272,8 +272,8 @@ class MapPlugin : DmPlugin {
         var dragStartY = 0.0
         var dragStartOffX = 0.0
         var dragStartOffY = 0.0
-        /** Name of the token currently being dragged, or `null` when not dragging a token. */
-        var draggingTokenName: String? = null
+        /** Token currently being dragged, or `null` when not dragging a token. */
+        var draggingToken: Token? = null
 
         minimapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
@@ -289,7 +289,7 @@ class MapPlugin : DmPlugin {
                     // Check if the cursor is over a token — if so, start token drag.
                     val token = minimapRenderer.tokenAtCanvasCoords(e.x, e.y)
                     if (token != null) {
-                        draggingTokenName = token.name
+                        draggingToken = token
                     } else {
                         // Pan mode: record the drag start position.
                         dragStartX = e.x
@@ -310,10 +310,10 @@ class MapPlugin : DmPlugin {
                             FogOfWarCellEvent(cell.first, cell.second, revealed = fogTool == FogTool.ERASE),
                         )
                     }
-                } else if (draggingTokenName != null) {
+                } else if (draggingToken != null) {
                     // Token drag: move token to the grid cell under the cursor.
                     val (col, row) = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
-                    EventBus.publish(TokenMovedEvent(draggingTokenName!!, col, row))
+                    EventBus.publish(TokenMovedEvent(draggingToken!!.id, draggingToken!!.name, col, row))
                 } else {
                     minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
                     minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
@@ -323,7 +323,7 @@ class MapPlugin : DmPlugin {
         }
         minimapCanvas.setOnMouseReleased { e ->
             if (e.button == MouseButton.PRIMARY) {
-                draggingTokenName = null
+                draggingToken = null
             }
         }
 
