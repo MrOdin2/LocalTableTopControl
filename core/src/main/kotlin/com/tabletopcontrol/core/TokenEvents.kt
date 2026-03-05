@@ -34,15 +34,6 @@ data class TokenRemovedEvent(val id: String, val name: String)
 data class TokenMovedEvent(val id: String, val name: String, val col: Int, val row: Int)
 
 /**
- * Event published when a combatant's display name is changed in the initiative tracker,
- * so any views displaying token labels can update accordingly.
- *
- * @property id      stable unique identifier of the combatant/token being renamed.
- * @property newName new display name for the combatant/token.
- */
-data class TokenRenamedEvent(val id: String, val newName: String)
-
-/**
  * Event published when the active combatant changes in the initiative tracker,
  * so the map can update the active-token highlight.
  *
