@@ -227,6 +227,7 @@ class TrackerPlugin : DmPlugin {
                 tracker.remove(index)
                 tokenColors.remove(name)
                 EventBus.publish(TokenRemovedEvent(name))
+                EventBus.publish(ActiveTokenChangedEvent(tracker.currentEntry?.name))
                 refresh()
             }
         }
