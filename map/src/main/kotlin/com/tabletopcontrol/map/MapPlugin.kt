@@ -282,6 +282,8 @@ class MapPlugin : DmPlugin {
         var dragStartOffY = 0.0
         /** Token currently being dragged, or `null` when not dragging a token. */
         var draggingToken: Token? = null
+        /** Last cell published for the current token drag; used to skip redundant events. */
+        var lastDragCell: Pair<Int, Int>? = null
 
         minimapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
@@ -320,8 +322,13 @@ class MapPlugin : DmPlugin {
                     }
                 } else if (draggingToken != null) {
                     // Token drag: move token to the grid cell under the cursor.
-                    val (col, row) = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
-                    EventBus.publish(TokenMovedEvent(draggingToken!!.id, draggingToken!!.name, col, row))
+                    // Skip publish if the cursor is still in the same cell to avoid
+                    // redundant redraws on every pixel of mouse movement.
+                    val cell = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
+                    if (cell != lastDragCell) {
+                        lastDragCell = cell
+                        EventBus.publish(TokenMovedEvent(draggingToken!!.id, draggingToken!!.name, cell.first, cell.second))
+                    }
                 } else {
                     minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
                     minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
@@ -332,6 +339,7 @@ class MapPlugin : DmPlugin {
         minimapCanvas.setOnMouseReleased { e ->
             if (e.button == MouseButton.PRIMARY) {
                 draggingToken = null
+                lastDragCell = null
             }
         }
 

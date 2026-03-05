@@ -417,50 +417,12 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
-     * Converts canvas-space mouse coordinates to the corresponding fog-of-war
-     * cell indices, accounting for the current viewport transform.
-     *
-     * This is used by the DM-panel minimap to determine which cell the DM clicked
-     * or dragged over when the fog paint/erase tool is active.
-     *
-     * Returns `null` when no fog state is active or the coordinates fall outside
-     * the fog grid bounds.
-     *
-     * @param canvasX canvas-space X coordinate (e.g. from a mouse event).
-     * @param canvasY canvas-space Y coordinate.
-     * @return zero-based `(col, row)` fog array indices, or `null` if out of bounds.
-     */
-    fun canvasCoordsToFogCell(canvasX: Double, canvasY: Double): Pair<Int, Int>? {
-        val fow = fogOfWar ?: return null
-        val cellPx = gridCalibration.effectiveCellSizeInPixels()
-
-        // Inverse viewport transform: canvas coords → world coords.
-        val cx = canvas.width / 2.0
-        val cy = canvas.height / 2.0
-        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
-        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
-
-        // World coords → grid cell indices.
-        val originX = cx + gridCalibration.offsetX
-        val originY = cy + gridCalibration.offsetY
-        val gridCol = floor((worldX - originX) / cellPx).toInt()
-        val gridRow = floor((worldY - originY) / cellPx).toInt()
-
-        // Grid cell → fog array index.
-        val fogCol = gridCol - fogColOffset
-        val fogRow = gridRow - fogRowOffset
-
-        // Bounds check.
-        if (fogCol < 0 || fogCol >= fow.cols || fogRow < 0 || fogRow >= fow.rows) return null
-        return Pair(fogCol, fogRow)
-    }
-
-    /**
      * Converts canvas-space mouse coordinates to the corresponding grid cell indices,
      * accounting for the current viewport transform.
      *
      * This is the inverse of the grid-drawing transform and is used to determine
-     * which grid cell the DM is pointing at, for both fog painting and token dragging.
+     * which grid cell the DM is pointing at, for token dragging and as the foundation
+     * for [canvasCoordsToFogCell].
      *
      * @param canvasX canvas-space X coordinate (e.g. from a mouse event).
      * @param canvasY canvas-space Y coordinate.
@@ -477,6 +439,34 @@ class MapRenderer(private val canvas: Canvas) {
         val col = floor((worldX - originX) / cellPx).toInt()
         val row = floor((worldY - originY) / cellPx).toInt()
         return Pair(col, row)
+    }
+
+    /**
+     * Converts canvas-space mouse coordinates to the corresponding fog-of-war
+     * cell indices, accounting for the current viewport transform.
+     *
+     * Delegates to [canvasCoordsToGridCell] for the canvas→grid conversion, then
+     * maps the grid indices to fog array indices using [fogColOffset]/[fogRowOffset]
+     * and performs a bounds check against the active [fogOfWar] state.
+     *
+     * Returns `null` when no fog state is active or the coordinates fall outside
+     * the fog grid bounds.
+     *
+     * @param canvasX canvas-space X coordinate (e.g. from a mouse event).
+     * @param canvasY canvas-space Y coordinate.
+     * @return zero-based `(col, row)` fog array indices, or `null` if out of bounds.
+     */
+    fun canvasCoordsToFogCell(canvasX: Double, canvasY: Double): Pair<Int, Int>? {
+        val fow = fogOfWar ?: return null
+        val (gridCol, gridRow) = canvasCoordsToGridCell(canvasX, canvasY)
+
+        // Grid cell → fog array index.
+        val fogCol = gridCol - fogColOffset
+        val fogRow = gridRow - fogRowOffset
+
+        // Bounds check.
+        if (fogCol < 0 || fogCol >= fow.cols || fogRow < 0 || fogRow >= fow.rows) return null
+        return Pair(fogCol, fogRow)
     }
 
     /**
