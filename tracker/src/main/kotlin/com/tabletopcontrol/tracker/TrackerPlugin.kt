@@ -174,9 +174,13 @@ class TrackerPlugin : DmPlugin {
             setOnAction {
                 val name = "Combatant ${tracker.entries.size + 1}"
                 val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
+                val previousActive = tracker.currentEntry?.name
                 tracker.add(name, 0)
                 tokenColors[name] = color
                 EventBus.publish(TokenAddedEvent(name, color))
+                if (tracker.currentEntry?.name != previousActive) {
+                    EventBus.publish(ActiveTokenChangedEvent(tracker.currentEntry?.name))
+                }
                 refresh()
             }
         }
