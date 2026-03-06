@@ -65,6 +65,15 @@ class MapRenderer(private val canvas: Canvas) {
     /** Grid overlay configuration, or `null` to disable the grid. */
     var gridConfig: GridConfig? = null
 
+    /**
+     * Background fill colour used behind the map image.
+     *
+     * When no map image is loaded this colour is the sole visible canvas content,
+     * acting as a plain-colour map.  When an image is loaded it is drawn on top of
+     * this fill.  Defaults to [Color.BLACK] to preserve the original behaviour.
+     */
+    var backgroundColor: Color = Color.BLACK
+
     /** Fog-of-war cell state, or `null` when fog of war is not active. */
     var fogOfWar: FogOfWarState? = null
 
@@ -149,6 +158,10 @@ class MapRenderer(private val canvas: Canvas) {
     private fun attachToEventBus() {
         subscriptions += EventBus.subscribe<MapLoadEvent> { event ->
             loadImage(event.resourcePath)
+        }
+        subscriptions += EventBus.subscribe<MapBackgroundEvent> { event ->
+            backgroundColor = event.color
+            redraw()
         }
         subscriptions += EventBus.subscribe<MapCalibrationEvent> { event ->
             mapCalibration = event.calibration
@@ -265,7 +278,7 @@ class MapRenderer(private val canvas: Canvas) {
      */
     fun redraw() {
         // Background always fills the entire canvas regardless of viewport transform.
-        gc.fill = Color.BLACK
+        gc.fill = backgroundColor
         gc.fillRect(0.0, 0.0, canvas.width, canvas.height)
 
         // Apply viewport transform: zoom from the canvas centre then pan.

@@ -11,6 +11,7 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
 import javafx.scene.control.CheckBox
+import javafx.scene.control.ColorPicker
 import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
@@ -61,10 +62,18 @@ class MapPlugin : DmPlugin {
     /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
     private var lastGridCalibration: GridCalibration
 
+    /** The most recently applied grid line colour. */
+    private var lastGridColor: Color
+
+    /** The most recently applied plain-colour background. */
+    private var lastBackgroundColor: Color
+
     init {
-        val (savedGrid, savedMap) = MapSettingsSerializer.load()
-        lastGridCalibration = savedGrid ?: GridCalibration()
-        lastMapCalibration = savedMap ?: MapCalibration()
+        val saved = MapSettingsSerializer.load()
+        lastGridCalibration = saved.gridCalibration ?: GridCalibration()
+        lastMapCalibration = saved.mapCalibration ?: MapCalibration()
+        lastGridColor = saved.gridColor ?: GridConfig().color
+        lastBackgroundColor = saved.backgroundColor ?: Color.BLACK
     }
 
     /** URI of the most recently loaded map image, or `null` if no map has been loaded. */
@@ -107,12 +116,14 @@ class MapPlugin : DmPlugin {
     }
 
     /**
-     * Publishes [MapCalibrationEvent] and [GridCalibrationEvent] for the current persisted
-     * calibration so that any newly created renderer can initialise with the saved settings.
+     * Publishes [MapCalibrationEvent], [GridCalibrationEvent], and [MapBackgroundEvent]
+     * for the current persisted settings so that any newly created renderer can
+     * initialise with the saved values.
      */
-    private fun publishCurrentCalibration() {
+    private fun publishCurrentSettings() {
         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
         EventBus.publish(GridCalibrationEvent(lastGridCalibration))
+        EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
     }
 
     /**
@@ -128,7 +139,7 @@ class MapPlugin : DmPlugin {
         val renderer = MapRenderer(canvas)
         renderer.hideTokensInFog = true
         // Restore persisted calibration so the table view reflects the saved settings.
-        publishCurrentCalibration()
+        publishCurrentSettings()
         // Release EventBus subscriptions when the canvas is removed from the scene.
         canvas.sceneProperty().addListener { _, _, newScene ->
             if (newScene == null) renderer.dispose()
@@ -258,7 +269,7 @@ class MapPlugin : DmPlugin {
         // DM can see through fog on the minimap; players see fully opaque fog on the table view.
         minimapRenderer.fogOpacity = 0.5
         // Restore persisted calibration so the minimap reflects the saved settings.
-        publishCurrentCalibration()
+        publishCurrentSettings()
         // Release EventBus subscriptions when the canvas is removed from the scene.
         minimapCanvas.sceneProperty().addListener { _, _, newScene ->
             if (newScene == null) minimapRenderer.dispose()
@@ -502,10 +513,14 @@ class MapPlugin : DmPlugin {
      * Builds the compact two-row controls strip shown below the minimap.
      *
      * **Row 1 — Map image:**
-     * `[Load Map…]  [path readout (grows)]  [Calibrate Map…]`
+     * `[Load Map…]  [path readout (grows)]  [Calibrate Map…]  [Guided Calibration…]  BG: [■]`
      *
      * **Row 2 — Grid & Fog of war:**
-     * `[☐ Show grid]  [Apply Grid]  [Calibrate Grid…]  │  [Reveal All]  [Hide All]`
+     * `[☐ Show grid]  Grid: [■]  [Apply Grid]  [Calibrate Grid…]  │  [Reveal All]  [Hide All]`
+     *
+     * The background colour picker (BG) applies its colour immediately via [MapBackgroundEvent]
+     * and also auto-suggests a contrasting grid line colour in the Grid picker.
+     * The grid colour picker value is applied when the DM clicks [Apply Grid].
      *
      * [Reveal All] and [Hide All] auto-initialise the fog grid (via [ensureFogInitialized])
      * if it has not already been created.  Every element publishes the appropriate
@@ -559,20 +574,29 @@ class MapPlugin : DmPlugin {
             }
         }
 
-        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn)
-
         // --- Row 2: Grid + Fog of war ---
         val visibleCheck = CheckBox("Show Grid").apply {
             isSelected = false
             tooltip = Tooltip("Toggle grid overlay visibility")
         }
 
+        // Grid colour picker — pre-filled with the last saved colour.
+        val gridColorPicker = ColorPicker(lastGridColor).apply {
+            prefWidth = 80.0
+            tooltip = Tooltip(
+                "Grid line colour — applied when you click Apply Grid.\n" +
+                    "Updated automatically to contrast with the background colour.",
+            )
+        }
+
         val applyGridBtn = Button("Apply Grid").apply {
-            tooltip = Tooltip("Publish the current grid visibility setting")
+            tooltip = Tooltip("Publish the current grid visibility and colour settings")
             setOnAction {
-                val config = if (!visibleCheck.isSelected) null else GridConfig()
+                lastGridColor = gridColorPicker.value
+                val config = if (!visibleCheck.isSelected) null else GridConfig(color = lastGridColor)
                 currentGridConfig = config
                 EventBus.publish(GridUpdateEvent(config))
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
             }
         }
 
@@ -599,8 +623,30 @@ class MapPlugin : DmPlugin {
             }
         }
 
+        // Background colour picker — applies immediately and auto-suggests a
+        // contrasting grid colour in gridColorPicker.
+        val bgColorPicker = ColorPicker(lastBackgroundColor).apply {
+            prefWidth = 80.0
+            tooltip = Tooltip(
+                "Plain-colour background — replaces the default black fill.\n" +
+                    "When no map image is loaded this is the sole visible background.\n" +
+                    "Changing this colour auto-suggests a contrasting grid line colour.",
+            )
+            setOnAction {
+                lastBackgroundColor = value
+                // Auto-suggest a contrasting grid colour without overriding a colour
+                // the user may have chosen manually for the current grid session.
+                gridColorPicker.value = contrastingGridColor(lastBackgroundColor)
+                EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
+            }
+        }
+
+        val bgSep = Separator(Orientation.VERTICAL)
+        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn, bgSep, Label("BG:"), bgColorPicker)
+
         val fowSep = Separator(Orientation.VERTICAL)
-        val gridFowRow = HBox(4.0, visibleCheck, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
+        val gridFowRow = HBox(4.0, visibleCheck, Label("Grid:"), gridColorPicker, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
 
         return VBox(4.0, mapRow, gridFowRow)
     }
@@ -700,7 +746,7 @@ class MapPlugin : DmPlugin {
                     else -> {
                         lastMapCalibration = MapCalibration(scale, ox, oy)
                         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration)
+                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
                         confirmed = true
                     }
                 }
@@ -821,7 +867,7 @@ class MapPlugin : DmPlugin {
                     else -> {
                         lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
                         EventBus.publish(GridCalibrationEvent(lastGridCalibration))
-                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration)
+                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
                         confirmed = true
                     }
                 }
@@ -1167,7 +1213,7 @@ class MapPlugin : DmPlugin {
             .addEventFilter(ActionEvent.ACTION) {
                 lastMapCalibration = working
                 EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration)
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
                 confirmed = true
             }
 

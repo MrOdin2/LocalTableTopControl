@@ -1,5 +1,7 @@
 package com.tabletopcontrol.map
 
+import javafx.scene.paint.Color
+
 /**
  * Event fired when the DM loads a new map image.
  *
@@ -84,3 +86,14 @@ data class MapCalibrationModeEvent(val active: Boolean)
  *                     Fog cells cover grid rows [rowOffset .. rowOffset+rows-1].
  */
 data class FogOfWarSetupEvent(val cols: Int, val rows: Int, val colOffset: Int, val rowOffset: Int)
+
+/**
+ * Event fired when the DM sets a plain-colour background for the map canvas.
+ *
+ * The renderer replaces its default black fill with this colour.  When no map
+ * image is loaded, this colour is the sole visible background — effectively a
+ * "plain colour map".  When an image is loaded, it is drawn on top of this fill.
+ *
+ * @property color the background fill colour to use.
+ */
+data class MapBackgroundEvent(val color: Color)
