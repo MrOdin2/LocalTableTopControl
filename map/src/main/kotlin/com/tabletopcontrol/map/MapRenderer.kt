@@ -565,7 +565,7 @@ class MapRenderer(private val canvas: Canvas) {
         val cy = canvas.height / 2.0
         val r = 6.0
 
-        gc.fill = Color.RED
+        gc.stroke = Color.RED
         gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
     }
 
