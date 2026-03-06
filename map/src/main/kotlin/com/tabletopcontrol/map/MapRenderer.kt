@@ -20,7 +20,7 @@ import kotlin.math.floor
  * fog-of-war state changes.  This keeps CPU usage low on modest hardware.
  *
  * Rendering is composed of layers drawn in order:
- * 1. Background fill (black).
+ * 1. Background fill — configurable via [backgroundColor] (defaults to black).
  * 2. Map image — scaled from the canvas centre according to [mapCalibration].
  * 3. Grid overlay — drawn when [gridConfig] is non-null and visible, using
  *    [gridCalibration] with the canvas centre as the scale origin.

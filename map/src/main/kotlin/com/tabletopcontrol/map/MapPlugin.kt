@@ -962,6 +962,7 @@ class MapPlugin : DmPlugin {
         dialogRenderer.mapCalibration = working
         dialogRenderer.gridCalibration = lastGridCalibration
         dialogRenderer.gridConfig = currentGridConfig
+        dialogRenderer.backgroundColor = lastBackgroundColor
         currentMapImageUri?.let { dialogRenderer.loadImage(it) }
 
         // Release EventBus subscriptions when the canvas leaves the dialog scene.

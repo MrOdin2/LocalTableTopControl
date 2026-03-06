@@ -194,6 +194,22 @@ object MapSettingsSerializer {
         }
     }
 
+    /**
+     * Parses all four settings from a properties-format [text].
+     *
+     * Each field falls back to `null` if the corresponding keys are absent or unparseable,
+     * so this can safely handle older config files that predate the colour fields.
+     *
+     * @return A [MapSavedSettings] with each field set to the parsed value, or `null` for
+     *         any field that is absent or unparseable.
+     */
+    fun deserializeAll(text: String): MapSavedSettings = MapSavedSettings(
+        gridCalibration = deserializeGridCalibration(text),
+        mapCalibration = deserializeMapCalibration(text),
+        gridColor = deserializeGridColor(text),
+        backgroundColor = deserializeBackgroundColor(text),
+    )
+
     // ── Persistence ──────────────────────────────────────────────────────────
 
     /**

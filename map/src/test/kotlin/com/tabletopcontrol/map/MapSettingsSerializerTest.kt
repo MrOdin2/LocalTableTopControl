@@ -3,6 +3,7 @@ package com.tabletopcontrol.map
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class MapSettingsSerializerTest {
@@ -152,8 +153,8 @@ class MapSettingsSerializerTest {
     @Test
     fun `serialize includes grid color and background color keys`() {
         val text = MapSettingsSerializer.serialize(GridCalibration(), MapCalibration())
-        assert(text.contains("grid.color=")) { "Missing grid.color" }
-        assert(text.contains("background.color=")) { "Missing background.color" }
+        assertTrue(text.contains("grid.color="), "Missing grid.color")
+        assertTrue(text.contains("background.color="), "Missing background.color")
     }
 
     @Test
@@ -191,17 +192,36 @@ class MapSettingsSerializerTest {
     }
 
     @Test
-    fun `load returns MapSavedSettings with all four fields`() {
-        // Verify the return type is MapSavedSettings (structural check via properties)
-        val settings = MapSavedSettings(
-            gridCalibration = GridCalibration(),
-            mapCalibration = MapCalibration(),
-            gridColor = Color.BLACK,
-            backgroundColor = Color.WHITE,
-        )
+    fun `deserializeAll round-trips all four settings`() {
+        val gridCal = GridCalibration(cellSizeInPixels = 64.0, scale = 1.5, offsetX = 3.0, offsetY = -3.0)
+        val mapCal = MapCalibration(scale = 2.0, offsetX = 10.0, offsetY = -5.0)
+        val gridColor = Color.color(0.25, 0.5, 0.75, 1.0)
+        val bgColor = Color.color(0.0, 0.0, 0.5, 1.0)
+        val text = MapSettingsSerializer.serialize(gridCal, mapCal, gridColor, bgColor)
+
+        val settings = MapSettingsSerializer.deserializeAll(text)
+
+        assertEquals(gridCal, settings.gridCalibration)
+        assertEquals(mapCal, settings.mapCalibration)
+        assertEquals(gridColor.red, settings.gridColor!!.red, 1e-9)
+        assertEquals(gridColor.green, settings.gridColor!!.green, 1e-9)
+        assertEquals(gridColor.blue, settings.gridColor!!.blue, 1e-9)
+        assertEquals(gridColor.opacity, settings.gridColor!!.opacity, 1e-9)
+        assertEquals(bgColor.red, settings.backgroundColor!!.red, 1e-9)
+        assertEquals(bgColor.green, settings.backgroundColor!!.green, 1e-9)
+        assertEquals(bgColor.blue, settings.backgroundColor!!.blue, 1e-9)
+        assertEquals(bgColor.opacity, settings.backgroundColor!!.opacity, 1e-9)
+    }
+
+    @Test
+    fun `deserializeAll returns nulls for missing color keys (backward compatibility)`() {
+        // Old-format config without colour keys.
+        val oldText = "grid.cellSizeInPixels=50.0\ngrid.scale=1.0\ngrid.offsetX=0.0\ngrid.offsetY=0.0\n" +
+            "map.scale=1.0\nmap.offsetX=0.0\nmap.offsetY=0.0"
+        val settings = MapSettingsSerializer.deserializeAll(oldText)
         assertEquals(GridCalibration(), settings.gridCalibration)
         assertEquals(MapCalibration(), settings.mapCalibration)
-        assertEquals(Color.BLACK, settings.gridColor)
-        assertEquals(Color.WHITE, settings.backgroundColor)
+        assertNull(settings.gridColor)
+        assertNull(settings.backgroundColor)
     }
 }
