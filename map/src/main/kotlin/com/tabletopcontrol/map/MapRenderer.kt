@@ -527,7 +527,7 @@ class MapRenderer(private val canvas: Canvas) {
             // Draw an orange outline on the active token.
             if (token.id == activeTokenId) {
                 gc.stroke = Color.ORANGE
-                gc.lineWidth = 3.0
+                gc.lineWidth = r * 0.2
                 gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
             }
         }
