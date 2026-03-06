@@ -2,6 +2,7 @@ package com.tabletopcontrol.map
 
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenMovedEvent
 import javafx.event.ActionEvent
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -97,6 +98,11 @@ class MapPlugin : DmPlugin {
     override fun createTableView(): Node {
         val canvas = Canvas()
         val renderer = MapRenderer(canvas)
+        renderer.hideTokensInFog = true
+        // Release EventBus subscriptions when the canvas is removed from the scene.
+        canvas.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) renderer.dispose()
+        }
         return object : Pane() {
             init {
                 children.add(canvas)
@@ -206,7 +212,9 @@ class MapPlugin : DmPlugin {
      *
      * The minimap has its own independent viewport that does **not** affect the
      * table-view renderer:
-     * - **Drag** (left button) on the canvas to pan (when no fog tool is active).
+     * - **Drag** (left button) on the canvas to pan (when no fog tool is active and
+     *   the cursor is not over a token).
+     * - **Drag** over a token to move it to a new grid cell (publishes [TokenMovedEvent]).
      * - **Scroll wheel** to zoom in/out around the canvas centre.
      * - **`−`/`+`** buttons to zoom out/in by 25 % per click.
      * - **◀ ▶ ▲ ▼** buttons to pan by 20 canvas-space pixels per click.
@@ -219,6 +227,10 @@ class MapPlugin : DmPlugin {
         val minimapRenderer = MapRenderer(minimapCanvas)
         // DM can see through fog on the minimap; players see fully opaque fog on the table view.
         minimapRenderer.fogOpacity = 0.5
+        // Release EventBus subscriptions when the canvas is removed from the scene.
+        minimapCanvas.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) minimapRenderer.dispose()
+        }
 
         // A Pane that keeps the canvas sized to fill its layout bounds.
         val canvasPane = object : Pane() {
@@ -262,12 +274,16 @@ class MapPlugin : DmPlugin {
         var fogTool: FogTool = FogTool.NONE
 
         // ------------------------------------------------------------------
-        // Mouse drag to pan / fog paint
+        // Mouse drag to pan / fog paint / token drag
         // ------------------------------------------------------------------
         var dragStartX = 0.0
         var dragStartY = 0.0
         var dragStartOffX = 0.0
         var dragStartOffY = 0.0
+        /** Token currently being dragged, or `null` when not dragging a token. */
+        var draggingToken: Token? = null
+        /** Last cell published for the current token drag; used to skip redundant events. */
+        var lastDragCell: Pair<Int, Int>? = null
 
         minimapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
@@ -280,11 +296,17 @@ class MapPlugin : DmPlugin {
                         )
                     }
                 } else {
-                    // Pan mode: record the drag start position.
-                    dragStartX = e.x
-                    dragStartY = e.y
-                    dragStartOffX = minimapRenderer.viewportOffsetX
-                    dragStartOffY = minimapRenderer.viewportOffsetY
+                    // Check if the cursor is over a token — if so, start token drag.
+                    val token = minimapRenderer.tokenAtCanvasCoords(e.x, e.y)
+                    if (token != null) {
+                        draggingToken = token
+                    } else {
+                        // Pan mode: record the drag start position.
+                        dragStartX = e.x
+                        dragStartY = e.y
+                        dragStartOffX = minimapRenderer.viewportOffsetX
+                        dragStartOffY = minimapRenderer.viewportOffsetY
+                    }
                 }
             }
         }
@@ -298,11 +320,26 @@ class MapPlugin : DmPlugin {
                             FogOfWarCellEvent(cell.first, cell.second, revealed = fogTool == FogTool.ERASE),
                         )
                     }
+                } else if (draggingToken != null) {
+                    // Token drag: move token to the grid cell under the cursor.
+                    // Skip publish if the cursor is still in the same cell to avoid
+                    // redundant redraws on every pixel of mouse movement.
+                    val cell = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
+                    if (cell != lastDragCell) {
+                        lastDragCell = cell
+                        EventBus.publish(TokenMovedEvent(draggingToken!!.id, draggingToken!!.name, cell.first, cell.second))
+                    }
                 } else {
                     minimapRenderer.viewportOffsetX = dragStartOffX + (e.x - dragStartX)
                     minimapRenderer.viewportOffsetY = dragStartOffY + (e.y - dragStartY)
                     minimapRenderer.redraw()
                 }
+            }
+        }
+        minimapCanvas.setOnMouseReleased { e ->
+            if (e.button == MouseButton.PRIMARY) {
+                draggingToken = null
+                lastDragCell = null
             }
         }
 

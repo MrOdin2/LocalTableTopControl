@@ -12,6 +12,21 @@ package com.tabletopcontrol.core
  */
 object EventBus {
 
+    /**
+     * A handle returned by [subscribe] that allows the caller to remove the
+     * specific handler when it is no longer needed.
+     *
+     * ```kotlin
+     * val sub = EventBus.subscribe<SomeEvent> { ... }
+     * // later, when the subscriber is no longer needed:
+     * sub.unsubscribe()
+     * ```
+     */
+    fun interface Subscription {
+        /** Removes this handler from the bus. Safe to call multiple times. */
+        fun unsubscribe()
+    }
+
     /** Maps each event type to the list of handlers registered for it. */
     @PublishedApi
     internal val handlers = mutableMapOf<Class<*>, MutableList<(Any) -> Unit>>()
@@ -21,11 +36,14 @@ object EventBus {
      *
      * @param T    the event type to listen for
      * @param handler callback invoked with each published event of type [T]
+     * @return a [Subscription] that can be used to remove this handler later
      */
-    inline fun <reified T : Any> subscribe(noinline handler: (T) -> Unit) {
+    inline fun <reified T : Any> subscribe(noinline handler: (T) -> Unit): Subscription {
         val list = handlers.getOrPut(T::class.java) { mutableListOf() }
         @Suppress("UNCHECKED_CAST")
-        list.add(handler as (Any) -> Unit)
+        val casted = handler as (Any) -> Unit
+        list.add(casted)
+        return Subscription { list.remove(casted) }
     }
 
     /**

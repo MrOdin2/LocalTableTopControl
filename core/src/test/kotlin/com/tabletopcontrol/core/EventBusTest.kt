@@ -55,4 +55,28 @@ class EventBusTest {
 
         assertFalse(received)
     }
+
+    @Test
+    fun `unsubscribe stops handler from receiving future events`() {
+        var callCount = 0
+        val subscription = EventBus.subscribe<SampleEvent> { callCount++ }
+
+        EventBus.publish(SampleEvent(1))
+        subscription.unsubscribe()
+        EventBus.publish(SampleEvent(2))
+
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `unsubscribe only removes the specific handler`() {
+        val results = mutableListOf<Int>()
+        val sub1 = EventBus.subscribe<SampleEvent> { results.add(1) }
+        EventBus.subscribe<SampleEvent> { results.add(2) }
+
+        sub1.unsubscribe()
+        EventBus.publish(SampleEvent(0))
+
+        assertEquals(listOf(2), results)
+    }
 }
