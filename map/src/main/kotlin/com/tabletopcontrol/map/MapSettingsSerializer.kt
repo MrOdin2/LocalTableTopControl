@@ -243,12 +243,7 @@ object MapSettingsSerializer {
     fun load(): MapSavedSettings {
         return try {
             val text = configFile.readText()
-            MapSavedSettings(
-                deserializeGridCalibration(text),
-                deserializeMapCalibration(text),
-                deserializeGridColor(text),
-                deserializeBackgroundColor(text),
-            )
+            deserializeAll(text)
         } catch (_: Exception) {
             MapSavedSettings(null, null, null, null)
         }
