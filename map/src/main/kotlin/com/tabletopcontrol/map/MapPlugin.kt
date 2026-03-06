@@ -634,9 +634,13 @@ class MapPlugin : DmPlugin {
             )
             setOnAction {
                 lastBackgroundColor = value
-                // Auto-suggest a contrasting grid colour without overriding a colour
-                // the user may have chosen manually for the current grid session.
-                gridColorPicker.value = contrastingGridColor(lastBackgroundColor)
+                // Auto-suggest a contrasting grid colour and persist the suggestion
+                // so that it is visible in the picker on the next application launch.
+                // The user can still override by selecting a different grid colour
+                // before clicking Apply Grid.
+                val suggestedGridColor = contrastingGridColor(lastBackgroundColor)
+                gridColorPicker.value = suggestedGridColor
+                lastGridColor = suggestedGridColor
                 EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
                 MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
             }
