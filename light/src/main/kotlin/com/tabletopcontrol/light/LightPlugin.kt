@@ -112,7 +112,7 @@ class LightPlugin : DmPlugin {
      * Builds the color-cycling toggle row.
      *
      * When the [CheckBox] is selected, automatic color cycling is enabled in
-     * the controller; the color picker is disabled because the cycle overrides it.
+     * the controller.
      */
     private fun buildColorCyclingRow(): HBox {
         val check = CheckBox("Enable color cycling").apply {
