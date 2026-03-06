@@ -828,9 +828,9 @@ class MapPlugin : DmPlugin {
      *    grid origin.  The map is immediately translated so that point moves to the
      *    canvas centre (marked by the red dot and yellow crosshair).
      * 2. **Select adjacent tile corner** — click the corner of a tile that is directly
-     *    adjacent to the centre (one cell horizontally or vertically).  The map is
-     *    scaled so that the distance from the canvas centre to the clicked corner equals
-     *    exactly one grid cell, perfectly aligning map and overlay grid.
+     *    adjacent to the centre (one cell away horizontally, vertically, or diagonally).
+     *    The map is scaled so that the distance from the canvas centre to the clicked
+     *    corner equals exactly one grid cell, perfectly aligning map and overlay grid.
      *
      * **Pan and zoom** — drag the canvas with the left mouse button to pan the view;
      * scroll the mouse wheel to zoom in/out.  Compact zoom/pan buttons are also
