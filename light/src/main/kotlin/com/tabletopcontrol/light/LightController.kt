@@ -7,14 +7,14 @@ package com.tabletopcontrol.light
  * running FX toolkit.  The [LightPlugin] binds UI controls to it.
  *
  * State fields:
- * - **color**        — selected color as a CSS hex string (`#RRGGBB`).
+ * - **color**        — selected color as a CSS hex string (`#RRGGBB` or `#RGB`).
  * - **effect**       — selected [LightEffect].
  * - **colorCycling** — whether automatic color cycling is active.
  * - **brightness**   — output brightness in the range `0.0`–`1.0`.
  */
 class LightController {
 
-    /** Current color as a CSS hex string, e.g. `"#FFFFFF"`. */
+    /** Current color as a CSS hex string, e.g. `"#FFFFFF"` or `"#FFF"`. */
     var color: String = "#FFFFFF"
         private set
 
