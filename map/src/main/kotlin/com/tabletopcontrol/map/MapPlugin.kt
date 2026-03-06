@@ -831,6 +831,11 @@ class MapPlugin : DmPlugin {
      *    scaled so that the distance from the canvas centre to the clicked corner equals
      *    exactly one grid cell, perfectly aligning map and overlay grid.
      *
+     * **Pan and zoom** — drag the canvas with the left mouse button to pan the view;
+     * scroll the mouse wheel to zoom in/out.  Compact zoom/pan buttons are also
+     * provided below the canvas.  A drag gesture longer than [clickThresholdPx]
+     * pixels is treated as a pan and does not trigger a calibration step.
+     *
      * Changes are previewed live on all renderers via [MapCalibrationEvent].
      * Clicking **Apply** confirms both steps; **Cancel** (or closing the dialog)
      * restores the calibration that was active when the dialog opened.
@@ -856,7 +861,8 @@ class MapPlugin : DmPlugin {
         val instructionLabel = Label(
             "Click on the point on the map that represents the grid centre.\n" +
                 "The map will translate so that point aligns with the canvas centre\n" +
-                "(marked by the red dot and yellow crosshair).",
+                "(marked by the red dot and yellow crosshair).\n" +
+                "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.",
         ).apply {
             isWrapText = true
             prefWidth = 580.0
@@ -898,7 +904,7 @@ class MapPlugin : DmPlugin {
         EventBus.publish(MapCalibrationModeEvent(active = true))
         EventBus.publish(GridCalibrationModeEvent(active = true))
 
-        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, canvasPane)
+        // Register dialog buttons early so lookupButton() works before content is set.
         dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
         dialog.dialogPane.prefWidth = 640.0
 
@@ -906,33 +912,164 @@ class MapPlugin : DmPlugin {
         val applyButton = dialog.dialogPane.lookupButton(ButtonType.APPLY)
         applyButton.isDisable = true
 
-        mapCanvas.setOnMouseClicked { e ->
+        // ------------------------------------------------------------------
+        // Viewport pan/zoom constants (mirror the minimap's values).
+        // ------------------------------------------------------------------
+        val zoomFactor = 1.25
+        val minScale = 0.125
+        val maxScale = 8.0
+        val panStep = 20.0
+
+        /** Resets the dialog-canvas viewport to the default 1:1, centred view. */
+        fun resetViewport() {
+            dialogRenderer.viewportScale = 1.0
+            dialogRenderer.viewportOffsetX = 0.0
+            dialogRenderer.viewportOffsetY = 0.0
+            dialogRenderer.redraw()
+        }
+
+        /**
+         * Converts a canvas-space mouse position to world space, accounting for
+         * the current viewport transform.  The calibration functions work in
+         * world space (canvas coords with identity viewport).
+         */
+        fun canvasToWorld(canvasX: Double, canvasY: Double): Pair<Double, Double> {
             val cx = mapCanvas.width / 2.0
             val cy = mapCanvas.height / 2.0
-            when (step) {
-                1 -> {
-                    working = guidedCalibrationStep1(working, e.x, e.y, cx, cy)
-                    step1Cal = working
-                    EventBus.publish(MapCalibrationEvent(working))
-                    step = 2
-                    stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
-                    instructionLabel.text =
-                        "Click on the corner of a tile that is directly adjacent to the\n" +
-                            "centre point — one grid cell to the left, right, above, or below.\n" +
-                            "The grid lines show where tile corners will be after calibration."
-                }
-                2 -> {
-                    val s1 = step1Cal ?: return@setOnMouseClicked
-                    val cellPx = lastGridCalibration.effectiveCellSizeInPixels()
-                    working = guidedCalibrationStep2(s1, e.x, e.y, cx, cy, cellPx)
-                        ?: return@setOnMouseClicked
-                    EventBus.publish(MapCalibrationEvent(working))
-                    applyButton.isDisable = false
+            val worldX = (canvasX - cx - dialogRenderer.viewportOffsetX) / dialogRenderer.viewportScale + cx
+            val worldY = (canvasY - cy - dialogRenderer.viewportOffsetY) / dialogRenderer.viewportScale + cy
+            return Pair(worldX, worldY)
+        }
+
+        // ------------------------------------------------------------------
+        // Pan drag state — used to distinguish a click from a pan gesture.
+        // ------------------------------------------------------------------
+        /** Canvas pixels the pointer must move before the gesture is treated as a pan. */
+        val clickThresholdPx = 5.0
+        var panDragStartX = 0.0
+        var panDragStartY = 0.0
+        var panDragStartOffX = 0.0
+        var panDragStartOffY = 0.0
+        var panDragDistance = 0.0
+
+        mapCanvas.setOnMousePressed { e ->
+            if (e.button == MouseButton.PRIMARY) {
+                panDragStartX = e.x
+                panDragStartY = e.y
+                panDragStartOffX = dialogRenderer.viewportOffsetX
+                panDragStartOffY = dialogRenderer.viewportOffsetY
+                panDragDistance = 0.0
+            }
+        }
+
+        mapCanvas.setOnMouseDragged { e ->
+            if (e.isPrimaryButtonDown) {
+                val dx = e.x - panDragStartX
+                val dy = e.y - panDragStartY
+                panDragDistance = kotlin.math.hypot(dx, dy)
+                dialogRenderer.viewportOffsetX = panDragStartOffX + dx
+                dialogRenderer.viewportOffsetY = panDragStartOffY + dy
+                dialogRenderer.redraw()
+            }
+        }
+
+        mapCanvas.setOnMouseReleased { e ->
+            if (e.button == MouseButton.PRIMARY && panDragDistance < clickThresholdPx) {
+                // Short release with minimal movement: treat as a calibration click.
+                val cx = mapCanvas.width / 2.0
+                val cy = mapCanvas.height / 2.0
+                val (worldX, worldY) = canvasToWorld(e.x, e.y)
+                when (step) {
+                    1 -> {
+                        working = guidedCalibrationStep1(working, worldX, worldY, cx, cy)
+                        step1Cal = working
+                        EventBus.publish(MapCalibrationEvent(working))
+                        step = 2
+                        stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
+                        instructionLabel.text =
+                            "Click on the corner of a tile that is directly adjacent to the\n" +
+                                "centre point — one grid cell to the left, right, above, or below.\n" +
+                                "The grid lines show where tile corners will be after calibration.\n" +
+                                "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view."
+                    }
+                    2 -> {
+                        val s1 = step1Cal ?: return@setOnMouseReleased
+                        val cellPx = lastGridCalibration.effectiveCellSizeInPixels()
+                        working = guidedCalibrationStep2(s1, worldX, worldY, cx, cy, cellPx)
+                            ?: return@setOnMouseReleased
+                        EventBus.publish(MapCalibrationEvent(working))
+                        applyButton.isDisable = false
+                    }
                 }
             }
         }
 
-        dialog.dialogPane.lookupButton(ButtonType.APPLY)
+        // ------------------------------------------------------------------
+        // Scroll wheel to zoom from the canvas centre.
+        // ------------------------------------------------------------------
+        mapCanvas.setOnScroll { e ->
+            val factor = if (e.deltaY > 0) zoomFactor else 1.0 / zoomFactor
+            dialogRenderer.viewportScale =
+                (dialogRenderer.viewportScale * factor).coerceIn(minScale, maxScale)
+            dialogRenderer.redraw()
+        }
+
+        // ------------------------------------------------------------------
+        // Viewport control buttons (zoom +/−, reset, and pan arrows).
+        // ------------------------------------------------------------------
+        val zoomOutBtn = Button("−").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Zoom out")
+            setOnAction {
+                dialogRenderer.viewportScale =
+                    (dialogRenderer.viewportScale / zoomFactor).coerceAtLeast(minScale)
+                dialogRenderer.redraw()
+            }
+        }
+        val zoomInBtn = Button("+").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Zoom in")
+            setOnAction {
+                dialogRenderer.viewportScale =
+                    (dialogRenderer.viewportScale * zoomFactor).coerceAtMost(maxScale)
+                dialogRenderer.redraw()
+            }
+        }
+        val resetViewBtn = Button("Reset View").apply {
+            tooltip = Tooltip("Reset zoom and pan to default")
+            setOnAction { resetViewport() }
+        }
+        val panLeftBtn = Button("◀").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view left")
+            setOnAction { dialogRenderer.viewportOffsetX -= panStep; dialogRenderer.redraw() }
+        }
+        val panUpBtn = Button("▲").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view up")
+            setOnAction { dialogRenderer.viewportOffsetY -= panStep; dialogRenderer.redraw() }
+        }
+        val panDownBtn = Button("▼").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view down")
+            setOnAction { dialogRenderer.viewportOffsetY += panStep; dialogRenderer.redraw() }
+        }
+        val panRightBtn = Button("▶").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view right")
+            setOnAction { dialogRenderer.viewportOffsetX += panStep; dialogRenderer.redraw() }
+        }
+
+        val viewControlsRow = HBox(
+            4.0,
+            zoomOutBtn, zoomInBtn, resetViewBtn,
+            Label("  "),
+            panLeftBtn, panUpBtn, panDownBtn, panRightBtn,
+        )
+
+        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, canvasPane, viewControlsRow)
+
+        applyButton
             .addEventFilter(ActionEvent.ACTION) {
                 lastMapCalibration = working
                 EventBus.publish(MapCalibrationEvent(lastMapCalibration))
