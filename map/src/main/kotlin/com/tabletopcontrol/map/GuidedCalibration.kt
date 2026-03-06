@@ -68,7 +68,7 @@ internal fun guidedCalibrationStep1(
  * @param cellSizeInPixels  effective grid cell size in canvas pixels
  *                          ([GridCalibration.effectiveCellSizeInPixels]).
  * @return updated [MapCalibration] with adjusted scale and offsets, or `null` if
- *         the corner click coincides with the target.
+ *         the corner click is too close to the target (max distance < 1 px).
  */
 internal fun guidedCalibrationStep2(
     step1Cal: MapCalibration,
