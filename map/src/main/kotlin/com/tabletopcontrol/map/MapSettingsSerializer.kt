@@ -73,11 +73,15 @@ object MapSettingsSerializer {
     internal fun stringToColor(s: String): Color? = try {
         val parts = s.split(",")
         if (parts.size == 4) {
-            val r = parts[0].toDouble().coerceIn(0.0, 1.0)
-            val g = parts[1].toDouble().coerceIn(0.0, 1.0)
-            val b = parts[2].toDouble().coerceIn(0.0, 1.0)
-            val a = parts[3].toDouble().coerceIn(0.0, 1.0)
-            Color.color(r, g, b, a)
+            val r = parts[0].toDouble()
+            val g = parts[1].toDouble()
+            val b = parts[2].toDouble()
+            val a = parts[3].toDouble()
+            if (listOf(r, g, b, a).all { it.isFinite() && it in 0.0..1.0 }) {
+                Color.color(r, g, b, a)
+            } else {
+                null
+            }
         } else null
     } catch (_: Exception) { null }
 
