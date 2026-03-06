@@ -40,6 +40,9 @@ private enum class FogTool { NONE, DRAW, ERASE }
  * - **Calibrate Map…** — opens a pop-up dialog for adjusting the map image
  *   scale and centre offset; publishes [MapCalibrationEvent] on every field change
  *   for live feedback and restores the original calibration if the dialog is cancelled.
+ * - **Guided Calibration…** — opens a two-step interactive dialog: the DM clicks
+ *   the grid centre on the map (Step 1, translates the map) and then an adjacent
+ *   tile corner (Step 2, scales the map), aligning the image with the overlay grid.
  * - **Grid** — toggle checkbox and apply button, publishing [GridUpdateEvent].
  * - **Calibrate Grid…** — opens a pop-up dialog for adjusting the grid cell size,
  *   scale, and centre offset; publishes [GridCalibrationEvent] on every field change
@@ -56,6 +59,15 @@ class MapPlugin : DmPlugin {
 
     /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
     private var lastGridCalibration: GridCalibration = GridCalibration()
+
+    /** URI of the most recently loaded map image, or `null` if no map has been loaded. */
+    private var currentMapImageUri: String? = null
+
+    /**
+     * The most recently applied grid configuration, or `null` when the grid has never been
+     * applied or was explicitly hidden.  Used to initialise the guided-calibration canvas.
+     */
+    private var currentGridConfig: GridConfig? = null
 
     /**
      * Whether the fog-of-war grid has been initialised via [FogOfWarSetupEvent].
@@ -502,7 +514,10 @@ class MapPlugin : DmPlugin {
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     pathField.text = file.absolutePath
-                    EventBus.publish(MapLoadEvent(file.toURI().toString()))
+                    val uri = file.toURI().toString()
+                    EventBus.publish(MapLoadEvent(uri))
+                    // Track the URI after publishing, once the load is initiated.
+                    currentMapImageUri = uri
                 }
             }
         }
@@ -514,7 +529,17 @@ class MapPlugin : DmPlugin {
             }
         }
 
-        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn)
+        val guidedCalibrationBtn = Button("Guided Calibration…").apply {
+            tooltip = Tooltip(
+                "Two-step interactive calibration: click the grid centre on the map, " +
+                    "then click an adjacent tile corner to align scale",
+            )
+            setOnAction { e ->
+                showGuidedCalibrationDialog((e.source as? Button)?.scene?.window)
+            }
+        }
+
+        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn)
 
         // --- Row 2: Grid + Fog of war ---
         val visibleCheck = CheckBox("Show Grid").apply {
@@ -525,10 +550,9 @@ class MapPlugin : DmPlugin {
         val applyGridBtn = Button("Apply Grid").apply {
             tooltip = Tooltip("Publish the current grid visibility setting")
             setOnAction {
-                EventBus.publish(
-                    if (!visibleCheck.isSelected) GridUpdateEvent(null)
-                    else GridUpdateEvent(GridConfig()),
-                )
+                val config = if (!visibleCheck.isSelected) null else GridConfig()
+                currentGridConfig = config
+                EventBus.publish(GridUpdateEvent(config))
             }
         }
 
@@ -787,6 +811,140 @@ class MapPlugin : DmPlugin {
             if (!confirmed) {
                 lastGridCalibration = saved
                 EventBus.publish(GridCalibrationEvent(saved))
+            }
+        }
+
+        dialog.showAndWait()
+    }
+
+    /**
+     * Opens the two-step guided map calibration dialog.
+     *
+     * The dialog presents a live canvas preview of the current map and grid.  The DM
+     * follows two interactive steps to align the map image with the overlay grid:
+     *
+     * 1. **Select grid centre** — click the point on the map image that represents the
+     *    grid origin.  The map is immediately translated so that point moves to the
+     *    canvas centre (marked by the red dot and yellow crosshair).
+     * 2. **Select adjacent tile corner** — click the corner of a tile that is directly
+     *    adjacent to the centre (one cell horizontally or vertically).  The map is
+     *    scaled so that the distance from the canvas centre to the clicked corner equals
+     *    exactly one grid cell, perfectly aligning map and overlay grid.
+     *
+     * Changes are previewed live on all renderers via [MapCalibrationEvent].
+     * Clicking **Apply** confirms both steps; **Cancel** (or closing the dialog)
+     * restores the calibration that was active when the dialog opened.
+     *
+     * @param owner optional owner window for modality.
+     */
+    private fun showGuidedCalibrationDialog(owner: Window?) {
+        val saved = lastMapCalibration
+        var working = saved
+        var step1Cal: MapCalibration? = null
+        var step = 1
+        var confirmed = false
+
+        val dialog = Dialog<ButtonType>().apply {
+            title = "Guided Map Calibration"
+            headerText = null
+            initOwner(owner)
+        }
+
+        val stepLabel = Label("Step 1 of 2: Select the grid centre").apply {
+            style = "-fx-font-weight: bold;"
+        }
+        val instructionLabel = Label(
+            "Click on the point on the map that represents the grid centre.\n" +
+                "The map will translate so that point aligns with the canvas centre\n" +
+                "(marked by the red dot and yellow crosshair).",
+        ).apply {
+            isWrapText = true
+            prefWidth = 580.0
+        }
+
+        // Build a canvas with a MapRenderer initialised from the current plugin state.
+        val mapCanvas = Canvas()
+        val dialogRenderer = MapRenderer(mapCanvas)
+        dialogRenderer.mapCalibration = working
+        dialogRenderer.gridCalibration = lastGridCalibration
+        dialogRenderer.gridConfig = currentGridConfig
+        currentMapImageUri?.let { dialogRenderer.loadImage(it) }
+
+        // Release EventBus subscriptions when the canvas leaves the dialog scene.
+        mapCanvas.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) dialogRenderer.dispose()
+        }
+
+        // A Pane that keeps the canvas sized to fill its layout bounds.
+        val canvasPane = object : Pane() {
+            init {
+                children.add(mapCanvas)
+                minWidth = 400.0
+                minHeight = 280.0
+                prefWidth = 600.0
+                prefHeight = 400.0
+            }
+
+            override fun layoutChildren() {
+                if (mapCanvas.width != width || mapCanvas.height != height) {
+                    mapCanvas.width = width
+                    mapCanvas.height = height
+                    dialogRenderer.redraw()
+                }
+            }
+        }
+
+        // Show calibration overlays (red dot + yellow crosshair at canvas centre).
+        EventBus.publish(MapCalibrationModeEvent(active = true))
+        EventBus.publish(GridCalibrationModeEvent(active = true))
+
+        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, canvasPane)
+        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+        dialog.dialogPane.prefWidth = 640.0
+
+        // Apply is disabled until Step 2 is completed.
+        val applyButton = dialog.dialogPane.lookupButton(ButtonType.APPLY)
+        applyButton.isDisable = true
+
+        mapCanvas.setOnMouseClicked { e ->
+            val cx = mapCanvas.width / 2.0
+            val cy = mapCanvas.height / 2.0
+            when (step) {
+                1 -> {
+                    working = guidedCalibrationStep1(working, e.x, e.y, cx, cy)
+                    step1Cal = working
+                    EventBus.publish(MapCalibrationEvent(working))
+                    step = 2
+                    stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
+                    instructionLabel.text =
+                        "Click on the corner of a tile that is directly adjacent to the\n" +
+                            "centre point — one grid cell to the left, right, above, or below.\n" +
+                            "The grid lines show where tile corners will be after calibration."
+                }
+                2 -> {
+                    val s1 = step1Cal ?: return@setOnMouseClicked
+                    val cellPx = lastGridCalibration.effectiveCellSizeInPixels()
+                    working = guidedCalibrationStep2(s1, e.x, e.y, cx, cy, cellPx)
+                        ?: return@setOnMouseClicked
+                    EventBus.publish(MapCalibrationEvent(working))
+                    applyButton.isDisable = false
+                }
+            }
+        }
+
+        dialog.dialogPane.lookupButton(ButtonType.APPLY)
+            .addEventFilter(ActionEvent.ACTION) {
+                lastMapCalibration = working
+                EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                confirmed = true
+            }
+
+        dialog.setOnHidden {
+            EventBus.publish(MapCalibrationModeEvent(active = false))
+            EventBus.publish(GridCalibrationModeEvent(active = false))
+            if (!confirmed) {
+                lastMapCalibration = saved
+                EventBus.publish(MapCalibrationEvent(saved))
             }
         }
 
