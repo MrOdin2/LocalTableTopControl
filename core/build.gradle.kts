@@ -50,29 +50,27 @@ tasks.register<Exec>("jpackage") {
     val distDir = layout.buildDirectory.dir("install/core").get().asFile
     val outputDir = layout.buildDirectory.dir("jpackage").get().asFile
 
+    // Accept overrides from -PpkgType=... and -PpkgVersion=... on the CLI
+    val pkgType = project.findProperty("pkgType")?.toString() ?: "app-image"
+    val pkgVersion = project.findProperty("pkgVersion")?.toString()
+        ?: project.version.toString().replace("-SNAPSHOT", "").ifEmpty { "1.0.0" }
+
     doFirst {
         outputDir.deleteRecursively()
         outputDir.mkdirs()
     }
 
-
-    //use ./gradlew jpackage to run
     commandLine(
         "${System.getProperty("java.home")}/bin/jpackage",
-        "--type", "app-image",
+        "--type", pkgType,
         "--name", "TabletopControl",
-        "--app-version", project.version.toString().replace("-SNAPSHOT", "").ifEmpty { "1.0.0" },
+        "--app-version", pkgVersion,
         "--input", "$distDir/lib",
         "--main-jar", "core-${project.version}.jar",
         "--main-class", "com.tabletopcontrol.core.AppKt",
         "--dest", outputDir.absolutePath,
-//  only works with WiX and --type exe/msi
-//        "--icon", "src/main/resources/icon.png", #does need to be added
-//        "--win-shortcut",
-//        "--win-menu",
-//        "--win-dir-chooser",
         "--description", "TabletopControl",
-        "--vendor", "MrOdin2"
+        "--vendor", "MrOdin"
     )
 }
 
