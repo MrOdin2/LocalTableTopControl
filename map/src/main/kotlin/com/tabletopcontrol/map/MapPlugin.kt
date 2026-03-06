@@ -842,6 +842,16 @@ class MapPlugin : DmPlugin {
      * keeps the current scale and enables Apply.  Either or both steps may be skipped,
      * which is useful when one dimension is already well aligned.
      *
+     * **Going back** — a *← Back to Step 1* button (enabled in Step 2) discards the
+     * Step 1 translation and restores the calibration to the state when the dialog
+     * opened, so the DM can restart the translation step without closing and reopening
+     * the dialog.
+     *
+     * **Grid corner dots** — during calibration the canvas also draws a small red dot
+     * at every grid line intersection (via [MapRenderer.drawGridCornerDots]).  At the
+     * default viewport zoom each dot is about 3 px in diameter.  Zooming in reveals
+     * fine misalignments at the canvas edges that would otherwise be hard to spot.
+     *
      * Changes are previewed live on all renderers via [MapCalibrationEvent].
      * Clicking **Apply** confirms both steps; **Cancel** (or closing the dialog)
      * restores the calibration that was active when the dialog opened.
@@ -919,18 +929,26 @@ class MapPlugin : DmPlugin {
         val applyButton = dialog.dialogPane.lookupButton(ButtonType.APPLY)
         applyButton.isDisable = true
 
+        // Back button — reverts to the pre-dialog calibration and restarts Step 1.
+        val backButton = Button("\u2190 Back to Step 1").apply {
+            tooltip = Tooltip(
+                "Discard the Step 1 translation and restart from the saved calibration.",
+            )
+            isDisable = true  // only enabled in Step 2
+        }
+
         // Skip button — advances the wizard without applying the current step's change.
-        val skipButton = Button("Skip this step →").apply {
+        val skipButton = Button("Skip this step \u2192").apply {
             tooltip = Tooltip(
                 "Skip this step and keep the current calibration for it.\n" +
                     "Useful when one axis is already aligned.",
             )
         }
-        // Right-aligned row that holds the skip button.
-        val skipRow = HBox().also { row ->
+        // Navigation row: back on the left, skip on the right.
+        val navRow = HBox().also { row ->
             val spacer = Region()
             HBox.setHgrow(spacer, Priority.ALWAYS)
-            row.children.addAll(spacer, skipButton)
+            row.children.addAll(backButton, spacer, skipButton)
         }
 
         // ------------------------------------------------------------------
@@ -979,6 +997,7 @@ class MapPlugin : DmPlugin {
             // Step 2 canvas clicks have a valid base calibration to work from.
             step1Cal = working
             step = 2
+            backButton.isDisable = false
             stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
             instructionLabel.text =
                 "Click on the corner of a tile that is directly adjacent to the\n" +
@@ -993,6 +1012,24 @@ class MapPlugin : DmPlugin {
                 1 -> advanceToStep2()
                 2 -> applyButton.isDisable = false
             }
+        }
+
+        backButton.setOnAction {
+            // Restore the pre-dialog calibration, clear the Step 1 result, and
+            // reset the wizard to Step 1 so the DM can pick a new grid centre.
+            working = saved
+            step1Cal = null
+            step = 1
+            applyButton.isDisable = true
+            backButton.isDisable = true
+            stepLabel.text = "Step 1 of 2: Select the grid centre"
+            instructionLabel.text =
+                "Click on the point on the map that represents the grid centre.\n" +
+                    "The map will translate so that point aligns with the canvas centre\n" +
+                    "(marked by the red dot and yellow crosshair).\n" +
+                    "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
+                    "If the centre is already aligned, use \"Skip this step \u2192\" to proceed."
+            EventBus.publish(MapCalibrationEvent(working))
         }
 
         mapCanvas.setOnMousePressed { e ->
@@ -1103,7 +1140,7 @@ class MapPlugin : DmPlugin {
             panLeftBtn, panUpBtn, panDownBtn, panRightBtn,
         )
 
-        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, skipRow, canvasPane, viewControlsRow)
+        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, navRow, canvasPane, viewControlsRow)
 
         applyButton
             .addEventFilter(ActionEvent.ACTION) {
