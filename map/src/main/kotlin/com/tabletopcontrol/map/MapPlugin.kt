@@ -56,10 +56,16 @@ class MapPlugin : DmPlugin {
     override val iconPath: String? = null
 
     /** The most recently confirmed map calibration; used to restore on dialog cancel. */
-    private var lastMapCalibration: MapCalibration = MapCalibration()
+    private var lastMapCalibration: MapCalibration
 
     /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
-    private var lastGridCalibration: GridCalibration = GridCalibration()
+    private var lastGridCalibration: GridCalibration
+
+    init {
+        val (savedGrid, savedMap) = MapSettingsSerializer.load()
+        lastGridCalibration = savedGrid ?: GridCalibration()
+        lastMapCalibration = savedMap ?: MapCalibration()
+    }
 
     /** URI of the most recently loaded map image, or `null` if no map has been loaded. */
     private var currentMapImageUri: String? = null
@@ -101,6 +107,15 @@ class MapPlugin : DmPlugin {
     }
 
     /**
+     * Publishes [MapCalibrationEvent] and [GridCalibrationEvent] for the current persisted
+     * calibration so that any newly created renderer can initialise with the saved settings.
+     */
+    private fun publishCurrentCalibration() {
+        EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+        EventBus.publish(GridCalibrationEvent(lastGridCalibration))
+    }
+
+    /**
      * Creates the table-screen [Node] — a [Canvas] backed by a [MapRenderer] that
      * subscribes to map events and redraws on demand.
      *
@@ -112,6 +127,8 @@ class MapPlugin : DmPlugin {
         val canvas = Canvas()
         val renderer = MapRenderer(canvas)
         renderer.hideTokensInFog = true
+        // Restore persisted calibration so the table view reflects the saved settings.
+        publishCurrentCalibration()
         // Release EventBus subscriptions when the canvas is removed from the scene.
         canvas.sceneProperty().addListener { _, _, newScene ->
             if (newScene == null) renderer.dispose()
@@ -240,6 +257,8 @@ class MapPlugin : DmPlugin {
         val minimapRenderer = MapRenderer(minimapCanvas)
         // DM can see through fog on the minimap; players see fully opaque fog on the table view.
         minimapRenderer.fogOpacity = 0.5
+        // Restore persisted calibration so the minimap reflects the saved settings.
+        publishCurrentCalibration()
         // Release EventBus subscriptions when the canvas is removed from the scene.
         minimapCanvas.sceneProperty().addListener { _, _, newScene ->
             if (newScene == null) minimapRenderer.dispose()
@@ -681,6 +700,7 @@ class MapPlugin : DmPlugin {
                     else -> {
                         lastMapCalibration = MapCalibration(scale, ox, oy)
                         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration)
                         confirmed = true
                     }
                 }
@@ -801,6 +821,7 @@ class MapPlugin : DmPlugin {
                     else -> {
                         lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
                         EventBus.publish(GridCalibrationEvent(lastGridCalibration))
+                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration)
                         confirmed = true
                     }
                 }
@@ -1146,6 +1167,7 @@ class MapPlugin : DmPlugin {
             .addEventFilter(ActionEvent.ACTION) {
                 lastMapCalibration = working
                 EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration)
                 confirmed = true
             }
 
