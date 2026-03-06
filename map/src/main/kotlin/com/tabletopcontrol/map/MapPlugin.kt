@@ -21,6 +21,7 @@ import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
@@ -836,6 +837,11 @@ class MapPlugin : DmPlugin {
      * provided below the canvas.  A drag gesture longer than [clickThresholdPx]
      * pixels is treated as a pan and does not trigger a calibration step.
      *
+     * **Skipping steps** — each step has a *Skip this step →* button.  Skipping
+     * Step 1 keeps the current translation and advances to Step 2; skipping Step 2
+     * keeps the current scale and enables Apply.  Either or both steps may be skipped,
+     * which is useful when one dimension is already well aligned.
+     *
      * Changes are previewed live on all renderers via [MapCalibrationEvent].
      * Clicking **Apply** confirms both steps; **Cancel** (or closing the dialog)
      * restores the calibration that was active when the dialog opened.
@@ -862,7 +868,8 @@ class MapPlugin : DmPlugin {
             "Click on the point on the map that represents the grid centre.\n" +
                 "The map will translate so that point aligns with the canvas centre\n" +
                 "(marked by the red dot and yellow crosshair).\n" +
-                "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.",
+                "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
+                "If the centre is already aligned, use \"Skip this step \u2192\" to proceed.",
         ).apply {
             isWrapText = true
             prefWidth = 580.0
@@ -908,9 +915,23 @@ class MapPlugin : DmPlugin {
         dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
         dialog.dialogPane.prefWidth = 640.0
 
-        // Apply is disabled until Step 2 is completed.
+        // Apply is disabled until Step 2 is completed (or skipped).
         val applyButton = dialog.dialogPane.lookupButton(ButtonType.APPLY)
         applyButton.isDisable = true
+
+        // Skip button — advances the wizard without applying the current step's change.
+        val skipButton = Button("Skip this step →").apply {
+            tooltip = Tooltip(
+                "Skip this step and keep the current calibration for it.\n" +
+                    "Useful when one axis is already aligned.",
+            )
+        }
+        // Right-aligned row that holds the skip button.
+        val skipRow = HBox().also { row ->
+            val spacer = Region()
+            HBox.setHgrow(spacer, Priority.ALWAYS)
+            row.children.addAll(spacer, skipButton)
+        }
 
         // ------------------------------------------------------------------
         // Viewport pan/zoom constants (mirror the minimap's values).
@@ -952,6 +973,28 @@ class MapPlugin : DmPlugin {
         var panDragStartOffY = 0.0
         var panDragDistance = 0.0
 
+        /** Advances the wizard to Step 2 without changing the current translation. */
+        fun advanceToStep2() {
+            // Treat the current working calibration as the Step 1 result so that
+            // Step 2 canvas clicks have a valid base calibration to work from.
+            step1Cal = working
+            step = 2
+            stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
+            instructionLabel.text =
+                "Click on the corner of a tile that is directly adjacent to the\n" +
+                    "centre point — one grid cell to the left, right, above, or below.\n" +
+                    "The grid lines show where tile corners will be after calibration.\n" +
+                    "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
+                    "If the scale is already aligned, use \"Skip this step \u2192\" to proceed."
+        }
+
+        skipButton.setOnAction {
+            when (step) {
+                1 -> advanceToStep2()
+                2 -> applyButton.isDisable = false
+            }
+        }
+
         mapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
                 panDragStartX = e.x
@@ -982,15 +1025,8 @@ class MapPlugin : DmPlugin {
                 when (step) {
                     1 -> {
                         working = guidedCalibrationStep1(working, worldX, worldY, cx, cy)
-                        step1Cal = working
                         EventBus.publish(MapCalibrationEvent(working))
-                        step = 2
-                        stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
-                        instructionLabel.text =
-                            "Click on the corner of a tile that is directly adjacent to the\n" +
-                                "centre point — one grid cell to the left, right, above, or below.\n" +
-                                "The grid lines show where tile corners will be after calibration.\n" +
-                                "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view."
+                        advanceToStep2()
                     }
                     2 -> {
                         val s1 = step1Cal ?: return@setOnMouseReleased
@@ -1067,7 +1103,7 @@ class MapPlugin : DmPlugin {
             panLeftBtn, panUpBtn, panDownBtn, panRightBtn,
         )
 
-        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, canvasPane, viewControlsRow)
+        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, skipRow, canvasPane, viewControlsRow)
 
         applyButton
             .addEventFilter(ActionEvent.ACTION) {
