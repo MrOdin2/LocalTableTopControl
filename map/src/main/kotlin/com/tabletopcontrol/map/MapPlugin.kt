@@ -21,6 +21,7 @@ import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
@@ -40,6 +41,9 @@ private enum class FogTool { NONE, DRAW, ERASE }
  * - **Calibrate Map…** — opens a pop-up dialog for adjusting the map image
  *   scale and centre offset; publishes [MapCalibrationEvent] on every field change
  *   for live feedback and restores the original calibration if the dialog is cancelled.
+ * - **Guided Calibration…** — opens a two-step interactive dialog: the DM clicks
+ *   the grid centre on the map (Step 1, translates the map) and then an adjacent
+ *   tile corner (Step 2, scales the map), aligning the image with the overlay grid.
  * - **Grid** — toggle checkbox and apply button, publishing [GridUpdateEvent].
  * - **Calibrate Grid…** — opens a pop-up dialog for adjusting the grid cell size,
  *   scale, and centre offset; publishes [GridCalibrationEvent] on every field change
@@ -56,6 +60,15 @@ class MapPlugin : DmPlugin {
 
     /** The most recently confirmed grid calibration; used to restore on dialog cancel. */
     private var lastGridCalibration: GridCalibration = GridCalibration()
+
+    /** URI of the most recently loaded map image, or `null` if no map has been loaded. */
+    private var currentMapImageUri: String? = null
+
+    /**
+     * The most recently applied grid configuration, or `null` when the grid has never been
+     * applied or was explicitly hidden.  Used to initialise the guided-calibration canvas.
+     */
+    private var currentGridConfig: GridConfig? = null
 
     /**
      * Whether the fog-of-war grid has been initialised via [FogOfWarSetupEvent].
@@ -502,7 +515,10 @@ class MapPlugin : DmPlugin {
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     pathField.text = file.absolutePath
-                    EventBus.publish(MapLoadEvent(file.toURI().toString()))
+                    val uri = file.toURI().toString()
+                    EventBus.publish(MapLoadEvent(uri))
+                    // Track the URI after publishing, once the load is initiated.
+                    currentMapImageUri = uri
                 }
             }
         }
@@ -514,7 +530,17 @@ class MapPlugin : DmPlugin {
             }
         }
 
-        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn)
+        val guidedCalibrationBtn = Button("Guided Calibration…").apply {
+            tooltip = Tooltip(
+                "Two-step interactive calibration: click the grid centre on the map, " +
+                    "then click an adjacent tile corner to align scale",
+            )
+            setOnAction { e ->
+                showGuidedCalibrationDialog((e.source as? Button)?.scene?.window)
+            }
+        }
+
+        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn)
 
         // --- Row 2: Grid + Fog of war ---
         val visibleCheck = CheckBox("Show Grid").apply {
@@ -525,10 +551,9 @@ class MapPlugin : DmPlugin {
         val applyGridBtn = Button("Apply Grid").apply {
             tooltip = Tooltip("Publish the current grid visibility setting")
             setOnAction {
-                EventBus.publish(
-                    if (!visibleCheck.isSelected) GridUpdateEvent(null)
-                    else GridUpdateEvent(GridConfig()),
-                )
+                val config = if (!visibleCheck.isSelected) null else GridConfig()
+                currentGridConfig = config
+                EventBus.publish(GridUpdateEvent(config))
             }
         }
 
@@ -787,6 +812,349 @@ class MapPlugin : DmPlugin {
             if (!confirmed) {
                 lastGridCalibration = saved
                 EventBus.publish(GridCalibrationEvent(saved))
+            }
+        }
+
+        dialog.showAndWait()
+    }
+
+    /**
+     * Opens the two-step guided map calibration dialog.
+     *
+     * The dialog presents a live canvas preview of the current map and grid.  The DM
+     * follows two interactive steps to align the map image with the overlay grid:
+     *
+     * 1. **Select grid centre** — click the point on the map image that represents the
+     *    grid origin.  The map is immediately translated so that point moves to the
+     *    canvas centre (marked by the red dot and yellow crosshair).
+     * 2. **Select adjacent tile corner** — click the corner of a tile that is directly
+     *    adjacent to the centre (one cell away horizontally, vertically, or diagonally).
+     *    The map is scaled so that the distance from the canvas centre to the clicked
+     *    corner equals exactly one grid cell, perfectly aligning map and overlay grid.
+     *
+     * **Pan and zoom** — drag the canvas with the left mouse button to pan the view;
+     * scroll the mouse wheel to zoom in/out.  Compact zoom/pan buttons are also
+     * provided below the canvas.  A drag gesture longer than [clickThresholdPx]
+     * pixels is treated as a pan and does not trigger a calibration step.
+     *
+     * **Skipping steps** — each step has a *Skip this step →* button.  Skipping
+     * Step 1 keeps the current translation and advances to Step 2; skipping Step 2
+     * keeps the current scale and enables Apply.  Either or both steps may be skipped,
+     * which is useful when one dimension is already well aligned.
+     *
+     * **Going back** — a *← Back to Step 1* button (enabled in Step 2) discards the
+     * Step 1 translation and restores the calibration to the state when the dialog
+     * opened, so the DM can restart the translation step without closing and reopening
+     * the dialog.
+     *
+     * **Grid corner dots** — during calibration the canvas also draws a small red dot
+     * at every grid line intersection (via [MapRenderer.drawGridCornerDots]).  At the
+     * default viewport zoom each dot is about 3 px in diameter.  Zooming in reveals
+     * fine misalignments at the canvas edges that would otherwise be hard to spot.
+     *
+     * Changes are previewed live on all renderers via [MapCalibrationEvent].
+     * Clicking **Apply** confirms both steps; **Cancel** (or closing the dialog)
+     * restores the calibration that was active when the dialog opened.
+     *
+     * @param owner optional owner window for modality.
+     */
+    private fun showGuidedCalibrationDialog(owner: Window?) {
+        val saved = lastMapCalibration
+        var working = saved
+        var step1Cal: MapCalibration? = null
+        var step = 1
+        var confirmed = false
+
+        val dialog = Dialog<ButtonType>().apply {
+            title = "Guided Map Calibration"
+            headerText = null
+            initOwner(owner)
+        }
+
+        val stepLabel = Label("Step 1 of 2: Select the grid centre").apply {
+            style = "-fx-font-weight: bold;"
+        }
+        val instructionLabel = Label(
+            "Click on the point on the map that represents the grid centre.\n" +
+                "The map will translate so that point aligns with the canvas centre\n" +
+                "(marked by the red dot and yellow crosshair).\n" +
+                "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
+                "If the centre is already aligned, use \"Skip this step \u2192\" to proceed.",
+        ).apply {
+            isWrapText = true
+            prefWidth = 580.0
+        }
+
+        // Build a canvas with a MapRenderer initialised from the current plugin state.
+        val mapCanvas = Canvas()
+        val dialogRenderer = MapRenderer(mapCanvas)
+        dialogRenderer.mapCalibration = working
+        dialogRenderer.gridCalibration = lastGridCalibration
+        dialogRenderer.gridConfig = currentGridConfig
+        currentMapImageUri?.let { dialogRenderer.loadImage(it) }
+
+        // Release EventBus subscriptions when the canvas leaves the dialog scene.
+        mapCanvas.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) dialogRenderer.dispose()
+        }
+
+        // A Pane that keeps the canvas sized to fill its layout bounds.
+        val canvasPane = object : Pane() {
+            init {
+                children.add(mapCanvas)
+                minWidth = 400.0
+                minHeight = 280.0
+                prefWidth = 600.0
+                prefHeight = 400.0
+            }
+
+            override fun layoutChildren() {
+                if (mapCanvas.width != width || mapCanvas.height != height) {
+                    mapCanvas.width = width
+                    mapCanvas.height = height
+                    dialogRenderer.redraw()
+                }
+            }
+        }
+
+        // Show calibration overlays (red dot + yellow crosshair at canvas centre).
+        EventBus.publish(MapCalibrationModeEvent(active = true))
+        EventBus.publish(GridCalibrationModeEvent(active = true))
+
+        // Register dialog buttons early so lookupButton() works before content is set.
+        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+        dialog.dialogPane.prefWidth = 640.0
+
+        // Apply is disabled until Step 2 is completed (or skipped).
+        val applyButton = dialog.dialogPane.lookupButton(ButtonType.APPLY)
+        applyButton.isDisable = true
+
+        // Back button — reverts to the pre-dialog calibration and restarts Step 1.
+        val backButton = Button("\u2190 Back to Step 1").apply {
+            tooltip = Tooltip(
+                "Discard the Step 1 translation and restart from the saved calibration.",
+            )
+            isDisable = true  // only enabled in Step 2
+        }
+
+        // Skip button — advances the wizard without applying the current step's change.
+        val skipButton = Button("Skip this step \u2192").apply {
+            tooltip = Tooltip(
+                "Skip this step and keep the current calibration for it.\n" +
+                    "Useful when one axis is already aligned.",
+            )
+        }
+        // Navigation row: back on the left, skip on the right.
+        val navRow = HBox().also { row ->
+            val spacer = Region()
+            HBox.setHgrow(spacer, Priority.ALWAYS)
+            row.children.addAll(backButton, spacer, skipButton)
+        }
+
+        // ------------------------------------------------------------------
+        // Viewport pan/zoom constants (mirror the minimap's values).
+        // ------------------------------------------------------------------
+        val zoomFactor = 1.25
+        val minScale = 0.125
+        val maxScale = 8.0
+        val panStep = 20.0
+
+        /** Resets the dialog-canvas viewport to the default 1:1, centred view. */
+        fun resetViewport() {
+            dialogRenderer.viewportScale = 1.0
+            dialogRenderer.viewportOffsetX = 0.0
+            dialogRenderer.viewportOffsetY = 0.0
+            dialogRenderer.redraw()
+        }
+
+        /**
+         * Converts a canvas-space mouse position to world space, accounting for
+         * the current viewport transform.  The calibration functions work in
+         * world space (canvas coords with identity viewport).
+         */
+        fun canvasToWorld(canvasX: Double, canvasY: Double): Pair<Double, Double> {
+            val cx = mapCanvas.width / 2.0
+            val cy = mapCanvas.height / 2.0
+            val worldX = (canvasX - cx - dialogRenderer.viewportOffsetX) / dialogRenderer.viewportScale + cx
+            val worldY = (canvasY - cy - dialogRenderer.viewportOffsetY) / dialogRenderer.viewportScale + cy
+            return Pair(worldX, worldY)
+        }
+
+        // ------------------------------------------------------------------
+        // Pan drag state — used to distinguish a click from a pan gesture.
+        // ------------------------------------------------------------------
+        /** Canvas pixels the pointer must move before the gesture is treated as a pan. */
+        val clickThresholdPx = 5.0
+        var panDragStartX = 0.0
+        var panDragStartY = 0.0
+        var panDragStartOffX = 0.0
+        var panDragStartOffY = 0.0
+        var panDragDistance = 0.0
+
+        /** Advances the wizard to Step 2 without changing the current translation. */
+        fun advanceToStep2() {
+            // Treat the current working calibration as the Step 1 result so that
+            // Step 2 canvas clicks have a valid base calibration to work from.
+            step1Cal = working
+            step = 2
+            backButton.isDisable = false
+            stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
+            instructionLabel.text =
+                "Click on the corner of a tile that is directly adjacent to the\n" +
+                    "centre point — one grid cell away (left/right/up/down or diagonally).\n" +
+                    "The grid lines show where tile corners will be after calibration.\n" +
+                    "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
+                    "If the scale is already aligned, use \"Skip this step \u2192\" to proceed."
+        }
+
+        skipButton.setOnAction {
+            when (step) {
+                1 -> advanceToStep2()
+                2 -> applyButton.isDisable = false
+            }
+        }
+
+        backButton.setOnAction {
+            // Restore the pre-dialog calibration, clear the Step 1 result, and
+            // reset the wizard to Step 1 so the DM can pick a new grid centre.
+            working = saved
+            step1Cal = null
+            step = 1
+            applyButton.isDisable = true
+            backButton.isDisable = true
+            stepLabel.text = "Step 1 of 2: Select the grid centre"
+            instructionLabel.text =
+                "Click on the point on the map that represents the grid centre.\n" +
+                    "The map will translate so that point aligns with the canvas centre\n" +
+                    "(marked by the red dot and yellow crosshair).\n" +
+                    "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
+                    "If the centre is already aligned, use \"Skip this step \u2192\" to proceed."
+            EventBus.publish(MapCalibrationEvent(working))
+        }
+
+        mapCanvas.setOnMousePressed { e ->
+            if (e.button == MouseButton.PRIMARY) {
+                panDragStartX = e.x
+                panDragStartY = e.y
+                panDragStartOffX = dialogRenderer.viewportOffsetX
+                panDragStartOffY = dialogRenderer.viewportOffsetY
+                panDragDistance = 0.0
+            }
+        }
+
+        mapCanvas.setOnMouseDragged { e ->
+            if (e.isPrimaryButtonDown) {
+                val dx = e.x - panDragStartX
+                val dy = e.y - panDragStartY
+                panDragDistance = kotlin.math.hypot(dx, dy)
+                dialogRenderer.viewportOffsetX = panDragStartOffX + dx
+                dialogRenderer.viewportOffsetY = panDragStartOffY + dy
+                dialogRenderer.redraw()
+            }
+        }
+
+        mapCanvas.setOnMouseReleased { e ->
+            if (e.button == MouseButton.PRIMARY && panDragDistance < clickThresholdPx) {
+                // Short release with minimal movement: treat as a calibration click.
+                val cx = mapCanvas.width / 2.0
+                val cy = mapCanvas.height / 2.0
+                val (worldX, worldY) = canvasToWorld(e.x, e.y)
+                when (step) {
+                    1 -> {
+                        working = guidedCalibrationStep1(working, worldX, worldY, cx, cy)
+                        EventBus.publish(MapCalibrationEvent(working))
+                        advanceToStep2()
+                    }
+                    2 -> {
+                        val s1 = step1Cal ?: return@setOnMouseReleased
+                        val cellPx = lastGridCalibration.effectiveCellSizeInPixels()
+                        working = guidedCalibrationStep2(s1, worldX, worldY, cx, cy, cellPx)
+                            ?: return@setOnMouseReleased
+                        EventBus.publish(MapCalibrationEvent(working))
+                        applyButton.isDisable = false
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Scroll wheel to zoom from the canvas centre.
+        // ------------------------------------------------------------------
+        mapCanvas.setOnScroll { e ->
+            val factor = if (e.deltaY > 0) zoomFactor else 1.0 / zoomFactor
+            dialogRenderer.viewportScale =
+                (dialogRenderer.viewportScale * factor).coerceIn(minScale, maxScale)
+            dialogRenderer.redraw()
+        }
+
+        // ------------------------------------------------------------------
+        // Viewport control buttons (zoom +/−, reset, and pan arrows).
+        // ------------------------------------------------------------------
+        val zoomOutBtn = Button("−").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Zoom out")
+            setOnAction {
+                dialogRenderer.viewportScale =
+                    (dialogRenderer.viewportScale / zoomFactor).coerceAtLeast(minScale)
+                dialogRenderer.redraw()
+            }
+        }
+        val zoomInBtn = Button("+").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Zoom in")
+            setOnAction {
+                dialogRenderer.viewportScale =
+                    (dialogRenderer.viewportScale * zoomFactor).coerceAtMost(maxScale)
+                dialogRenderer.redraw()
+            }
+        }
+        val resetViewBtn = Button("Reset View").apply {
+            tooltip = Tooltip("Reset zoom and pan to default")
+            setOnAction { resetViewport() }
+        }
+        val panLeftBtn = Button("◀").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view left")
+            setOnAction { dialogRenderer.viewportOffsetX -= panStep; dialogRenderer.redraw() }
+        }
+        val panUpBtn = Button("▲").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view up")
+            setOnAction { dialogRenderer.viewportOffsetY -= panStep; dialogRenderer.redraw() }
+        }
+        val panDownBtn = Button("▼").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view down")
+            setOnAction { dialogRenderer.viewportOffsetY += panStep; dialogRenderer.redraw() }
+        }
+        val panRightBtn = Button("▶").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Pan view right")
+            setOnAction { dialogRenderer.viewportOffsetX += panStep; dialogRenderer.redraw() }
+        }
+
+        val viewControlsRow = HBox(
+            4.0,
+            zoomOutBtn, zoomInBtn, resetViewBtn,
+            Label("  "),
+            panLeftBtn, panUpBtn, panDownBtn, panRightBtn,
+        )
+
+        dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, navRow, canvasPane, viewControlsRow)
+
+        applyButton
+            .addEventFilter(ActionEvent.ACTION) {
+                lastMapCalibration = working
+                EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                confirmed = true
+            }
+
+        dialog.setOnHidden {
+            EventBus.publish(MapCalibrationModeEvent(active = false))
+            EventBus.publish(GridCalibrationModeEvent(active = false))
+            if (!confirmed) {
+                lastMapCalibration = saved
+                EventBus.publish(MapCalibrationEvent(saved))
             }
         }
 
