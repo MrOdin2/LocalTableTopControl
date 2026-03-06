@@ -28,6 +28,7 @@ dependencies {
     implementation(kotlin("stdlib"))
     runtimeOnly(project(":map"))
     runtimeOnly(project(":audio"))
+    runtimeOnly(project(":light"))
     runtimeOnly(project(":tracker"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
