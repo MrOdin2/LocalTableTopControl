@@ -1001,7 +1001,7 @@ class MapPlugin : DmPlugin {
             stepLabel.text = "Step 2 of 2: Select an adjacent tile corner"
             instructionLabel.text =
                 "Click on the corner of a tile that is directly adjacent to the\n" +
-                    "centre point — one grid cell to the left, right, above, or below.\n" +
+                    "centre point — one grid cell away (left/right/up/down or diagonally).\n" +
                     "The grid lines show where tile corners will be after calibration.\n" +
                     "Drag to pan · Scroll to zoom · Use the buttons below to fine-tune the view.\n" +
                     "If the scale is already aligned, use \"Skip this step \u2192\" to proceed."

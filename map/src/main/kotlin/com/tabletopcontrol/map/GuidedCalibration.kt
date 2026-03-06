@@ -1,6 +1,6 @@
 package com.tabletopcontrol.map
 
-import kotlin.math.hypot
+import kotlin.math.abs
 
 /**
  * Computes the new [MapCalibration] for Step 1 of guided map calibration.
@@ -36,6 +36,18 @@ internal fun guidedCalibrationStep1(
  * ends up exactly [cellSizeInPixels] away from [targetX]/[targetY] (the canvas
  * centre where the midpoint was placed in Step 1).
  *
+ * The distance from the target to the clicked corner is measured as
+ * `max(|dx|, |dy|)` — the larger of the two absolute axis-aligned components.
+ * This correctly handles all grid-corner click positions:
+ * - **Cardinal** clicks (one cell left, right, up, or down): one component equals
+ *   the current map cell size and the other is zero, so `max = cell_size`.
+ * - **Diagonal** 45° clicks (one cell diagonally): both components equal
+ *   the current map cell size, so `max = cell_size`.
+ *
+ * Using the Euclidean distance (`hypot`) instead would give `√2 × cell_size` for
+ * a diagonal click, producing a scale factor of `1/√2 ≈ 0.707` — making the map
+ * appear roughly 30% too small.
+ *
  * The midpoint stays fixed at [targetX]/[targetY] after scaling, because both
  * [MapCalibration.offsetX] and [MapCalibration.offsetY] are scaled by the same
  * factor as [MapCalibration.scale]:
@@ -45,7 +57,7 @@ internal fun guidedCalibrationStep1(
  * From Step 1 we know the parenthesised sum equals zero, so scaling offset by
  * the same factor that scale changes keeps the sum zero — the midpoint does not move.
  *
- * Returns `null` when the corner click is too close to the target (distance < 1 px),
+ * Returns `null` when the corner click is too close to the target (max distance < 1 px),
  * which would produce an undefined or extreme scale factor.
  *
  * @param step1Cal          the calibration produced by [guidedCalibrationStep1].
@@ -66,7 +78,7 @@ internal fun guidedCalibrationStep2(
     targetY: Double,
     cellSizeInPixels: Double,
 ): MapCalibration? {
-    val d = hypot(cornerX - targetX, cornerY - targetY)
+    val d = maxOf(abs(cornerX - targetX), abs(cornerY - targetY))
     if (d < 1.0) return null
     val scaleFactor = cellSizeInPixels / d
     return MapCalibration(

@@ -114,16 +114,34 @@ class GuidedCalibrationTest {
 
     @Test
     fun `step2 works with diagonal corner click`() {
-        // Corner at (230, 190): dx=30, dy=40, d=50. cellPx = 100 → factor = 2.
+        // A true (1,1) grid-corner click: both dx and dy equal the current map cell
+        // size (50 px).  max(50, 50) = 50 → scaleFactor = 100 / 50 = 2.
+        // (Using hypot would give √2×50 ≈ 70.7 → factor ≈ 1.41, which is wrong.)
         val step1Cal = MapCalibration(scale = 1.0, offsetX = 0.0, offsetY = 0.0)
         val result = guidedCalibrationStep2(
             step1Cal = step1Cal,
-            cornerX = 230.0, cornerY = 190.0,
+            cornerX = 250.0, cornerY = 200.0,   // dx = 50, dy = 50
             targetX = 200.0, targetY = 150.0,
             cellSizeInPixels = 100.0,
         )
         assertNotNull(result)
         assertEquals(2.0, result!!.scale, 1e-9)
+    }
+
+    @Test
+    fun `step2 diagonal click does not shrink correctly-scaled map`() {
+        // Regression: if the map cell is already 50 px and the overlay cell is 50 px,
+        // clicking on the (1,1) diagonal corner (dx=50, dy=50) must leave the scale
+        // unchanged.  Previously hypot(50,50)=70.7 → factor≈0.707 (the reported bug).
+        val step1Cal = MapCalibration(scale = 1.0, offsetX = 0.0, offsetY = 0.0)
+        val result = guidedCalibrationStep2(
+            step1Cal = step1Cal,
+            cornerX = 250.0, cornerY = 200.0,   // dx = 50, dy = 50 — true (1,1) diagonal
+            targetX = 200.0, targetY = 150.0,
+            cellSizeInPixels = 50.0,             // overlay cell == map cell
+        )
+        assertNotNull(result)
+        assertEquals(1.0, result!!.scale, 1e-9)  // scale must be unchanged
     }
 
     @Test
