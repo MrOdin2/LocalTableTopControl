@@ -4,7 +4,12 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
+import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenMovedEvent
+import com.tabletopcontrol.core.TokenRemovedEvent
+import com.tabletopcontrol.core.TokensResetEvent
 import kotlin.math.floor
 
 /**
@@ -103,6 +108,33 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var viewportOffsetY: Double = 0.0
 
+    /**
+     * When `true`, tokens whose grid cell is covered by unrevealed fog-of-war are
+     * not drawn.  Set this to `true` for the player-facing table view so that tokens
+     * cannot be seen through the fog; leave it at `false` (the default) for the DM
+     * minimap so tokens remain visible and can be dragged regardless of fog state.
+     */
+    var hideTokensInFog: Boolean = false
+
+    /** Current list of tokens to draw on the map. */
+    private val tokens = mutableListOf<Token>()
+
+    /** Stable ID of the currently active combatant's token, or `null` when none is active. */
+    private var activeTokenId: String? = null
+
+    /**
+     * Monotonically increasing counter used to assign a unique initial column to each
+     * new token.  Never resets on removal, so columns are never reused after a token
+     * is removed and a new one is added.
+     */
+    private var nextTokenCol: Int = 0
+
+    /**
+     * All active [EventBus.Subscription] handles for this renderer.
+     * Populated in [attachToEventBus] and released en masse in [dispose].
+     */
+    private val subscriptions = mutableListOf<EventBus.Subscription>()
+
     init {
         attachToEventBus()
     }
@@ -110,46 +142,87 @@ class MapRenderer(private val canvas: Canvas) {
     /**
      * Subscribes to map-related events published by [MapPlugin] via [EventBus]
      * so that this renderer can update the canvas in response.
+     *
+     * Every subscription handle is stored in [subscriptions] so that [dispose]
+     * can unregister them all when the renderer is no longer needed.
      */
     private fun attachToEventBus() {
-        EventBus.subscribe<MapLoadEvent> { event ->
+        subscriptions += EventBus.subscribe<MapLoadEvent> { event ->
             loadImage(event.resourcePath)
         }
-        EventBus.subscribe<MapCalibrationEvent> { event ->
+        subscriptions += EventBus.subscribe<MapCalibrationEvent> { event ->
             mapCalibration = event.calibration
             redraw()
         }
-        EventBus.subscribe<GridCalibrationEvent> { event ->
+        subscriptions += EventBus.subscribe<GridCalibrationEvent> { event ->
             gridCalibration = event.calibration
             redraw()
         }
-        EventBus.subscribe<GridUpdateEvent> { event ->
+        subscriptions += EventBus.subscribe<GridUpdateEvent> { event ->
             gridConfig = event.config
             redraw()
         }
-        EventBus.subscribe<FogOfWarResetEvent> { event ->
+        subscriptions += EventBus.subscribe<FogOfWarResetEvent> { event ->
             if (event.revealAll) fogOfWar?.revealAll() else fogOfWar?.hideAll()
             redraw()
         }
-        EventBus.subscribe<FogOfWarCellEvent> { event ->
+        subscriptions += EventBus.subscribe<FogOfWarCellEvent> { event ->
             if (event.revealed) fogOfWar?.revealCell(event.col, event.row)
             else fogOfWar?.hideCell(event.col, event.row)
             redraw()
         }
-        EventBus.subscribe<FogOfWarSetupEvent> { event ->
+        subscriptions += EventBus.subscribe<FogOfWarSetupEvent> { event ->
             fogColOffset = event.colOffset
             fogRowOffset = event.rowOffset
             fogOfWar = FogOfWarState(event.cols, event.rows)
             redraw()
         }
-        EventBus.subscribe<GridCalibrationModeEvent> { event ->
+        subscriptions += EventBus.subscribe<GridCalibrationModeEvent> { event ->
             gridCalibrationMode = event.active
             redraw()
         }
-        EventBus.subscribe<MapCalibrationModeEvent> { event ->
+        subscriptions += EventBus.subscribe<MapCalibrationModeEvent> { event ->
             mapCalibrationMode = event.active
             redraw()
         }
+        subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
+            // Place each new token at the next unused column at row 0.
+            tokens.add(Token(event.id, event.name, nextTokenCol++, 0, event.color))
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
+            tokens.removeIf { it.id == event.id }
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
+            val idx = tokens.indexOfFirst { it.id == event.id }
+            if (idx >= 0) {
+                tokens[idx] = tokens[idx].copy(col = event.col, row = event.row)
+                redraw()
+            }
+        }
+        subscriptions += EventBus.subscribe<ActiveTokenChangedEvent> { event ->
+            activeTokenId = event.id
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<TokensResetEvent> {
+            tokens.clear()
+            activeTokenId = null
+            nextTokenCol = 0
+            redraw()
+        }
+    }
+
+    /**
+     * Unregisters all [EventBus] subscriptions held by this renderer.
+     *
+     * Call this when the renderer's canvas is removed from the scene graph to
+     * prevent the renderer from processing events and redrawing after it is no
+     * longer visible, and to allow it to be garbage-collected.
+     */
+    fun dispose() {
+        subscriptions.forEach { it.unsubscribe() }
+        subscriptions.clear()
     }
 
     /**
@@ -206,6 +279,7 @@ class MapRenderer(private val canvas: Canvas) {
         drawMapImage()
         drawGrid()
         drawFogOfWar()
+        drawTokens()
         drawGridCalibrationOverlay()
         drawMapCalibrationOverlay()
 
@@ -343,11 +417,37 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
+     * Converts canvas-space mouse coordinates to the corresponding grid cell indices,
+     * accounting for the current viewport transform.
+     *
+     * This is the inverse of the grid-drawing transform and is used to determine
+     * which grid cell the DM is pointing at, for token dragging and as the foundation
+     * for [canvasCoordsToFogCell].
+     *
+     * @param canvasX canvas-space X coordinate (e.g. from a mouse event).
+     * @param canvasY canvas-space Y coordinate.
+     * @return zero-based `(col, row)` grid cell indices.
+     */
+    fun canvasCoordsToGridCell(canvasX: Double, canvasY: Double): Pair<Int, Int> {
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
+        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
+        val originX = cx + gridCalibration.offsetX
+        val originY = cy + gridCalibration.offsetY
+        val col = floor((worldX - originX) / cellPx).toInt()
+        val row = floor((worldY - originY) / cellPx).toInt()
+        return Pair(col, row)
+    }
+
+    /**
      * Converts canvas-space mouse coordinates to the corresponding fog-of-war
      * cell indices, accounting for the current viewport transform.
      *
-     * This is used by the DM-panel minimap to determine which cell the DM clicked
-     * or dragged over when the fog paint/erase tool is active.
+     * Delegates to [canvasCoordsToGridCell] for the canvas→grid conversion, then
+     * maps the grid indices to fog array indices using [fogColOffset]/[fogRowOffset]
+     * and performs a bounds check against the active [fogOfWar] state.
      *
      * Returns `null` when no fog state is active or the coordinates fall outside
      * the fog grid bounds.
@@ -358,19 +458,7 @@ class MapRenderer(private val canvas: Canvas) {
      */
     fun canvasCoordsToFogCell(canvasX: Double, canvasY: Double): Pair<Int, Int>? {
         val fow = fogOfWar ?: return null
-        val cellPx = gridCalibration.effectiveCellSizeInPixels()
-
-        // Inverse viewport transform: canvas coords → world coords.
-        val cx = canvas.width / 2.0
-        val cy = canvas.height / 2.0
-        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
-        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
-
-        // World coords → grid cell indices.
-        val originX = cx + gridCalibration.offsetX
-        val originY = cy + gridCalibration.offsetY
-        val gridCol = floor((worldX - originX) / cellPx).toInt()
-        val gridRow = floor((worldY - originY) / cellPx).toInt()
+        val (gridCol, gridRow) = canvasCoordsToGridCell(canvasX, canvasY)
 
         // Grid cell → fog array index.
         val fogCol = gridCol - fogColOffset
@@ -379,6 +467,70 @@ class MapRenderer(private val canvas: Canvas) {
         // Bounds check.
         if (fogCol < 0 || fogCol >= fow.cols || fogRow < 0 || fogRow >= fow.rows) return null
         return Pair(fogCol, fogRow)
+    }
+
+    /**
+     * Returns the token whose grid cell contains the given canvas-space coordinates,
+     * or `null` if no token occupies that cell.
+     *
+     * Used by the DM-panel minimap to detect which token the DM is about to drag.
+     *
+     * @param canvasX canvas-space X coordinate.
+     * @param canvasY canvas-space Y coordinate.
+     * @return the [Token] at that grid cell, or `null`.
+     */
+    fun tokenAtCanvasCoords(canvasX: Double, canvasY: Double): Token? {
+        val (col, row) = canvasCoordsToGridCell(canvasX, canvasY)
+        return tokens.find { it.col == col && it.row == row }
+    }
+
+    /**
+     * Draws all tokens as filled circles above the fog-of-war layer.
+     *
+     * Each token fills its grid cell (radius ≈ 45 % of the cell size) and is
+     * centred on the cell.  The active token receives an additional orange outline
+     * so the DM and players can immediately see whose turn it is.
+     *
+     * When [hideTokensInFog] is `true`, tokens whose grid cell is not yet revealed
+     * in [fogOfWar] are skipped — this prevents players from seeing token positions
+     * that are hidden behind the fog on the table view.  Tokens outside the fog grid
+     * bounds, or when fog is not active, are always drawn.
+     */
+    private fun drawTokens() {
+        if (tokens.isEmpty()) return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0) return
+
+        val originX = canvas.width / 2.0 + gridCalibration.offsetX
+        val originY = canvas.height / 2.0 + gridCalibration.offsetY
+        val r = cellPx * 0.45
+
+        val fow = fogOfWar
+
+        for (token in tokens) {
+            // Hide tokens that are in unrevealed fog cells on the player-facing view.
+            if (hideTokensInFog && fow != null) {
+                val fogCol = token.col - fogColOffset
+                val fogRow = token.row - fogRowOffset
+                if (fogCol >= 0 && fogCol < fow.cols && fogRow >= 0 && fogRow < fow.rows
+                    && !fow.isRevealed(fogCol, fogRow)
+                ) continue
+            }
+
+            val cx = originX + (token.col + 0.5) * cellPx
+            val cy = originY + (token.row + 0.5) * cellPx
+
+            // Fill the token circle.
+            gc.fill = token.color
+            gc.fillOval(cx - r, cy - r, r * 2, r * 2)
+
+            // Draw an orange outline on the active token.
+            if (token.id == activeTokenId) {
+                gc.stroke = Color.ORANGE
+                gc.lineWidth = r * 0.2
+                gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
+            }
+        }
     }
 
     /**
