@@ -120,9 +120,9 @@ class MapPlugin : DmPlugin {
     }
 
     /**
-     * Publishes [MapCalibrationEvent], [GridCalibrationEvent], and [MapBackgroundEvent]
-     * for the current persisted settings so that any newly created renderer can
-     * initialise with the saved values.
+     * Publishes [MapCalibrationEvent], [GridCalibrationEvent], [MapBackgroundEvent],
+     * and [MapRotationEvent] for the current persisted settings so that any newly
+     * created renderer can initialise with the saved values.
      */
     private fun publishCurrentSettings() {
         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
@@ -518,7 +518,7 @@ class MapPlugin : DmPlugin {
      * Builds the compact two-row controls strip shown below the minimap.
      *
      * **Row 1 — Map image:**
-     * `[Load Map…]  [path readout (grows)]  [Calibrate Map…]  [Guided Calibration…]  BG: [■]`
+     * `[Load Map…]  [path readout (grows)]  [Calibrate Map…]  [Guided Calibration…]  [↺ 90°]  [↻ 90°]  BG: [■]`
      *
      * **Row 2 — Grid & Fog of war:**
      * `[☐ Show grid]  Grid: [■]  [Apply Grid]  [Calibrate Grid…]  │  [Reveal All]  [Hide All]`
