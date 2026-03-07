@@ -68,12 +68,16 @@ class MapPlugin : DmPlugin {
     /** The most recently applied plain-colour background. */
     private var lastBackgroundColor: Color
 
+    /** The most recently applied map rotation in degrees (0, 90, 180, or 270). */
+    private var lastMapRotation: Int
+
     init {
         val saved = MapSettingsSerializer.load()
         lastGridCalibration = saved.gridCalibration ?: GridCalibration()
         lastMapCalibration = saved.mapCalibration ?: MapCalibration()
         lastGridColor = saved.gridColor ?: GridConfig().color
         lastBackgroundColor = saved.backgroundColor ?: Color.BLACK
+        lastMapRotation = saved.mapRotation ?: 0
     }
 
     /** URI of the most recently loaded map image, or `null` if no map has been loaded. */
@@ -124,6 +128,7 @@ class MapPlugin : DmPlugin {
         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
         EventBus.publish(GridCalibrationEvent(lastGridCalibration))
         EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
+        EventBus.publish(MapRotationEvent(lastMapRotation))
     }
 
     /**
@@ -574,6 +579,24 @@ class MapPlugin : DmPlugin {
             }
         }
 
+        val rotateCCWBtn = Button("↺ 90°").apply {
+            tooltip = Tooltip("Rotate map image 90° counter-clockwise")
+            setOnAction {
+                lastMapRotation = (lastMapRotation - 90 + 360) % 360
+                EventBus.publish(MapRotationEvent(lastMapRotation))
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
+            }
+        }
+
+        val rotateCWBtn = Button("↻ 90°").apply {
+            tooltip = Tooltip("Rotate map image 90° clockwise")
+            setOnAction {
+                lastMapRotation = (lastMapRotation + 90) % 360
+                EventBus.publish(MapRotationEvent(lastMapRotation))
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
+            }
+        }
+
         // --- Row 2: Grid + Fog of war ---
         val visibleCheck = CheckBox("Show Grid").apply {
             isSelected = false
@@ -596,7 +619,7 @@ class MapPlugin : DmPlugin {
                 val config = if (!visibleCheck.isSelected) null else GridConfig(color = lastGridColor)
                 currentGridConfig = config
                 EventBus.publish(GridUpdateEvent(config))
-                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
             }
         }
 
@@ -642,12 +665,12 @@ class MapPlugin : DmPlugin {
                 gridColorPicker.value = suggestedGridColor
                 lastGridColor = suggestedGridColor
                 EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
-                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
             }
         }
 
         val bgSep = Separator(Orientation.VERTICAL)
-        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn, bgSep, Label("BG:"), bgColorPicker)
+        val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn, rotateCCWBtn, rotateCWBtn, bgSep, Label("BG:"), bgColorPicker)
 
         val fowSep = Separator(Orientation.VERTICAL)
         val gridFowRow = HBox(4.0, visibleCheck, Label("Grid:"), gridColorPicker, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
@@ -750,7 +773,7 @@ class MapPlugin : DmPlugin {
                     else -> {
                         lastMapCalibration = MapCalibration(scale, ox, oy)
                         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
+                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
                         confirmed = true
                     }
                 }
@@ -871,7 +894,7 @@ class MapPlugin : DmPlugin {
                     else -> {
                         lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
                         EventBus.publish(GridCalibrationEvent(lastGridCalibration))
-                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
+                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
                         confirmed = true
                     }
                 }
@@ -1218,7 +1241,7 @@ class MapPlugin : DmPlugin {
             .addEventFilter(ActionEvent.ACTION) {
                 lastMapCalibration = working
                 EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor)
+                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
                 confirmed = true
             }
 

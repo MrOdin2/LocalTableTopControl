@@ -224,4 +224,76 @@ class MapSettingsSerializerTest {
         assertNull(settings.gridColor)
         assertNull(settings.backgroundColor)
     }
+
+    // ── Map rotation ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `serialize includes map rotation key`() {
+        val text = MapSettingsSerializer.serialize(GridCalibration(), MapCalibration(), mapRotation = 90)
+        assertTrue(text.contains("map.rotation="), "Missing map.rotation")
+    }
+
+    @Test
+    fun `deserializeMapRotation round-trips all valid rotations`() {
+        for (degrees in listOf(0, 90, 180, 270)) {
+            val text = MapSettingsSerializer.serialize(GridCalibration(), MapCalibration(), mapRotation = degrees)
+            assertEquals(degrees, MapSettingsSerializer.deserializeMapRotation(text))
+        }
+    }
+
+    @Test
+    fun `deserializeMapRotation returns null when key absent`() {
+        val text = "map.scale=1.0\nmap.offsetX=0.0\nmap.offsetY=0.0"
+        assertNull(MapSettingsSerializer.deserializeMapRotation(text))
+    }
+
+    @Test
+    fun `deserializeMapRotation returns null for non-multiple of 90`() {
+        val text = "map.rotation=45"
+        assertNull(MapSettingsSerializer.deserializeMapRotation(text))
+    }
+
+    @Test
+    fun `deserializeMapRotation returns null for non-numeric value`() {
+        val text = "map.rotation=abc"
+        assertNull(MapSettingsSerializer.deserializeMapRotation(text))
+    }
+
+    @Test
+    fun `deserializeMapRotation normalises negative rotation`() {
+        // -90 degrees should normalise to 270 degrees.
+        val text = "map.rotation=-90"
+        assertEquals(270, MapSettingsSerializer.deserializeMapRotation(text))
+    }
+
+    @Test
+    fun `deserializeMapRotation normalises rotation greater than 360`() {
+        // 450 degrees (= 90 + 360) should normalise to 90 degrees.
+        val text = "map.rotation=450"
+        assertEquals(90, MapSettingsSerializer.deserializeMapRotation(text))
+    }
+
+    @Test
+    fun `deserializeAll round-trips all five settings including rotation`() {
+        val gridCal = GridCalibration(cellSizeInPixels = 64.0, scale = 1.5, offsetX = 3.0, offsetY = -3.0)
+        val mapCal = MapCalibration(scale = 2.0, offsetX = 10.0, offsetY = -5.0)
+        val gridColor = Color.color(0.25, 0.5, 0.75, 1.0)
+        val bgColor = Color.color(0.0, 0.0, 0.5, 1.0)
+        val text = MapSettingsSerializer.serialize(gridCal, mapCal, gridColor, bgColor, mapRotation = 180)
+
+        val settings = MapSettingsSerializer.deserializeAll(text)
+
+        assertEquals(gridCal, settings.gridCalibration)
+        assertEquals(mapCal, settings.mapCalibration)
+        assertEquals(180, settings.mapRotation)
+    }
+
+    @Test
+    fun `deserializeAll returns null mapRotation for old config without rotation key (backward compatibility)`() {
+        // Old-format config without map.rotation key.
+        val oldText = "grid.cellSizeInPixels=50.0\ngrid.scale=1.0\ngrid.offsetX=0.0\ngrid.offsetY=0.0\n" +
+            "map.scale=1.0\nmap.offsetX=0.0\nmap.offsetY=0.0"
+        val settings = MapSettingsSerializer.deserializeAll(oldText)
+        assertNull(settings.mapRotation)
+    }
 }
