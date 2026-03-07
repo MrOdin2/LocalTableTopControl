@@ -74,27 +74,32 @@ tasks.register<Exec>("jpackage") {
         languageVersion.set(JavaLanguageVersion.of(javaVersion))
     }
 
-    // Resolve the actual jar file name from the Jar task to avoid drift from project.version
-    val mainJarName = tasks.named<org.gradle.jvm.tasks.Jar>("jar").flatMap { it.archiveFileName }
-
-    // Set executable from toolchain using cross-platform path resolution
-    executable = javaLauncher.map {
-        it.metadata.installationPath.asFile.resolve("bin").resolve("jpackage").absolutePath
-    }.get()
+    // Resolve the jar file and its name from the Jar task; wires the task dependency via inputs
+    val jarTask = tasks.named<org.gradle.jvm.tasks.Jar>("jar")
+    inputs.file(jarTask.flatMap { it.archiveFile })
+    val mainJarName = jarTask.flatMap { it.archiveFileName }
 
     // Wire --input as a proper Provider to avoid hard-coded /lib suffix
     val libDir = distDir.map { File(it, "lib") }
 
-    args(
-        "--type", pkgType,
-        "--name", "TabletopControl",
-        "--app-version", pkgVersion,
-        "--input", libDir.get().absolutePath,
-        "--main-jar", mainJarName.get(),
-        "--main-class", "com.tabletopcontrol.core.AppKt",
-        "--dest", outputDir.get().asFile.absolutePath,
-        "--description", "TabletopControl",
-        "--vendor", "MrOdin"
-    )
+    doFirst {
+        // Defer provider resolution to execution time to avoid eager toolchain lookup on every build
+        val javaHome = javaLauncher.get().metadata.installationPath.asFile
+        val jpackageExt = if (System.getProperty("os.name").lowercase().contains("win")) ".exe" else ""
+
+        executable = javaHome.resolve("bin").resolve("jpackage$jpackageExt").absolutePath
+
+        args(
+            "--type", pkgType,
+            "--name", "TabletopControl",
+            "--app-version", pkgVersion,
+            "--input", libDir.get().absolutePath,
+            "--main-jar", mainJarName.get(),
+            "--main-class", "com.tabletopcontrol.core.AppKt",
+            "--dest", outputDir.get().asFile.absolutePath,
+            "--description", "TabletopControl",
+            "--vendor", "MrOdin"
+        )
+    }
 }
 
