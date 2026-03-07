@@ -7,12 +7,20 @@ package com.tabletopcontrol.light
  * running FX toolkit.  The [LightPlugin] binds UI controls to it.
  *
  * State fields:
+ * - **power**        — whether the lights are on.
  * - **color**        — selected color as a CSS hex string (`#RRGGBB` or `#RGB`).
  * - **effect**       — selected [LightEffect].
  * - **colorCycling** — whether automatic color cycling is active.
  * - **brightness**   — output brightness in the range `0.0`–`1.0`.
+ *
+ * Observers can register a callback with [addChangeListener] to be notified
+ * whenever any state field changes.
  */
 class LightController {
+
+    /** Whether the lights are powered on. */
+    var power: Boolean = true
+        private set
 
     /** Current color as a CSS hex string, e.g. `"#FFFFFF"` or `"#FFF"`. */
     var color: String = "#FFFFFF"
@@ -30,6 +38,34 @@ class LightController {
     var brightness: Double = 1.0
         private set
 
+    private val changeListeners = mutableListOf<() -> Unit>()
+
+    /**
+     * Registers [listener] to be called whenever any state field changes.
+     *
+     * Returns the same [listener] so callers can hold a reference for later
+     * removal via [removeChangeListener].
+     */
+    fun addChangeListener(listener: () -> Unit): () -> Unit {
+        changeListeners += listener
+        return listener
+    }
+
+    /** Removes a previously registered [listener]. */
+    fun removeChangeListener(listener: () -> Unit) {
+        changeListeners -= listener
+    }
+
+    /**
+     * Turns the lights on or off.
+     *
+     * @param on `true` to switch the lights on; `false` to switch them off
+     */
+    fun setPower(on: Boolean) {
+        power = on
+        notifyChange()
+    }
+
     /**
      * Sets the light color.
      *
@@ -41,6 +77,7 @@ class LightController {
             "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex"
         }
         color = hex.uppercase()
+        notifyChange()
     }
 
     /**
@@ -50,6 +87,7 @@ class LightController {
      */
     fun setEffect(lightEffect: LightEffect) {
         effect = lightEffect
+        notifyChange()
     }
 
     /**
@@ -59,6 +97,7 @@ class LightController {
      */
     fun setColorCycling(enabled: Boolean) {
         colorCycling = enabled
+        notifyChange()
     }
 
     /**
@@ -70,6 +109,11 @@ class LightController {
     fun setBrightness(value: Double) {
         require(value in 0.0..1.0) { "Brightness must be between 0.0 and 1.0, was $value" }
         brightness = value
+        notifyChange()
+    }
+
+    private fun notifyChange() {
+        changeListeners.forEach { it() }
     }
 
     private companion object {

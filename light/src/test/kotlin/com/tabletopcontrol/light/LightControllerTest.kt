@@ -19,6 +19,11 @@ class LightControllerTest {
     // ── defaults ─────────────────────────────────────────────────────────────
 
     @Test
+    fun `default power is on`() {
+        assertTrue(controller.power)
+    }
+
+    @Test
     fun `default color is white`() {
         assertEquals("#FFFFFF", controller.color)
     }
@@ -36,6 +41,21 @@ class LightControllerTest {
     @Test
     fun `default brightness is 1_0`() {
         assertEquals(1.0, controller.brightness)
+    }
+
+    // ── setPower ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `setPower turns lights off`() {
+        controller.setPower(false)
+        assertFalse(controller.power)
+    }
+
+    @Test
+    fun `setPower turns lights back on`() {
+        controller.setPower(false)
+        controller.setPower(true)
+        assertTrue(controller.power)
     }
 
     // ── setColor ─────────────────────────────────────────────────────────────
@@ -129,5 +149,67 @@ class LightControllerTest {
         assertEquals(LightEffect.STROBE, controller.effect)
         assertTrue(controller.colorCycling)
         assertEquals(0.7, controller.brightness)
+    }
+
+    // ── change listeners ──────────────────────────────────────────────────────
+
+    @Test
+    fun `change listener is called when power changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setPower(false)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when color changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setColor("#123456")
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when effect changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setEffect(LightEffect.FIRE)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when color cycling changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setColorCycling(true)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when brightness changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setBrightness(0.3)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `multiple change listeners are all notified`() {
+        var a = 0
+        var b = 0
+        controller.addChangeListener { a++ }
+        controller.addChangeListener { b++ }
+        controller.setColor("#AABBCC")
+        assertEquals(1, a)
+        assertEquals(1, b)
+    }
+
+    @Test
+    fun `removed change listener is not called after removal`() {
+        var callCount = 0
+        val listener = controller.addChangeListener { callCount++ }
+        controller.removeChangeListener(listener)
+        controller.setColor("#AABBCC")
+        assertEquals(0, callCount)
     }
 }

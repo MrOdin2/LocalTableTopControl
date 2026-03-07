@@ -4,6 +4,7 @@ import com.tabletopcontrol.core.DmPlugin
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
+import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
 import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
@@ -11,6 +12,7 @@ import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Separator
 import javafx.scene.control.Slider
+import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
@@ -19,18 +21,21 @@ import javafx.scene.paint.Color
 import javafx.util.StringConverter
 
 /**
- * DM-panel plugin for controlling physical ambient lighting.
+ * DM-panel plugin for controlling physical ambient lighting via WLED.
  *
- * Provides a UI-only control panel with:
+ * Provides a control panel with:
+ * - **Serial connection** — port selector, baud-rate field, connect / disconnect button,
+ *   and a live connection-status label.
+ * - **Power** — a toggle to turn the LEDs on or off.
  * - **Color select** — a [ColorPicker] to choose the light color.
  * - **Effect select** — a [ComboBox] to pick from the available [LightEffect]s.
  * - **Color cycling** — a [CheckBox] to enable automatic color cycling.
  * - **Brightness** — a [Slider] to set output brightness (0 – 100 %).
  *
- * All state is held by a [LightController]; this class only handles the
- * JavaFX binding between controls and the controller.
- *
- * Integration with WLED or similar hardware is intentionally deferred.
+ * All state is held by a [LightController]; this class only handles the JavaFX
+ * binding between controls and the controller.  Whenever the controller state
+ * changes the current settings are forwarded to a [WledSerialSender] if a
+ * serial connection is active.
  */
 class LightPlugin : DmPlugin {
 
@@ -39,12 +44,23 @@ class LightPlugin : DmPlugin {
     /** Pure-Kotlin state controller; no JavaFX dependencies. */
     private val controller = LightController()
 
+    /** Sends WLED JSON commands over the active serial port. */
+    private val sender = WledSerialSender()
+
+    init {
+        // Forward every state change to the WLED device if connected.
+        controller.addChangeListener { sendCurrentState() }
+    }
+
     override fun createView(): Node {
         val root = VBox(8.0).apply { padding = Insets(10.0) }
 
         root.children.addAll(
             Label("Ambient Light Controls"),
             Separator(),
+            buildSerialSection(),
+            Separator(),
+            buildPowerRow(),
             buildColorRow(),
             buildEffectRow(),
             buildColorCyclingRow(),
@@ -57,9 +73,119 @@ class LightPlugin : DmPlugin {
         }
     }
 
+    override fun onShutdown() {
+        sender.disconnect()
+    }
+
     // -------------------------------------------------------------------------
     // Section builders
     // -------------------------------------------------------------------------
+
+    /**
+     * Builds the WLED serial-connection configuration section.
+     *
+     * Contains:
+     * - A [ComboBox] listing available serial ports (refreshed on click).
+     * - A [TextField] for the baud rate (pre-filled with [WledSerialSender.DEFAULT_BAUD_RATE]).
+     * - A Connect / Disconnect [Button].
+     * - A status [Label] showing the current connection state.
+     */
+    private fun buildSerialSection(): VBox {
+        val statusLabel = Label("Not connected").apply {
+            style = "-fx-text-fill: #888888;"
+        }
+
+        val portCombo = ComboBox<String>().apply {
+            tooltip = Tooltip("Select the serial port for the WLED device")
+            maxWidth = Double.MAX_VALUE
+            isEditable = true
+            // Populate on first show so the list is current.
+            items.setAll(sender.availablePorts())
+        }
+
+        val baudField = TextField(WledSerialSender.DEFAULT_BAUD_RATE.toString()).apply {
+            prefColumnCount = 8
+            tooltip = Tooltip("Serial baud rate (WLED default: 115200)")
+        }
+
+        val connectBtn = Button("Connect").apply {
+            tooltip = Tooltip("Open the selected serial port")
+            maxWidth = Double.MAX_VALUE
+        }
+
+        val refreshBtn = Button("↺").apply {
+            tooltip = Tooltip("Refresh the list of available serial ports")
+        }
+
+        connectBtn.setOnAction {
+            if (sender.isConnected) {
+                sender.disconnect()
+                connectBtn.text = "Connect"
+                statusLabel.text = "Disconnected"
+                statusLabel.style = "-fx-text-fill: #888888;"
+            } else {
+                val portName = portCombo.value?.trim() ?: return@setOnAction
+                if (portName.isBlank()) return@setOnAction
+                val baudRate = baudField.text.trim().toIntOrNull()
+                    ?: WledSerialSender.DEFAULT_BAUD_RATE
+                try {
+                    sender.connect(portName, baudRate)
+                    connectBtn.text = "Disconnect"
+                    statusLabel.text = "Connected: $portName"
+                    statusLabel.style = "-fx-text-fill: #00aa00;"
+                    // Push the current state immediately after connecting.
+                    sendCurrentState()
+                } catch (e: Exception) {
+                    statusLabel.text = "Error: ${e.message}"
+                    statusLabel.style = "-fx-text-fill: #cc0000;"
+                }
+            }
+        }
+
+        refreshBtn.setOnAction {
+            val ports = sender.availablePorts()
+            portCombo.items.setAll(ports)
+        }
+
+        val portRow = HBox(6.0, portCombo, refreshBtn).apply {
+            HBox.setHgrow(portCombo, Priority.ALWAYS)
+            alignment = Pos.CENTER_LEFT
+        }
+
+        val baudRow = HBox(6.0, Label("Baud:"), baudField).apply {
+            alignment = Pos.CENTER_LEFT
+        }
+
+        val btnRow = HBox(6.0, connectBtn).apply {
+            HBox.setHgrow(connectBtn, Priority.ALWAYS)
+            alignment = Pos.CENTER_LEFT
+        }
+
+        return VBox(4.0,
+            Label("WLED Serial Connection"),
+            portRow,
+            baudRow,
+            btnRow,
+            statusLabel,
+        )
+    }
+
+    /**
+     * Builds the power on/off toggle row.
+     *
+     * When unchecked the LEDs are switched off; the controller retains all
+     * other settings so they take effect when power is restored.
+     */
+    private fun buildPowerRow(): HBox {
+        val check = CheckBox("Power on").apply {
+            isSelected = controller.power
+            tooltip = Tooltip("Turn the WLED device on or off")
+            selectedProperty().addListener { _, _, on ->
+                controller.setPower(on)
+            }
+        }
+        return HBox(8.0, check).apply { alignment = Pos.CENTER_LEFT }
+    }
 
     /**
      * Builds the color-picker row.
@@ -112,12 +238,12 @@ class LightPlugin : DmPlugin {
      * Builds the color-cycling toggle row.
      *
      * When the [CheckBox] is selected, automatic color cycling is enabled in
-     * the controller.
+     * the controller; the WLED device will use the Rainbow Cycle effect.
      */
     private fun buildColorCyclingRow(): HBox {
         val check = CheckBox("Enable color cycling").apply {
             isSelected = controller.colorCycling
-            tooltip = Tooltip("Automatically cycle through colors")
+            tooltip = Tooltip("Automatically cycle through colors (uses WLED Rainbow effect)")
             selectedProperty().addListener { _, _, selected ->
                 controller.setColorCycling(selected)
             }
@@ -162,6 +288,27 @@ class LightPlugin : DmPlugin {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Forwards the current controller state to the WLED device via serial.
+     *
+     * Does nothing if no serial port is connected.  Errors are silently
+     * discarded so a transient serial failure does not crash the UI.
+     */
+    private fun sendCurrentState() {
+        if (!sender.isConnected) return
+        try {
+            sender.sendState(
+                on           = controller.power,
+                color        = controller.color,
+                effect       = controller.effect,
+                brightness   = controller.brightness,
+                colorCycling = controller.colorCycling,
+            )
+        } catch (e: Exception) {
+            System.err.println("WLED serial write failed: ${e.message}")
+        }
+    }
 
     /** Converts a JavaFX [Color] to an uppercase `#RRGGBB` hex string. */
     private fun colorToHex(color: Color): String {
