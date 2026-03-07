@@ -50,7 +50,6 @@ tasks.register<Exec>("jpackage") {
     val installDistTask = tasks.named<Sync>("installDist")
     dependsOn(installDistTask)
 
-    // Keep as Providers so they are resolved inside the task action, not at configuration time
     val distDir = installDistTask.map { it.destinationDir }
     val outputDir = layout.buildDirectory.dir("jpackage")
 
@@ -66,7 +65,7 @@ tasks.register<Exec>("jpackage") {
     } else {
         val rawVersion = project.version.toString().replace("-SNAPSHOT", "")
         val versionMatch = Regex("^[0-9]+(\\.[0-9]+)*").find(rawVersion)
-        versionMatch?.value?.ifEmpty { "1.0.0" } ?: "1.0.0"
+        versionMatch?.value ?: "1.0.0"
     }
 
     // Resolve jpackage from the configured Java toolchain
@@ -78,27 +77,24 @@ tasks.register<Exec>("jpackage") {
     // Resolve the actual jar file name from the Jar task to avoid drift from project.version
     val mainJarName = tasks.named<org.gradle.jvm.tasks.Jar>("jar").flatMap { it.archiveFileName }
 
-    doFirst {
-        val distDirFile = distDir.get()
-        val outputDirFile = outputDir.get().asFile
-        val javaHome = javaLauncher.get().metadata.installationPath.asFile
-        val mainJar = mainJarName.get()
+    // Set executable from toolchain using cross-platform path resolution
+    executable = javaLauncher.map {
+        it.metadata.installationPath.asFile.resolve("bin").resolve("jpackage").absolutePath
+    }.get()
 
-        outputDirFile.deleteRecursively()
-        outputDirFile.mkdirs()
+    // Wire --input as a proper Provider to avoid hard-coded /lib suffix
+    val libDir = distDir.map { File(it, "lib") }
 
-        commandLine(
-            "${javaHome.absolutePath}/bin/jpackage",
-            "--type", pkgType,
-            "--name", "TabletopControl",
-            "--app-version", pkgVersion,
-            "--input", "${distDirFile.absolutePath}/lib",
-            "--main-jar", mainJar,
-            "--main-class", "com.tabletopcontrol.core.AppKt",
-            "--dest", outputDirFile.absolutePath,
-            "--description", "TabletopControl",
-            "--vendor", "MrOdin"
-        )
-    }
+    args(
+        "--type", pkgType,
+        "--name", "TabletopControl",
+        "--app-version", pkgVersion,
+        "--input", libDir.get().absolutePath,
+        "--main-jar", mainJarName.get(),
+        "--main-class", "com.tabletopcontrol.core.AppKt",
+        "--dest", outputDir.get().asFile.absolutePath,
+        "--description", "TabletopControl",
+        "--vendor", "MrOdin"
+    )
 }
 
