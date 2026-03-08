@@ -646,6 +646,14 @@ class MapPlugin : DmPlugin {
             }
         }
 
+        val showNamesCheck = CheckBox("Show Names").apply {
+            isSelected = false
+            tooltip = Tooltip("Show token names on the table map view so players can identify each combatant")
+            setOnAction {
+                EventBus.publish(ShowTokenNamesEvent(isSelected))
+            }
+        }
+
         // Background colour picker — applies immediately and auto-suggests a
         // contrasting grid colour in gridColorPicker.
         val bgColorPicker = ColorPicker(lastBackgroundColor).apply {
@@ -673,7 +681,8 @@ class MapPlugin : DmPlugin {
         val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn, rotateCCWBtn, rotateCWBtn, bgSep, Label("BG:"), bgColorPicker)
 
         val fowSep = Separator(Orientation.VERTICAL)
-        val gridFowRow = HBox(4.0, visibleCheck, Label("Grid:"), gridColorPicker, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
+        val tokenSep = Separator(Orientation.VERTICAL)
+        val gridFowRow = HBox(4.0, visibleCheck, Label("Grid:"), gridColorPicker, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn, tokenSep, showNamesCheck)
 
         return VBox(4.0, mapRow, gridFowRow)
     }

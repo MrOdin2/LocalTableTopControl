@@ -4,6 +4,8 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
+import javafx.scene.text.Font
+import javafx.scene.text.TextAlignment
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
@@ -136,6 +138,13 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var hideTokensInFog: Boolean = false
 
+    /**
+     * When `true`, each token's display name is drawn below its circle so that
+     * players can identify which token belongs to which combatant.  Defaults to
+     * `false`.  Toggled via [ShowTokenNamesEvent].
+     */
+    var showTokenNames: Boolean = false
+
     /** Current list of tokens to draw on the map. */
     private val tokens = mutableListOf<Token>()
 
@@ -237,6 +246,10 @@ class MapRenderer(private val canvas: Canvas) {
             tokens.clear()
             activeTokenId = null
             nextTokenCol = 0
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<ShowTokenNamesEvent> { event ->
+            showTokenNames = event.show
             redraw()
         }
     }
@@ -541,6 +554,9 @@ class MapRenderer(private val canvas: Canvas) {
      * in [fogOfWar] are skipped — this prevents players from seeing token positions
      * that are hidden behind the fog on the table view.  Tokens outside the fog grid
      * bounds, or when fog is not active, are always drawn.
+     *
+     * When [showTokenNames] is `true`, the token's display name is drawn centred
+     * below the token circle so players can identify each combatant.
      */
     private fun drawTokens() {
         if (tokens.isEmpty()) return
@@ -575,6 +591,20 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.stroke = Color.ORANGE
                 gc.lineWidth = r * 0.2
                 gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
+            }
+
+            // Optionally draw the token name centred below the circle.
+            if (showTokenNames && token.name.isNotBlank()) {
+                val fontSize = (cellPx * TOKEN_NAME_FONT_SCALE).coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE)
+                gc.font = Font.font(fontSize)
+                gc.textAlign = TextAlignment.CENTER
+                val textY = cy + r + fontSize
+                // Dark shadow offset for contrast against any background.
+                gc.fill = Color.BLACK
+                gc.fillText(token.name, cx + TOKEN_NAME_SHADOW_OFFSET, textY + TOKEN_NAME_SHADOW_OFFSET)
+                // White foreground text.
+                gc.fill = Color.WHITE
+                gc.fillText(token.name, cx, textY)
             }
         }
     }
@@ -653,5 +683,27 @@ class MapRenderer(private val canvas: Canvas) {
             }
             x += cellPx
         }
+    }
+
+    companion object {
+        /**
+         * Font size as a fraction of grid cell size for token name labels.
+         * At 0.28× cell size the text is proportionally readable at typical
+         * map scales without overflowing into neighbouring cells.
+         */
+        private const val TOKEN_NAME_FONT_SCALE = 0.28
+
+        /**
+         * Minimum font size in points for token name labels.
+         * Prevents text from becoming illegible on very small or zoomed-out maps.
+         */
+        private const val MIN_TOKEN_NAME_FONT_SIZE = 8.0
+
+        /**
+         * Pixel offset applied to the drop-shadow copy of the token name text.
+         * A 1 px diagonal offset creates a subtle dark outline effect that keeps
+         * names readable against both light and dark map backgrounds.
+         */
+        private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
     }
 }
