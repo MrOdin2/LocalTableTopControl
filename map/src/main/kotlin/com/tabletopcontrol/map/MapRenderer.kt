@@ -20,7 +20,7 @@ import kotlin.math.floor
  * fog-of-war state changes.  This keeps CPU usage low on modest hardware.
  *
  * Rendering is composed of layers drawn in order:
- * 1. Background fill (black).
+ * 1. Background fill — configurable via [backgroundColor] (defaults to black).
  * 2. Map image — scaled from the canvas centre according to [mapCalibration].
  * 3. Grid overlay — drawn when [gridConfig] is non-null and visible, using
  *    [gridCalibration] with the canvas centre as the scale origin.
@@ -65,6 +65,15 @@ class MapRenderer(private val canvas: Canvas) {
     /** Grid overlay configuration, or `null` to disable the grid. */
     var gridConfig: GridConfig? = null
 
+    /**
+     * Background fill colour used behind the map image.
+     *
+     * When no map image is loaded this colour is the sole visible canvas content,
+     * acting as a plain-colour map.  When an image is loaded it is drawn on top of
+     * this fill.  Defaults to [Color.BLACK] to preserve the original behaviour.
+     */
+    var backgroundColor: Color = Color.BLACK
+
     /** Fog-of-war cell state, or `null` when fog of war is not active. */
     var fogOfWar: FogOfWarState? = null
 
@@ -82,6 +91,17 @@ class MapRenderer(private val canvas: Canvas) {
 
     /** Grid-row offset: fog array row 0 corresponds to grid row [fogRowOffset]. */
     private var fogRowOffset: Int = 0
+
+    /**
+     * Clockwise rotation applied to the map image, in degrees.
+     *
+     * Only multiples of 90 are meaningful; all other rendering layers (grid,
+     * fog, tokens) are unaffected so the grid remains stationary while the
+     * image spins behind it.  Rotation is around the canvas centre, which is
+     * the same reference point used for all calibration operations.
+     * Defaults to `0` (no rotation).
+     */
+    var mapRotationDegrees: Int = 0
 
     /** When `true` a yellow crosshair is drawn at the canvas centre. */
     private var gridCalibrationMode: Boolean = false
@@ -150,6 +170,10 @@ class MapRenderer(private val canvas: Canvas) {
         subscriptions += EventBus.subscribe<MapLoadEvent> { event ->
             loadImage(event.resourcePath)
         }
+        subscriptions += EventBus.subscribe<MapBackgroundEvent> { event ->
+            backgroundColor = event.color
+            redraw()
+        }
         subscriptions += EventBus.subscribe<MapCalibrationEvent> { event ->
             mapCalibration = event.calibration
             redraw()
@@ -183,6 +207,10 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<MapCalibrationModeEvent> { event ->
             mapCalibrationMode = event.active
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<MapRotationEvent> { event ->
+            mapRotationDegrees = ((event.degrees % 360) + 360) % 360
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
@@ -265,7 +293,7 @@ class MapRenderer(private val canvas: Canvas) {
      */
     fun redraw() {
         // Background always fills the entire canvas regardless of viewport transform.
-        gc.fill = Color.BLACK
+        gc.fill = backgroundColor
         gc.fillRect(0.0, 0.0, canvas.width, canvas.height)
 
         // Apply viewport transform: zoom from the canvas centre then pan.
@@ -292,11 +320,16 @@ class MapRenderer(private val canvas: Canvas) {
     // -------------------------------------------------------------------------
 
     /**
-     * Draws the map image centred on the canvas, applying [mapCalibration].
+     * Draws the map image centred on the canvas, applying [mapCalibration] and
+     * [mapRotationDegrees].
      *
-     * The canvas centre is the fixed point for scaling: zooming in or out keeps
-     * the image centred, and [MapCalibration.offsetX]/[MapCalibration.offsetY]
-     * displace the image centre from the canvas centre.
+     * The canvas centre is the fixed point for both scaling and rotation: zooming
+     * or rotating keeps the image centred on the same reference point, and
+     * [MapCalibration.offsetX]/[MapCalibration.offsetY] displace the image centre
+     * from the canvas centre in the rotated coordinate system.
+     *
+     * Rotation is applied around the canvas centre (the grid origin reference),
+     * so the grid overlay remains stationary while the image rotates behind it.
      */
     private fun drawMapImage() {
         val image = mapImage ?: return
@@ -307,7 +340,19 @@ class MapRenderer(private val canvas: Canvas) {
         val drawX = canvas.width / 2.0 - destWidth / 2.0 + mapCalibration.offsetX
         val drawY = canvas.height / 2.0 - destHeight / 2.0 + mapCalibration.offsetY
 
-        gc.drawImage(image, drawX, drawY, destWidth, destHeight)
+        if (mapRotationDegrees == 0) {
+            gc.drawImage(image, drawX, drawY, destWidth, destHeight)
+        } else {
+            // Rotate around the canvas centre (= grid origin with default calibration).
+            val cx = canvas.width / 2.0
+            val cy = canvas.height / 2.0
+            gc.save()
+            gc.translate(cx, cy)
+            gc.rotate(mapRotationDegrees.toDouble())
+            gc.translate(-cx, -cy)
+            gc.drawImage(image, drawX, drawY, destWidth, destHeight)
+            gc.restore()
+        }
     }
 
     /**

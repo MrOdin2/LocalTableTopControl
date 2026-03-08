@@ -70,9 +70,6 @@ jobs:
           echo "App version    : ${VERSION}"
           echo "Package version: ${PKG_VERSION}"
 
-      - name: Build application distribution
-        run: ./gradlew :core:installDist --no-daemon
-
       # WiX toolset is required by jpackage on Windows to produce .exe installers.
       - name: Install WiX toolset (Windows only)
         if: matrix.os == 'windows-latest'
@@ -81,22 +78,15 @@ jobs:
       - name: Build native installer
         shell: bash
         run: |
-          MAIN_JAR=$(ls core/build/install/core/lib/core-*.jar | head -1 | xargs basename)
-          mkdir -p output
-          jpackage \
-            --input      core/build/install/core/lib \
-            --main-jar   "${MAIN_JAR}" \
-            --main-class com.tabletopcontrol.core.AppKt \
-            --name       TabletopControl \
-            --app-version "${{ steps.version.outputs.pkg_version }}" \
-            --type       ${{ matrix.pkg_type }} \
-            --dest       output
+          ./gradlew :core:jpackage --no-daemon \
+            -PpkgType=${{ matrix.pkg_type }} \
+            -PpkgVersion=${{ steps.version.outputs.pkg_version }}
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.os }}
-          path: output/${{ matrix.artifact_glob }}
+          path: core/build/jpackage/${{ matrix.artifact_glob }}
 
       # Produce the cross-platform distribution ZIP on Ubuntu only (once is enough).
       - name: Build distribution ZIP
