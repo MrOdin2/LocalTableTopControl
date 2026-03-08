@@ -87,7 +87,7 @@ tasks.register<Exec>("jpackage") {
     val libDir = distDir.map { File(it, "lib") }
 
     // Evaluated at configuration time so it can gate both task inputs and execution-time args
-    val isWindows = System.getProperty("os.name").lowercase().contains("win")
+    val isWindows = System.getProperty("os.name").lowercase().startsWith("windows")
 
     // Windows installer resource directory (contains WiX overrides for MSI customisation)
     val winResourceDir = layout.projectDirectory.dir("packaging/windows")
