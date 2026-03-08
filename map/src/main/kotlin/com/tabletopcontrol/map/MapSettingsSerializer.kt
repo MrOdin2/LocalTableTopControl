@@ -11,12 +11,14 @@ import javafx.scene.paint.Color
  * @property mapCalibration  saved map-image calibration, or `null` if absent or unparseable.
  * @property gridColor       saved grid line colour, or `null` if absent or unparseable.
  * @property backgroundColor saved plain-colour background, or `null` if absent or unparseable.
+ * @property mapRotation     saved map rotation in degrees (0, 90, 180, or 270), or `null` if absent.
  */
 data class MapSavedSettings(
     val gridCalibration: GridCalibration?,
     val mapCalibration: MapCalibration?,
     val gridColor: Color?,
     val backgroundColor: Color?,
+    val mapRotation: Int?,
 )
 
 /**
@@ -36,12 +38,13 @@ data class MapSavedSettings(
  * map.scale=1.0
  * map.offsetX=0.0
  * map.offsetY=0.0
+ * map.rotation=0
  * background.color=0.0,0.0,0.0,1.0
  * ```
  *
  * Colours are stored as `red,green,blue,opacity` with all components in the
- * range [0.0, 1.0].  The `grid.color` and `background.color` keys are optional
- * for backward compatibility with older config files.
+ * range [0.0, 1.0].  The `grid.color`, `background.color`, and `map.rotation`
+ * keys are optional for backward compatibility with older config files.
  *
  * I/O failures are silently swallowed so that a missing or read-only config directory
  * never crashes the application.
@@ -88,21 +91,24 @@ object MapSettingsSerializer {
     // ── Serialisation ────────────────────────────────────────────────────────
 
     /**
-     * Converts [gridCalibration], [mapCalibration], [gridColor], and
-     * [backgroundColor] into a properties-format string.
+     * Converts [gridCalibration], [mapCalibration], [gridColor],
+     * [backgroundColor], and [mapRotation] into a properties-format string.
      *
      * The returned string can be written directly to a file and later parsed by
      * [deserializeGridCalibration], [deserializeMapCalibration],
-     * [deserializeGridColor], and [deserializeBackgroundColor].
+     * [deserializeGridColor], [deserializeBackgroundColor], and
+     * [deserializeMapRotation].
      *
      * @param gridColor       grid line colour to persist; defaults to [GridConfig.color].
      * @param backgroundColor canvas background colour to persist; defaults to [Color.BLACK].
+     * @param mapRotation     clockwise rotation of the map image in degrees (0, 90, 180, 270).
      */
     fun serialize(
         gridCalibration: GridCalibration,
         mapCalibration: MapCalibration,
         gridColor: Color = GridConfig().color,
         backgroundColor: Color = Color.BLACK,
+        mapRotation: Int = 0,
     ): String {
         val sb = StringBuilder()
         sb.appendLine("grid.cellSizeInPixels=${gridCalibration.cellSizeInPixels}")
@@ -113,6 +119,7 @@ object MapSettingsSerializer {
         sb.appendLine("map.scale=${mapCalibration.scale}")
         sb.appendLine("map.offsetX=${mapCalibration.offsetX}")
         sb.appendLine("map.offsetY=${mapCalibration.offsetY}")
+        sb.appendLine("map.rotation=$mapRotation")
         sb.appendLine("background.color=${colorToString(backgroundColor)}")
         return sb.toString()
     }
@@ -195,10 +202,31 @@ object MapSettingsSerializer {
     }
 
     /**
-     * Parses all four settings from a properties-format [text].
+     * Parses the map rotation from a properties-format [text].
+     *
+     * The value must be an integer that is a multiple of 90 (i.e. 0, 90, 180, or 270
+     * after normalisation to [0, 360)).  Any other value is treated as invalid.
+     *
+     * @return The normalised rotation in degrees, or `null` if the `map.rotation` key
+     *         is absent or the value is malformed.
+     */
+    fun deserializeMapRotation(text: String): Int? {
+        return try {
+            val props = Properties()
+            props.load(text.reader())
+            val raw = props.getProperty("map.rotation")?.toIntOrNull() ?: return null
+            if (raw % 90 != 0) return null
+            ((raw % 360) + 360) % 360
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Parses all settings from a properties-format [text].
      *
      * Each field falls back to `null` if the corresponding keys are absent or unparseable,
-     * so this can safely handle older config files that predate the colour fields.
+     * so this can safely handle older config files that predate the colour or rotation fields.
      *
      * @return A [MapSavedSettings] with each field set to the parsed value, or `null` for
      *         any field that is absent or unparseable.
@@ -208,6 +236,7 @@ object MapSettingsSerializer {
         mapCalibration = deserializeMapCalibration(text),
         gridColor = deserializeGridColor(text),
         backgroundColor = deserializeBackgroundColor(text),
+        mapRotation = deserializeMapRotation(text),
     )
 
     // ── Persistence ──────────────────────────────────────────────────────────
@@ -220,15 +249,17 @@ object MapSettingsSerializer {
      *
      * @param gridColor       grid line colour to persist; defaults to [GridConfig.color].
      * @param backgroundColor canvas background colour to persist; defaults to [Color.BLACK].
+     * @param mapRotation     clockwise rotation of the map image in degrees (0, 90, 180, 270).
      */
     fun save(
         gridCalibration: GridCalibration,
         mapCalibration: MapCalibration,
         gridColor: Color = GridConfig().color,
         backgroundColor: Color = Color.BLACK,
+        mapRotation: Int = 0,
     ) {
         try {
-            configFile.writeText(serialize(gridCalibration, mapCalibration, gridColor, backgroundColor))
+            configFile.writeText(serialize(gridCalibration, mapCalibration, gridColor, backgroundColor, mapRotation))
         } catch (_: Exception) {
             // non-fatal — proceed without persistence
         }
@@ -245,7 +276,7 @@ object MapSettingsSerializer {
             val text = configFile.readText()
             deserializeAll(text)
         } catch (_: Exception) {
-            MapSavedSettings(null, null, null, null)
+            MapSavedSettings(null, null, null, null, null)
         }
     }
 }

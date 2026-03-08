@@ -97,3 +97,15 @@ data class FogOfWarSetupEvent(val cols: Int, val rows: Int, val colOffset: Int, 
  * @property color the background fill colour to use.
  */
 data class MapBackgroundEvent(val color: Color)
+
+/**
+ * Event fired when the DM rotates the map image in 90-degree steps.
+ *
+ * The renderer applies a clockwise rotation around the canvas centre (the grid
+ * origin) so that the grid overlay remains stationary and the map image spins
+ * behind it.  Only multiples of 90 degrees are supported; the value is
+ * normalised to the range [0, 360).
+ *
+ * @property degrees clockwise rotation in degrees; must be a multiple of 90.
+ */
+data class MapRotationEvent(val degrees: Int)
