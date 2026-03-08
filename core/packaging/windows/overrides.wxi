@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WiX include file merged into the jpackage-generated MSI installer.
+  Placed in --resource-dir so jpackage picks it up automatically.
+
+  Adds a deferred custom action that launches TabletopControl immediately
+  after a successful installation (fresh install or upgrade).
+-->
+<Include>
+
+  <!--
+    Type-34 custom action: run an executable from a formatted path.
+    - Directory="INSTALLDIR"   : working directory is the install root.
+    - ExeCommand               : full path to the launcher, quoted for spaces.
+    - Impersonate="yes"        : run as the installing user, not SYSTEM.
+    - Return="asyncNoWait"     : fire-and-forget; installer does not wait.
+  -->
+  <CustomAction Id="LaunchTabletopControl"
+                Directory="INSTALLDIR"
+                ExeCommand='"[INSTALLDIR]TabletopControl.exe"'
+                Impersonate="yes"
+                Return="asyncNoWait" />
+
+  <!--
+    Schedule the action after InstallFinalize so all files are on disk.
+    The combined condition covers both cases:
+      - NOT Installed           : fresh install (Installed property is empty)
+      - UPGRADINGPRODUCTCODE    : upgrade install (replacing an older version)
+    Both conditions evaluate to FALSE during uninstallation, so the app is
+    never started when the user removes the product.
+  -->
+  <InstallExecuteSequence>
+    <Custom Action="LaunchTabletopControl" After="InstallFinalize">
+      (NOT Installed) OR UPGRADINGPRODUCTCODE
+    </Custom>
+  </InstallExecuteSequence>
+
+</Include>

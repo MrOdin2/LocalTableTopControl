@@ -86,6 +86,14 @@ tasks.register<Exec>("jpackage") {
     // Wire --input as a proper Provider to avoid hard-coded /lib suffix
     val libDir = distDir.map { File(it, "lib") }
 
+    // Windows installer resource directory (contains WiX overrides for MSI customisation)
+    val winResourceDir = layout.projectDirectory.dir("packaging/windows")
+
+    // Register Windows packaging resources as inputs so changes trigger re-execution
+    if (pkgType == "msi") {
+        inputs.dir(winResourceDir)
+    }
+
     doFirst {
         // Defer provider resolution to execution time to avoid eager toolchain lookup on every build
         val javaHome = javaLauncher.get().metadata.installationPath.asFile
@@ -104,6 +112,23 @@ tasks.register<Exec>("jpackage") {
             "--description", "TabletopControl",
             "--vendor", "MrOdin"
         )
+
+        // Windows MSI-specific options for a proper installer experience
+        if (pkgType == "msi") {
+            args(
+                // Show a directory-chooser dialog so users can pick the install location
+                "--win-dir-chooser",
+                // Create a desktop shortcut so the app is easy to find after install
+                "--win-shortcut",
+                // Add a Start Menu shortcut under the TabletopControl group
+                "--win-menu",
+                "--win-menu-group", "TabletopControl",
+                // Stable upgrade UUID prevents every build being treated as a new product
+                "--win-upgrade-uuid", "03551855-19E7-4604-926D-1FF368622403",
+                // Custom WiX resources (overrides.wxi adds launch-after-install action)
+                "--resource-dir", winResourceDir.asFile.absolutePath
+            )
+        }
     }
 }
 
