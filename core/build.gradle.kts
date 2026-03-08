@@ -89,14 +89,6 @@ tasks.register<Exec>("jpackage") {
     // Evaluated at configuration time so it can gate both task inputs and execution-time args
     val isWindows = System.getProperty("os.name").lowercase().startsWith("windows")
 
-    // Windows installer resource directory (contains WiX overrides for MSI customisation)
-    val winResourceDir = layout.projectDirectory.dir("packaging/windows")
-
-    // Register Windows packaging resources as inputs only when building on Windows
-    if (pkgType == "msi" && isWindows) {
-        inputs.dir(winResourceDir)
-    }
-
     doFirst {
         // Defer provider resolution to execution time to avoid eager toolchain lookup on every build
         val jpackageExt = if (isWindows) ".exe" else ""
@@ -132,9 +124,7 @@ tasks.register<Exec>("jpackage") {
                 "--win-menu",
                 "--win-menu-group", "TabletopControl",
                 // Stable upgrade UUID prevents every build being treated as a new product
-                "--win-upgrade-uuid", "03551855-19E7-4604-926D-1FF368622403",
-                // Custom WiX resources (overrides.wxi adds launch-after-install action)
-                "--resource-dir", winResourceDir.asFile.absolutePath
+                "--win-upgrade-uuid", "03551855-19E7-4604-926D-1FF368622403"
             )
         }
     }
