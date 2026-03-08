@@ -68,6 +68,10 @@ tasks.register<Exec>("jpackage") {
         versionMatch?.value ?: "1.0.0"
     }
 
+    // Declare pkgType and pkgVersion as task inputs so CLI changes trigger re-execution
+    inputs.property("pkgType", pkgType)
+    inputs.property("pkgVersion", pkgVersion)
+
     // Resolve jpackage from the configured Java toolchain
     val javaToolchains = project.extensions.getByType<JavaToolchainService>()
     val javaLauncher = javaToolchains.launcherFor {
