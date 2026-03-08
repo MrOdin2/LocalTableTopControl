@@ -3,7 +3,7 @@
   WiX include file merged into the jpackage-generated MSI installer.
   Placed in --resource-dir so jpackage picks it up automatically.
 
-  Adds a deferred custom action that launches TabletopControl immediately
+  Adds an immediate Type-34 custom action that launches TabletopControl
   after a successful installation (fresh install or upgrade).
 -->
 <Include>
