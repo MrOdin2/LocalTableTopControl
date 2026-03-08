@@ -78,7 +78,7 @@ jobs:
           echo "App version    : ${VERSION}"
           echo "Package version: ${PKG_VERSION}"
 
-      # WiX toolset is required by jpackage on Windows to produce .exe installers.
+      # WiX toolset is required by jpackage on Windows to build native installer packages (e.g. MSI).
       - name: Install WiX toolset (Windows only)
         if: matrix.os == 'windows-latest'
         shell: powershell
