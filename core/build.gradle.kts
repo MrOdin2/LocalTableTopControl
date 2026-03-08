@@ -40,37 +40,70 @@ tasks.test {
     useJUnitPlatform()
 }
 
+val javaVersion = 17
+
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(javaVersion)
 }
 
 tasks.register<Exec>("jpackage") {
-    dependsOn(tasks.named("installDist"))
+    val installDistTask = tasks.named<Sync>("installDist")
+    dependsOn(installDistTask)
 
-    val distDir = layout.buildDirectory.dir("install/core").get().asFile
-    val outputDir = layout.buildDirectory.dir("jpackage").get().asFile
+    val distDir = installDistTask.map { it.destinationDir }
+    val outputDir = layout.buildDirectory.dir("jpackage")
+
+    // Register inputs/outputs for up-to-date checks
+    inputs.dir(distDir)
+    outputs.dir(outputDir)
 
     // Accept overrides from -PpkgType=... and -PpkgVersion=... on the CLI
     val pkgType = project.findProperty("pkgType")?.toString() ?: "app-image"
-    val pkgVersion = project.findProperty("pkgVersion")?.toString()
-        ?: project.version.toString().replace("-SNAPSHOT", "").ifEmpty { "1.0.0" }
-
-    doFirst {
-        outputDir.deleteRecursively()
-        outputDir.mkdirs()
+    val pkgVersionProp = project.findProperty("pkgVersion")?.toString()
+    val pkgVersion = if (!pkgVersionProp.isNullOrBlank()) {
+        pkgVersionProp
+    } else {
+        val rawVersion = project.version.toString().replace("-SNAPSHOT", "")
+        val versionMatch = Regex("^[0-9]+(\\.[0-9]+)*").find(rawVersion)
+        versionMatch?.value ?: "1.0.0"
     }
 
-    commandLine(
-        "${System.getProperty("java.home")}/bin/jpackage",
-        "--type", pkgType,
-        "--name", "TabletopControl",
-        "--app-version", pkgVersion,
-        "--input", "$distDir/lib",
-        "--main-jar", "core-${project.version}.jar",
-        "--main-class", "com.tabletopcontrol.core.AppKt",
-        "--dest", outputDir.absolutePath,
-        "--description", "TabletopControl",
-        "--vendor", "MrOdin"
-    )
+    // Declare pkgType and pkgVersion as task inputs so CLI changes trigger re-execution
+    inputs.property("pkgType", pkgType)
+    inputs.property("pkgVersion", pkgVersion)
+
+    // Resolve jpackage from the configured Java toolchain
+    val javaToolchains = project.extensions.getByType<JavaToolchainService>()
+    val javaLauncher = javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(javaVersion))
+    }
+
+    // Resolve the jar file and its name from the Jar task; wires the task dependency via inputs
+    val jarTask = tasks.named<org.gradle.jvm.tasks.Jar>("jar")
+    inputs.file(jarTask.flatMap { it.archiveFile })
+    val mainJarName = jarTask.flatMap { it.archiveFileName }
+
+    // Wire --input as a proper Provider to avoid hard-coded /lib suffix
+    val libDir = distDir.map { File(it, "lib") }
+
+    doFirst {
+        // Defer provider resolution to execution time to avoid eager toolchain lookup on every build
+        val javaHome = javaLauncher.get().metadata.installationPath.asFile
+        val jpackageExt = if (System.getProperty("os.name").lowercase().contains("win")) ".exe" else ""
+
+        executable = javaHome.resolve("bin").resolve("jpackage$jpackageExt").absolutePath
+
+        args(
+            "--type", pkgType,
+            "--name", "TabletopControl",
+            "--app-version", pkgVersion,
+            "--input", libDir.get().absolutePath,
+            "--main-jar", mainJarName.get(),
+            "--main-class", "com.tabletopcontrol.core.AppKt",
+            "--dest", outputDir.get().asFile.absolutePath,
+            "--description", "TabletopControl",
+            "--vendor", "MrOdin"
+        )
+    }
 }
 
