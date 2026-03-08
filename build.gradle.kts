@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "com.tabletopcontrol"
-    version = "0.1.0-testBuild"
+    version = "1.1.0-testBuild"
 
     repositories {
         mavenCentral()
