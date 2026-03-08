@@ -17,7 +17,7 @@
   -->
   <CustomAction Id="LaunchTabletopControl"
                 Directory="INSTALLDIR"
-                ExeCommand='"[INSTALLDIR]TabletopControl.exe"'
+                ExeCommand="&quot;[INSTALLDIR]TabletopControl.exe&quot;"
                 Impersonate="yes"
                 Return="asyncNoWait" />
 
