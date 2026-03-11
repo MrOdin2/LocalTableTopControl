@@ -28,7 +28,7 @@ import java.io.IOException
  * ```
  *
  * The class implements [Closeable] so it can be used in a `use` block or closed
- * automatically when the owning plugin shuts down via [onShutdown].
+ * automatically when the owning plugin shuts down via [LightPlugin.onShutdown].
  *
  * @see LightEffect
  */
