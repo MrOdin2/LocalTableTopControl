@@ -19,6 +19,9 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.util.StringConverter
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * DM-panel plugin for controlling physical ambient lighting via WLED.
@@ -36,6 +39,11 @@ import javafx.util.StringConverter
  * binding between controls and the controller.  Whenever the controller state
  * changes the current settings are forwarded to a [WledSerialSender] if a
  * serial connection is active.
+ *
+ * Serial writes are dispatched to a dedicated background thread so the JavaFX
+ * Application Thread is never blocked by I/O or serial timeouts.  Rapid bursts
+ * of state changes (e.g. dragging the brightness slider) are coalesced: only
+ * the most-recent state is sent once the background thread becomes free.
  */
 class LightPlugin : DmPlugin {
 
@@ -47,9 +55,28 @@ class LightPlugin : DmPlugin {
     /** Sends WLED JSON commands over the active serial port. */
     private val sender = WledSerialSender()
 
+    /**
+     * Single-threaded executor that performs all blocking serial writes off
+     * the JavaFX Application Thread.  Daemon threads are used so the JVM can
+     * exit cleanly even if the executor has not been shut down explicitly.
+     */
+    private val serialExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "wled-serial").also { it.isDaemon = true }
+    }
+
+    /**
+     * Guards against queueing multiple redundant write tasks.
+     *
+     * When `true`, a task is already queued (or running) on [serialExecutor]
+     * that will send the latest state — there is no benefit in queueing
+     * another.  Set to `false` again just before the actual write so that a
+     * state change arriving during the write will queue one more task.
+     */
+    private val pendingWrite = AtomicBoolean(false)
+
     init {
         // Forward every state change to the WLED device if connected.
-        controller.addChangeListener { sendCurrentState() }
+        controller.addChangeListener { scheduleStateUpdate() }
     }
 
     override fun createView(): Node {
@@ -74,6 +101,13 @@ class LightPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
+        serialExecutor.shutdown()
+        try {
+            // Give any in-flight serial write time to finish before closing the port.
+            serialExecutor.awaitTermination(3, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
         sender.disconnect()
     }
 
@@ -134,7 +168,7 @@ class LightPlugin : DmPlugin {
                     statusLabel.text = "Connected: $portName"
                     statusLabel.style = "-fx-text-fill: #00aa00;"
                     // Push the current state immediately after connecting.
-                    sendCurrentState()
+                    scheduleStateUpdate()
                 } catch (e: Exception) {
                     statusLabel.text = "Error: ${e.message}"
                     statusLabel.style = "-fx-text-fill: #cc0000;"
@@ -290,23 +324,40 @@ class LightPlugin : DmPlugin {
     // -------------------------------------------------------------------------
 
     /**
-     * Forwards the current controller state to the WLED device via serial.
+     * Schedules a serial state update on the background [serialExecutor].
      *
-     * Does nothing if no serial port is connected.  Errors are silently
-     * discarded so a transient serial failure does not crash the UI.
+     * Uses [pendingWrite] to coalesce rapid bursts of state changes: if a
+     * write task is already queued, no additional task is submitted.  The
+     * running task always reads the latest state from [controller], so it
+     * naturally sends the final value of a burst (e.g. the resting position
+     * of a dragged brightness slider).
+     *
+     * This method is safe to call from any thread.
      */
-    private fun sendCurrentState() {
-        if (!sender.isConnected) return
-        try {
-            sender.sendState(
-                on           = controller.power,
-                color        = controller.color,
-                effect       = controller.effect,
-                brightness   = controller.brightness,
-                colorCycling = controller.colorCycling,
-            )
-        } catch (e: Exception) {
-            System.err.println("WLED serial write failed: ${e.message}")
+    private fun scheduleStateUpdate() {
+        if (!pendingWrite.compareAndSet(false, true)) return
+        serialExecutor.execute {
+            // Check connection first; if not connected, reset the flag so that
+            // a state change arriving while we are disconnected can still queue
+            // a new task the next time the user connects.
+            if (!sender.isConnected) {
+                pendingWrite.set(false)
+                return@execute
+            }
+            // Clear the flag just before the write so any state change that
+            // arrives during the write queues a follow-up task and is not dropped.
+            pendingWrite.set(false)
+            try {
+                sender.sendState(
+                    on           = controller.power,
+                    color        = controller.color,
+                    effect       = controller.effect,
+                    brightness   = controller.brightness,
+                    colorCycling = controller.colorCycling,
+                )
+            } catch (e: Exception) {
+                System.err.println("WLED serial write failed: ${e.message}")
+            }
         }
     }
 
