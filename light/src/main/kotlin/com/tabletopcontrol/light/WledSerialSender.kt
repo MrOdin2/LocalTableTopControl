@@ -115,6 +115,24 @@ class WledSerialSender : Closeable {
         writeJson(json)
     }
 
+    /**
+     * Sends a WLED preset-recall command over the open serial connection.
+     *
+     * Activating a preset tells the WLED device to run the preset's stored
+     * configuration (colors, effects, speed, palette) autonomously.  The host
+     * does not need to send any further state updates while the preset is
+     * active.
+     *
+     * @param id the WLED preset ID to activate (typically `1–250`)
+     * @throws IOException              if the port is not connected or the write fails
+     * @throws IllegalArgumentException if [id] is less than 1
+     */
+    @Throws(IOException::class)
+    fun sendPreset(id: Int) {
+        val json = buildPresetJson(id)
+        writeJson(json)
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers (internal visibility allows unit-testing without hardware)
     // -------------------------------------------------------------------------
@@ -138,6 +156,23 @@ class WledSerialSender : Closeable {
         val (r, g, b) = hexToRgb(color)
         val fxId = if (colorCycling) LightEffect.RAINBOW.wledEffectId else effect.wledEffectId
         return """{"on":$on,"bri":$bri,"seg":[{"col":[[$r,$g,$b]],"fx":$fxId}]}"""
+    }
+
+    /**
+     * Constructs a WLED JSON preset-recall command.
+     *
+     * Sending this command activates the WLED preset with the given [id],
+     * for example:
+     * ```json
+     * {"ps":5}
+     * ```
+     *
+     * @param id the WLED preset ID to activate; must be `>= 1`
+     * @throws IllegalArgumentException if [id] is less than 1
+     */
+    internal fun buildPresetJson(id: Int): String {
+        require(id >= 1) { "Preset ID must be >= 1, was $id" }
+        return """{"ps":$id}"""
     }
 
     @Throws(IOException::class)

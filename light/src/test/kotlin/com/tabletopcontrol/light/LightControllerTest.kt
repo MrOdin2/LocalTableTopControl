@@ -2,6 +2,7 @@ package com.tabletopcontrol.light
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -134,6 +135,78 @@ class LightControllerTest {
     @Test
     fun `setBrightness throws on value above 1`() {
         assertThrows<IllegalArgumentException> { controller.setBrightness(1.1) }
+    }
+
+    // ── setPreset ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `default preset is null`() {
+        assertNull(controller.preset)
+    }
+
+    @Test
+    fun `setPreset stores a valid preset id`() {
+        controller.setPreset(5)
+        assertEquals(5, controller.preset)
+    }
+
+    @Test
+    fun `setPreset accepts boundary values 1 and 250`() {
+        controller.setPreset(1)
+        assertEquals(1, controller.preset)
+
+        controller.setPreset(250)
+        assertEquals(250, controller.preset)
+    }
+
+    @Test
+    fun `setPreset null clears the active preset`() {
+        controller.setPreset(10)
+        controller.setPreset(null)
+        assertNull(controller.preset)
+    }
+
+    @Test
+    fun `setPreset throws on id below 1`() {
+        assertThrows<IllegalArgumentException> { controller.setPreset(0) }
+        assertThrows<IllegalArgumentException> { controller.setPreset(-1) }
+    }
+
+    @Test
+    fun `setPreset throws on id above 250`() {
+        assertThrows<IllegalArgumentException> { controller.setPreset(251) }
+    }
+
+    @Test
+    fun `change listener is called when preset changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setPreset(3)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when preset is cleared`() {
+        controller.setPreset(3)
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setPreset(null)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `setting preset does not affect other fields`() {
+        controller.setColor("#AABBCC")
+        controller.setEffect(LightEffect.FIRE)
+        controller.setBrightness(0.5)
+        controller.setPower(false)
+
+        controller.setPreset(42)
+
+        assertEquals("#AABBCC", controller.color)
+        assertEquals(LightEffect.FIRE, controller.effect)
+        assertEquals(0.5, controller.brightness)
+        assertFalse(controller.power)
     }
 
     // ── independent state fields ──────────────────────────────────────────────

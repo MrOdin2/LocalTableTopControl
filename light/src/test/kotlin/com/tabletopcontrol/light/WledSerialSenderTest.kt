@@ -258,4 +258,42 @@ class WledSerialSenderTest {
         sender.close()
         assertFalse(sender.isConnected)
     }
+
+    // ── buildPresetJson ───────────────────────────────────────────────────────
+
+    @Test
+    fun `buildPresetJson produces correct JSON for a valid preset id`() {
+        assertEquals("""{"ps":5}""", sender.buildPresetJson(5))
+    }
+
+    @Test
+    fun `buildPresetJson uses the exact id in the output`() {
+        val json = sender.buildPresetJson(42)
+        assertTrue(json.contains("\"ps\":42"), "Expected ps:42 in $json")
+    }
+
+    @Test
+    fun `buildPresetJson accepts boundary value 1`() {
+        val json = sender.buildPresetJson(1)
+        assertTrue(json.contains("\"ps\":1"), "Expected ps:1 in $json")
+    }
+
+    @Test
+    fun `buildPresetJson accepts boundary value 250`() {
+        val json = sender.buildPresetJson(250)
+        assertTrue(json.contains("\"ps\":250"), "Expected ps:250 in $json")
+    }
+
+    @Test
+    fun `buildPresetJson throws on id below 1`() {
+        assertThrows<IllegalArgumentException> { sender.buildPresetJson(0) }
+        assertThrows<IllegalArgumentException> { sender.buildPresetJson(-1) }
+    }
+
+    @Test
+    fun `buildPresetJson output is a JSON object`() {
+        val json = sender.buildPresetJson(10)
+        assertTrue(json.startsWith("{"), "JSON should start with {")
+        assertTrue(json.endsWith("}"), "JSON should end with }")
+    }
 }

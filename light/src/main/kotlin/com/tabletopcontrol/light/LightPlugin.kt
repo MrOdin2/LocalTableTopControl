@@ -34,11 +34,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - **Effect select** — a [ComboBox] to pick from the available [LightEffect]s.
  * - **Color cycling** — a [CheckBox] to enable automatic color cycling.
  * - **Brightness** — a [Slider] to set output brightness (0 – 100 %).
+ * - **Preset** — a field and Apply / Clear buttons to activate a WLED preset by ID
+ *   (1–250), letting the microcontroller run animations autonomously.
  *
  * All state is held by a [LightController]; this class only handles the JavaFX
  * binding between controls and the controller.  Whenever the controller state
  * changes the current settings are forwarded to a [WledSerialSender] if a
  * serial connection is active.
+ *
+ * When a preset is active the plugin sends `{"ps":N}` instead of the full
+ * color/effect/brightness state, so the WLED device handles the animation
+ * without further updates from the host.
  *
  * Serial writes are dispatched to a dedicated background thread so the JavaFX
  * Application Thread is never blocked by I/O or serial timeouts.  Rapid bursts
@@ -92,6 +98,8 @@ class LightPlugin : DmPlugin {
             buildEffectRow(),
             buildColorCyclingRow(),
             buildBrightnessRow(),
+            Separator(),
+            buildPresetRow(),
         )
 
         return ScrollPane(root).apply {
@@ -319,6 +327,80 @@ class LightPlugin : DmPlugin {
         return VBox(4.0, Label("Brightness:"), sliderRow)
     }
 
+    /**
+     * Builds the WLED preset control section.
+     *
+     * Contains:
+     * - A [TextField] for entering a preset ID (`1–250`).
+     * - An **Apply** [Button] that activates the preset on the controller and
+     *   immediately sends `{"ps":N}` to the WLED device.
+     * - A **Clear** [Button] that clears the active preset and returns the
+     *   device to manual color / effect / brightness control.
+     * - A status [Label] showing the currently active preset, if any.
+     *
+     * When a preset is active, the WLED microcontroller runs the animation
+     * stored in that preset slot autonomously — the host does not need to
+     * continuously send state updates.
+     */
+    private fun buildPresetRow(): VBox {
+        val activeLabel = Label(
+            controller.preset?.let { "Active preset: $it" } ?: "No preset active"
+        ).apply {
+            style = "-fx-text-fill: #888888;"
+        }
+
+        val presetField = TextField().apply {
+            promptText = "Preset ID (1–250)"
+            prefColumnCount = 10
+            tooltip = Tooltip("Enter a WLED preset ID (1–250) to activate it on the device")
+            maxWidth = Double.MAX_VALUE
+        }
+
+        val applyBtn = Button("Apply Preset").apply {
+            tooltip = Tooltip("Activate the entered preset on the WLED device")
+            maxWidth = Double.MAX_VALUE
+        }
+
+        val clearBtn = Button("Clear").apply {
+            tooltip = Tooltip("Clear the active preset and return to manual control")
+        }
+
+        applyBtn.setOnAction {
+            val id = presetField.text.trim().toIntOrNull()
+            if (id == null || id !in 1..250) {
+                activeLabel.text = "Invalid preset ID (must be 1–250)"
+                activeLabel.style = "-fx-text-fill: #cc0000;"
+                return@setOnAction
+            }
+            try {
+                controller.setPreset(id)
+                activeLabel.text = "Active preset: $id"
+                activeLabel.style = "-fx-text-fill: #00aa00;"
+            } catch (e: IllegalArgumentException) {
+                activeLabel.text = "Error: ${e.message}"
+                activeLabel.style = "-fx-text-fill: #cc0000;"
+            }
+        }
+
+        clearBtn.setOnAction {
+            controller.setPreset(null)
+            presetField.clear()
+            activeLabel.text = "No preset active"
+            activeLabel.style = "-fx-text-fill: #888888;"
+        }
+
+        val inputRow = HBox(6.0, presetField, applyBtn, clearBtn).apply {
+            HBox.setHgrow(presetField, Priority.ALWAYS)
+            alignment = Pos.CENTER_LEFT
+        }
+
+        return VBox(4.0,
+            Label("WLED Preset"),
+            inputRow,
+            activeLabel,
+        )
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -331,6 +413,10 @@ class LightPlugin : DmPlugin {
      * running task always reads the latest state from [controller], so it
      * naturally sends the final value of a burst (e.g. the resting position
      * of a dragged brightness slider).
+     *
+     * When [LightController.preset] is non-null, the task sends a preset-recall
+     * command (`{"ps":N}`) instead of the full color/effect/brightness state,
+     * allowing the WLED device to run the animation autonomously.
      *
      * This method is safe to call from any thread.
      */
@@ -348,13 +434,18 @@ class LightPlugin : DmPlugin {
             // arrives during the write queues a follow-up task and is not dropped.
             pendingWrite.set(false)
             try {
-                sender.sendState(
-                    on           = controller.power,
-                    color        = controller.color,
-                    effect       = controller.effect,
-                    brightness   = controller.brightness,
-                    colorCycling = controller.colorCycling,
-                )
+                val presetId = controller.preset
+                if (presetId != null) {
+                    sender.sendPreset(presetId)
+                } else {
+                    sender.sendState(
+                        on           = controller.power,
+                        color        = controller.color,
+                        effect       = controller.effect,
+                        brightness   = controller.brightness,
+                        colorCycling = controller.colorCycling,
+                    )
+                }
             } catch (e: Exception) {
                 System.err.println("WLED serial write failed: ${e.message}")
             }

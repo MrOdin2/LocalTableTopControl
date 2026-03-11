@@ -12,6 +12,11 @@ package com.tabletopcontrol.light
  * - **effect**       — selected [LightEffect].
  * - **colorCycling** — whether automatic color cycling is active.
  * - **brightness**   — output brightness in the range `0.0`–`1.0`.
+ * - **preset**       — active WLED preset ID (`1–250`), or `null` for manual control.
+ *
+ * When [preset] is non-null the WLED device runs its stored preset animation
+ * autonomously; the host does not need to continuously send state updates.
+ * Setting [preset] to `null` reverts to manual control.
  *
  * Observers can register a callback with [addChangeListener] to be notified
  * whenever any state field changes.
@@ -36,6 +41,13 @@ class LightController {
 
     /** Brightness level in the range `0.0` (off) to `1.0` (full). */
     var brightness: Double = 1.0
+        private set
+
+    /**
+     * Active WLED preset ID in the range `1–250`, or `null` when the device
+     * is in manual control mode (color / effect / brightness are used instead).
+     */
+    var preset: Int? = null
         private set
 
     private val changeListeners = mutableListOf<() -> Unit>()
@@ -109,6 +121,25 @@ class LightController {
     fun setBrightness(value: Double) {
         require(value in 0.0..1.0) { "Brightness must be between 0.0 and 1.0, was $value" }
         brightness = value
+        notifyChange()
+    }
+
+    /**
+     * Activates a WLED preset by ID, or clears preset mode to resume manual control.
+     *
+     * When a preset is active the WLED device runs its stored animation
+     * autonomously; the host sends only `{"ps":N}` rather than continuously
+     * updating color / effect / brightness.  Setting [id] to `null` clears the
+     * active preset and returns to manual control.
+     *
+     * @param id a WLED preset ID in the range `1..250`, or `null` to clear
+     * @throws IllegalArgumentException if [id] is not `null` and outside `1..250`
+     */
+    fun setPreset(id: Int?) {
+        if (id != null) {
+            require(id in 1..250) { "Preset ID must be between 1 and 250, was $id" }
+        }
+        preset = id
         notifyChange()
     }
 
