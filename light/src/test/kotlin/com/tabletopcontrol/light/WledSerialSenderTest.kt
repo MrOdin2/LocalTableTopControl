@@ -244,6 +244,17 @@ class WledSerialSenderTest {
         }
     }
 
+    @Test
+    fun `buildJson throws on double-hash hex color`() {
+        // "##FFF" used to be silently accepted via trimStart; removePrefix rejects it.
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "##FFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false,
+            )
+        }
+    }
+
     // ── disconnect when not connected ─────────────────────────────────────────
 
     @Test

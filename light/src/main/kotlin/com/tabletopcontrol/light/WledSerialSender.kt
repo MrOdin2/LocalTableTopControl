@@ -190,7 +190,7 @@ class WledSerialSender : Closeable {
      * @throws IllegalArgumentException if the string is not a valid hex color
      */
     private fun hexToRgb(hex: String): Triple<Int, Int, Int> {
-        val clean = hex.trimStart('#')
+        val clean = hex.removePrefix("#")
         return when (clean.length) {
             3 -> {
                 val r = clean[0].digitToInt(16) * 17

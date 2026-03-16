@@ -1,6 +1,7 @@
 package com.tabletopcontrol.light
 
 import com.tabletopcontrol.core.DmPlugin
+import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
@@ -111,9 +112,14 @@ class LightPlugin : DmPlugin {
     override fun onShutdown() {
         serialExecutor.shutdown()
         try {
-            // Give any in-flight serial write time to finish before closing the port.
-            serialExecutor.awaitTermination(3, TimeUnit.SECONDS)
+            // Give any in-flight serial write time to finish.
+            if (!serialExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+                // Still running after 3 s — interrupt and wait a little longer.
+                serialExecutor.shutdownNow()
+                serialExecutor.awaitTermination(1, TimeUnit.SECONDS)
+            }
         } catch (_: InterruptedException) {
+            serialExecutor.shutdownNow()
             Thread.currentThread().interrupt()
         }
         sender.disconnect()
@@ -161,25 +167,44 @@ class LightPlugin : DmPlugin {
 
         connectBtn.setOnAction {
             if (sender.isConnected) {
-                sender.disconnect()
-                connectBtn.text = "Connect"
-                statusLabel.text = "Disconnected"
-                statusLabel.style = "-fx-text-fill: #888888;"
+                // Disable button immediately to prevent double-clicks.
+                connectBtn.isDisable = true
+                serialExecutor.execute {
+                    sender.disconnect()
+                    Platform.runLater {
+                        connectBtn.text = "Connect"
+                        connectBtn.isDisable = false
+                        statusLabel.text = "Disconnected"
+                        statusLabel.style = "-fx-text-fill: #888888;"
+                    }
+                }
             } else {
                 val portName = portCombo.value?.trim() ?: return@setOnAction
                 if (portName.isBlank()) return@setOnAction
                 val baudRate = baudField.text.trim().toIntOrNull()
                     ?: WledSerialSender.DEFAULT_BAUD_RATE
-                try {
-                    sender.connect(portName, baudRate)
-                    connectBtn.text = "Disconnect"
-                    statusLabel.text = "Connected: $portName"
-                    statusLabel.style = "-fx-text-fill: #00aa00;"
-                    // Push the current state immediately after connecting.
-                    scheduleStateUpdate()
-                } catch (e: Exception) {
-                    statusLabel.text = "Error: ${e.message}"
-                    statusLabel.style = "-fx-text-fill: #cc0000;"
+                // Disable button and show interim status while connecting.
+                connectBtn.isDisable = true
+                statusLabel.text = "Connecting…"
+                statusLabel.style = "-fx-text-fill: #888888;"
+                serialExecutor.execute {
+                    try {
+                        sender.connect(portName, baudRate)
+                        Platform.runLater {
+                            connectBtn.text = "Disconnect"
+                            connectBtn.isDisable = false
+                            statusLabel.text = "Connected: $portName"
+                            statusLabel.style = "-fx-text-fill: #00aa00;"
+                            // Push the current state immediately after connecting.
+                            scheduleStateUpdate()
+                        }
+                    } catch (e: Exception) {
+                        Platform.runLater {
+                            connectBtn.isDisable = false
+                            statusLabel.text = "Error: ${e.message}"
+                            statusLabel.style = "-fx-text-fill: #cc0000;"
+                        }
+                    }
                 }
             }
         }
@@ -406,26 +431,56 @@ class LightPlugin : DmPlugin {
     // -------------------------------------------------------------------------
 
     /**
+     * An immutable snapshot of all [LightController] fields, captured atomically
+     * on the JavaFX Application Thread before the write task is submitted so the
+     * background thread never races against UI mutations.
+     */
+    private data class ControllerSnapshot(
+        val power: Boolean,
+        val color: String,
+        val effect: LightEffect,
+        val brightness: Double,
+        val colorCycling: Boolean,
+        val preset: Int?,
+    )
+
+    /**
      * Schedules a serial state update on the background [serialExecutor].
      *
-     * Uses [pendingWrite] to coalesce rapid bursts of state changes: if a
-     * write task is already queued, no additional task is submitted.  The
-     * running task always reads the latest state from [controller], so it
-     * naturally sends the final value of a burst (e.g. the resting position
-     * of a dragged brightness slider).
+     * The controller state is **snapshotted on the calling thread** (always the
+     * JavaFX Application Thread) before the task is submitted, eliminating the
+     * data race that would arise from reading mutable controller fields inside the
+     * background runnable.
      *
-     * When [LightController.preset] is non-null, the task sends a preset-recall
-     * command (`{"ps":N}`) instead of the full color/effect/brightness state,
-     * allowing the WLED device to run the animation autonomously.
+     * Uses [pendingWrite] to coalesce rapid bursts of state changes: if a write
+     * task is already queued, no additional task is submitted.  The pending task
+     * will capture a fresh snapshot at submission time, so it always sends the
+     * final value of a burst (e.g. the resting position of a dragged slider).
+     *
+     * Routing rules (in priority order):
+     * 1. If [ControllerSnapshot.power] is `false` → always send an explicit
+     *    power-off state command, even when a preset is active.
+     * 2. If a [ControllerSnapshot.preset] ID is set → send `{"ps":N}` so the
+     *    device runs its stored animation autonomously.
+     * 3. Otherwise → send the full color / effect / brightness state.
      *
      * This method is safe to call from any thread.
      */
     private fun scheduleStateUpdate() {
+        // Snapshot controller state HERE on the calling (JavaFX) thread so the
+        // background runnable reads a consistent, race-free copy.
+        val snapshot = ControllerSnapshot(
+            power        = controller.power,
+            color        = controller.color,
+            effect       = controller.effect,
+            brightness   = controller.brightness,
+            colorCycling = controller.colorCycling,
+            preset       = controller.preset,
+        )
         if (!pendingWrite.compareAndSet(false, true)) return
         serialExecutor.execute {
-            // Check connection first; if not connected, reset the flag so that
-            // a state change arriving while we are disconnected can still queue
-            // a new task the next time the user connects.
+            // Check connection; if not connected, reset the flag so that a state
+            // change arriving while disconnected can still queue a new task.
             if (!sender.isConnected) {
                 pendingWrite.set(false)
                 return@execute
@@ -434,16 +489,24 @@ class LightPlugin : DmPlugin {
             // arrives during the write queues a follow-up task and is not dropped.
             pendingWrite.set(false)
             try {
-                val presetId = controller.preset
-                if (presetId != null) {
-                    sender.sendPreset(presetId)
-                } else {
-                    sender.sendState(
-                        on           = controller.power,
-                        color        = controller.color,
-                        effect       = controller.effect,
-                        brightness   = controller.brightness,
-                        colorCycling = controller.colorCycling,
+                when {
+                    // Power-off always wins — even over an active preset.
+                    !snapshot.power -> sender.sendState(
+                        on           = false,
+                        color        = snapshot.color,
+                        effect       = snapshot.effect,
+                        brightness   = snapshot.brightness,
+                        colorCycling = snapshot.colorCycling,
+                    )
+                    // Preset mode: let the microcontroller run the animation.
+                    snapshot.preset != null -> sender.sendPreset(snapshot.preset)
+                    // Manual mode: send full color / effect / brightness state.
+                    else -> sender.sendState(
+                        on           = true,
+                        color        = snapshot.color,
+                        effect       = snapshot.effect,
+                        brightness   = snapshot.brightness,
+                        colorCycling = snapshot.colorCycling,
                     )
                 }
             } catch (e: Exception) {
