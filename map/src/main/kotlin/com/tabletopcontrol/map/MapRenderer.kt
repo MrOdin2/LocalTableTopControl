@@ -700,9 +700,11 @@ class MapRenderer(private val canvas: Canvas) {
         private const val MIN_TOKEN_NAME_FONT_SIZE = 8.0
 
         /**
-         * Pixel offset applied to the drop-shadow copy of the token name text.
-         * A 1 px diagonal offset creates a subtle dark outline effect that keeps
-         * names readable against both light and dark map backgrounds.
+         * World-space offset applied to the drop-shadow copy of the token name text.
+         * At a viewport scale of 1.0 this corresponds to a 1 px diagonal offset,
+         * creating a subtle dark outline that keeps names readable against both
+         * light and dark map backgrounds. The apparent size of the shadow scales
+         * proportionally with [viewportScale] on the minimap.
          */
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
     }
