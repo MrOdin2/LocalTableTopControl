@@ -109,3 +109,13 @@ data class MapBackgroundEvent(val color: Color)
  * @property degrees clockwise rotation in degrees; must be a multiple of 90.
  */
 data class MapRotationEvent(val degrees: Int)
+
+/**
+ * Event fired when the DM toggles the token-name overlay on the table view.
+ *
+ * When [show] is `true` the renderer draws each token's display name below its
+ * circle so players can identify which token belongs to which combatant.
+ *
+ * @property show `true` to draw token names; `false` to hide them.
+ */
+data class ShowTokenNamesEvent(val show: Boolean)

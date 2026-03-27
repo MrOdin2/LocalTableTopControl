@@ -71,6 +71,12 @@ class MapPlugin : DmPlugin {
     /** The most recently applied map rotation in degrees (0, 90, 180, or 270). */
     private var lastMapRotation: Int
 
+    /**
+     * Whether token names are currently shown on the map view.
+     * Persisted across renderer re-creations via [publishCurrentSettings].
+     */
+    private var lastShowTokenNames: Boolean = false
+
     init {
         val saved = MapSettingsSerializer.load()
         lastGridCalibration = saved.gridCalibration ?: GridCalibration()
@@ -121,14 +127,15 @@ class MapPlugin : DmPlugin {
 
     /**
      * Publishes [MapCalibrationEvent], [GridCalibrationEvent], [MapBackgroundEvent],
-     * and [MapRotationEvent] for the current persisted settings so that any newly
-     * created renderer can initialise with the saved values.
+     * [MapRotationEvent], and [ShowTokenNamesEvent] for the current persisted settings
+     * so that any newly created renderer can initialise with the saved values.
      */
     private fun publishCurrentSettings() {
         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
         EventBus.publish(GridCalibrationEvent(lastGridCalibration))
         EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
         EventBus.publish(MapRotationEvent(lastMapRotation))
+        EventBus.publish(ShowTokenNamesEvent(lastShowTokenNames))
     }
 
     /**
@@ -646,6 +653,15 @@ class MapPlugin : DmPlugin {
             }
         }
 
+        val showNamesCheck = CheckBox("Show Names").apply {
+            isSelected = lastShowTokenNames
+            tooltip = Tooltip("Show token names on the map view so players can identify each combatant")
+            setOnAction {
+                lastShowTokenNames = isSelected
+                EventBus.publish(ShowTokenNamesEvent(isSelected))
+            }
+        }
+
         // Background colour picker — applies immediately and auto-suggests a
         // contrasting grid colour in gridColorPicker.
         val bgColorPicker = ColorPicker(lastBackgroundColor).apply {
@@ -673,7 +689,8 @@ class MapPlugin : DmPlugin {
         val mapRow = HBox(4.0, loadBtn, pathField, calibrateMapBtn, guidedCalibrationBtn, rotateCCWBtn, rotateCWBtn, bgSep, Label("BG:"), bgColorPicker)
 
         val fowSep = Separator(Orientation.VERTICAL)
-        val gridFowRow = HBox(4.0, visibleCheck, Label("Grid:"), gridColorPicker, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn)
+        val tokenSep = Separator(Orientation.VERTICAL)
+        val gridFowRow = HBox(4.0, visibleCheck, Label("Grid:"), gridColorPicker, applyGridBtn, calibrateGridBtn, fowSep, revealAllBtn, hideAllBtn, tokenSep, showNamesCheck)
 
         return VBox(4.0, mapRow, gridFowRow)
     }
