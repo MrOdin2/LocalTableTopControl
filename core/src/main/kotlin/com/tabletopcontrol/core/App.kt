@@ -138,12 +138,6 @@ class App : Application() {
             }
             override fun fromString(string: String?): Screen? = null
         }
-        // Default to the first real screen to preserve existing behaviour.
-        if (screens.isNotEmpty()) {
-            screenCombo.selectionModel.select(screens[0])
-        } else {
-            screenCombo.selectionModel.selectFirst()
-        }
 
         val moveButton = Button("Move Table View")
         moveButton.setOnAction {
@@ -158,7 +152,8 @@ class App : Application() {
             }
         }
 
-        // Show or hide the table stage immediately when the selection changes.
+        // Register the listener before setting the initial selection so the
+        // button's initial enabled/disabled state is driven by the same logic.
         screenCombo.selectionModel.selectedItemProperty().addListener { _, _, newScreen ->
             if (newScreen == null) {
                 tableStage.hide()
@@ -167,6 +162,14 @@ class App : Application() {
                 if (!tableStage.isShowing) tableStage.show()
                 moveButton.isDisable = false
             }
+        }
+
+        // Default to the first real screen to preserve existing behaviour.
+        // The listener above fires immediately and sets the button state correctly.
+        if (screens.isNotEmpty()) {
+            screenCombo.selectionModel.select(screens[0])
+        } else {
+            screenCombo.selectionModel.selectFirst()
         }
 
         // Spacer pushes screen controls to the right so the layout area is uncluttered.
