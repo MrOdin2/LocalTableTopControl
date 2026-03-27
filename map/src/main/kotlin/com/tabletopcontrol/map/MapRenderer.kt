@@ -567,6 +567,17 @@ class MapRenderer(private val canvas: Canvas) {
         val originY = canvas.height / 2.0 + gridCalibration.offsetY
         val r = cellPx * 0.45
 
+        // Compute token-name font once per redraw (cellPx is constant for the frame).
+        val tokenNameFont = if (showTokenNames) {
+            Font.font((cellPx * TOKEN_NAME_FONT_SCALE).coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE))
+        } else null
+
+        // Set text alignment once before the loop; only used when tokenNameFont != null.
+        if (tokenNameFont != null) {
+            gc.font = tokenNameFont
+            gc.textAlign = TextAlignment.CENTER
+        }
+
         val fow = fogOfWar
 
         for (token in tokens) {
@@ -594,10 +605,8 @@ class MapRenderer(private val canvas: Canvas) {
             }
 
             // Optionally draw the token name centred below the circle.
-            if (showTokenNames && token.name.isNotBlank()) {
-                val fontSize = (cellPx * TOKEN_NAME_FONT_SCALE).coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE)
-                gc.font = Font.font(fontSize)
-                gc.textAlign = TextAlignment.CENTER
+            if (tokenNameFont != null && token.name.isNotBlank()) {
+                val fontSize = tokenNameFont.size
                 val textY = cy + r + fontSize
                 // Dark shadow offset for contrast against any background.
                 gc.fill = Color.BLACK
