@@ -13,6 +13,7 @@ import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Separator
 import javafx.scene.control.Slider
+import javafx.scene.control.TextArea
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - **Brightness** — a [Slider] to set output brightness (0 – 100 %).
  * - **Preset** — a field and Apply / Clear buttons to activate a WLED preset by ID
  *   (1–250), letting the microcontroller run animations autonomously.
+ * - **Debug console** — optional live log of serial commands sent to WLED.
  *
  * All state is held by a [LightController]; this class only handles the JavaFX
  * binding between controls and the controller.  Whenever the controller state
@@ -80,6 +82,8 @@ class LightPlugin : DmPlugin {
      * state change arriving during the write will queue one more task.
      */
     private val pendingWrite = AtomicBoolean(false)
+    private val debugLoggingEnabled = AtomicBoolean(false)
+    private var debugConsole: TextArea? = null
 
     init {
         // Forward every state change to the WLED device if connected.
@@ -101,6 +105,8 @@ class LightPlugin : DmPlugin {
             buildBrightnessRow(),
             Separator(),
             buildPresetRow(),
+            Separator(),
+            buildDebugConsoleRow(),
         )
 
         return ScrollPane(root).apply {
@@ -426,6 +432,40 @@ class LightPlugin : DmPlugin {
         )
     }
 
+    /**
+     * Builds a small debug console showing serial commands sent to WLED.
+     *
+     * Logging is disabled by default and can be toggled by the user.
+     */
+    private fun buildDebugConsoleRow(): VBox {
+        val enabledCheck = CheckBox("Show sent serial commands (debug)").apply {
+            isSelected = false
+            tooltip = Tooltip("When enabled, logs each JSON command sent to WLED")
+            selectedProperty().addListener { _, _, enabled ->
+                debugLoggingEnabled.set(enabled)
+            }
+        }
+        val clearBtn = Button("Clear").apply {
+            tooltip = Tooltip("Clear the debug command console")
+        }
+        val console = TextArea().apply {
+            isEditable = false
+            isWrapText = false
+            prefRowCount = 6
+            promptText = "Sent serial commands will appear here when debug logging is enabled."
+        }
+        debugConsole = console
+        clearBtn.setOnAction { console.clear() }
+        val topRow = HBox(6.0, enabledCheck, clearBtn).apply {
+            alignment = Pos.CENTER_LEFT
+        }
+        return VBox(4.0,
+            Label("Serial Debug Console"),
+            topRow,
+            console,
+        )
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -491,29 +531,70 @@ class LightPlugin : DmPlugin {
             try {
                 when {
                     // Power-off always wins — even over an active preset.
-                    !snapshot.power -> sender.sendState(
-                        on           = false,
-                        color        = snapshot.color,
-                        effect       = snapshot.effect,
-                        brightness   = snapshot.brightness,
-                        colorCycling = snapshot.colorCycling,
-                    )
+                    !snapshot.power -> {
+                        sender.sendState(
+                            on           = false,
+                            color        = snapshot.color,
+                            effect       = snapshot.effect,
+                            brightness   = snapshot.brightness,
+                            colorCycling = snapshot.colorCycling,
+                        )
+                        appendDebugCommand(
+                            sender.buildJson(
+                                on = false,
+                                color = snapshot.color,
+                                effect = snapshot.effect,
+                                brightness = snapshot.brightness,
+                                colorCycling = snapshot.colorCycling,
+                            )
+                        )
+                    }
                     // Preset mode: let the microcontroller run the animation.
-                    snapshot.preset != null -> sender.sendPreset(snapshot.preset)
+                    snapshot.preset != null -> {
+                        sender.sendPreset(snapshot.preset)
+                        appendDebugCommand(sender.buildPresetJson(snapshot.preset))
+                    }
                     // Manual mode: send full color / effect / brightness state.
-                    else -> sender.sendState(
-                        on           = true,
-                        color        = snapshot.color,
-                        effect       = snapshot.effect,
-                        brightness   = snapshot.brightness,
-                        colorCycling = snapshot.colorCycling,
-                    )
+                    else -> {
+                        sender.sendState(
+                            on           = true,
+                            color        = snapshot.color,
+                            effect       = snapshot.effect,
+                            brightness   = snapshot.brightness,
+                            colorCycling = snapshot.colorCycling,
+                        )
+                        appendDebugCommand(
+                            sender.buildJson(
+                                on = true,
+                                color = snapshot.color,
+                                effect = snapshot.effect,
+                                brightness = snapshot.brightness,
+                                colorCycling = snapshot.colorCycling,
+                            )
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 System.err.println("WLED serial write failed: ${e.message}")
             }
         }
     }
+
+    /**
+     * Appends a single serial command line to the debug console when enabled.
+     */
+    private fun appendDebugCommand(commandJson: String) {
+        if (!debugLoggingEnabled.get()) return
+        Platform.runLater {
+            val console = debugConsole ?: return@runLater
+            val time = currentLogTimestamp()
+            console.appendText("[$time] $commandJson\n")
+        }
+    }
+
+    /** Returns a compact `HH:mm:ss` timestamp used by debug console entries. */
+    private fun currentLogTimestamp(): java.time.LocalTime =
+        java.time.LocalTime.now().withNano(0)
 
     /** Converts a JavaFX [Color] to an uppercase `#RRGGBB` hex string. */
     private fun colorToHex(color: Color): String {
