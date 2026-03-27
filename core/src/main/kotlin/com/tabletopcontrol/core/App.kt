@@ -115,7 +115,7 @@ class App : Application() {
      * which screen the Table View is shown on and move it there.
      *
      * The first entry in the combo box is **None (hidden)** — selecting it hides
-     * the table stage entirely so no map is displayed for players.  Selecting any
+     * the table stage entirely so no map is displayed for players. Selecting any
      * real screen while the stage is hidden makes the stage visible again.
      *
      * Moving the Table View to another screen temporarily exits fullscreen,
