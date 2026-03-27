@@ -703,8 +703,15 @@ class MapRenderer(private val canvas: Canvas) {
         private const val TOKEN_NAME_FONT_SCALE = 0.28
 
         /**
-         * Minimum font size in points for token name labels.
-         * Prevents text from becoming illegible on very small or zoomed-out maps.
+         * Minimum font size in points for token name labels in **world space**,
+         * based on the calibrated grid cell size (`cellPx`).
+         *
+         * The effective on-screen size of token names is further affected by
+         * [viewportScale]: on the main table view (viewportScale ≈ 1.0) this
+         * threshold helps prevent labels from becoming illegible on small maps.
+         * On the minimap, however, token names are drawn inside the viewport
+         * transform, so zooming out (viewportScale < 1) can still reduce the
+         * apparent text size below this constant.
          */
         private const val MIN_TOKEN_NAME_FONT_SIZE = 8.0
 
