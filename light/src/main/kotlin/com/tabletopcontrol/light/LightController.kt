@@ -144,7 +144,7 @@ class LightController {
     }
 
     private fun notifyChange() {
-        changeListeners.forEach { it() }
+        changeListeners.toList().forEach { it() }
     }
 
     private companion object {

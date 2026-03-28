@@ -111,8 +111,7 @@ class WledSerialSender : Closeable {
         brightness: Double,
         colorCycling: Boolean,
     ) {
-        val json = buildJson(on, color, effect, brightness, colorCycling)
-        writeJson(json)
+        sendStateJson(on, color, effect, brightness, colorCycling)
     }
 
     /**
@@ -125,12 +124,11 @@ class WledSerialSender : Closeable {
      *
      * @param id the WLED preset ID to activate (typically `1–250`)
      * @throws IOException              if the port is not connected or the write fails
-     * @throws IllegalArgumentException if [id] is less than 1
+     * @throws IllegalArgumentException if [id] is outside `1..250`
      */
     @Throws(IOException::class)
     fun sendPreset(id: Int) {
-        val json = buildPresetJson(id)
-        writeJson(json)
+        sendPresetJson(id)
     }
 
     // -------------------------------------------------------------------------
@@ -167,12 +165,38 @@ class WledSerialSender : Closeable {
      * {"ps":5}
      * ```
      *
-     * @param id the WLED preset ID to activate; must be `>= 1`
-     * @throws IllegalArgumentException if [id] is less than 1
+     * @param id the WLED preset ID to activate; must be in `1..250`
+     * @throws IllegalArgumentException if [id] is outside `1..250`
      */
     internal fun buildPresetJson(id: Int): String {
-        require(id >= 1) { "Preset ID must be >= 1, was $id" }
+        require(id in 1..250) { "Preset ID must be between 1 and 250, was $id" }
         return """{"ps":$id}"""
+    }
+
+    /**
+     * Sends a full WLED state update and returns the exact JSON string written.
+     */
+    @Throws(IOException::class)
+    internal fun sendStateJson(
+        on: Boolean,
+        color: String,
+        effect: LightEffect,
+        brightness: Double,
+        colorCycling: Boolean,
+    ): String {
+        val json = buildJson(on, color, effect, brightness, colorCycling)
+        writeJson(json)
+        return json
+    }
+
+    /**
+     * Sends a preset-recall command and returns the exact JSON string written.
+     */
+    @Throws(IOException::class)
+    internal fun sendPresetJson(id: Int): String {
+        val json = buildPresetJson(id)
+        writeJson(json)
+        return json
     }
 
     @Throws(IOException::class)

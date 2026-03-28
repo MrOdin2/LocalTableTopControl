@@ -302,6 +302,11 @@ class WledSerialSenderTest {
     }
 
     @Test
+    fun `buildPresetJson throws on id above 250`() {
+        assertThrows<IllegalArgumentException> { sender.buildPresetJson(251) }
+    }
+
+    @Test
     fun `buildPresetJson output is a JSON object`() {
         val json = sender.buildPresetJson(10)
         assertTrue(json.startsWith("{"), "JSON should start with {")

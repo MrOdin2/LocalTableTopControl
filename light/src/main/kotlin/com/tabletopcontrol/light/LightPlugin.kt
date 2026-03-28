@@ -24,6 +24,7 @@ import javafx.util.StringConverter
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * DM-panel plugin for controlling physical ambient lighting via WLED.
@@ -82,6 +83,7 @@ class LightPlugin : DmPlugin {
      * state change arriving during the write will queue one more task.
      */
     private val pendingWrite = AtomicBoolean(false)
+    private val latestSnapshot = AtomicReference<ControllerSnapshot?>(null)
     private val debugLoggingEnabled = AtomicBoolean(false)
     private var debugConsole: TextArea? = null
 
@@ -487,19 +489,10 @@ class LightPlugin : DmPlugin {
     /**
      * Schedules a serial state update on the background [serialExecutor].
      *
-     * The controller state is **snapshotted on the calling thread** (always the
-     * JavaFX Application Thread) before the task is submitted, eliminating the
-     * data race that would arise from reading mutable controller fields inside the
-     * background runnable.
-     *
-     * Uses [pendingWrite] to coalesce rapid bursts of state changes: if a write
-     * task is already queued, no additional task is submitted. The snapshot used
-     * by the pending task is the one captured by the first caller that
-     * successfully schedules an update; subsequent coalesced calls do not modify
-     * the data that will be sent. Callers that need to ensure the final UI state
-     * of a burst (for example, the resting position of a dragged slider) is sent
-     * should avoid issuing additional updates while a write is already pending,
-     * e.g. by debouncing high-frequency events.
+     * The controller snapshot is always captured on the JavaFX Application
+     * Thread, then published via [latestSnapshot]. Calls are coalesced: at most
+     * one background drain task runs at a time, and that task repeatedly sends
+     * the latest available snapshot.
      *
      * Routing rules (in priority order):
      * 1. If [ControllerSnapshot.power] is `false` → always send an explicit
@@ -511,8 +504,15 @@ class LightPlugin : DmPlugin {
      * This method is safe to call from any thread.
      */
     private fun scheduleStateUpdate() {
-        // Snapshot controller state HERE on the calling (JavaFX) thread so the
-        // background runnable reads a consistent, race-free copy.
+        if (Platform.isFxApplicationThread()) {
+            publishSnapshotAndScheduleWrite()
+        } else {
+            Platform.runLater { publishSnapshotAndScheduleWrite() }
+        }
+    }
+
+    /** Captures controller state on FX thread and starts the write drain if needed. */
+    private fun publishSnapshotAndScheduleWrite() {
         val snapshot = ControllerSnapshot(
             power        = controller.power,
             color        = controller.color,
@@ -521,65 +521,47 @@ class LightPlugin : DmPlugin {
             colorCycling = controller.colorCycling,
             preset       = controller.preset,
         )
+        latestSnapshot.set(snapshot)
         if (!pendingWrite.compareAndSet(false, true)) return
+
         serialExecutor.execute {
-            // Check connection; if not connected, reset the flag so that a state
-            // change arriving while disconnected can still queue a new task.
-            if (!sender.isConnected) {
-                pendingWrite.set(false)
-                return@execute
-            }
-            // Clear the flag just before the write so any state change that
-            // arrives during the write queues a follow-up task and is not dropped.
-            pendingWrite.set(false)
-            try {
-                when {
-                    // Power-off always wins — even over an active preset.
-                    !snapshot.power -> {
-                        sender.sendState(
-                            on           = false,
-                            color        = snapshot.color,
-                            effect       = snapshot.effect,
-                            brightness   = snapshot.brightness,
-                            colorCycling = snapshot.colorCycling,
-                        )
-                        appendDebugCommand(
-                            sender.buildJson(
-                                on = false,
-                                color = snapshot.color,
-                                effect = snapshot.effect,
-                                brightness = snapshot.brightness,
-                                colorCycling = snapshot.colorCycling,
-                            )
-                        )
+            while (true) {
+                val next = latestSnapshot.getAndSet(null)
+                if (next == null) {
+                    pendingWrite.set(false)
+                    if (latestSnapshot.get() != null && pendingWrite.compareAndSet(false, true)) {
+                        continue
                     }
-                    // Preset mode: let the microcontroller run the animation.
-                    snapshot.preset != null -> {
-                        sender.sendPreset(snapshot.preset)
-                        appendDebugCommand(sender.buildPresetJson(snapshot.preset))
-                    }
-                    // Manual mode: send full color / effect / brightness state.
-                    else -> {
-                        sender.sendState(
-                            on           = true,
-                            color        = snapshot.color,
-                            effect       = snapshot.effect,
-                            brightness   = snapshot.brightness,
-                            colorCycling = snapshot.colorCycling,
-                        )
-                        appendDebugCommand(
-                            sender.buildJson(
-                                on = true,
-                                color = snapshot.color,
-                                effect = snapshot.effect,
-                                brightness = snapshot.brightness,
-                                colorCycling = snapshot.colorCycling,
-                            )
-                        )
-                    }
+                    return@execute
                 }
-            } catch (e: Exception) {
-                System.err.println("WLED serial write failed: ${e.message}")
+
+                if (!sender.isConnected) continue
+
+                try {
+                    val sentJson = when {
+                        // Power-off always wins — even over an active preset.
+                        !next.power -> sender.sendStateJson(
+                            on           = false,
+                            color        = next.color,
+                            effect       = next.effect,
+                            brightness   = next.brightness,
+                            colorCycling = next.colorCycling,
+                        )
+                        // Preset mode: let the microcontroller run the animation.
+                        next.preset != null -> sender.sendPresetJson(next.preset)
+                        // Manual mode: send full color / effect / brightness state.
+                        else -> sender.sendStateJson(
+                            on           = true,
+                            color        = next.color,
+                            effect       = next.effect,
+                            brightness   = next.brightness,
+                            colorCycling = next.colorCycling,
+                        )
+                    }
+                    appendDebugCommand(sentJson)
+                } catch (e: Exception) {
+                    System.err.println("WLED serial write failed: ${e.message}")
+                }
             }
         }
     }

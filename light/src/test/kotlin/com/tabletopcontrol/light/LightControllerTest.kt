@@ -285,4 +285,20 @@ class LightControllerTest {
         controller.setColor("#AABBCC")
         assertEquals(0, callCount)
     }
+
+    @Test
+    fun `listener can remove itself during notification`() {
+        var callCount = 0
+        lateinit var self: () -> Unit
+        self = {
+            callCount++
+            controller.removeChangeListener(self)
+        }
+        controller.addChangeListener(self)
+
+        controller.setPower(false)
+        controller.setPower(true)
+
+        assertEquals(1, callCount)
+    }
 }
