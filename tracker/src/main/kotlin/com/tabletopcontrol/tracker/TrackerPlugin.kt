@@ -25,9 +25,12 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
+import javafx.scene.layout.StackPane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.scene.shape.Circle
+import javafx.scene.shape.Rectangle
+import javafx.scene.shape.Shape
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.stage.FileChooser
@@ -406,6 +409,8 @@ class TrackerPlugin : DmPlugin {
     // ── Constants ─────────────────────────────────────────────────────────────
 
     private companion object {
+        private const val SLIDER_VALUE_EPSILON = 1e-9
+
         private const val CARD_STYLE_NORMAL =
             "-fx-border-color: #888888; -fx-border-radius: 4; " +
                 "-fx-background-color: #f5f5f5; -fx-background-radius: 4;"
@@ -471,11 +476,41 @@ class TrackerPlugin : DmPlugin {
 
         var working = initial
 
+        val previewSize = 160.0
+        val previewRadius = 70.0
+        val previewCenter = previewSize / 2
+
         val imageView = ImageView().apply {
-            fitWidth = 140.0
-            fitHeight = 140.0
+            fitWidth = previewRadius * 2
+            fitHeight = previewRadius * 2
             isPreserveRatio = true
-            clip = Circle(70.0, 70.0, 70.0)
+        }
+
+        val tokenCircle = Circle(previewCenter, previewCenter, previewRadius).apply {
+            fill = Color.TRANSPARENT
+            stroke = Color.web("#bbbbbb")
+            strokeWidth = 1.5
+        }
+
+        val outsideOverlay = Shape.subtract(
+            Rectangle(0.0, 0.0, previewSize, previewSize),
+            Circle(previewCenter, previewCenter, previewRadius),
+        ).apply {
+            fill = Color.gray(0.4, 0.35)
+        }
+
+        val previewPane = StackPane(
+            Rectangle(previewSize, previewSize, Color.web("#f7f7f7")).apply {
+                stroke = Color.web("#dddddd")
+            },
+            imageView,
+            outsideOverlay,
+            tokenCircle,
+        ).apply {
+            minWidth = previewSize
+            maxWidth = previewSize
+            minHeight = previewSize
+            maxHeight = previewSize
         }
 
         fun loadImage(uri: String?) {
@@ -504,6 +539,31 @@ class TrackerPlugin : DmPlugin {
         val scaleYSlider = Slider(0.3, 3.0, working.scaleY).apply { isShowTickLabels = true }
         val offsetXSlider = Slider(-80.0, 80.0, working.offsetX).apply { isShowTickLabels = true }
         val offsetYSlider = Slider(-80.0, 80.0, working.offsetY).apply { isShowTickLabels = true }
+
+        fun bindSliderToField(slider: Slider, field: TextField, decimals: Int = 2) {
+            val format = "%.${decimals}f"
+            slider.valueProperty().addListener { _, _, v ->
+                val value = v.toDouble()
+                if (!field.isFocused) field.text = format.format(value)
+            }
+            field.text = format.format(slider.value)
+            field.textProperty().addListener { _, _, text ->
+                val parsed = text.toDoubleOrNull() ?: return@addListener
+                val clamped = parsed.coerceIn(slider.min, slider.max)
+                if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
+                    slider.value = clamped
+                }
+            }
+        }
+
+        val scaleXField = TextField().apply { prefColumnCount = 6 }
+        val scaleYField = TextField().apply { prefColumnCount = 6 }
+        val offsetXField = TextField().apply { prefColumnCount = 6 }
+        val offsetYField = TextField().apply { prefColumnCount = 6 }
+        bindSliderToField(scaleXSlider, scaleXField, 2)
+        bindSliderToField(scaleYSlider, scaleYField, 2)
+        bindSliderToField(offsetXSlider, offsetXField, 1)
+        bindSliderToField(offsetYSlider, offsetYField, 1)
 
         scaleXSlider.valueProperty().addListener { _, _, v ->
             working = working.copy(scaleX = v.toDouble())
@@ -545,12 +605,12 @@ class TrackerPlugin : DmPlugin {
 
         val content = VBox(
             10.0,
-            imageView,
+            previewPane,
             chooseBtn,
-            Label("Scale X"), scaleXSlider,
-            Label("Scale Y"), scaleYSlider,
-            Label("Offset X"), offsetXSlider,
-            Label("Offset Y"), offsetYSlider,
+            Label("Scale X"), HBox(8.0, scaleXSlider, scaleXField).apply { HBox.setHgrow(scaleXSlider, Priority.ALWAYS) },
+            Label("Scale Y"), HBox(8.0, scaleYSlider, scaleYField).apply { HBox.setHgrow(scaleYSlider, Priority.ALWAYS) },
+            Label("Offset X"), HBox(8.0, offsetXSlider, offsetXField).apply { HBox.setHgrow(offsetXSlider, Priority.ALWAYS) },
+            Label("Offset Y"), HBox(8.0, offsetYSlider, offsetYField).apply { HBox.setHgrow(offsetYSlider, Priority.ALWAYS) },
         ).apply { padding = Insets(10.0) }
 
         dialog.dialogPane.content = content
