@@ -269,16 +269,24 @@ class MapRenderer(private val canvas: Canvas) {
         subscriptions += EventBus.subscribe<TokenImageChangedEvent> { event ->
             val idx = tokens.indexOfFirst { it.id == event.id }
             if (idx >= 0) {
-                val oldUri = tokens[idx].imageUri
-                tokens[idx] = tokens[idx].copy(imageUri = event.imageUri)
+                val old = tokens[idx]
+                val updated = old.copy(
+                    imageUri = event.imageUri,
+                    imageScaleX = event.imageScaleX,
+                    imageScaleY = event.imageScaleY,
+                    imageOffsetX = event.imageOffsetX,
+                    imageOffsetY = event.imageOffsetY,
+                )
+                tokens[idx] = updated
                 // Evict the old cached image if no other token still references it.
+                val oldUri = old.imageUri
                 if (oldUri != null && tokens.none { it.imageUri == oldUri }) {
                     imageCache.remove(oldUri)
                 }
                 // Pre-load the new image into the cache.
                 // backgroundLoading=false ensures the image is fully decoded before the
                 // next redraw so it is never drawn as a partial/blank frame.
-                val newUri = event.imageUri
+                val newUri = updated.imageUri
                 if (newUri != null && !imageCache.containsKey(newUri)) {
                     imageCache[newUri] = Image(newUri, /* backgroundLoading = */ false)
                 }
@@ -640,7 +648,11 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.arc(cx, cy, r, r, 0.0, 360.0)
                 gc.closePath()
                 gc.clip()
-                gc.drawImage(img, cx - r, cy - r, r * 2, r * 2)
+                val drawW = r * 2 * token.imageScaleX
+                val drawH = r * 2 * token.imageScaleY
+                val drawX = cx - (drawW / 2) + token.imageOffsetX
+                val drawY = cy - (drawH / 2) + token.imageOffsetY
+                gc.drawImage(img, drawX, drawY, drawW, drawH)
                 gc.restore()
             } else {
                 // Fallback: fill the token circle with the combatant colour.

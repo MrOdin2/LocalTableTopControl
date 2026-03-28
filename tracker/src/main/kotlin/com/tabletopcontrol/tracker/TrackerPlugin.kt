@@ -13,7 +13,9 @@ import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
+import javafx.scene.control.Dialog
 import javafx.scene.control.Label
+import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
@@ -25,6 +27,9 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.scene.shape.Circle
+import javafx.scene.image.Image
+import javafx.scene.image.ImageView
 import javafx.stage.FileChooser
 import java.util.UUID
 
@@ -85,7 +90,15 @@ class TrackerPlugin : DmPlugin {
      * The current value is republished as [TokenImageChangedEvent] whenever the DM
      * picks a new file in the per-card image button.
      */
-    private val tokenImages: MutableMap<String, String?> = mutableMapOf()
+    private val tokenImages: MutableMap<String, TokenImageSettings> = mutableMapOf()
+
+    private data class TokenImageSettings(
+        val uri: String?,
+        val scaleX: Double = 1.0,
+        val scaleY: Double = 1.0,
+        val offsetX: Double = 0.0,
+        val offsetY: Double = 0.0,
+    )
 
     override fun createView(): Node {
         val roundLabel = Label(roundText()).apply {
@@ -207,7 +220,7 @@ class TrackerPlugin : DmPlugin {
                 // new entry goes to the end (stable sort), so appending the id is correct.
                 tokenIds.add(id)
                 tokenColors[id] = color
-                tokenImages[id] = null
+                tokenImages[id] = TokenImageSettings(uri = null)
                 EventBus.publish(TokenAddedEvent(id, name, color))
                 // When the tracker was empty before, currentIndex advances from -1 to 0.
                 if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
@@ -309,8 +322,9 @@ class TrackerPlugin : DmPlugin {
 
         // Image button — lets the DM assign a picture to this token.
         val tokenId = tokenIds.getOrNull(index)
-        val hasImage = tokenId != null && tokenImages[tokenId] != null
-        val imgBtn = Button("IMG").apply {
+        val currentImageSettings = tokenId?.let { tokenImages[it] } ?: TokenImageSettings(uri = null)
+        val hasImage = currentImageSettings.uri != null
+        val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
             tooltip = Tooltip(
                 if (hasImage) "Token has a custom picture — click to change it"
                 else "Upload a picture for this token",
@@ -318,21 +332,20 @@ class TrackerPlugin : DmPlugin {
             style = "-fx-min-width: 32px; -fx-max-width: 32px;"
             setOnAction { e ->
                 val id = tokenIds.getOrNull(index) ?: return@setOnAction
-                val chooser = FileChooser().apply {
-                    title = "Select token image"
-                    extensionFilters.addAll(
-                        FileChooser.ExtensionFilter(
-                            "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif",
-                        ),
-                        FileChooser.ExtensionFilter("All files", "*.*"),
-                    )
-                }
                 val owner = (e.source as? Button)?.scene?.window
-                val file = chooser.showOpenDialog(owner)
-                if (file != null) {
-                    val uri = file.toURI().toString()
-                    tokenImages[id] = uri
-                    EventBus.publish(TokenImageChangedEvent(id, uri))
+                val chosen = showTokenImageDialog(owner, tokenImages[id] ?: TokenImageSettings(uri = null))
+                if (chosen != null) {
+                    tokenImages[id] = chosen
+                    EventBus.publish(
+                        TokenImageChangedEvent(
+                            id = id,
+                            imageUri = chosen.uri,
+                            imageScaleX = chosen.scaleX,
+                            imageScaleY = chosen.scaleY,
+                            imageOffsetX = chosen.offsetX,
+                            imageOffsetY = chosen.offsetY,
+                        ),
+                    )
                     // Refresh the card so the button label updates.
                     refresh()
                 }
@@ -445,4 +458,106 @@ class TrackerPlugin : DmPlugin {
 
     /** Formats the round counter text from the current tracker state. */
     private fun roundText(): String = "Round: ${tracker.round}"
+
+    // ── Token image dialog ─────────────────────────────────────────────────────
+
+    private fun showTokenImageDialog(owner: javafx.stage.Window?, initial: TokenImageSettings): TokenImageSettings? {
+        val dialog = Dialog<TokenImageSettings>().apply {
+            title = "Token Image"
+            headerText = "Select a picture and adjust scale/position"
+            owner?.let { initOwner(it) }
+            dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
+        }
+
+        var working = initial
+
+        val imageView = ImageView().apply {
+            fitWidth = 140.0
+            fitHeight = 140.0
+            isPreserveRatio = true
+            clip = Circle(70.0, 70.0, 70.0)
+        }
+
+        fun loadImage(uri: String?) {
+            if (uri == null) {
+                imageView.image = null
+                return
+            }
+            imageView.image = try {
+                Image(uri, false)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        fun applyTransforms(settings: TokenImageSettings) {
+            imageView.scaleX = settings.scaleX
+            imageView.scaleY = settings.scaleY
+            imageView.translateX = settings.offsetX
+            imageView.translateY = settings.offsetY
+        }
+
+        loadImage(working.uri)
+        applyTransforms(working)
+
+        val scaleXSlider = Slider(0.3, 3.0, working.scaleX).apply { isShowTickLabels = true }
+        val scaleYSlider = Slider(0.3, 3.0, working.scaleY).apply { isShowTickLabels = true }
+        val offsetXSlider = Slider(-80.0, 80.0, working.offsetX).apply { isShowTickLabels = true }
+        val offsetYSlider = Slider(-80.0, 80.0, working.offsetY).apply { isShowTickLabels = true }
+
+        scaleXSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(scaleX = v.toDouble())
+            applyTransforms(working)
+        }
+        scaleYSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(scaleY = v.toDouble())
+            applyTransforms(working)
+        }
+        offsetXSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(offsetX = v.toDouble())
+            applyTransforms(working)
+        }
+        offsetYSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(offsetY = v.toDouble())
+            applyTransforms(working)
+        }
+
+        val chooseBtn = Button("Choose Image…").apply {
+            setOnAction {
+                val chooser = FileChooser().apply {
+                    title = "Select token image"
+                    extensionFilters.addAll(
+                        FileChooser.ExtensionFilter(
+                            "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif",
+                        ),
+                        FileChooser.ExtensionFilter("All files", "*.*"),
+                    )
+                }
+                val file = chooser.showOpenDialog(owner)
+                if (file != null) {
+                    val uri = file.toURI().toString()
+                    working = working.copy(uri = uri)
+                    loadImage(uri)
+                    applyTransforms(working)
+                }
+            }
+        }
+
+        val content = VBox(
+            10.0,
+            imageView,
+            chooseBtn,
+            Label("Scale X"), scaleXSlider,
+            Label("Scale Y"), scaleYSlider,
+            Label("Offset X"), offsetXSlider,
+            Label("Offset Y"), offsetYSlider,
+        ).apply { padding = Insets(10.0) }
+
+        dialog.dialogPane.content = content
+        dialog.setResultConverter { button ->
+            if (button == ButtonType.OK && working.uri != null) working else null
+        }
+
+        return dialog.showAndWait().orElse(null)
+    }
 }
