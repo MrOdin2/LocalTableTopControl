@@ -327,7 +327,7 @@ class TrackerPlugin : DmPlugin {
         val tokenId = tokenIds.getOrNull(index)
         val currentImageSettings = tokenId?.let { tokenImages[it] } ?: TokenImageSettings(uri = null)
         val hasImage = currentImageSettings.uri != null
-        val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
+        val imgBtn = Button("IMG").apply {
             tooltip = Tooltip(
                 if (hasImage) "Token has a custom picture — click to change it"
                 else "Upload a picture for this token",
