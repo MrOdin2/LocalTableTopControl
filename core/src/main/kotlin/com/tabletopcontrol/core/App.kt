@@ -114,6 +114,10 @@ class App : Application() {
      * Builds a slim toolbar at the top of the DM panel that lets the DM choose
      * which screen the Table View is shown on and move it there.
      *
+     * The first entry in the combo box is **None (hidden)** — selecting it hides
+     * the table stage entirely so no map is displayed for players. Selecting any
+     * real screen while the stage is hidden makes the stage visible again.
+     *
      * Moving the Table View to another screen temporarily exits fullscreen,
      * repositions the window to the target screen's origin, then re-enters
      * fullscreen so it fills that display.
@@ -121,29 +125,51 @@ class App : Application() {
     private fun buildDisplayToolbar(tableStage: Stage): ToolBar {
         val screens = Screen.getScreens()
 
-        val screenCombo = ComboBox<Screen>()
-        screenCombo.items.setAll(screens)
-        screenCombo.converter = object : StringConverter<Screen>() {
+        // null represents the "None (hidden)" option — no table view is shown.
+        val screenCombo = ComboBox<Screen?>()
+        screenCombo.items.add(null)
+        screenCombo.items.addAll(screens)
+        screenCombo.converter = object : StringConverter<Screen?>() {
             override fun toString(screen: Screen?): String {
-                if (screen == null) return ""
+                if (screen == null) return "None (hidden)"
                 val idx = screens.indexOf(screen)
                 val b = screen.bounds
                 return "Screen ${idx + 1}: ${b.width.toInt()} × ${b.height.toInt()}"
             }
             override fun fromString(string: String?): Screen? = null
         }
-        screenCombo.selectionModel.selectFirst()
 
         val moveButton = Button("Move Table View")
         moveButton.setOnAction {
             val selected = screenCombo.selectionModel.selectedItem ?: return@setOnAction
             val bounds = selected.bounds
+            if (!tableStage.isShowing) tableStage.show()
             tableStage.isFullScreen = false
             Platform.runLater {
                 tableStage.x = bounds.minX
                 tableStage.y = bounds.minY
                 tableStage.isFullScreen = true
             }
+        }
+
+        // Register the listener before setting the initial selection so the
+        // button's initial enabled/disabled state is driven by the same logic.
+        screenCombo.selectionModel.selectedItemProperty().addListener { _, _, newScreen ->
+            if (newScreen == null) {
+                tableStage.hide()
+                moveButton.isDisable = true
+            } else {
+                if (!tableStage.isShowing) tableStage.show()
+                moveButton.isDisable = false
+            }
+        }
+
+        // Default to the first real screen to preserve existing behaviour.
+        // The listener above fires immediately and sets the button state correctly.
+        if (screens.isNotEmpty()) {
+            screenCombo.selectionModel.select(screens[0])
+        } else {
+            screenCombo.selectionModel.selectFirst()
         }
 
         // Spacer pushes screen controls to the right so the layout area is uncluttered.
