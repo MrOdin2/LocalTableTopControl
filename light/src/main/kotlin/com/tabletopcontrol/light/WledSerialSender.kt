@@ -214,22 +214,36 @@ class WledSerialSender : Closeable {
      * @throws IllegalArgumentException if the string is not a valid hex color
      */
     private fun hexToRgb(hex: String): Triple<Int, Int, Int> {
-        val clean = hex.removePrefix("#")
-        return when (clean.length) {
-            3 -> {
-                val r = clean[0].digitToInt(16) * 17
-                val g = clean[1].digitToInt(16) * 17
-                val b = clean[2].digitToInt(16) * 17
-                Triple(r, g, b)
-            }
-            6 -> {
-                val r = clean.substring(0, 2).toInt(16)
-                val g = clean.substring(2, 4).toInt(16)
-                val b = clean.substring(4, 6).toInt(16)
-                Triple(r, g, b)
-            }
-            else -> throw IllegalArgumentException(
+        if (!hex.startsWith("#")) {
+            throw IllegalArgumentException(
                 "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex"
+            )
+        }
+
+        val clean = hex.substring(1)
+
+        return try {
+            when (clean.length) {
+                3 -> {
+                    val r = clean[0].digitToInt(16) * 17
+                    val g = clean[1].digitToInt(16) * 17
+                    val b = clean[2].digitToInt(16) * 17
+                    Triple(r, g, b)
+                }
+                6 -> {
+                    val r = clean.substring(0, 2).toInt(16)
+                    val g = clean.substring(2, 4).toInt(16)
+                    val b = clean.substring(4, 6).toInt(16)
+                    Triple(r, g, b)
+                }
+                else -> throw IllegalArgumentException(
+                    "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex"
+                )
+            }
+        } catch (e: NumberFormatException) {
+            throw IllegalArgumentException(
+                "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex",
+                e
             )
         }
     }
