@@ -14,6 +14,6 @@ enum class LightEffect(val displayName: String, val wledEffectId: Int) {
     STROBE("Strobe", 23),
     RAINBOW("Rainbow", 9),
     FIRE("Fire", 45),
-    CANDLE("candle", 88),
+    CANDLE("Candle", 88),
     OCEAN("Ocean", 101),
 }
