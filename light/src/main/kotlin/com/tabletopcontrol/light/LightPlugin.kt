@@ -493,9 +493,13 @@ class LightPlugin : DmPlugin {
      * background runnable.
      *
      * Uses [pendingWrite] to coalesce rapid bursts of state changes: if a write
-     * task is already queued, no additional task is submitted.  The pending task
-     * will capture a fresh snapshot at submission time, so it always sends the
-     * final value of a burst (e.g. the resting position of a dragged slider).
+     * task is already queued, no additional task is submitted. The snapshot used
+     * by the pending task is the one captured by the first caller that
+     * successfully schedules an update; subsequent coalesced calls do not modify
+     * the data that will be sent. Callers that need to ensure the final UI state
+     * of a burst (for example, the resting position of a dragged slider) is sent
+     * should avoid issuing additional updates while a write is already pending,
+     * e.g. by debouncing high-frequency events.
      *
      * Routing rules (in priority order):
      * 1. If [ControllerSnapshot.power] is `false` → always send an explicit
