@@ -209,7 +209,8 @@ class LightPlugin : DmPlugin {
                     } catch (e: Exception) {
                         Platform.runLater {
                             connectBtn.isDisable = false
-                            statusLabel.text = "Error: ${e.message}"
+                            val message = e.message?.takeIf { it.isNotBlank() } ?: e.toString()
+                            statusLabel.text = "Error: $message"
                             statusLabel.style = "-fx-text-fill: #cc0000;"
                         }
                     }
