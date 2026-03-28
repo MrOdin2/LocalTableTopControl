@@ -4,6 +4,7 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import javafx.geometry.Insets
@@ -24,6 +25,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.stage.FileChooser
 import java.util.UUID
 
 /**
@@ -77,6 +79,14 @@ class TrackerPlugin : DmPlugin {
      */
     private val tokenColors: MutableMap<String, Color> = mutableMapOf()
 
+    /**
+     * Maps each combatant's stable id to the file URI of its token picture, or `null`
+     * when no picture has been uploaded.  Keyed by id so the mapping survives renames.
+     * The current value is republished as [TokenImageChangedEvent] whenever the DM
+     * picks a new file in the per-card image button.
+     */
+    private val tokenImages: MutableMap<String, String?> = mutableMapOf()
+
     override fun createView(): Node {
         val roundLabel = Label(roundText()).apply {
             style = "-fx-font-weight: bold;"
@@ -111,6 +121,7 @@ class TrackerPlugin : DmPlugin {
                     tokenColorIndex = 0
                     tokenIds.clear()
                     tokenColors.clear()
+                    tokenImages.clear()
                     EventBus.publish(TokensResetEvent())
                     refresh()
                 }
@@ -196,6 +207,7 @@ class TrackerPlugin : DmPlugin {
                 // new entry goes to the end (stable sort), so appending the id is correct.
                 tokenIds.add(id)
                 tokenColors[id] = color
+                tokenImages[id] = null
                 EventBus.publish(TokenAddedEvent(id, name, color))
                 // When the tracker was empty before, currentIndex advances from -1 to 0.
                 if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
@@ -253,6 +265,7 @@ class TrackerPlugin : DmPlugin {
                 tracker.remove(index)
                 tokenIds.removeAt(index)
                 tokenColors.remove(id)
+                tokenImages.remove(id)
                 EventBus.publish(TokenRemovedEvent(id, name))
                 EventBus.publish(
                     ActiveTokenChangedEvent(
@@ -294,7 +307,39 @@ class TrackerPlugin : DmPlugin {
             Tooltip.install(this, Tooltip("Map token colour"))
         }
 
-        val nameRow = HBox(4.0, swatch, nameField, removeBtn).also {
+        // Image button — lets the DM assign a picture to this token.
+        val tokenId = tokenIds.getOrNull(index)
+        val hasImage = tokenId != null && tokenImages[tokenId] != null
+        val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
+            tooltip = Tooltip(
+                if (hasImage) "Token has a custom picture — click to change it"
+                else "Upload a picture for this token",
+            )
+            style = "-fx-min-width: 32px; -fx-max-width: 32px;"
+            setOnAction { e ->
+                val id = tokenIds.getOrNull(index) ?: return@setOnAction
+                val chooser = FileChooser().apply {
+                    title = "Select token image"
+                    extensionFilters.addAll(
+                        FileChooser.ExtensionFilter(
+                            "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif",
+                        ),
+                        FileChooser.ExtensionFilter("All files", "*.*"),
+                    )
+                }
+                val owner = (e.source as? Button)?.scene?.window
+                val file = chooser.showOpenDialog(owner)
+                if (file != null) {
+                    val uri = file.toURI().toString()
+                    tokenImages[id] = uri
+                    EventBus.publish(TokenImageChangedEvent(id, uri))
+                    // Refresh the card so the button label updates.
+                    refresh()
+                }
+            }
+        }
+
+        val nameRow = HBox(4.0, swatch, nameField, imgBtn, removeBtn).also {
             HBox.setHgrow(nameField, Priority.ALWAYS)
         }
         val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)

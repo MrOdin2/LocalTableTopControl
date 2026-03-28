@@ -9,6 +9,7 @@ import javafx.scene.text.TextAlignment
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
@@ -148,6 +149,16 @@ class MapRenderer(private val canvas: Canvas) {
     /** Current list of tokens to draw on the map. */
     private val tokens = mutableListOf<Token>()
 
+    /**
+     * Cache of [Image] objects keyed by their URI string.
+     *
+     * Loading a [javafx.scene.image.Image] from disk is expensive; caching by URI ensures
+     * that the same file is not decoded multiple times even when multiple tokens share the
+     * same picture.  Entries are added on [TokenImageChangedEvent] and removed when the
+     * last token that references a URI is removed or its image is replaced.
+     */
+    private val imageCache = mutableMapOf<String, Image>()
+
     /** Stable ID of the currently active combatant's token, or `null` when none is active. */
     private var activeTokenId: String? = null
 
@@ -228,7 +239,13 @@ class MapRenderer(private val canvas: Canvas) {
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
+            val removed = tokens.find { it.id == event.id }
             tokens.removeIf { it.id == event.id }
+            // Evict the removed token's image from the cache if no other token uses it.
+            val uri = removed?.imageUri
+            if (uri != null && tokens.none { it.imageUri == uri }) {
+                imageCache.remove(uri)
+            }
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
@@ -244,9 +261,29 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<TokensResetEvent> {
             tokens.clear()
+            imageCache.clear()
             activeTokenId = null
             nextTokenCol = 0
             redraw()
+        }
+        subscriptions += EventBus.subscribe<TokenImageChangedEvent> { event ->
+            val idx = tokens.indexOfFirst { it.id == event.id }
+            if (idx >= 0) {
+                val oldUri = tokens[idx].imageUri
+                tokens[idx] = tokens[idx].copy(imageUri = event.imageUri)
+                // Evict the old cached image if no other token still references it.
+                if (oldUri != null && tokens.none { it.imageUri == oldUri }) {
+                    imageCache.remove(oldUri)
+                }
+                // Pre-load the new image into the cache.
+                // backgroundLoading=false ensures the image is fully decoded before the
+                // next redraw so it is never drawn as a partial/blank frame.
+                val newUri = event.imageUri
+                if (newUri != null && !imageCache.containsKey(newUri)) {
+                    imageCache[newUri] = Image(newUri, /* backgroundLoading = */ false)
+                }
+                redraw()
+            }
         }
         subscriptions += EventBus.subscribe<ShowTokenNamesEvent> { event ->
             showTokenNames = event.show
@@ -593,9 +630,23 @@ class MapRenderer(private val canvas: Canvas) {
             val cx = originX + (token.col + 0.5) * cellPx
             val cy = originY + (token.row + 0.5) * cellPx
 
-            // Fill the token circle.
-            gc.fill = token.color
-            gc.fillOval(cx - r, cy - r, r * 2, r * 2)
+            // Draw the token: use the custom picture if available, otherwise a filled circle.
+            val img = token.imageUri?.let { imageCache[it] }
+            if (img != null && !img.isError) {
+                // Clip to a circle and draw the image inside it.
+                // GraphicsContext.arc() takes (centerX, centerY, radiusX, radiusY, startAngle, length).
+                gc.save()
+                gc.beginPath()
+                gc.arc(cx, cy, r, r, 0.0, 360.0)
+                gc.closePath()
+                gc.clip()
+                gc.drawImage(img, cx - r, cy - r, r * 2, r * 2)
+                gc.restore()
+            } else {
+                // Fallback: fill the token circle with the combatant colour.
+                gc.fill = token.color
+                gc.fillOval(cx - r, cy - r, r * 2, r * 2)
+            }
 
             // Draw an orange outline on the active token.
             if (token.id == activeTokenId) {
