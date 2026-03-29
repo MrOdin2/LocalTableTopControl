@@ -2,31 +2,41 @@ package com.tabletopcontrol.core
 
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
-import java.lang.reflect.Field
 
 class ThemeManagerTest {
 
     @TempDir
     lateinit var tempDir: File
 
+    /** Original value of the `user.home` system property, restored in [tearDown]. */
+    private var originalUserHome: String? = null
+
     /** Redirect ThemeManager's config directory to [tempDir] for test isolation. */
     @BeforeEach
     fun setUp() {
+        originalUserHome = System.getProperty("user.home")
         System.setProperty("user.home", tempDir.absolutePath)
-        // Reset ThemeManager state by reloading from the (empty) temp dir.
-        resetThemeManager()
+        // Reset ThemeManager state so it reloads from the (empty) temp dir.
+        ThemeManager.resetForTesting()
         EventBus.clear()
     }
 
     @AfterEach
     fun tearDown() {
         EventBus.clear()
+        // Restore user.home so this change does not leak into other tests.
+        if (originalUserHome != null) {
+            System.setProperty("user.home", originalUserHome!!)
+        } else {
+            System.clearProperty("user.home")
+        }
     }
 
     // ── ThemeConfig tests ─────────────────────────────────────────────────────
@@ -47,8 +57,28 @@ class ThemeManagerTest {
     }
 
     @Test
-    fun `LIGHT_DEFAULTS and DARK_DEFAULTS have distinct primary colours`() {
-        assertTrue(ThemeConfig.LIGHT_DEFAULTS.primaryColor != ThemeConfig.DARK_DEFAULTS.primaryColor)
+    fun `LIGHT_DEFAULTS and DARK_DEFAULTS have distinct accent colours`() {
+        assertTrue(ThemeConfig.LIGHT_DEFAULTS.accentColor != ThemeConfig.DARK_DEFAULTS.accentColor)
+    }
+
+    // ── Hex color validation ──────────────────────────────────────────────────
+
+    @Test
+    fun `isValidHexColor accepts six-digit hex`() {
+        assertTrue(ThemeConfig.isValidHexColor("#1565c0"))
+    }
+
+    @Test
+    fun `isValidHexColor accepts three-digit hex`() {
+        assertTrue(ThemeConfig.isValidHexColor("#fff"))
+    }
+
+    @Test
+    fun `isValidHexColor rejects invalid strings`() {
+        assertFalse(ThemeConfig.isValidHexColor("blue"))
+        assertFalse(ThemeConfig.isValidHexColor("rgb(0,0,0)"))
+        assertFalse(ThemeConfig.isValidHexColor("#gggggg"))
+        assertFalse(ThemeConfig.isValidHexColor(""))
     }
 
     // ── Save / load round-trip ────────────────────────────────────────────────
@@ -57,9 +87,10 @@ class ThemeManagerTest {
     fun `save and load round-trip preserves LIGHT mode`() {
         val original = ThemeConfig(
             mode = ThemeMode.LIGHT,
-            primaryColor = "#aabbcc",
-            secondaryColor = "#112233",
-            tertiaryColor = "#ff0000",
+            accentColor = "#aabbcc",
+            bgColor = "#f4f4f4",
+            surfaceColor = "#ffffff",
+            borderColor = "#c8c8c8",
         )
         ThemeManager.save(original)
         val loaded = ThemeManager.load()
@@ -70,9 +101,10 @@ class ThemeManagerTest {
     fun `save and load round-trip preserves DARK mode`() {
         val original = ThemeConfig(
             mode = ThemeMode.DARK,
-            primaryColor = "#82b1ff",
-            secondaryColor = "#69f0ae",
-            tertiaryColor = "#ffd740",
+            accentColor = "#82b1ff",
+            bgColor = "#1e1e2e",
+            surfaceColor = "#2d2d3e",
+            borderColor = "#555577",
         )
         ThemeManager.save(original)
         val loaded = ThemeManager.load()
@@ -99,28 +131,44 @@ class ThemeManagerTest {
         File(dir, "theme.conf").writeText("mode=DARK\n")
         val loaded = ThemeManager.load()
         assertEquals(ThemeMode.DARK, loaded.mode)
-        assertEquals(ThemeConfig.DARK_DEFAULTS.primaryColor, loaded.primaryColor)
-        assertEquals(ThemeConfig.DARK_DEFAULTS.secondaryColor, loaded.secondaryColor)
-        assertEquals(ThemeConfig.DARK_DEFAULTS.tertiaryColor, loaded.tertiaryColor)
+        assertEquals(ThemeConfig.DARK_DEFAULTS.accentColor, loaded.accentColor)
+        assertEquals(ThemeConfig.DARK_DEFAULTS.bgColor, loaded.bgColor)
+        assertEquals(ThemeConfig.DARK_DEFAULTS.surfaceColor, loaded.surfaceColor)
+        assertEquals(ThemeConfig.DARK_DEFAULTS.borderColor, loaded.borderColor)
+    }
+
+    @Test
+    fun `load falls back to mode default for invalid hex colour`() {
+        val dir = File(tempDir, ".tabletopcontrol").also { it.mkdirs() }
+        File(dir, "theme.conf").writeText(
+            "mode=LIGHT\naccentColor=not-a-color\nbgColor=#f4f4f4\nsurfaceColor=#ffffff\nborderColor=#c8c8c8\n"
+        )
+        val loaded = ThemeManager.load()
+        // Invalid accentColor should fall back to the LIGHT default.
+        assertEquals(ThemeConfig.LIGHT_DEFAULTS.accentColor, loaded.accentColor)
+        // Valid entries should be preserved.
+        assertEquals("#f4f4f4", loaded.bgColor)
     }
 
     // ── Custom CSS generation ─────────────────────────────────────────────────
 
     @Test
-    fun `writeCustomCss writes a file containing the three accent colour variables`() {
+    fun `writeCustomCss writes a file containing the four colour variables`() {
         val config = ThemeConfig(
-            primaryColor = "#aabbcc",
-            secondaryColor = "#112233",
-            tertiaryColor = "#ff0000",
+            accentColor = "#aabbcc",
+            bgColor = "#112233",
+            surfaceColor = "#334455",
+            borderColor = "#ff0000",
         )
         val url = ThemeManager.writeCustomCss(config)
         assertNotNull(url)
         val cssFile = File(tempDir, ".tabletopcontrol/theme-custom.css")
         assertTrue(cssFile.exists(), "Custom CSS file should exist after writeCustomCss")
         val content = cssFile.readText()
-        assertTrue(content.contains("#aabbcc"), "Custom CSS should include primary colour")
-        assertTrue(content.contains("#112233"), "Custom CSS should include secondary colour")
-        assertTrue(content.contains("#ff0000"), "Custom CSS should include tertiary colour")
+        assertTrue(content.contains("#aabbcc"), "Custom CSS should include accent colour")
+        assertTrue(content.contains("#112233"), "Custom CSS should include bg colour")
+        assertTrue(content.contains("#334455"), "Custom CSS should include surface colour")
+        assertTrue(content.contains("#ff0000"), "Custom CSS should include border colour")
     }
 
     @Test
@@ -158,21 +206,8 @@ class ThemeManagerTest {
 
     @Test
     fun `setTheme updates currentTheme`() {
-        val newTheme = ThemeConfig(mode = ThemeMode.DARK, primaryColor = "#123456")
+        val newTheme = ThemeConfig(mode = ThemeMode.DARK, accentColor = "#123456")
         ThemeManager.setTheme(newTheme)
         assertEquals(newTheme, ThemeManager.currentTheme)
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /**
-     * Resets the `currentTheme` field on the [ThemeManager] singleton so each
-     * test starts from a clean state without re-loading from disk prematurely.
-     */
-    private fun resetThemeManager() {
-        // Re-invoke load() to pick up the (empty) temp directory.
-        val field: Field = ThemeManager::class.java.getDeclaredField("currentTheme")
-        field.isAccessible = true
-        field.set(ThemeManager, ThemeManager.load())
     }
 }

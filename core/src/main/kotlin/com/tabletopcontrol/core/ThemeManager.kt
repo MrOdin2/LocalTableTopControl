@@ -9,7 +9,7 @@ import java.io.File
  * ### Responsibilities
  * - Loads and saves [ThemeConfig] from/to `~/.tabletopcontrol/theme.conf`.
  * - Maintains a registry of all active [Scene] instances.
- * - Applies the current theme (base CSS + custom accent overrides) to every
+ * - Applies the current theme (base CSS + custom colour overrides) to every
  *   registered scene whenever the theme changes.
  * - Publishes a [ThemeChangedEvent] on [EventBus] after each theme change so
  *   that plugins can react (e.g. Canvas-based renderers that cannot use CSS).
@@ -19,24 +19,38 @@ import java.io.File
  * Themes expose the following CSS variables on `.root`.  Any descendant node
  * can reference them in inline `style` strings or CSS class rules:
  *
- * | Variable                    | Light default | Dark default |
- * |-----------------------------|---------------|--------------|
- * | `-tc-primary`               | `#1565c0`     | `#82b1ff`    |
- * | `-tc-secondary`             | `#2e7d32`     | `#69f0ae`    |
- * | `-tc-tertiary`              | `#e65100`     | `#ffd740`    |
- * | `-tc-success`               | `#00aa00`     | `#66bb6a`    |
- * | `-tc-error`                 | `#cc0000`     | `#ef9a9a`    |
- * | `-tc-text-muted`            | `#888888`     | `#9e9e9e`    |
- * | `-tc-card-bg`               | `#f5f5f5`     | `#2d2d3e`    |
- * | `-tc-card-border`           | `#888888`     | `#555577`    |
- * | `-tc-card-active-bg`        | `#fff3e0`     | `#2a2010`    |
- * | `-tc-card-active-border`    | `#e67e00`     | `#ffb300`    |
- * | `-tc-card-dragover-bg`      | `#e8f0ff`     | `#0d1a33`    |
- * | `-tc-card-dragover-border`  | `#4488ff`     | `#64b5f6`    |
+ * **User-configurable (via the Theme dialog):**
+ *
+ * | Variable       | Purpose                            |
+ * |----------------|------------------------------------|
+ * | `-tc-accent`   | Buttons and interactive highlights |
+ * | `-tc-bg`       | Window / scene background          |
+ * | `-tc-surface`  | Panel and card surfaces            |
+ * | `-tc-border`   | Panel edges and control borders    |
+ *
+ * **Fixed semantic (defined in the base theme CSS):**
+ *
+ * | Variable         | Light default | Dark default |
+ * |------------------|---------------|--------------|
+ * | `-tc-text`       | `#212121`     | `#e0e0e0`    |
+ * | `-tc-text-muted` | `#888888`     | `#9e9e9e`    |
+ * | `-tc-success`    | `#00aa00`     | `#66bb6a`    |
+ * | `-tc-error`      | `#cc0000`     | `#ef9a9a`    |
+ *
+ * **Tracker card colours (derived from the base variables above):**
+ *
+ * | Variable                    | Derived from            |
+ * |-----------------------------|-------------------------|
+ * | `-tc-card-bg`               | `-tc-surface`           |
+ * | `-tc-card-border`           | `-tc-border`            |
+ * | `-tc-card-active-border`    | `-tc-accent`            |
+ * | `-tc-card-active-bg`        | accent-tinted surface   |
+ * | `-tc-card-dragover-border`  | `-tc-accent`            |
+ * | `-tc-card-dragover-bg`      | accent-tinted surface   |
  *
  * ### Usage
  * ```kotlin
- * // Register scenes during App.start() so the theme is applied immediately:
+ * // Register scenes before calling show() so the first frame uses the saved theme:
  * ThemeManager.registerScene(tableScene)
  * ThemeManager.registerScene(dmScene)
  *
@@ -54,9 +68,9 @@ object ThemeManager {
         }
 
     /**
-     * A small CSS file written to disk that overrides the three accent colour
-     * variables with the user's current choices.  Using a file URL (rather than
-     * a `data:` URI) ensures compatibility across all JavaFX versions.
+     * A small CSS file written to disk that overrides the four user-configurable
+     * colour variables.  Using a file URL (rather than a `data:` URI) ensures
+     * compatibility across all JavaFX versions.
      */
     private val customCssFile: File
         get() {
@@ -111,9 +125,10 @@ object ThemeManager {
         try {
             val text = buildString {
                 appendLine("mode=${theme.mode.name}")
-                appendLine("primaryColor=${theme.primaryColor}")
-                appendLine("secondaryColor=${theme.secondaryColor}")
-                appendLine("tertiaryColor=${theme.tertiaryColor}")
+                appendLine("accentColor=${theme.accentColor}")
+                appendLine("bgColor=${theme.bgColor}")
+                appendLine("surfaceColor=${theme.surfaceColor}")
+                appendLine("borderColor=${theme.borderColor}")
             }
             configFile.writeText(text)
         } catch (_: Exception) {
@@ -124,8 +139,12 @@ object ThemeManager {
     /**
      * Loads the saved [ThemeConfig] from disk.
      *
-     * Returns a default [ThemeConfig] if the file is absent or contains
-     * unrecognised values.
+     * Any colour value that is missing or is not a valid `#RGB` / `#RRGGBB` hex
+     * string is replaced with the mode-specific default so that a user-edited or
+     * corrupted config file never crashes the application.
+     *
+     * @return The saved layout tree, or a default [ThemeConfig] if the file is
+     *         absent, unreadable, or fully invalid.
      */
     fun load(): ThemeConfig {
         return try {
@@ -138,11 +157,18 @@ object ThemeManager {
             val mode = runCatching { ThemeMode.valueOf(props["mode"] ?: "LIGHT") }
                 .getOrDefault(ThemeMode.LIGHT)
             val defaults = if (mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
+
+            fun validColor(key: String, fallback: String): String {
+                val v = props[key] ?: return fallback
+                return if (ThemeConfig.isValidHexColor(v)) v else fallback
+            }
+
             ThemeConfig(
                 mode = mode,
-                primaryColor = props["primaryColor"] ?: defaults.primaryColor,
-                secondaryColor = props["secondaryColor"] ?: defaults.secondaryColor,
-                tertiaryColor = props["tertiaryColor"] ?: defaults.tertiaryColor,
+                accentColor = validColor("accentColor", defaults.accentColor),
+                bgColor = validColor("bgColor", defaults.bgColor),
+                surfaceColor = validColor("surfaceColor", defaults.surfaceColor),
+                borderColor = validColor("borderColor", defaults.borderColor),
             )
         } catch (_: Exception) {
             ThemeConfig()
@@ -156,7 +182,8 @@ object ThemeManager {
      * the given [theme]:
      *
      * 1. The base theme stylesheet (`theme-light.css` or `theme-dark.css`).
-     * 2. A small per-user override file that sets the three accent colour variables.
+     * 2. A small per-user override file that sets the four user-configurable
+     *    colour variables.
      */
     internal fun buildCssUrls(theme: ThemeConfig): List<String> {
         val urls = mutableListOf<String>()
@@ -174,17 +201,18 @@ object ThemeManager {
     }
 
     /**
-     * Writes a minimal CSS snippet that overrides the three accent colour variables
-     * with the user's choices, and returns the file URL.
+     * Writes a minimal CSS snippet that overrides the four user-configurable
+     * colour variables with the user's choices, and returns the file URL.
      *
      * Returns `null` on I/O failure; the base theme defaults are used instead.
      */
     internal fun writeCustomCss(theme: ThemeConfig): String? {
         val css = """
             .root {
-                -tc-primary:   ${theme.primaryColor};
-                -tc-secondary: ${theme.secondaryColor};
-                -tc-tertiary:  ${theme.tertiaryColor};
+                -tc-accent:  ${theme.accentColor};
+                -tc-bg:      ${theme.bgColor};
+                -tc-surface: ${theme.surfaceColor};
+                -tc-border:  ${theme.borderColor};
             }
         """.trimIndent()
         return try {
@@ -193,6 +221,18 @@ object ThemeManager {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Resets internal state by reloading the theme from disk and clearing the
+     * registered scene list.
+     *
+     * **For use in unit tests only.** Call this in `@BeforeEach` after redirecting
+     * `user.home` to a temp directory so each test starts from a clean state.
+     */
+    internal fun resetForTesting() {
+        currentTheme = load()
+        scenes.clear()
     }
 
     private fun applyToScene(scene: Scene, theme: ThemeConfig) {

@@ -25,6 +25,7 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
+import kotlin.math.roundToInt
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -53,8 +54,16 @@ class App : Application() {
         plugins = PluginLoader.loadPlugins()
         plugins.forEach { plugin -> println("Loaded plugin: ${plugin.displayName}") }
 
-        // Table screen — displayed on the external monitor / projector
+        // Build both scenes and register them with the ThemeManager BEFORE
+        // calling show() so the very first frame is already styled — avoids a
+        // visible flash of the default Modena theme on slower devices.
         val tableScene = buildTableScene(plugins)
+        val dmScene = buildDmScene(plugins, primaryStage)
+
+        ThemeManager.registerScene(tableScene)
+        ThemeManager.registerScene(dmScene)
+
+        // Table screen — displayed on the external monitor / projector
         primaryStage.apply {
             title = "TabletopControl — Table View"
             initStyle(StageStyle.UNDECORATED)
@@ -65,18 +74,12 @@ class App : Application() {
         }
 
         // DM control panel — displayed on the DM's own monitor
-        val dmScene = buildDmScene(plugins, primaryStage)
         dmStage = Stage().apply {
             title = "TabletopControl — DM Panel"
             scene = dmScene
             setOnCloseRequest { primaryStage.close() }
             show()
         }
-
-        // Register both scenes with the ThemeManager so the current theme is
-        // applied immediately and all future theme changes are propagated.
-        ThemeManager.registerScene(tableScene)
-        ThemeManager.registerScene(dmScene)
     }
 
     override fun stop() {
@@ -209,7 +212,8 @@ class App : Application() {
      *
      * The dialog lets the DM:
      * - Switch between **Light** and **Dark** mode.
-     * - Pick custom **Primary**, **Secondary**, and **Tertiary** accent colours.
+     * - Customise four concrete colour roles: **Button/Accent**, **Background**,
+     *   **Surface** (panels/cards), and **Border** (panel edges).
      *
      * Clicking **OK** immediately applies and persists the chosen theme.
      * Clicking **Cancel** leaves the current theme unchanged.
@@ -228,53 +232,79 @@ class App : Application() {
             else -> lightBtn.isSelected = true
         }
 
-        // Accent colour pickers
-        val primaryPicker = ColorPicker(Color.web(current.primaryColor)).apply {
-            maxWidth = Double.MAX_VALUE
-        }
-        val secondaryPicker = ColorPicker(Color.web(current.secondaryColor)).apply {
-            maxWidth = Double.MAX_VALUE
-        }
-        val tertiaryPicker = ColorPicker(Color.web(current.tertiaryColor)).apply {
-            maxWidth = Double.MAX_VALUE
-        }
+        // Helper: parse a hex color string safely, falling back to [fallback] on error.
+        fun parseColor(hex: String, fallback: String): Color =
+            runCatching { Color.web(hex) }.getOrElse { Color.web(fallback) }
+
+        val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
+
+        // Colour pickers — Group 2: Interactive / Accent
+        val accentPicker = ColorPicker(
+            parseColor(current.accentColor, modeDefaults.accentColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
+
+        // Colour pickers — Group 1: Background & Surfaces
+        val bgPicker = ColorPicker(
+            parseColor(current.bgColor, modeDefaults.bgColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
+        val surfacePicker = ColorPicker(
+            parseColor(current.surfaceColor, modeDefaults.surfaceColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
+        val borderPicker = ColorPicker(
+            parseColor(current.borderColor, modeDefaults.borderColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
 
         // Helper: reset pickers to defaults for the currently selected mode.
         fun resetDefaults() {
             val defaults = if (darkBtn.isSelected) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
-            primaryPicker.value = Color.web(defaults.primaryColor)
-            secondaryPicker.value = Color.web(defaults.secondaryColor)
-            tertiaryPicker.value = Color.web(defaults.tertiaryColor)
+            accentPicker.value = Color.web(defaults.accentColor)
+            bgPicker.value = Color.web(defaults.bgColor)
+            surfacePicker.value = Color.web(defaults.surfaceColor)
+            borderPicker.value = Color.web(defaults.borderColor)
         }
 
         // Update pickers to mode defaults whenever the mode radio changes.
         lightBtn.setOnAction { resetDefaults() }
         darkBtn.setOnAction { resetDefaults() }
 
-        // Layout using a GridPane for aligned labels and controls.
+        // Layout using a GridPane with logical groupings.
         val grid = GridPane().apply {
             hgap = 10.0
             vgap = 8.0
             padding = Insets(12.0, 16.0, 8.0, 16.0)
         }
-        grid.add(Label("Mode:"), 0, 0)
-        grid.add(HBox(8.0, lightBtn, darkBtn), 1, 0)
-        grid.add(Separator(), 0, 1, 2, 1)
-        grid.add(Label("Primary color:"), 0, 2)
-        grid.add(primaryPicker, 1, 2)
-        grid.add(Label("Secondary color:"), 0, 3)
-        grid.add(secondaryPicker, 1, 3)
-        grid.add(Label("Tertiary color:"), 0, 4)
-        grid.add(tertiaryPicker, 1, 4)
+        var row = 0
+
+        // Mode row
+        grid.add(Label("Mode:"), 0, row)
+        grid.add(HBox(8.0, lightBtn, darkBtn), 1, row++)
+
+        grid.add(Separator(), 0, row++, 2, 1)
+
+        // Group 1: Background & Surfaces
+        grid.add(Label("Background:"), 0, row)
+        grid.add(bgPicker, 1, row++)
+        grid.add(Label("Surface (panels):"), 0, row)
+        grid.add(surfacePicker, 1, row++)
+        grid.add(Label("Border / edges:"), 0, row)
+        grid.add(borderPicker, 1, row++)
+
+        grid.add(Separator(), 0, row++, 2, 1)
+
+        // Group 2: Interactive / Accent
+        grid.add(Label("Button / accent:"), 0, row)
+        grid.add(accentPicker, 1, row++)
+
+        grid.add(Separator(), 0, row++, 2, 1)
 
         val resetDefBtn = Button("Reset to Defaults").apply {
             setOnAction { resetDefaults() }
         }
-        grid.add(resetDefBtn, 1, 5)
+        grid.add(resetDefBtn, 1, row)
 
         val dialog = Dialog<ThemeConfig>().apply {
             title = "Theme Settings"
-            headerText = "Choose a color mode and customize accent colors."
+            headerText = "Choose a color mode and customize colors."
             initOwner(owner)
             dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
             dialogPane.content = grid
@@ -286,9 +316,10 @@ class App : Application() {
                 val mode = if (darkBtn.isSelected) ThemeMode.DARK else ThemeMode.LIGHT
                 ThemeConfig(
                     mode = mode,
-                    primaryColor = colorToHex(primaryPicker.value),
-                    secondaryColor = colorToHex(secondaryPicker.value),
-                    tertiaryColor = colorToHex(tertiaryPicker.value),
+                    accentColor = colorToHex(accentPicker.value),
+                    bgColor = colorToHex(bgPicker.value),
+                    surfaceColor = colorToHex(surfacePicker.value),
+                    borderColor = colorToHex(borderPicker.value),
                 )
             } else null
         }
@@ -298,13 +329,16 @@ class App : Application() {
         }
     }
 
-    /** Converts a JavaFX [Color] to a CSS hex string such as `"#1565c0"`. */
-    private fun colorToHex(color: Color): String =
-        "#%02x%02x%02x".format(
-            (color.red * 255).toInt(),
-            (color.green * 255).toInt(),
-            (color.blue * 255).toInt(),
-        )
+    /**
+     * Converts a JavaFX [Color] to a CSS hex string such as `"#1565c0"`.
+     *
+     * Uses [kotlin.math.roundToInt] with a 0–255 clamp to avoid off-by-one
+     * errors from floating-point truncation.
+     */
+    private fun colorToHex(color: Color): String {
+        fun channel(v: Double) = (v * 255).roundToInt().coerceIn(0, 255)
+        return "#%02x%02x%02x".format(channel(color.red), channel(color.green), channel(color.blue))
+    }
 }
 
 /** JVM entry point — delegates to the JavaFX application launcher. */

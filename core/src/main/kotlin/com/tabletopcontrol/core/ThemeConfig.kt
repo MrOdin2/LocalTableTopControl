@@ -11,36 +11,47 @@ enum class ThemeMode { LIGHT, DARK }
 /**
  * Immutable snapshot of the active visual theme.
  *
- * The three accent colours are expressed as CSS hex strings (e.g. `"#1565c0"`) and
- * are injected into every scene as CSS looked-up colour variables so that any node
- * in the scene graph can reference them by name in inline or class-based styles.
+ * The four user-configurable colours are expressed as CSS hex strings
+ * (e.g. `"#1565c0"`) and are injected into every scene as CSS looked-up
+ * colour variables so that any node in the scene graph can reference them
+ * by name in inline or class-based styles.
  *
- * @param mode           overall light / dark palette selection.
- * @param primaryColor   CSS hex string for the primary accent colour (e.g. action buttons).
- * @param secondaryColor CSS hex string for the secondary accent colour (e.g. success states).
- * @param tertiaryColor  CSS hex string for the tertiary accent colour (e.g. warnings).
+ * @param mode         overall light / dark palette selection.
+ * @param accentColor  CSS hex string for buttons and interactive highlights.
+ * @param bgColor      CSS hex string for the window / scene background.
+ * @param surfaceColor CSS hex string for panel and card surfaces.
+ * @param borderColor  CSS hex string for panel edges and control borders.
  */
 data class ThemeConfig(
     val mode: ThemeMode = ThemeMode.LIGHT,
-    val primaryColor: String = "#1565c0",
-    val secondaryColor: String = "#2e7d32",
-    val tertiaryColor: String = "#e65100",
+    val accentColor: String = "#1565c0",
+    val bgColor: String = "#f4f4f4",
+    val surfaceColor: String = "#ffffff",
+    val borderColor: String = "#c8c8c8",
 ) {
     companion object {
-        /** Default accent colours for the light theme. */
+        /** Default colours for the light theme. */
         val LIGHT_DEFAULTS = ThemeConfig(
             mode = ThemeMode.LIGHT,
-            primaryColor = "#1565c0",
-            secondaryColor = "#2e7d32",
-            tertiaryColor = "#e65100",
+            accentColor = "#1565c0",
+            bgColor = "#f4f4f4",
+            surfaceColor = "#ffffff",
+            borderColor = "#c8c8c8",
         )
 
-        /** Default accent colours for the dark theme. */
+        /** Default colours for the dark theme. */
         val DARK_DEFAULTS = ThemeConfig(
             mode = ThemeMode.DARK,
-            primaryColor = "#82b1ff",
-            secondaryColor = "#69f0ae",
-            tertiaryColor = "#ffd740",
+            accentColor = "#82b1ff",
+            bgColor = "#1e1e2e",
+            surfaceColor = "#2d2d3e",
+            borderColor = "#555577",
         )
+
+        /** Matches `#RGB` or `#RRGGBB` CSS hex colour strings. */
+        private val HEX_COLOR_REGEX = Regex("^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+        /** Returns `true` if [color] is a valid `#RGB` or `#RRGGBB` hex string. */
+        fun isValidHexColor(color: String): Boolean = color.matches(HEX_COLOR_REGEX)
     }
 }

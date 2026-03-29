@@ -5,67 +5,85 @@
  * palette, then exposes the same -tc-* semantic colour variables as the light
  * theme so every component works in both modes without code changes.
  *
- * Accent colours (-tc-primary, -tc-secondary, -tc-tertiary) are overridden
- * at runtime by the per-user theme-custom.css file written by ThemeManager.
+ * ── User-configurable colours ─────────────────────────────────────────────
+ * These four variables are overridden at runtime by the per-user
+ * theme-custom.css file written by ThemeManager:
+ *
+ *   -tc-accent   buttons and interactive highlights
+ *   -tc-bg       window / scene background
+ *   -tc-surface  panel and card surfaces
+ *   -tc-border   panel edges and control borders
+ *
+ * The four variables are also wired into the matching Modena variables so
+ * that all built-in JavaFX controls adapt automatically when the user
+ * customises the palette.
  */
 
 .root {
-    /* ── JavaFX Modena base overrides ────────────────────────────── */
-    -fx-base:                     #3c3c4c;
-    -fx-background:               #1e1e2e;
-    -fx-control-inner-background: #2d2d3e;
-    -fx-text-base-color:          #e0e0e0;
-    -fx-light-text-color:         #e0e0e0;
-    -fx-mid-text-color:           #c8c8c8;
+    /* ── Group 1: Background & Surfaces (user-configurable) ──────── */
+    -tc-bg:      #1e1e2e;   /* window / scene background               */
+    -tc-surface: #2d2d3e;   /* panel, card, widget background           */
+    -tc-border:  #555577;   /* panel edges and control borders          */
+
+    /* ── Group 2: Interactive / Accent (user-configurable) ───────── */
+    -tc-accent:  #82b1ff;   /* buttons, links, active-state highlights  */
+
+    /* ── Group 3: Text ───────────────────────────────────────────── */
+    -tc-text:       #e0e0e0;   /* primary text                         */
+    -tc-text-muted: #9e9e9e;   /* secondary / hint text                */
+
+    /* ── Group 4: Status ─────────────────────────────────────────── */
+    -tc-success: #66bb6a;   /* connected, OK states                    */
+    -tc-error:   #ef9a9a;   /* error states                            */
+
+    /* ── Group 5: Tracker card states (derived) ──────────────────── */
+    -tc-card-bg:              -tc-surface;
+    -tc-card-border:          -tc-border;
+    -tc-card-active-bg:       #2a2010;   /* warm accent-tinted dark surface */
+    -tc-card-active-border:   -tc-accent;
+    -tc-card-dragover-bg:     #0d1a33;   /* cool accent-tinted dark surface */
+    -tc-card-dragover-border: -tc-accent;
+
+    /* ── Wire -tc-* variables into JavaFX Modena ─────────────────── */
+    /* This ensures built-in controls (buttons, text fields, etc.)    */
+    /* respond when the user customises the palette.                  */
+    -fx-background:               -tc-bg;
+    -fx-base:                     -tc-surface;
+    -fx-control-inner-background: -tc-surface;
+    -fx-text-base-color:          -tc-text;
+    -fx-light-text-color:         -tc-text;
+    -fx-mid-text-color:           -tc-text-muted;
     -fx-dark-text-color:          #a0a0a0;
-
-    /* ── Accent colours (overridden per user config) ─────────────── */
-    -tc-primary:              #82b1ff;
-    -tc-secondary:            #69f0ae;
-    -tc-tertiary:             #ffd740;
-
-    /* ── Semantic status colours ─────────────────────────────────── */
-    -tc-success:              #66bb6a;
-    -tc-error:                #ef9a9a;
-    -tc-text-muted:           #9e9e9e;
-
-    /* ── Initiative-tracker card colours ─────────────────────────── */
-    -tc-card-bg:              #2d2d3e;
-    -tc-card-border:          #555577;
-    -tc-card-active-bg:       #2a2010;
-    -tc-card-active-border:   #ffb300;
-    -tc-card-dragover-bg:     #0d1a33;
-    -tc-card-dragover-border: #64b5f6;
 }
 
 /* Ensure labels and text controls use the dark-theme text colour. */
 .label {
-    -fx-text-fill: -fx-text-base-color;
+    -fx-text-fill: -tc-text;
 }
 
 .titled-pane > .title > .text {
-    -fx-fill: -fx-text-base-color;
+    -fx-fill: -tc-text;
 }
 
 .text-field, .text-area {
-    -fx-text-fill: -fx-text-base-color;
+    -fx-text-fill: -tc-text;
     -fx-prompt-text-fill: -tc-text-muted;
 }
 
 .combo-box .list-cell {
-    -fx-text-fill: -fx-text-base-color;
+    -fx-text-fill: -tc-text;
 }
 
 /* Scroll-pane viewport should match the dark background. */
 .scroll-pane > .viewport {
-    -fx-background-color: -fx-background;
+    -fx-background-color: -tc-bg;
 }
 
-/* Context menus and dialogs */
+/* Context menus */
 .context-menu {
-    -fx-background-color: #2d2d3e;
+    -fx-background-color: -tc-surface;
 }
 
 .menu-item:focused {
-    -fx-background-color: #3c3c5c;
+    -fx-background-color: -tc-border;
 }

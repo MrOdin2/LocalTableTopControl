@@ -89,36 +89,60 @@ Right-click anywhere on a leaf pane to access:
 
 ## Theme System
 
-TabletopControl supports **light and dark modes** plus user-selectable **primary, secondary, and tertiary accent colours**.  The theme system is built on JavaFX CSS and is self-contained within the `core` module.
+TabletopControl supports **light and dark modes** plus user-selectable colours for the four concrete UI roles: accent/buttons, background, surfaces/panels, and borders.  The theme system is built on JavaFX CSS and is self-contained within the `core` module.
 
 ### Architecture
 
 | File | Purpose |
 |------|---------|
-| `core/src/.../ThemeConfig.kt` | Immutable `ThemeConfig` data class; `ThemeMode` enum (LIGHT / DARK); built-in defaults |
+| `core/src/.../ThemeConfig.kt` | Immutable `ThemeConfig` data class; `ThemeMode` enum (LIGHT / DARK); built-in defaults; hex-color validation |
 | `core/src/.../ThemeEvents.kt` | `ThemeChangedEvent` published on `EventBus` whenever the theme changes |
-| `core/src/.../ThemeManager.kt` | Singleton — loads/saves theme, registers scenes, applies CSS stylesheets |
+| `core/src/.../ThemeManager.kt` | Singleton — loads/saves theme, registers scenes, applies CSS stylesheets, validates loaded colors |
 | `core/src/main/resources/.../theme-light.css` | Light-theme CSS: defines all `-tc-*` colour variables |
 | `core/src/main/resources/.../theme-dark.css` | Dark-theme CSS: overrides JavaFX Modena base colours + defines `-tc-*` variables |
 
 ### CSS Looked-Up Colour Variables
 
-Themes expose the following CSS variables on `.root`.  Any descendant node can reference them in inline `style` strings or CSS class rules **without importing any extra files**:
+Variables are grouped by role.  Any descendant node can reference them in inline `style` strings or CSS class rules **without importing any extra files**.
 
-| Variable                    | Light default | Dark default |
-|-----------------------------|---------------|--------------|
-| `-tc-primary`               | `#1565c0`     | `#82b1ff`    |
-| `-tc-secondary`             | `#2e7d32`     | `#69f0ae`    |
-| `-tc-tertiary`              | `#e65100`     | `#ffd740`    |
-| `-tc-success`               | `#00aa00`     | `#66bb6a`    |
-| `-tc-error`                 | `#cc0000`     | `#ef9a9a`    |
-| `-tc-text-muted`            | `#888888`     | `#9e9e9e`    |
-| `-tc-card-bg`               | `#f5f5f5`     | `#2d2d3e`    |
-| `-tc-card-border`           | `#888888`     | `#555577`    |
-| `-tc-card-active-bg`        | `#fff3e0`     | `#2a2010`    |
-| `-tc-card-active-border`    | `#e67e00`     | `#ffb300`    |
-| `-tc-card-dragover-bg`      | `#e8f0ff`     | `#0d1a33`    |
-| `-tc-card-dragover-border`  | `#4488ff`     | `#64b5f6`    |
+#### Group 1 — Background & Surfaces (user-configurable)
+
+| Variable      | Purpose                        | Light default | Dark default |
+|---------------|-------------------------------|---------------|--------------|
+| `-tc-bg`      | Window / scene background      | `#f4f4f4`     | `#1e1e2e`    |
+| `-tc-surface` | Panel and card surfaces        | `#ffffff`     | `#2d2d3e`    |
+| `-tc-border`  | Panel edges, control borders   | `#c8c8c8`     | `#555577`    |
+
+#### Group 2 — Interactive / Accent (user-configurable)
+
+| Variable    | Purpose                              | Light default | Dark default |
+|-------------|-------------------------------------|---------------|--------------|
+| `-tc-accent`| Buttons, links, active highlights   | `#1565c0`     | `#82b1ff`    |
+
+#### Group 3 — Text (fixed per mode)
+
+| Variable         | Purpose                | Light default | Dark default |
+|------------------|------------------------|---------------|--------------|
+| `-tc-text`       | Primary text           | `#212121`     | `#e0e0e0`    |
+| `-tc-text-muted` | Secondary / hint text  | `#888888`     | `#9e9e9e`    |
+
+#### Group 4 — Status (fixed semantic)
+
+| Variable      | Purpose              | Light default | Dark default |
+|---------------|----------------------|---------------|--------------|
+| `-tc-success` | Connected / OK state | `#00aa00`     | `#66bb6a`    |
+| `-tc-error`   | Error state          | `#cc0000`     | `#ef9a9a`    |
+
+#### Group 5 — Tracker Card States (derived)
+
+| Variable                    | Derived from            |
+|-----------------------------|-------------------------|
+| `-tc-card-bg`               | `-tc-surface`           |
+| `-tc-card-border`           | `-tc-border`            |
+| `-tc-card-active-border`    | `-tc-accent`            |
+| `-tc-card-active-bg`        | Fixed warm tint         |
+| `-tc-card-dragover-border`  | `-tc-accent`            |
+| `-tc-card-dragover-bg`      | Fixed cool tint         |
 
 ### Incorporating Themes in a New Plugin
 
@@ -127,15 +151,16 @@ Themes expose the following CSS variables on `.root`.  Any descendant node can r
    label.style = "-fx-text-fill: -tc-error;"        // error state
    label.style = "-fx-text-fill: -tc-success;"      // success state
    label.style = "-fx-text-fill: -tc-text-muted;"   // secondary text
-   button.style = "-fx-base: -tc-primary;"          // primary action button
+   button.style = "-fx-base: -tc-accent;"           // action button
+   vbox.style = "-fx-background-color: -tc-surface;" // panel background
    ```
    Because these are JavaFX "looked-up colours", they resolve automatically from the active theme CSS — no event subscription needed.
 
 2. **For Canvas-based rendering** (e.g. `MapRenderer`) that cannot use CSS, subscribe to `ThemeChangedEvent` on the `EventBus` and redraw with the new palette colours:
    ```kotlin
    EventBus.subscribe<ThemeChangedEvent> { (theme) ->
-       // theme.primaryColor is a CSS hex string such as "#82b1ff"
-       redrawWithPalette(Color.web(theme.primaryColor))
+       // theme.accentColor is a CSS hex string such as "#82b1ff"
+       redrawWithPalette(Color.web(theme.accentColor))
    }
    ```
 
@@ -147,21 +172,21 @@ The active theme is saved to `~/.tabletopcontrol/theme.conf` as simple `key=valu
 
 ```
 mode=DARK
-primaryColor=#82b1ff
-secondaryColor=#69f0ae
-tertiaryColor=#ffd740
+accentColor=#82b1ff
+bgColor=#1e1e2e
+surfaceColor=#2d2d3e
+borderColor=#555577
 ```
 
-A small per-user override file (`~/.tabletopcontrol/theme-custom.css`) is also written and loaded as a stylesheet to apply the three accent colour overrides on top of the base theme.
+A small per-user override file (`~/.tabletopcontrol/theme-custom.css`) is also written and loaded as a stylesheet to apply the four colour overrides on top of the base theme.  Color values loaded from this file are validated as `#RGB` or `#RRGGBB` hex strings; invalid values silently fall back to the mode defaults.
 
 ### Adding a New Theme Variable
 
-1. Add the variable to **both** `theme-light.css` and `theme-dark.css` under `.root`.
-2. Document it in the table above.
-3. Reference it in components using `node.style = "-fx-... -tc-new-var;"`.
+1. Add the variable to **both** `theme-light.css` and `theme-dark.css` under `.root`, in the appropriate group comment.
+2. Document it in the relevant group table above.
+3. Reference it in components using `node.style = "-fx-...: -tc-new-var;"`.
 
 ---
-
 
 - **Language:** Kotlin idioms are preferred over Java-style patterns (data classes, extension functions, sealed classes, coroutines where appropriate).
 - **Naming:** `PascalCase` for classes/interfaces, `camelCase` for functions and properties, `SCREAMING_SNAKE_CASE` for constants.

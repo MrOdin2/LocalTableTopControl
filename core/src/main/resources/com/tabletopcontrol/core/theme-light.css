@@ -5,26 +5,41 @@
  * Custom colour variables are defined on .root so every descendant node can
  * reference them as CSS "looked-up colours" in inline styles or class rules.
  *
- * Accent colours (-tc-primary, -tc-secondary, -tc-tertiary) are overridden
- * at runtime by the per-user theme-custom.css file written by ThemeManager.
+ * ── User-configurable colours ─────────────────────────────────────────────
+ * These four variables are overridden at runtime by the per-user
+ * theme-custom.css file written by ThemeManager:
+ *
+ *   -tc-accent   buttons and interactive highlights
+ *   -tc-bg       window / scene background
+ *   -tc-surface  panel and card surfaces
+ *   -tc-border   panel edges and control borders
+ *
+ * ── Fixed semantic colours ────────────────────────────────────────────────
+ * These are defined in this file only and are not user-configurable.
  */
 
 .root {
-    /* ── Accent colours (overridden per user config) ─────────────── */
-    -tc-primary:              #1565c0;
-    -tc-secondary:            #2e7d32;
-    -tc-tertiary:             #e65100;
+    /* ── Group 1: Background & Surfaces (user-configurable) ──────── */
+    -tc-bg:      #f4f4f4;   /* window / scene background              */
+    -tc-surface: #ffffff;   /* panel, card, widget background          */
+    -tc-border:  #c8c8c8;   /* panel edges and control borders         */
 
-    /* ── Semantic status colours ─────────────────────────────────── */
-    -tc-success:              #00aa00;
-    -tc-error:                #cc0000;
-    -tc-text-muted:           #888888;
+    /* ── Group 2: Interactive / Accent (user-configurable) ───────── */
+    -tc-accent:  #1565c0;   /* buttons, links, active-state highlights  */
 
-    /* ── Initiative-tracker card colours ─────────────────────────── */
-    -tc-card-bg:              #f5f5f5;
-    -tc-card-border:          #888888;
-    -tc-card-active-bg:       #fff3e0;
-    -tc-card-active-border:   #e67e00;
-    -tc-card-dragover-bg:     #e8f0ff;
-    -tc-card-dragover-border: #4488ff;
+    /* ── Group 3: Text ───────────────────────────────────────────── */
+    -tc-text:       #212121;   /* primary text                         */
+    -tc-text-muted: #888888;   /* secondary / hint text                */
+
+    /* ── Group 4: Status ─────────────────────────────────────────── */
+    -tc-success: #00aa00;   /* connected, OK states                    */
+    -tc-error:   #cc0000;   /* error states                            */
+
+    /* ── Group 5: Tracker card states (derived) ──────────────────── */
+    -tc-card-bg:              -tc-surface;
+    -tc-card-border:          -tc-border;
+    -tc-card-active-bg:       #fff3e0;   /* warm accent-tinted surface */
+    -tc-card-active-border:   -tc-accent;
+    -tc-card-dragover-bg:     #e8f0ff;   /* cool accent-tinted surface */
+    -tc-card-dragover-border: -tc-accent;
 }
