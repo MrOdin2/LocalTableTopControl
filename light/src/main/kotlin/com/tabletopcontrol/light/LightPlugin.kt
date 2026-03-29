@@ -471,7 +471,7 @@ class LightPlugin : DmPlugin {
      */
     private fun buildDebugConsoleRow(): VBox {
         val enabledCheck = CheckBox("Show sent serial commands (debug)").apply {
-            isSelected = false
+            isSelected = debugLoggingEnabled.get()
             tooltip = Tooltip("When enabled, logs each JSON command sent to WLED")
             selectedProperty().addListener { _, _, enabled ->
                 debugLoggingEnabled.set(enabled)
