@@ -179,6 +179,16 @@ class LightPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
         }
 
+        // Initialize button label and status from the current connection state.
+        if (sender.isConnected) {
+            connectBtn.text = "Disconnect"
+            statusLabel.text = "Connected"
+            statusLabel.style = "-fx-text-fill: #00aa00;"
+        } else {
+            connectBtn.text = "Connect"
+            statusLabel.text = "Not connected"
+            statusLabel.style = "-fx-text-fill: #888888;"
+        }
         val refreshBtn = Button("↺").apply {
             tooltip = Tooltip("Refresh the list of available serial ports")
         }
