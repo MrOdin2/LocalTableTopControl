@@ -245,6 +245,11 @@ class WledSerialSender : Closeable {
                 "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex",
                 e
             )
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException(
+                "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex",
+                e
+            )
         }
     }
 
