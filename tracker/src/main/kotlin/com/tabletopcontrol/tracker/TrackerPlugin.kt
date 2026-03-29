@@ -518,11 +518,46 @@ class TrackerPlugin : DmPlugin {
                 imageView.image = null
                 return
             }
-            imageView.image = try {
+
+            val image = try {
                 Image(uri, false)
-            } catch (_: Exception) {
-                null
+            } catch (e: Exception) {
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Could not load image"
+                    contentText = buildString {
+                        appendLine("Failed to load image from:")
+                        appendLine(uri)
+                        val message = e.message
+                        if (!message.isNullOrBlank()) {
+                            appendLine()
+                            append("Details: ")
+                            append(message)
+                        }
+                    }
+                }.showAndWait()
+                return
             }
+
+            if (image.isError) {
+                val message = image.exception?.message
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Could not load image"
+                    contentText = buildString {
+                        appendLine("Failed to load image from:")
+                        appendLine(uri)
+                        if (!message.isNullOrBlank()) {
+                            appendLine()
+                            append("Details: ")
+                            append(message)
+                        }
+                    }
+                }.showAndWait()
+                return
+            }
+
+            imageView.image = image
         }
 
         fun applyTransforms(settings: TokenImageSettings) {
