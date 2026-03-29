@@ -391,10 +391,10 @@ class LightPlugin : DmPlugin {
      *
      * Contains:
      * - A [TextField] for entering a preset ID (`1–250`).
-     * - An **Apply** [Button] that activates the preset on the controller and
-     *   immediately sends `{"ps":N}` to the WLED device.
-     * - A **Clear** [Button] that clears the active preset and returns the
-     *   device to manual color / effect / brightness control.
+     * - An **Apply** [Button] that activates the preset on the controller;
+     *   any connected WLED device will be updated to use that preset.
+     * - A **Clear** [Button] that clears the active preset in the controller and
+     *   returns the device to manual color / effect / brightness control.
      * - A status [Label] showing the currently active preset, if any.
      *
      * When a preset is active, the WLED microcontroller runs the animation
