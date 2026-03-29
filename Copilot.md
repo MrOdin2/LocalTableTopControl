@@ -87,7 +87,81 @@ Right-click anywhere on a leaf pane to access:
 
 ---
 
-## Coding Conventions
+## Theme System
+
+TabletopControl supports **light and dark modes** plus user-selectable **primary, secondary, and tertiary accent colours**.  The theme system is built on JavaFX CSS and is self-contained within the `core` module.
+
+### Architecture
+
+| File | Purpose |
+|------|---------|
+| `core/src/.../ThemeConfig.kt` | Immutable `ThemeConfig` data class; `ThemeMode` enum (LIGHT / DARK); built-in defaults |
+| `core/src/.../ThemeEvents.kt` | `ThemeChangedEvent` published on `EventBus` whenever the theme changes |
+| `core/src/.../ThemeManager.kt` | Singleton — loads/saves theme, registers scenes, applies CSS stylesheets |
+| `core/src/main/resources/.../theme-light.css` | Light-theme CSS: defines all `-tc-*` colour variables |
+| `core/src/main/resources/.../theme-dark.css` | Dark-theme CSS: overrides JavaFX Modena base colours + defines `-tc-*` variables |
+
+### CSS Looked-Up Colour Variables
+
+Themes expose the following CSS variables on `.root`.  Any descendant node can reference them in inline `style` strings or CSS class rules **without importing any extra files**:
+
+| Variable                    | Light default | Dark default |
+|-----------------------------|---------------|--------------|
+| `-tc-primary`               | `#1565c0`     | `#82b1ff`    |
+| `-tc-secondary`             | `#2e7d32`     | `#69f0ae`    |
+| `-tc-tertiary`              | `#e65100`     | `#ffd740`    |
+| `-tc-success`               | `#00aa00`     | `#66bb6a`    |
+| `-tc-error`                 | `#cc0000`     | `#ef9a9a`    |
+| `-tc-text-muted`            | `#888888`     | `#9e9e9e`    |
+| `-tc-card-bg`               | `#f5f5f5`     | `#2d2d3e`    |
+| `-tc-card-border`           | `#888888`     | `#555577`    |
+| `-tc-card-active-bg`        | `#fff3e0`     | `#2a2010`    |
+| `-tc-card-active-border`    | `#e67e00`     | `#ffb300`    |
+| `-tc-card-dragover-bg`      | `#e8f0ff`     | `#0d1a33`    |
+| `-tc-card-dragover-border`  | `#4488ff`     | `#64b5f6`    |
+
+### Incorporating Themes in a New Plugin
+
+1. **Use CSS variables** for any colour you set via `node.style`:
+   ```kotlin
+   label.style = "-fx-text-fill: -tc-error;"        // error state
+   label.style = "-fx-text-fill: -tc-success;"      // success state
+   label.style = "-fx-text-fill: -tc-text-muted;"   // secondary text
+   button.style = "-fx-base: -tc-primary;"          // primary action button
+   ```
+   Because these are JavaFX "looked-up colours", they resolve automatically from the active theme CSS — no event subscription needed.
+
+2. **For Canvas-based rendering** (e.g. `MapRenderer`) that cannot use CSS, subscribe to `ThemeChangedEvent` on the `EventBus` and redraw with the new palette colours:
+   ```kotlin
+   EventBus.subscribe<ThemeChangedEvent> { (theme) ->
+       // theme.primaryColor is a CSS hex string such as "#82b1ff"
+       redrawWithPalette(Color.web(theme.primaryColor))
+   }
+   ```
+
+3. **Avoid hardcoded hex colours** in `node.style` strings.  Always prefer the `-tc-*` semantic variables so the component automatically adapts to future themes.
+
+### Persistence
+
+The active theme is saved to `~/.tabletopcontrol/theme.conf` as simple `key=value` lines:
+
+```
+mode=DARK
+primaryColor=#82b1ff
+secondaryColor=#69f0ae
+tertiaryColor=#ffd740
+```
+
+A small per-user override file (`~/.tabletopcontrol/theme-custom.css`) is also written and loaded as a stylesheet to apply the three accent colour overrides on top of the base theme.
+
+### Adding a New Theme Variable
+
+1. Add the variable to **both** `theme-light.css` and `theme-dark.css` under `.root`.
+2. Document it in the table above.
+3. Reference it in components using `node.style = "-fx-... -tc-new-var;"`.
+
+---
+
 
 - **Language:** Kotlin idioms are preferred over Java-style patterns (data classes, extension functions, sealed classes, coroutines where appropriate).
 - **Naming:** `PascalCase` for classes/interfaces, `camelCase` for functions and properties, `SCREAMING_SNAKE_CASE` for constants.

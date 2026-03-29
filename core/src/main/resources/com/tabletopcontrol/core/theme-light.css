@@ -1,0 +1,30 @@
+/*
+ * TabletopControl — Light Theme
+ *
+ * Extends the default JavaFX Modena stylesheet.
+ * Custom colour variables are defined on .root so every descendant node can
+ * reference them as CSS "looked-up colours" in inline styles or class rules.
+ *
+ * Accent colours (-tc-primary, -tc-secondary, -tc-tertiary) are overridden
+ * at runtime by the per-user theme-custom.css file written by ThemeManager.
+ */
+
+.root {
+    /* ── Accent colours (overridden per user config) ─────────────── */
+    -tc-primary:              #1565c0;
+    -tc-secondary:            #2e7d32;
+    -tc-tertiary:             #e65100;
+
+    /* ── Semantic status colours ─────────────────────────────────── */
+    -tc-success:              #00aa00;
+    -tc-error:                #cc0000;
+    -tc-text-muted:           #888888;
+
+    /* ── Initiative-tracker card colours ─────────────────────────── */
+    -tc-card-bg:              #f5f5f5;
+    -tc-card-border:          #888888;
+    -tc-card-active-bg:       #fff3e0;
+    -tc-card-active-border:   #e67e00;
+    -tc-card-dragover-bg:     #e8f0ff;
+    -tc-card-dragover-border: #4488ff;
+}

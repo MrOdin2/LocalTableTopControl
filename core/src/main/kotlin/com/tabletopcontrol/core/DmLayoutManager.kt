@@ -112,7 +112,7 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
             else -> pluginMap[leaf.pluginName]?.createView()
                 ?: Label("Plugin not found: ${leaf.pluginName}").apply {
                     padding = Insets(16.0)
-                    style = "-fx-text-fill: #cc4444;"
+                    style = "-fx-text-fill: -tc-error;"
                 }
         }
         val wrapper = StackPane(content)
