@@ -118,19 +118,29 @@ class LightPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
+        // Initiate shutdown of the executor on the FX thread, but perform any
+        // blocking waits in a background thread so we don't stall JavaFX
+        // application shutdown.
         serialExecutor.shutdown()
-        try {
-            // Give any in-flight serial write time to finish.
-            if (!serialExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
-                // Still running after 3 s — interrupt and wait a little longer.
+
+        Thread({
+            try {
+                // Give any in-flight serial write time to finish.
+                if (!serialExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+                    // Still running after 3 s — interrupt and wait a little longer.
+                    serialExecutor.shutdownNow()
+                    serialExecutor.awaitTermination(1, TimeUnit.SECONDS)
+                }
+            } catch (_: InterruptedException) {
                 serialExecutor.shutdownNow()
-                serialExecutor.awaitTermination(1, TimeUnit.SECONDS)
+                Thread.currentThread().interrupt()
+            } finally {
+                sender.disconnect()
             }
-        } catch (_: InterruptedException) {
-            serialExecutor.shutdownNow()
-            Thread.currentThread().interrupt()
+        }, "wled-serial-shutdown").apply {
+            isDaemon = true
+            start()
         }
-        sender.disconnect()
     }
 
     // -------------------------------------------------------------------------
