@@ -48,3 +48,26 @@ data class ActiveTokenChangedEvent(val id: String?, val name: String?)
  * tokens to be cleared from the map.
  */
 class TokensResetEvent
+
+/**
+ * Event published when the DM assigns or removes a picture for an existing token.
+ *
+ * The [MapRenderer] updates its image cache in response and triggers a redraw.
+ * When [imageUri] is `null` the token reverts to its plain filled-circle appearance.
+ *
+ * @property id          stable unique identifier of the token whose image is changing.
+ * @property imageUri    file URI of the new picture (e.g. `"file:/path/to/image.png"`),
+ *                       or `null` to remove the current picture.
+ * @property imageScaleX horizontal scale factor for the image (defaults to `1.0`).
+ * @property imageScaleY vertical scale factor for the image (defaults to `1.0`).
+ * @property imageOffsetX horizontal pixel offset relative to the token centre (defaults to `0.0`).
+ * @property imageOffsetY vertical pixel offset relative to the token centre (defaults to `0.0`).
+ */
+data class TokenImageChangedEvent(
+    val id: String,
+    val imageUri: String?,
+    val imageScaleX: Double = 1.0,
+    val imageScaleY: Double = 1.0,
+    val imageOffsetX: Double = 0.0,
+    val imageOffsetY: Double = 0.0,
+)

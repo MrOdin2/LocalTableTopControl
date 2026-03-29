@@ -4,6 +4,7 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import javafx.geometry.Insets
@@ -12,7 +13,9 @@ import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
+import javafx.scene.control.Dialog
 import javafx.scene.control.Label
+import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
@@ -22,8 +25,21 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
+import javafx.scene.layout.StackPane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.scene.shape.Circle
+import javafx.scene.shape.Rectangle
+import javafx.scene.shape.Shape
+import javafx.scene.transform.Scale
+import javafx.scene.image.Image
+import javafx.scene.image.ImageView
+import javafx.stage.FileChooser
+import java.io.File
+import java.net.URI
+import java.text.NumberFormat
+import java.text.ParsePosition
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -77,6 +93,22 @@ class TrackerPlugin : DmPlugin {
      */
     private val tokenColors: MutableMap<String, Color> = mutableMapOf()
 
+    /**
+     * Maps each combatant's stable id to the file URI of its token picture, or `null`
+     * when no picture has been uploaded.  Keyed by id so the mapping survives renames.
+     * The current value is republished as [TokenImageChangedEvent] whenever the DM
+     * picks a new file in the per-card image button.
+     */
+    private val tokenImages: MutableMap<String, TokenImageSettings> = mutableMapOf()
+
+    private data class TokenImageSettings(
+        val uri: String?,
+        val scaleX: Double = 1.0,
+        val scaleY: Double = 1.0,
+        val offsetX: Double = 0.0,
+        val offsetY: Double = 0.0,
+    )
+
     override fun createView(): Node {
         val roundLabel = Label(roundText()).apply {
             style = "-fx-font-weight: bold;"
@@ -111,6 +143,7 @@ class TrackerPlugin : DmPlugin {
                     tokenColorIndex = 0
                     tokenIds.clear()
                     tokenColors.clear()
+                    tokenImages.clear()
                     EventBus.publish(TokensResetEvent())
                     refresh()
                 }
@@ -196,6 +229,7 @@ class TrackerPlugin : DmPlugin {
                 // new entry goes to the end (stable sort), so appending the id is correct.
                 tokenIds.add(id)
                 tokenColors[id] = color
+                tokenImages[id] = TokenImageSettings(uri = null)
                 EventBus.publish(TokenAddedEvent(id, name, color))
                 // When the tracker was empty before, currentIndex advances from -1 to 0.
                 if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
@@ -253,6 +287,7 @@ class TrackerPlugin : DmPlugin {
                 tracker.remove(index)
                 tokenIds.removeAt(index)
                 tokenColors.remove(id)
+                tokenImages.remove(id)
                 EventBus.publish(TokenRemovedEvent(id, name))
                 EventBus.publish(
                     ActiveTokenChangedEvent(
@@ -294,7 +329,40 @@ class TrackerPlugin : DmPlugin {
             Tooltip.install(this, Tooltip("Map token colour"))
         }
 
-        val nameRow = HBox(4.0, swatch, nameField, removeBtn).also {
+        // Image button — lets the DM assign a picture to this token.
+        val tokenId = tokenIds.getOrNull(index)
+        val currentImageSettings = tokenId?.let { tokenImages[it] } ?: TokenImageSettings(uri = null)
+        val hasImage = currentImageSettings.uri != null
+        val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
+            accessibleText = if (hasImage) "Token image set" else "No token image set"
+            tooltip = Tooltip(
+                if (hasImage) "Token has a custom picture — click to change it"
+                else "Upload a picture for this token",
+            )
+            style = "-fx-min-width: 32px; -fx-max-width: 32px;"
+            setOnAction { e ->
+                val id = tokenIds.getOrNull(index) ?: return@setOnAction
+                val owner = (e.source as? Button)?.scene?.window
+                val chosen = showTokenImageDialog(owner, tokenImages[id] ?: TokenImageSettings(uri = null))
+                if (chosen != null) {
+                    tokenImages[id] = chosen
+                    EventBus.publish(
+                        TokenImageChangedEvent(
+                            id = id,
+                            imageUri = chosen.uri,
+                            imageScaleX = chosen.scaleX,
+                            imageScaleY = chosen.scaleY,
+                            imageOffsetX = chosen.offsetX,
+                            imageOffsetY = chosen.offsetY,
+                        ),
+                    )
+                    // Refresh the card so the button label updates.
+                    refresh()
+                }
+            }
+        }
+
+        val nameRow = HBox(4.0, swatch, nameField, imgBtn, removeBtn).also {
             HBox.setHgrow(nameField, Priority.ALWAYS)
         }
         val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)
@@ -348,6 +416,8 @@ class TrackerPlugin : DmPlugin {
     // ── Constants ─────────────────────────────────────────────────────────────
 
     private companion object {
+        private const val SLIDER_VALUE_EPSILON = 1e-9
+
         private const val CARD_STYLE_NORMAL =
             "-fx-border-color: #888888; -fx-border-radius: 4; " +
                 "-fx-background-color: #f5f5f5; -fx-background-radius: 4;"
@@ -394,10 +464,286 @@ class TrackerPlugin : DmPlugin {
             )
     }
 
+    private fun normalizeSupportedTokenImageUri(uri: String): String? {
+        return try {
+            val trimmed = uri.trim()
+            if (trimmed.isEmpty()) {
+                return null
+            }
+
+            val parsed = URI(trimmed)
+            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+
+            when {
+                // No scheme → treat as a local file system path, return canonical file: URI.
+                scheme == null || scheme.isEmpty() ->
+                    File(trimmed).canonicalFile.toURI().toString()
+
+                // Explicit file: URI → normalize the URI representation and return it.
+                scheme == "file" ->
+                    parsed.normalize().toString()
+
+                // Any other scheme (http, https, etc.) is not supported.
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Returns the resting style for a card at [index] based on whether it is the active combatant. */
     private fun cardStyle(index: Int): String =
         if (index == tracker.currentIndex) CARD_STYLE_ACTIVE else CARD_STYLE_NORMAL
 
     /** Formats the round counter text from the current tracker state. */
     private fun roundText(): String = "Round: ${tracker.round}"
+
+    // ── Token image dialog ─────────────────────────────────────────────────────
+
+    private fun showTokenImageDialog(owner: javafx.stage.Window?, initial: TokenImageSettings): TokenImageSettings? {
+        val dialog = Dialog<TokenImageSettings>().apply {
+            title = "Token Image"
+            headerText = "Select a picture and adjust scale/position"
+            owner?.let { initOwner(it) }
+            dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
+        }
+
+        var working = initial
+
+        val previewSize = 160.0
+        val previewRadius = 70.0
+        val previewCenter = previewSize / 2
+
+        val imageView = ImageView().apply {
+            fitWidth = previewRadius * 2
+            fitHeight = previewRadius * 2
+            isPreserveRatio = true
+        }
+        val scaleTransform = Scale(working.scaleX, working.scaleY, previewRadius, previewRadius)
+        imageView.transforms.setAll(scaleTransform)
+
+        val tokenCircle = Circle(previewCenter, previewCenter, previewRadius).apply {
+            fill = Color.TRANSPARENT
+            stroke = Color.web("#bbbbbb")
+            strokeWidth = 1.5
+        }
+
+        val outsideOverlay = Shape.subtract(
+            Rectangle(0.0, 0.0, previewSize, previewSize),
+            Circle(previewCenter, previewCenter, previewRadius),
+        ).apply {
+            fill = Color.gray(0.4, 0.35)
+        }
+
+        val previewPane = StackPane(
+            Rectangle(previewSize, previewSize, Color.web("#f7f7f7")).apply {
+                stroke = Color.web("#dddddd")
+            },
+            imageView,
+            outsideOverlay,
+            tokenCircle,
+        ).apply {
+            minWidth = previewSize
+            maxWidth = previewSize
+            minHeight = previewSize
+            maxHeight = previewSize
+        }
+
+        fun loadImage(uri: String?): Boolean {
+            if (uri == null) {
+                imageView.image = null
+                return true
+            }
+            val normalizedUri = normalizeSupportedTokenImageUri(uri)
+            if (normalizedUri == null) {
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Unsupported image location"
+                    contentText = "Only local file images are supported."
+                }.showAndWait()
+                return false
+            }
+
+            val image = try {
+                Image(normalizedUri, false)
+            } catch (e: Exception) {
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Could not load image"
+                    contentText = buildString {
+                        appendLine("Failed to load image from:")
+                        appendLine(uri)
+                        val message = e.message
+                        if (!message.isNullOrBlank()) {
+                            appendLine()
+                            append("Details: ")
+                            append(message)
+                        }
+                    }
+                }.showAndWait()
+                return false
+            }
+
+            if (image.isError) {
+                val message = image.exception?.message
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Could not load image"
+                    contentText = buildString {
+                        appendLine("Failed to load image from:")
+                        appendLine(uri)
+                        if (!message.isNullOrBlank()) {
+                            appendLine()
+                            append("Details: ")
+                            append(message)
+                        }
+                    }
+                }.showAndWait()
+                return false
+            }
+
+            imageView.image = image
+            return true
+        }
+
+        fun applyTransforms(settings: TokenImageSettings) {
+            scaleTransform.x = settings.scaleX
+            scaleTransform.y = settings.scaleY
+            imageView.translateX = settings.offsetX
+            imageView.translateY = settings.offsetY
+        }
+
+        loadImage(working.uri)
+        applyTransforms(working)
+
+        val scaleXSlider = Slider(0.3, 3.0, working.scaleX).apply { isShowTickLabels = true }
+        val scaleYSlider = Slider(0.3, 3.0, working.scaleY).apply { isShowTickLabels = true }
+        val offsetXSlider = Slider(-80.0, 80.0, working.offsetX).apply { isShowTickLabels = true }
+        val offsetYSlider = Slider(-80.0, 80.0, working.offsetY).apply { isShowTickLabels = true }
+
+        fun bindSliderToField(slider: Slider, field: TextField, decimals: Int = 2) {
+            val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
+                minimumFractionDigits = decimals
+                maximumFractionDigits = decimals
+                isGroupingUsed = false
+            }
+            fun formatValue(value: Double): String = numberFormat.format(value)
+            fun parseValue(text: String): Double? {
+                val raw = text.trim()
+                if (raw.isEmpty()) return null
+                val parsePosition = ParsePosition(0)
+                val parsed = numberFormat.parse(raw, parsePosition) ?: return null
+                if (parsePosition.index != raw.length) return null
+                return parsed.toDouble()
+            }
+            slider.valueProperty().addListener { _, _, v ->
+                val value = v.toDouble()
+                if (!field.isFocused) field.text = formatValue(value)
+            }
+            field.text = formatValue(slider.value)
+            field.textProperty().addListener { _, _, text ->
+                // Only apply typed values while the field is focused to prevent
+                // programmatic slider->text updates from snapping slider precision.
+                if (!field.isFocused) return@addListener
+                val parsed = parseValue(text) ?: return@addListener
+                val clamped = parsed.coerceIn(slider.min, slider.max)
+                if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
+                    slider.value = clamped
+                }
+            }
+            field.focusedProperty().addListener { _, _, focused ->
+                if (!focused) {
+                    val parsed = parseValue(field.text)
+                    if (parsed == null) {
+                        // Revert to the current slider value if the text is not a valid number.
+                        field.text = formatValue(slider.value)
+                    } else {
+                        val clamped = parsed.coerceIn(slider.min, slider.max)
+                        if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
+                            // Update the slider; its listener will refresh the text because the field is not focused.
+                            slider.value = clamped
+                        } else {
+                            // Just normalize the text formatting to the effective value.
+                            field.text = formatValue(slider.value)
+                        }
+                    }
+                }
+            }
+        }
+
+        val scaleXField = TextField().apply { prefColumnCount = 6 }
+        val scaleYField = TextField().apply { prefColumnCount = 6 }
+        val offsetXField = TextField().apply { prefColumnCount = 6 }
+        val offsetYField = TextField().apply { prefColumnCount = 6 }
+        bindSliderToField(scaleXSlider, scaleXField, 2)
+        bindSliderToField(scaleYSlider, scaleYField, 2)
+        bindSliderToField(offsetXSlider, offsetXField, 1)
+        bindSliderToField(offsetYSlider, offsetYField, 1)
+
+        scaleXSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(scaleX = v.toDouble())
+            applyTransforms(working)
+        }
+        scaleYSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(scaleY = v.toDouble())
+            applyTransforms(working)
+        }
+        offsetXSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(offsetX = v.toDouble())
+            applyTransforms(working)
+        }
+        offsetYSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(offsetY = v.toDouble())
+            applyTransforms(working)
+        }
+
+        val clearBtn = Button("Clear Image").apply {
+            isDisable = working.uri == null
+            setOnAction {
+                working = working.copy(uri = null)
+                loadImage(null)
+                isDisable = true
+            }
+        }
+
+        val chooseBtn = Button("Choose Image…").apply {
+            setOnAction {
+                val chooser = FileChooser().apply {
+                    title = "Select token image"
+                    extensionFilters.addAll(
+                        FileChooser.ExtensionFilter(
+                            "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif",
+                        ),
+                        FileChooser.ExtensionFilter("All files", "*.*"),
+                    )
+                }
+                val file = chooser.showOpenDialog(owner)
+                if (file != null) {
+                    val uri = file.toURI().toString()
+                    if (loadImage(uri)) {
+                        working = working.copy(uri = uri)
+                        applyTransforms(working)
+                        clearBtn.isDisable = false
+                    }
+                }
+            }
+        }
+
+        val content = VBox(
+            10.0,
+            previewPane,
+            HBox(8.0, chooseBtn, clearBtn),
+            Label("Scale X"), HBox(8.0, scaleXSlider, scaleXField).apply { HBox.setHgrow(scaleXSlider, Priority.ALWAYS) },
+            Label("Scale Y"), HBox(8.0, scaleYSlider, scaleYField).apply { HBox.setHgrow(scaleYSlider, Priority.ALWAYS) },
+            Label("Offset X"), HBox(8.0, offsetXSlider, offsetXField).apply { HBox.setHgrow(offsetXSlider, Priority.ALWAYS) },
+            Label("Offset Y"), HBox(8.0, offsetYSlider, offsetYField).apply { HBox.setHgrow(offsetYSlider, Priority.ALWAYS) },
+        ).apply { padding = Insets(10.0) }
+
+        dialog.dialogPane.content = content
+        dialog.setResultConverter { button ->
+            if (button == ButtonType.OK) working else null
+        }
+
+        return dialog.showAndWait().orElse(null)
+    }
 }
