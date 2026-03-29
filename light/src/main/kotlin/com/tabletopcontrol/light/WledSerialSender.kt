@@ -40,6 +40,10 @@ class WledSerialSender : Closeable {
     val isConnected: Boolean
         get() = port?.isOpen == true
 
+    /** System port name of the currently connected serial port, if any. */
+    val connectedPortName: String?
+        get() = port?.takeIf { it.isOpen }?.systemPortName
+
     /**
      * Returns the system-level names of all serial ports detected on this machine.
      *

@@ -86,6 +86,8 @@ class LightPlugin : DmPlugin {
     private val latestSnapshot = AtomicReference<ControllerSnapshot?>(null)
     private val debugLoggingEnabled = AtomicBoolean(false)
     private var debugConsole: TextArea? = null
+    private val lastSerialErrorLogNanos = AtomicReference(0L)
+    private val serialWriteErrorLoggedSinceSuccess = AtomicBoolean(false)
 
     init {
         // Forward every state change to the WLED device if connected.
@@ -182,7 +184,7 @@ class LightPlugin : DmPlugin {
         // Initialize button label and status from the current connection state.
         if (sender.isConnected) {
             connectBtn.text = "Disconnect"
-            statusLabel.text = "Connected"
+            statusLabel.text = sender.connectedPortName?.let { "Connected: $it" } ?: "Connected"
             statusLabel.style = "-fx-text-fill: #00aa00;"
         } else {
             connectBtn.text = "Connect"
@@ -199,6 +201,7 @@ class LightPlugin : DmPlugin {
                 connectBtn.isDisable = true
                 serialExecutor.execute {
                     sender.disconnect()
+                    resetSerialErrorState()
                     Platform.runLater {
                         connectBtn.text = "Connect"
                         connectBtn.isDisable = false
@@ -223,6 +226,7 @@ class LightPlugin : DmPlugin {
                 serialExecutor.execute {
                     try {
                         sender.connect(portName, baudRate)
+                        resetSerialErrorState()
                         Platform.runLater {
                             connectBtn.text = "Disconnect"
                             connectBtn.isDisable = false
@@ -585,6 +589,7 @@ class LightPlugin : DmPlugin {
                         )
                     }
                     appendDebugCommand(sentJson)
+                    serialWriteErrorLoggedSinceSuccess.set(false)
                 } catch (e: Exception) {
                     reportSerialWriteFailure(e)
                 }
@@ -610,9 +615,23 @@ class LightPlugin : DmPlugin {
      */
     private fun reportSerialWriteFailure(error: Exception) {
         val message = error.message?.takeIf { it.isNotBlank() } ?: error.toString()
-        System.err.println("WLED serial write failed: $message")
-        error.printStackTrace()
-        appendDebugCommand("ERROR serial write failed: $message")
+        val nowNanos = System.nanoTime()
+        val previousLogNanos = lastSerialErrorLogNanos.get()
+        val shouldLog = previousLogNanos == 0L || nowNanos - previousLogNanos >= SERIAL_ERROR_LOG_THROTTLE_NANOS
+        if (shouldLog && lastSerialErrorLogNanos.compareAndSet(previousLogNanos, nowNanos)) {
+            System.err.println("WLED serial write failed: $message")
+            error.printStackTrace()
+        }
+
+        if (serialWriteErrorLoggedSinceSuccess.compareAndSet(false, true)) {
+            appendDebugCommand("ERROR serial write failed: $message")
+        }
+    }
+
+    /** Clears failure-throttling state after successful writes or reconnects. */
+    private fun resetSerialErrorState() {
+        lastSerialErrorLogNanos.set(0L)
+        serialWriteErrorLoggedSinceSuccess.set(false)
     }
 
     /** Returns a compact `HH:mm:ss` timestamp used by debug console entries. */
@@ -632,4 +651,8 @@ class LightPlugin : DmPlugin {
 
     /** Formats a normalised brightness value as a percentage label. */
     private fun brightnessLabel(value: Double): String = "${(value * 100).toInt()} %"
+
+    private companion object {
+        private val SERIAL_ERROR_LOG_THROTTLE_NANOS: Long = TimeUnit.SECONDS.toNanos(2)
+    }
 }
