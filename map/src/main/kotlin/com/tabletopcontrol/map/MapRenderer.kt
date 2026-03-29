@@ -175,6 +175,7 @@ class MapRenderer(private val canvas: Canvas) {
      * Populated in [attachToEventBus] and released en masse in [dispose].
      */
     private val subscriptions = mutableListOf<EventBus.Subscription>()
+    private val tokenClipArcSweepDegrees = 360.0 - 1e-3
 
     private fun isSupportedTokenImageUri(uri: String): Boolean =
         try {
@@ -668,7 +669,10 @@ class MapRenderer(private val canvas: Canvas) {
                 // GraphicsContext.arc(x, y, w, h, startAngle, length) uses the oval's bounding box.
                 gc.save()
                 gc.beginPath()
-                gc.arc(cx - r, cy - r, r * 2, r * 2, 0.0, 360.0)
+                gc.moveTo(cx + r, cy)
+                // Use a near-full sweep (tiny epsilon below 360°) to avoid JavaFX Canvas
+                // path edge-cases where an exact 360° sweep can clip as a partial arc.
+                gc.arc(cx - r, cy - r, r * 2, r * 2, 0.0, tokenClipArcSweepDegrees)
                 gc.closePath()
                 gc.clip()
                 val drawW = r * 2 * token.imageScaleX

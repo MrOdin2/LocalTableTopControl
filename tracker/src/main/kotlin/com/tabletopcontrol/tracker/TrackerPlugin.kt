@@ -464,8 +464,8 @@ class TrackerPlugin : DmPlugin {
             )
     }
 
-    private fun normalizeSupportedTokenImageUri(uri: String): String? =
-        try {
+    private fun normalizeSupportedTokenImageUri(uri: String): String? {
+        return try {
             val trimmed = uri.trim()
             if (trimmed.isEmpty()) {
                 return null
@@ -489,6 +489,7 @@ class TrackerPlugin : DmPlugin {
         } catch (_: Exception) {
             null
         }
+    }
 
     /** Returns the resting style for a card at [index] based on whether it is the active combatant. */
     private fun cardStyle(index: Int): String =
