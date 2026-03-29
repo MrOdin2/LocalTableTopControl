@@ -143,7 +143,7 @@ object ThemeManager {
      * string is replaced with the mode-specific default so that a user-edited or
      * corrupted config file never crashes the application.
      *
-     * @return The saved layout tree, or a default [ThemeConfig] if the file is
+     * @return The saved [ThemeConfig], or a default instance if the file is
      *         absent, unreadable, or fully invalid.
      */
     fun load(): ThemeConfig {
