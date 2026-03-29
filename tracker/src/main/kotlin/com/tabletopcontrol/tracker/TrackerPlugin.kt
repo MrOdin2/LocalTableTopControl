@@ -594,6 +594,24 @@ class TrackerPlugin : DmPlugin {
                     slider.value = clamped
                 }
             }
+            field.focusedProperty().addListener { _, _, focused ->
+                if (!focused) {
+                    val parsed = field.text.toDoubleOrNull()
+                    if (parsed == null) {
+                        // Revert to the current slider value if the text is not a valid number.
+                        field.text = format.format(slider.value)
+                    } else {
+                        val clamped = parsed.coerceIn(slider.min, slider.max)
+                        if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
+                            // Update the slider; its listener will refresh the text because the field is not focused.
+                            slider.value = clamped
+                        } else {
+                            // Just normalize the text formatting to the effective value.
+                            field.text = format.format(slider.value)
+                        }
+                    }
+                }
+            }
         }
 
         val scaleXField = TextField().apply { prefColumnCount = 6 }
