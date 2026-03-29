@@ -165,7 +165,7 @@ class LightPlugin : DmPlugin {
             tooltip = Tooltip("Select the serial port for the WLED device")
             maxWidth = Double.MAX_VALUE
             isEditable = true
-            // Populate on first show so the list is current.
+            // Populate immediately; user can refresh via the ↺ button.
             items.setAll(sender.availablePorts())
         }
 
@@ -576,7 +576,7 @@ class LightPlugin : DmPlugin {
                     }
                     appendDebugCommand(sentJson)
                 } catch (e: Exception) {
-                    System.err.println("WLED serial write failed: ${e.message}")
+                    reportSerialWriteFailure(e)
                 }
             }
         }
@@ -592,6 +592,17 @@ class LightPlugin : DmPlugin {
             val time = currentLogTimestamp()
             console.appendText("[$time] $commandJson\n")
         }
+    }
+
+    /**
+     * Logs serial-write failures with full exception context and mirrors a concise
+     * error line to the debug console when enabled.
+     */
+    private fun reportSerialWriteFailure(error: Exception) {
+        val message = error.message?.takeIf { it.isNotBlank() } ?: error.toString()
+        System.err.println("WLED serial write failed: $message")
+        error.printStackTrace()
+        appendDebugCommand("ERROR serial write failed: $message")
     }
 
     /** Returns a compact `HH:mm:ss` timestamp used by debug console entries. */
