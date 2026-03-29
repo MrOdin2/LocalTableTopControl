@@ -244,7 +244,7 @@ class SoundboardPlugin : DmPlugin {
 
     /** Applies the "playing" highlight style to [btn]. */
     private fun setPlayingStyle(btn: Button) {
-        btn.style = "-fx-base: -tc-accent; -fx-text-fill: white;"
+        btn.style = "-fx-base: -tc-accent; -fx-text-fill: -tc-on-accent;"
     }
 
     /** Removes any custom style from [btn] (returns to default theme). */
