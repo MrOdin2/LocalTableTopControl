@@ -31,6 +31,7 @@ import javafx.scene.paint.Color
 import javafx.scene.shape.Circle
 import javafx.scene.shape.Rectangle
 import javafx.scene.shape.Shape
+import javafx.scene.transform.Scale
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.stage.FileChooser
@@ -486,6 +487,8 @@ class TrackerPlugin : DmPlugin {
             fitHeight = previewRadius * 2
             isPreserveRatio = true
         }
+        val scaleTransform = Scale(working.scaleX, working.scaleY, previewRadius, previewRadius)
+        imageView.transforms.setAll(scaleTransform)
 
         val tokenCircle = Circle(previewCenter, previewCenter, previewRadius).apply {
             fill = Color.TRANSPARENT
@@ -563,8 +566,8 @@ class TrackerPlugin : DmPlugin {
         }
 
         fun applyTransforms(settings: TokenImageSettings) {
-            imageView.scaleX = settings.scaleX
-            imageView.scaleY = settings.scaleY
+            scaleTransform.x = settings.scaleX
+            scaleTransform.y = settings.scaleY
             imageView.translateX = settings.offsetX
             imageView.translateY = settings.offsetY
         }
