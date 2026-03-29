@@ -50,6 +50,10 @@ class App : Application() {
     private var dmLayoutManager: DmLayoutManager? = null
 
     override fun start(primaryStage: Stage) {
+        // Set primaryStage style FIRST, before any other operations.
+        // In JavaFX, initStyle() must be called before the stage is shown or scene is set.
+        primaryStage.initStyle(StageStyle.UNDECORATED)
+
         // Discover plugins first so both scenes can reference them.
         plugins = PluginLoader.loadPlugins()
         plugins.forEach { plugin -> println("Loaded plugin: ${plugin.displayName}") }
@@ -66,7 +70,6 @@ class App : Application() {
         // Table screen — displayed on the external monitor / projector
         primaryStage.apply {
             title = "TabletopControl — Table View"
-            initStyle(StageStyle.UNDECORATED)
             scene = tableScene
             isFullScreen = true
             setOnCloseRequest { dmStage.close() }
