@@ -288,7 +288,10 @@ class MapRenderer(private val canvas: Canvas) {
                 // next redraw so it is never drawn as a partial/blank frame.
                 val newUri = updated.imageUri
                 if (newUri != null && !imageCache.containsKey(newUri)) {
-                    imageCache[newUri] = Image(newUri, /* backgroundLoading = */ false)
+                    val image = Image(newUri, /* backgroundLoading = */ false)
+                    if (!image.isError) {
+                        imageCache[newUri] = image
+                    }
                 }
                 redraw()
             }

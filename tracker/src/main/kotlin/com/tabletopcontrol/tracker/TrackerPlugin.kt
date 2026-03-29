@@ -327,7 +327,8 @@ class TrackerPlugin : DmPlugin {
         val tokenId = tokenIds.getOrNull(index)
         val currentImageSettings = tokenId?.let { tokenImages[it] } ?: TokenImageSettings(uri = null)
         val hasImage = currentImageSettings.uri != null
-        val imgBtn = Button("IMG").apply {
+        val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
+            accessibleText = if (hasImage) "Token image set" else "No token image set"
             tooltip = Tooltip(
                 if (hasImage) "Token has a custom picture — click to change it"
                 else "Upload a picture for this token",
@@ -513,10 +514,10 @@ class TrackerPlugin : DmPlugin {
             maxHeight = previewSize
         }
 
-        fun loadImage(uri: String?) {
+        fun loadImage(uri: String?): Boolean {
             if (uri == null) {
                 imageView.image = null
-                return
+                return true
             }
 
             val image = try {
@@ -536,7 +537,7 @@ class TrackerPlugin : DmPlugin {
                         }
                     }
                 }.showAndWait()
-                return
+                return false
             }
 
             if (image.isError) {
@@ -554,10 +555,11 @@ class TrackerPlugin : DmPlugin {
                         }
                     }
                 }.showAndWait()
-                return
+                return false
             }
 
             imageView.image = image
+            return true
         }
 
         fun applyTransforms(settings: TokenImageSettings) {
@@ -583,6 +585,9 @@ class TrackerPlugin : DmPlugin {
             }
             field.text = format.format(slider.value)
             field.textProperty().addListener { _, _, text ->
+                // Only apply typed values while the field is focused to prevent
+                // programmatic slider->text updates from snapping slider precision.
+                if (!field.isFocused) return@addListener
                 val parsed = text.toDoubleOrNull() ?: return@addListener
                 val clamped = parsed.coerceIn(slider.min, slider.max)
                 if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
@@ -617,6 +622,15 @@ class TrackerPlugin : DmPlugin {
             applyTransforms(working)
         }
 
+        val clearBtn = Button("Clear Image").apply {
+            isDisable = working.uri == null
+            setOnAction {
+                working = working.copy(uri = null)
+                loadImage(null)
+                isDisable = true
+            }
+        }
+
         val chooseBtn = Button("Choose Image…").apply {
             setOnAction {
                 val chooser = FileChooser().apply {
@@ -631,9 +645,11 @@ class TrackerPlugin : DmPlugin {
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     val uri = file.toURI().toString()
-                    working = working.copy(uri = uri)
-                    loadImage(uri)
-                    applyTransforms(working)
+                    if (loadImage(uri)) {
+                        working = working.copy(uri = uri)
+                        applyTransforms(working)
+                        clearBtn.isDisable = false
+                    }
                 }
             }
         }
@@ -641,7 +657,7 @@ class TrackerPlugin : DmPlugin {
         val content = VBox(
             10.0,
             previewPane,
-            chooseBtn,
+            HBox(8.0, chooseBtn, clearBtn),
             Label("Scale X"), HBox(8.0, scaleXSlider, scaleXField).apply { HBox.setHgrow(scaleXSlider, Priority.ALWAYS) },
             Label("Scale Y"), HBox(8.0, scaleYSlider, scaleYField).apply { HBox.setHgrow(scaleYSlider, Priority.ALWAYS) },
             Label("Offset X"), HBox(8.0, offsetXSlider, offsetXField).apply { HBox.setHgrow(offsetXSlider, Priority.ALWAYS) },
@@ -650,7 +666,7 @@ class TrackerPlugin : DmPlugin {
 
         dialog.dialogPane.content = content
         dialog.setResultConverter { button ->
-            if (button == ButtonType.OK && working.uri != null) working else null
+            if (button == ButtonType.OK) working else null
         }
 
         return dialog.showAndWait().orElse(null)
