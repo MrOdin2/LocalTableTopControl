@@ -291,15 +291,21 @@ class MapRenderer(private val canvas: Canvas) {
                 if (oldUri != null && tokens.none { it.imageUri == oldUri }) {
                     imageCache.remove(oldUri)
                 }
-                // Pre-load the new image into the cache.
-                // backgroundLoading=false ensures the image is fully decoded before the
-                // next redraw so it is never drawn as a partial/blank frame.
+                // Pre-load the new image off-thread and cache it once fully loaded.
                 val newUri = updated.imageUri
                 if (newUri != null && isSupportedTokenImageUri(newUri) && !imageCache.containsKey(newUri)) {
                     try {
-                        val image = Image(newUri, /* backgroundLoading = */ false)
+                        // Use backgroundLoading=true so image decoding does not block the
+                        // synchronous EventBus publish thread.
+                        val image = Image(newUri, /* backgroundLoading = */ true)
                         if (!image.isError) {
-                            imageCache[newUri] = image
+                            // When loading completes successfully, cache the image and trigger a redraw.
+                            image.progressProperty().addListener { _, _, newValue ->
+                                if (newValue.toDouble() >= 1.0 && !image.isError) {
+                                    imageCache[newUri] = image
+                                    redraw()
+                                }
+                            }
                         }
                     } catch (e: IllegalArgumentException) {
                         // Malformed URI or similar: treat as a load error and skip caching.
