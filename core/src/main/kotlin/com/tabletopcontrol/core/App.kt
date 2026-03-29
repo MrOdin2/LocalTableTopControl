@@ -200,7 +200,12 @@ class App : Application() {
         // Theme button on the left — opens the theme customisation dialog.
         val themeButton = Button("🎨 Theme").apply {
             tooltip = Tooltip("Customise the application theme (light/dark mode and accent colours)")
-            setOnAction { showThemeDialog(tableStage) }
+            setOnAction {
+                val owner = scene?.window
+                if (owner is Stage) {
+                    showThemeDialog(owner)
+                }
+            }
         }
 
         // Spacer pushes screen controls to the right so the layout area is uncluttered.
