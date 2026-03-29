@@ -115,9 +115,10 @@ Variables are grouped by role.  Any descendant node can reference them in inline
 
 #### Group 2 — Interactive / Accent (user-configurable)
 
-| Variable    | Purpose                              | Light default | Dark default |
-|-------------|-------------------------------------|---------------|--------------|
-| `-tc-accent`| Buttons, links, active highlights   | `#1565c0`     | `#82b1ff`    |
+| Variable       | Purpose                                     | Light default | Dark default |
+|----------------|---------------------------------------------|---------------|--------------|
+| `-tc-accent`   | Buttons, links, active highlights           | `#1565c0`     | `#82b1ff`    |
+| `-tc-on-accent`| Text on top of an accent-coloured surface   | `#ffffff`     | `#212121`    |
 
 #### Group 3 — Text (fixed per mode)
 

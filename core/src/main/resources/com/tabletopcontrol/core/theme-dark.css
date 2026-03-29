@@ -26,7 +26,10 @@
     -tc-border:  #555577;   /* panel edges and control borders          */
 
     /* ── Group 2: Interactive / Accent (user-configurable) ───────── */
-    -tc-accent:  #82b1ff;   /* buttons, links, active-state highlights  */
+    -tc-accent:    #82b1ff;   /* buttons, links, active-state highlights  */
+    -tc-on-accent: #212121;   /* text drawn on top of an accent-coloured  */
+                              /* surface; dark text for contrast against  */
+                              /* the default light-blue accent             */
 
     /* ── Group 3: Text ───────────────────────────────────────────── */
     -tc-text:       #e0e0e0;   /* primary text                         */
