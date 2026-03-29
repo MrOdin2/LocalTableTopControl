@@ -11,6 +11,7 @@ javafx {
 dependencies {
     implementation(project(":core"))
     implementation(kotlin("stdlib"))
+    implementation("com.fazecast:jSerialComm:2.10.4")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
