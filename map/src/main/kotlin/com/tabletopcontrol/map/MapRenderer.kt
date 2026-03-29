@@ -288,9 +288,15 @@ class MapRenderer(private val canvas: Canvas) {
                 // next redraw so it is never drawn as a partial/blank frame.
                 val newUri = updated.imageUri
                 if (newUri != null && !imageCache.containsKey(newUri)) {
-                    val image = Image(newUri, /* backgroundLoading = */ false)
-                    if (!image.isError) {
-                        imageCache[newUri] = image
+                    try {
+                        val image = Image(newUri, /* backgroundLoading = */ false)
+                        if (!image.isError) {
+                            imageCache[newUri] = image
+                        }
+                    } catch (e: IllegalArgumentException) {
+                        // Malformed URI or similar: treat as a load error and skip caching.
+                    } catch (e: Exception) {
+                        // Any other unexpected error during image construction: also skip caching.
                     }
                 }
                 redraw()
