@@ -651,10 +651,10 @@ class MapRenderer(private val canvas: Canvas) {
             val img = token.imageUri?.let { imageCache[it] }
             if (img != null && !img.isError) {
                 // Clip to a circle and draw the image inside it.
-                // GraphicsContext.arc() takes (centerX, centerY, radiusX, radiusY, startAngle, length).
+                // GraphicsContext.arc(x, y, w, h, startAngle, length) uses the oval's bounding box.
                 gc.save()
                 gc.beginPath()
-                gc.arc(cx, cy, r, r, 0.0, 360.0)
+                gc.arc(cx - r, cy - r, r * 2, r * 2, 0.0, 360.0)
                 gc.closePath()
                 gc.clip()
                 val drawW = r * 2 * token.imageScaleX
