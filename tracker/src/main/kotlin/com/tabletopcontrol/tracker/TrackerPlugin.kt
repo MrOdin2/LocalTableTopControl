@@ -466,10 +466,24 @@ class TrackerPlugin : DmPlugin {
 
     private fun normalizeSupportedTokenImageUri(uri: String): String? =
         try {
-            val parsed = URI(uri)
+            val trimmed = uri.trim()
+            if (trimmed.isEmpty()) {
+                return null
+            }
+
+            val parsed = URI(trimmed)
+            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+
             when {
-                parsed.scheme == null -> File(uri).toURI().toString()
-                parsed.scheme.equals("file", ignoreCase = true) -> uri
+                // No scheme → treat as a local file system path, return canonical file: URI.
+                scheme == null || scheme.isEmpty() ->
+                    File(trimmed).canonicalFile.toURI().toString()
+
+                // Explicit file: URI → normalize the URI representation and return it.
+                scheme == "file" ->
+                    parsed.normalize().toString()
+
+                // Any other scheme (http, https, etc.) is not supported.
                 else -> null
             }
         } catch (_: Exception) {
