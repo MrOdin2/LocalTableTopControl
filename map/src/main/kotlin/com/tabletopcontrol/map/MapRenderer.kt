@@ -13,6 +13,7 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import java.net.URI
 import kotlin.math.floor
 
 /**
@@ -175,6 +176,13 @@ class MapRenderer(private val canvas: Canvas) {
      */
     private val subscriptions = mutableListOf<EventBus.Subscription>()
 
+    private fun isSupportedTokenImageUri(uri: String): Boolean =
+        try {
+            URI(uri).scheme.equals("file", ignoreCase = true)
+        } catch (_: Exception) {
+            false
+        }
+
     init {
         attachToEventBus()
     }
@@ -287,7 +295,7 @@ class MapRenderer(private val canvas: Canvas) {
                 // backgroundLoading=false ensures the image is fully decoded before the
                 // next redraw so it is never drawn as a partial/blank frame.
                 val newUri = updated.imageUri
-                if (newUri != null && !imageCache.containsKey(newUri)) {
+                if (newUri != null && isSupportedTokenImageUri(newUri) && !imageCache.containsKey(newUri)) {
                     try {
                         val image = Image(newUri, /* backgroundLoading = */ false)
                         if (!image.isError) {

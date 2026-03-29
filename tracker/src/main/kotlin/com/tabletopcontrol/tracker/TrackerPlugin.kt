@@ -35,6 +35,11 @@ import javafx.scene.transform.Scale
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.stage.FileChooser
+import java.io.File
+import java.net.URI
+import java.text.NumberFormat
+import java.text.ParsePosition
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -459,6 +464,18 @@ class TrackerPlugin : DmPlugin {
             )
     }
 
+    private fun normalizeSupportedTokenImageUri(uri: String): String? =
+        try {
+            val parsed = URI(uri)
+            when {
+                parsed.scheme == null -> File(uri).toURI().toString()
+                parsed.scheme.equals("file", ignoreCase = true) -> uri
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+
     /** Returns the resting style for a card at [index] based on whether it is the active combatant. */
     private fun cardStyle(index: Int): String =
         if (index == tracker.currentIndex) CARD_STYLE_ACTIVE else CARD_STYLE_NORMAL
@@ -522,9 +539,18 @@ class TrackerPlugin : DmPlugin {
                 imageView.image = null
                 return true
             }
+            val normalizedUri = normalizeSupportedTokenImageUri(uri)
+            if (normalizedUri == null) {
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Unsupported image location"
+                    contentText = "Only local file images are supported."
+                }.showAndWait()
+                return false
+            }
 
             val image = try {
-                Image(uri, false)
+                Image(normalizedUri, false)
             } catch (e: Exception) {
                 Alert(Alert.AlertType.ERROR).apply {
                     title = "Image load failed"
@@ -581,17 +607,30 @@ class TrackerPlugin : DmPlugin {
         val offsetYSlider = Slider(-80.0, 80.0, working.offsetY).apply { isShowTickLabels = true }
 
         fun bindSliderToField(slider: Slider, field: TextField, decimals: Int = 2) {
-            val format = "%.${decimals}f"
+            val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
+                minimumFractionDigits = decimals
+                maximumFractionDigits = decimals
+                isGroupingUsed = false
+            }
+            fun formatValue(value: Double): String = numberFormat.format(value)
+            fun parseValue(text: String): Double? {
+                val raw = text.trim()
+                if (raw.isEmpty()) return null
+                val parsePosition = ParsePosition(0)
+                val parsed = numberFormat.parse(raw, parsePosition) ?: return null
+                if (parsePosition.index != raw.length) return null
+                return parsed.toDouble()
+            }
             slider.valueProperty().addListener { _, _, v ->
                 val value = v.toDouble()
-                if (!field.isFocused) field.text = format.format(value)
+                if (!field.isFocused) field.text = formatValue(value)
             }
-            field.text = format.format(slider.value)
+            field.text = formatValue(slider.value)
             field.textProperty().addListener { _, _, text ->
                 // Only apply typed values while the field is focused to prevent
                 // programmatic slider->text updates from snapping slider precision.
                 if (!field.isFocused) return@addListener
-                val parsed = text.toDoubleOrNull() ?: return@addListener
+                val parsed = parseValue(text) ?: return@addListener
                 val clamped = parsed.coerceIn(slider.min, slider.max)
                 if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
                     slider.value = clamped
@@ -599,10 +638,10 @@ class TrackerPlugin : DmPlugin {
             }
             field.focusedProperty().addListener { _, _, focused ->
                 if (!focused) {
-                    val parsed = field.text.toDoubleOrNull()
+                    val parsed = parseValue(field.text)
                     if (parsed == null) {
                         // Revert to the current slider value if the text is not a valid number.
-                        field.text = format.format(slider.value)
+                        field.text = formatValue(slider.value)
                     } else {
                         val clamped = parsed.coerceIn(slider.min, slider.max)
                         if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
@@ -610,7 +649,7 @@ class TrackerPlugin : DmPlugin {
                             slider.value = clamped
                         } else {
                             // Just normalize the text formatting to the effective value.
-                            field.text = format.format(slider.value)
+                            field.text = formatValue(slider.value)
                         }
                     }
                 }
