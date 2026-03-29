@@ -11,6 +11,10 @@ class TokenTest {
     fun `imageUri defaults to null`() {
         val token = Token(id = "1", name = "Goblin", col = 0, row = 0, color = Color.RED)
         assertNull(token.imageUri)
+        assertEquals(1.0, token.imageScaleX)
+        assertEquals(1.0, token.imageScaleY)
+        assertEquals(0.0, token.imageOffsetX)
+        assertEquals(0.0, token.imageOffsetY)
     }
 
     @Test
