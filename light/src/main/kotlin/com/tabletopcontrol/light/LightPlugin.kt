@@ -197,7 +197,12 @@ class LightPlugin : DmPlugin {
                     }
                 }
             } else {
-                val portName = portCombo.value?.trim() ?: return@setOnAction
+                val rawPortName = if (portCombo.isEditable) {
+                    portCombo.editor.text
+                } else {
+                    portCombo.value
+                }
+                val portName = rawPortName?.trim() ?: return@setOnAction
                 if (portName.isBlank()) return@setOnAction
                 val baudRate = baudField.text.trim().toIntOrNull()
                     ?: WledSerialSender.DEFAULT_BAUD_RATE
