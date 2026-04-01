@@ -78,14 +78,45 @@ Right-click anywhere on a leaf pane to access:
 - **Add Panel Below** — splits vertically; new pane appears below.
 - **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
 - **Close Pane** — remove this pane (disabled when only one pane remains).
+- **Extend Left / Right / Above / Below** — expand this pane into exactly one neighbouring
+  leaf pane's worth of space, following the rules in the table below (e.g. consuming a direct
+  sibling leaf or an adjacent leaf inside a neighbouring split). Other panes may be resized
+  or restructured but are not discarded.
+
+#### Extend logic
+
+Five kinds of extension are supported, evaluated in priority order (higher priority wins when two directions collide):
+
+| Priority | Kind | Condition | Effect |
+|----------|------|-----------|--------|
+| 1 | Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
+| 1b | Sibling-adjacent-child | Sibling within the parent split is itself a `Split`, and its child on the side closest to the leaf is a single `Leaf` | That child is removed, collapsing the sibling to its remaining child; the leaf stays in place — equivalent to closing just the adjacent sub-panel. |
+| 2 | Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling recombines with the uncle on the opposite side. |
+| 3 | Same-uncle-orientation | Uncle is a `Split` with the *same* orientation as the parent, and the uncle's child at the leaf's position is a single `Leaf` | The grandparent is restructured: the leaf takes a full-width/height row/column; the displaced sibling and the uncle's surviving child are merged side-by-side into the other half. |
+| 4 | Same-grandparent-orientation uncle | Uncle is a `Split` with the *same* orientation as the grandparent (but different from the parent), and the uncle's child on the side adjacent to the parent is a single `Leaf` | The adjacent child's space is shared with the leaf using the parent's orientation (leaf at its row/column position, adjacent child in the other half); the uncle is rebuilt with that shared node; the displaced sibling takes the parent's former slot. |
+| 5 | Great-uncle-is-Leaf | Great-grandparent exists and its other child (the great-uncle) is a single `Leaf` | The great-grandparent is restructured: a new node on the great-uncle's side combines the leaf with the great-uncle (leaf at its own row/column position, displaced sibling filling the other slot); the uncle takes the grandparent's former slot. |
+
+Example — layout `H(Lights, H(V(Tracker, Map), V(Music, Soundboard)))`:
+- **Tracker** → "Extend Right" → `H(Lights, V(Tracker, H(Map, Soundboard)))`, "Extend Below" (same-level, removes Map), "Extend Left" → `H(V(Tracker, H(Lights, Map)), V(Music, Soundboard))`.
+- **Map** → "Extend Right" → `H(Lights, V(H(Tracker, Music), Map))`, "Extend Above" (same-level, removes Tracker), "Extend Left" → `H(V(H(Lights, Tracker), Map), V(Music, Soundboard))`.
+- **Music** → "Extend Left" → `H(Lights, V(Music, H(Map, Soundboard)))`, "Extend Below" (same-level, removes Soundboard).
+- **Soundboard** → "Extend Left" → `H(Lights, V(H(Tracker, Music), Soundboard))`, "Extend Above" (same-level, removes Music).
+- **Lights** → no extend options (adjacent to a multi-panel section).
+
+Example — layout `H(H(V(Tracker, Lights), Map), V(Music, Soundboard))` (case 4):
+- **Music** → "Extend Left" → `H(H(V(Tracker, Lights), V(Music, Map)), Soundboard)` — Music takes top half of Map's space, Map keeps bottom half, Soundboard takes parent's former slot.
+- **Soundboard** → "Extend Left" → `H(H(V(Tracker, Lights), V(Map, Soundboard)), Music)` — Soundboard takes bottom half of Map's space, Map keeps top half, Music takes parent's former slot.
+
+Example — layout `H(H(V(Tracker, Lights), Map), Soundboard)` (case 1b):
+- **Soundboard** → "Extend Left" → `H(V(Tracker, Lights), Soundboard)` — Map is removed, sibling collapses to `V(Tracker, Lights)`.
 
 ### Key Files
 
 | Path | Purpose |
 |------|---------|
-| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `removeNode` helpers |
+| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `replaceNodeByRef` / `removeNode` / `findAncestry` helpers |
 | `core/src/.../LayoutSerializer.kt` | S-expression serialiser/deserialiser; file I/O |
-| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu, divider sync |
+| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu (including extend options), divider sync |
 
 ---
 

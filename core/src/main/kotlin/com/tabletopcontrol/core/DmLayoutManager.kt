@@ -40,6 +40,9 @@ import javafx.scene.layout.StackPane
  * - *Add Panel Below*    — splits the pane vertically; new pane appears below.
  * - *Change Plugin…* — swaps the plugin shown in this pane.
  * - *Close Pane* — removes this pane (disabled when it is the only pane).
+ * - *Extend Left / Right / Above / Below* — expands this pane into the space of
+ *   exactly one neighbouring panel (potentially by splitting that panel’s area)
+ *   without affecting any other panels; only shown when such an expansion is possible.
  */
 class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
@@ -168,6 +171,21 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
             SeparatorMenuItem(),
             closePane,
         )
+
+        // Extend options — only shown when there are valid directions to expand into.
+        // Sync live SplitPane divider positions back into the layout model so that
+        // extend options are computed from the current visual state.
+        syncDividers(layoutRoot, container.center)
+        val extendOptions = computeExtendOptions(layoutRoot, leaf)
+        if (extendOptions.isNotEmpty()) {
+            menu.items.add(SeparatorMenuItem())
+            extendOptions.forEach { (label, newRoot) ->
+                val item = MenuItem(label)
+                item.setOnAction { rebuild(newRoot) }
+                menu.items.add(item)
+            }
+        }
+
         return menu
     }
 
