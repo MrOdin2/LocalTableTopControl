@@ -72,7 +72,9 @@ The DM Panel uses a **recursive split-pane layout** so the DM can view and contr
 ### Right-Click Context Menu
 
 Right-click anywhere on a leaf pane to access:
+- **Add Panel to Left**  — splits horizontally; new pane appears on the left.
 - **Add Panel to Right** — splits horizontally; new pane appears on the right.
+- **Add Panel Above** — splits vertically; new pane appears above.
 - **Add Panel Below** — splits vertically; new pane appears below.
 - **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
 - **Close Pane** — remove this pane (disabled when only one pane remains).
