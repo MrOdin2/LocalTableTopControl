@@ -108,8 +108,9 @@ class WledSerialSender : Closeable {
      * @param speed        effect speed in the range `0` (slowest) to `255` (fastest)
      * @param intensity    effect intensity in the range `0` (least) to `255` (most)
      * @throws IOException              if the port is not connected or the write fails
-     * @throws IllegalArgumentException if [color] is not a valid CSS hex string or
-     *                                  [brightness] is outside `0.0..1.0`
+     * @throws IllegalArgumentException if [color] is not a valid CSS hex string,
+     *                                  [brightness] is outside `0.0..1.0`, or
+     *                                  [speed] / [intensity] are outside `0..255`
      */
     @Throws(IOException::class)
     fun sendState(
