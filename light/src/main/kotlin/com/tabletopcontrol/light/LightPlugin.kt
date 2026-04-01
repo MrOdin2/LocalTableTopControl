@@ -160,7 +160,7 @@ class LightPlugin : DmPlugin {
      */
     private fun buildSerialSection(): VBox {
         val statusLabel = Label("Not connected").apply {
-            style = "-fx-text-fill: #888888;"
+            style = "-fx-text-fill: -tc-text-muted;"
         }
 
         val portCombo = ComboBox<String>().apply {
@@ -185,11 +185,11 @@ class LightPlugin : DmPlugin {
         if (sender.isConnected) {
             connectBtn.text = "Disconnect"
             statusLabel.text = sender.connectedPortName?.let { "Connected: $it" } ?: "Connected"
-            statusLabel.style = "-fx-text-fill: #00aa00;"
+            statusLabel.style = "-fx-text-fill: -tc-success;"
         } else {
             connectBtn.text = "Connect"
             statusLabel.text = "Not connected"
-            statusLabel.style = "-fx-text-fill: #888888;"
+            statusLabel.style = "-fx-text-fill: -tc-text-muted;"
         }
         val refreshBtn = Button("↺").apply {
             tooltip = Tooltip("Refresh the list of available serial ports")
@@ -206,7 +206,7 @@ class LightPlugin : DmPlugin {
                         connectBtn.text = "Connect"
                         connectBtn.isDisable = false
                         statusLabel.text = "Disconnected"
-                        statusLabel.style = "-fx-text-fill: #888888;"
+                        statusLabel.style = "-fx-text-fill: -tc-text-muted;"
                     }
                 }
             } else {
@@ -222,7 +222,7 @@ class LightPlugin : DmPlugin {
                 // Disable button and show interim status while connecting.
                 connectBtn.isDisable = true
                 statusLabel.text = "Connecting…"
-                statusLabel.style = "-fx-text-fill: #888888;"
+                statusLabel.style = "-fx-text-fill: -tc-text-muted;"
                 serialExecutor.execute {
                     try {
                         sender.connect(portName, baudRate)
@@ -231,7 +231,7 @@ class LightPlugin : DmPlugin {
                             connectBtn.text = "Disconnect"
                             connectBtn.isDisable = false
                             statusLabel.text = "Connected: $portName"
-                            statusLabel.style = "-fx-text-fill: #00aa00;"
+                            statusLabel.style = "-fx-text-fill: -tc-success;"
                             // Push the current state immediately after connecting.
                             scheduleStateUpdate()
                         }
@@ -240,7 +240,7 @@ class LightPlugin : DmPlugin {
                             connectBtn.isDisable = false
                             val message = e.message?.takeIf { it.isNotBlank() } ?: e.toString()
                             statusLabel.text = "Error: $message"
-                            statusLabel.style = "-fx-text-fill: #cc0000;"
+                            statusLabel.style = "-fx-text-fill: -tc-error;"
                         }
                     }
                 }
@@ -409,7 +409,7 @@ class LightPlugin : DmPlugin {
         val activeLabel = Label(
             controller.preset?.let { "Active preset: $it" } ?: "No preset active"
         ).apply {
-            style = "-fx-text-fill: #888888;"
+            style = "-fx-text-fill: -tc-text-muted;"
         }
 
         val presetField = TextField().apply {
@@ -432,16 +432,16 @@ class LightPlugin : DmPlugin {
             val id = presetField.text.trim().toIntOrNull()
             if (id == null || id !in 1..250) {
                 activeLabel.text = "Invalid preset ID (must be 1–250)"
-                activeLabel.style = "-fx-text-fill: #cc0000;"
+                activeLabel.style = "-fx-text-fill: -tc-error;"
                 return@setOnAction
             }
             try {
                 controller.setPreset(id)
                 activeLabel.text = "Active preset: $id"
-                activeLabel.style = "-fx-text-fill: #00aa00;"
+                activeLabel.style = "-fx-text-fill: -tc-success;"
             } catch (e: IllegalArgumentException) {
                 activeLabel.text = "Error: ${e.message}"
-                activeLabel.style = "-fx-text-fill: #cc0000;"
+                activeLabel.style = "-fx-text-fill: -tc-error;"
             }
         }
 
@@ -449,7 +449,7 @@ class LightPlugin : DmPlugin {
             controller.setPreset(null)
             presetField.clear()
             activeLabel.text = "No preset active"
-            activeLabel.style = "-fx-text-fill: #888888;"
+            activeLabel.style = "-fx-text-fill: -tc-text-muted;"
         }
 
         val inputRow = HBox(6.0, presetField, applyBtn, clearBtn).apply {

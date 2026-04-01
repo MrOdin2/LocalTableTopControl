@@ -419,16 +419,16 @@ class TrackerPlugin : DmPlugin {
         private const val SLIDER_VALUE_EPSILON = 1e-9
 
         private const val CARD_STYLE_NORMAL =
-            "-fx-border-color: #888888; -fx-border-radius: 4; " +
-                "-fx-background-color: #f5f5f5; -fx-background-radius: 4;"
+            "-fx-border-color: -tc-card-border; -fx-border-radius: 4; " +
+                "-fx-background-color: -tc-card-bg; -fx-background-radius: 4;"
 
         private const val CARD_STYLE_ACTIVE =
-            "-fx-border-color: #e67e00; -fx-border-width: 2; -fx-border-radius: 4; " +
-                "-fx-background-color: #fff3e0; -fx-background-radius: 4;"
+            "-fx-border-color: -tc-card-active-border; -fx-border-width: 2; -fx-border-radius: 4; " +
+                "-fx-background-color: -tc-card-active-bg; -fx-background-radius: 4;"
 
         private const val CARD_STYLE_DRAG_OVER =
-            "-fx-border-color: #4488ff; -fx-border-radius: 4; " +
-                "-fx-background-color: #e8f0ff; -fx-background-radius: 4;"
+            "-fx-border-color: -tc-card-dragover-border; -fx-border-radius: 4; " +
+                "-fx-background-color: -tc-card-dragover-bg; -fx-background-radius: 4;"
 
         /**
          * 64 perceptually distinct token colours generated from 16 evenly spaced hues

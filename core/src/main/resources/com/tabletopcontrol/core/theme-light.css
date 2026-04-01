@@ -1,0 +1,60 @@
+/*
+ * TabletopControl — Light Theme
+ *
+ * Extends the default JavaFX Modena stylesheet.
+ * Custom colour variables are defined on .root so every descendant node can
+ * reference them as CSS "looked-up colours" in inline styles or class rules.
+ *
+ * ── User-configurable colours ─────────────────────────────────────────────
+ * These four variables are overridden at runtime by the per-user
+ * theme-custom.css file written by ThemeManager:
+ *
+ *   -tc-accent   buttons and interactive highlights
+ *   -tc-bg       window / scene background
+ *   -tc-surface  panel and card surfaces
+ *   -tc-border   panel edges and control borders
+ *
+ * The four variables are also wired into the matching Modena variables so
+ * that all built-in JavaFX controls adapt automatically when the user
+ * customises the palette.
+ *
+ * ── Fixed semantic colours ────────────────────────────────────────────────
+ * These are defined in this file only and are not user-configurable.
+ */
+
+.root {
+    /* ── Group 1: Background & Surfaces (user-configurable) ──────── */
+    -tc-bg:      #f4f4f4;   /* window / scene background              */
+    -tc-surface: #ffffff;   /* panel, card, widget background          */
+    -tc-border:  #c8c8c8;   /* panel edges and control borders         */
+
+    /* ── Group 2: Interactive / Accent (user-configurable) ───────── */
+    -tc-accent:    #1565c0;   /* buttons, links, active-state highlights  */
+    -tc-on-accent: #ffffff;   /* text drawn on top of an accent-coloured  */
+                              /* surface (e.g. active soundboard button)  */
+
+    /* ── Group 3: Text ───────────────────────────────────────────── */
+    -tc-text:       #212121;   /* primary text                         */
+    -tc-text-muted: #888888;   /* secondary / hint text                */
+
+    /* ── Group 4: Status ─────────────────────────────────────────── */
+    -tc-success: #00aa00;   /* connected, OK states                    */
+    -tc-error:   #cc0000;   /* error states                            */
+
+    /* ── Group 5: Tracker card states (derived) ──────────────────── */
+    -tc-card-bg:              -tc-surface;
+    -tc-card-border:          -tc-border;
+    -tc-card-active-bg:       #fff3e0;   /* warm accent-tinted surface */
+    -tc-card-active-border:   -tc-accent;
+    -tc-card-dragover-bg:     #e8f0ff;   /* cool accent-tinted surface */
+    -tc-card-dragover-border: -tc-accent;
+
+    /* ── Wire -tc-* variables into JavaFX Modena ─────────────────── */
+    /* This ensures built-in controls and the scene background         */
+    /* respond when the user customises the palette via the dialog.    */
+    -fx-background:               -tc-bg;
+    -fx-base:                     -tc-surface;
+    -fx-control-inner-background: -tc-surface;
+    -fx-text-base-color:          -tc-text;
+    -fx-mid-text-color:           -tc-text-muted;
+}
