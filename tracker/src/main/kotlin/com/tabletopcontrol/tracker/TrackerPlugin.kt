@@ -868,13 +868,10 @@ class TrackerPlugin : DmPlugin {
                                 val entriesBefore = tracker.entries
                                 tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
                                 val entriesAfter = tracker.entries
-                                // Find the newly added entry by reference identity (===) and use its index.
-                                val newEntry = entriesAfter.firstOrNull { afterEntry ->
+                                // Find the index of the newly added entry using reference identity (===).
+                                val insertIdx = entriesAfter.indexOfFirst { afterEntry ->
                                     entriesBefore.none { beforeEntry -> beforeEntry === afterEntry }
-                                }
-                                val insertIdx = newEntry?.let { entriesAfter.indexOf(it) }
-                                    ?.takeIf { it >= 0 }
-                                    ?: (entriesAfter.size - 1)
+                                }.takeIf { it >= 0 } ?: (entriesAfter.size - 1)
                                 tokenIds.add(insertIdx, id)
                                 tokenColors[id] = color
 
