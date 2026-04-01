@@ -685,16 +685,17 @@ class LayoutSerializerTest {
         val options = computeExtendOptions(root, music)
         assertTrue(options.containsKey("Extend Left"), "Extend Left should be offered for Music")
 
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
-            PaneNode.Split(Orientation.HORIZONTAL, 0.5,
-                PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
-                PaneNode.Split(Orientation.VERTICAL, 0.5, music, map)),
-            soundboard)
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.25,
+            PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
+            PaneNode.Split(Orientation.VERTICAL, 0.5, music,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.3333333333333333, map, soundboard)
+            )
+        )
         assertEquals(expected, options["Extend Left"])
     }
 
     @Test
-    fun `same-GP-orientation uncle extend left on Soundboard produces H(H(V(Tracker,Lights),V(Map,Soundboard)), Music)`() {
+    fun `same-GP-orientation uncle extend left on Soundboard produces H(V(Tracker,Lights), V(H(Map,Music), Soundboard))`() {
         val tracker    = PaneNode.Leaf("Tracker")
         val lights     = PaneNode.Leaf("Lights")
         val map        = PaneNode.Leaf("Map")
@@ -705,17 +706,16 @@ class LayoutSerializerTest {
         val parent     = PaneNode.Split(Orientation.VERTICAL,   0.5, music,    soundboard)
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.5, uncle,    parent)
 
-        // Soundboard: SECOND in V parent; sibling=Music; adjacentUncleChild=uncle.second=Map (Leaf)
-        // newSharedNode = V(Map, Soundboard)  — Map FIRST (adjacent), Soundboard SECOND (posInParent=SECOND)
-        // newInnerNode = H(V(T,L), V(Map,Soundboard)); newGPNode = H(H(V(T,L),V(Map,Soundboard)), Music)
         val options = computeExtendOptions(root, soundboard)
         assertTrue(options.containsKey("Extend Left"), "Extend Left should be offered for Soundboard")
 
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
-            PaneNode.Split(Orientation.HORIZONTAL, 0.5,
-                PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
-                PaneNode.Split(Orientation.VERTICAL, 0.5, map, soundboard)),
-            music)
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.25,
+            PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
+            PaneNode.Split(Orientation.VERTICAL, 0.5,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.3333333333333333, map, music),
+                soundboard
+            )
+        )
         assertEquals(expected, options["Extend Left"])
     }
 
