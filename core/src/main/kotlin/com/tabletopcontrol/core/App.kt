@@ -132,6 +132,8 @@ class App : Application() {
         return Scene(root, 1280.0, 720.0)
     }
 
+
+
     /**
      * Builds a slim toolbar at the top of the DM panel that lets the DM choose
      * which screen the Table View is shown on and move it there.
@@ -209,11 +211,17 @@ class App : Application() {
             }
         }
 
+        // Help button — extracts bundled docs and opens the index page in the system browser.
+        val helpButton = Button("❓ Help").apply {
+            tooltip = Tooltip("Open the user documentation in your browser")
+            setOnAction { HelpManager.openHelp(hostServices) }
+        }
+
         // Spacer pushes screen controls to the right so the layout area is uncluttered.
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
         val label = Label("Table View screen:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
 
-        return ToolBar(themeButton, spacer, label, screenCombo, moveButton)
+        return ToolBar(themeButton, helpButton, spacer, label, screenCombo, moveButton)
     }
 
     /**
