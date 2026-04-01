@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ambient Lighting – TabletopControl User Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside { width: 220px; flex-shrink: 0; }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    aside .toc ul ul { margin-left: 0.8rem; margin-top: 0.25rem; }
+    aside .other-docs { margin-top: 1rem; }
+    aside .other-docs h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .other-docs ul { list-style: none; }
+    aside .other-docs ul li { margin-bottom: 0.35rem; }
+    aside .other-docs ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .other-docs ul li a:hover { text-decoration: underline; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #333; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .tip strong { color: var(--accent); }
+    .warning {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .warning strong { color: #f57f17; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    .effect-swatch {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>💡 Ambient Lighting</h1>
+  <p>TabletopControl User Documentation</p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="../docs/index.html">Home</a> &rsaquo; Ambient Lighting
+</nav>
+
+<div class="layout">
+
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#setup">Hardware Setup</a></li>
+        <li><a href="#connection">Connecting</a></li>
+        <li><a href="#power">Power Control</a></li>
+        <li><a href="#color">Colour</a></li>
+        <li><a href="#effects">Effects</a></li>
+        <li><a href="#brightness">Brightness</a></li>
+        <li><a href="#cycling">Colour Cycling</a></li>
+        <li><a href="#presets">Presets</a></li>
+        <li><a href="#debug">Debug Console</a></li>
+      </ul>
+    </div>
+    <div class="other-docs">
+      <h2>Other Plugins</h2>
+      <ul>
+        <li><a href="../map/UserDoc.html">🗺️ Map</a></li>
+        <li><a href="../audio/UserDoc.html">🎵 Audio</a></li>
+        <li><a href="../tracker/UserDoc.html">⚔️ Tracker</a></li>
+        <li><a href="../docs/cross-plugin.html">🔗 Cross-Plugin</a></li>
+        <li><a href="../docs/index.html">📖 Home</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        The Ambient Lighting plugin lets you control <strong>WLED-compatible RGB LED strips</strong>
+        from TabletopControl. Wrap LED strips around your table, behind your screen, or around your
+        dice tower to create immersive, scene-appropriate lighting that changes as the adventure
+        unfolds.
+      </p>
+      <p>
+        The plugin communicates with a WLED device over a <strong>serial (USB) connection</strong>.
+        No Wi-Fi or network configuration is required — just a USB cable between the DM's computer
+        and the microcontroller running WLED.
+      </p>
+      <div class="tip">
+        <strong>What is WLED?</strong> WLED is free, open-source firmware for LED controllers
+        (such as ESP8266 and ESP32). It runs on inexpensive hardware and gives you a huge range of
+        lighting effects. See <a href="https://kno.wled.ge" target="_blank">kno.wled.ge</a> for
+        more information.
+      </div>
+    </section>
+
+    <section id="setup">
+      <h2>Hardware Setup</h2>
+      <p>To use the Ambient Lighting plugin you need:</p>
+      <ol>
+        <li>
+          A microcontroller (e.g. ESP8266 or ESP32) flashed with
+          <a href="https://kno.wled.ge" target="_blank">WLED firmware</a>.
+        </li>
+        <li>An addressable RGB LED strip (WS2812B or similar) wired to the controller.</li>
+        <li>A USB cable connecting the controller to the computer running TabletopControl.</li>
+      </ol>
+      <p>
+        Once the hardware is connected and powered, the controller should appear as a serial
+        device (e.g. <code>/dev/ttyUSB0</code> on Linux).
+      </p>
+      <div class="warning">
+        <strong>Note:</strong> You may need to install a USB-to-serial driver for your
+        microcontroller. On Linux, most controllers are recognised automatically. On other systems,
+        check the controller manufacturer's documentation.
+      </div>
+    </section>
+
+    <section id="connection">
+      <h2>Connecting to the Device</h2>
+      <p>
+        In the Ambient Lighting panel on the DM screen:
+      </p>
+      <ol>
+        <li>
+          Select the <strong>Serial Port</strong> from the dropdown. The list shows all available
+          serial ports detected by the system. If your device is not listed, check that it is
+          plugged in and powered, then click the refresh button next to the dropdown.
+        </li>
+        <li>
+          Select the <strong>Baud Rate</strong>. For most WLED-based controllers the default is
+          <strong>115200</strong>. Check your WLED device configuration if unsure.
+        </li>
+        <li>
+          Click <strong>Connect</strong>. The status label changes to
+          <span style="color:#00aa00">Connected</span> if successful, or shows an error message
+          if the connection failed.
+        </li>
+      </ol>
+      <p>
+        To disconnect, click <strong>Disconnect</strong>. All lighting controls remain visible so
+        you can reconnect without losing your settings.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> TabletopControl does not remember the serial port between sessions.
+        Make a note of the port name (e.g. <code>/dev/ttyUSB0</code>) so you can select it
+        quickly next time.
+      </div>
+    </section>
+
+    <section id="power">
+      <h2>Power Control</h2>
+      <p>
+        The <strong>Power</strong> toggle turns the LED strip on or off without disconnecting from
+        the serial port. Use this to quickly black out the lights without changing any settings.
+      </p>
+      <p>
+        When power is off, all other controls (colour, effects, brightness) retain their last values.
+        Turning power back on restores the lights to the previous state.
+      </p>
+    </section>
+
+    <section id="color">
+      <h2>Colour</h2>
+      <p>
+        Click the <strong>Colour</strong> picker to open the JavaFX colour chooser. Select any
+        colour and confirm — the LED strip updates immediately (within a fraction of a second).
+      </p>
+      <p>
+        The chosen colour is used as the base colour for all static effects (such as
+        <em>None</em> and <em>Fade</em>). Dynamic colour effects such as <em>Rainbow</em> ignore
+        the selected colour and generate their own palette.
+      </p>
+    </section>
+
+    <section id="effects">
+      <h2>Effects</h2>
+      <p>
+        Select a lighting effect from the <strong>Effect</strong> dropdown to animate the LED strip.
+        The effect starts immediately.
+      </p>
+      <table>
+        <tr><th>Effect</th><th>Description</th></tr>
+        <tr>
+          <td>None</td>
+          <td>Solid static colour — no animation. The strip displays the selected colour at full brightness.</td>
+        </tr>
+        <tr>
+          <td>Fade</td>
+          <td>The strip smoothly pulses (fades in and out) in the selected colour. Great for a calm, atmospheric glow.</td>
+        </tr>
+        <tr>
+          <td>Strobe</td>
+          <td>Rapid on–off flashing in the selected colour. Good for lightning storms or dramatic reveals.</td>
+        </tr>
+        <tr>
+          <td>Rainbow</td>
+          <td>Cycles through all hues continuously. The selected colour is ignored. Ideal for celebratory moments.</td>
+        </tr>
+        <tr>
+          <td>Fire</td>
+          <td>Simulates flickering fire with warm orange and red tones. Great for tavern scenes or torch-lit dungeons.</td>
+        </tr>
+        <tr>
+          <td>Candle</td>
+          <td>Gentle, slow flicker resembling a single candle flame. A subtler alternative to Fire.</td>
+        </tr>
+        <tr>
+          <td>Ocean</td>
+          <td>Slow, flowing blue-green waves. Use for underwater scenes or peaceful open-air locations.</td>
+        </tr>
+      </table>
+      <div class="tip">
+        <strong>Ideas by scene type:</strong>
+        Tavern → <em>Candle</em> or warm <em>Fade</em> &bull;
+        Dungeon → dim <em>None</em> (orange) &bull;
+        Outdoors at night → cool <em>None</em> (dark blue) &bull;
+        Battle → <em>Strobe</em> or <em>Fire</em> &bull;
+        Celebration → <em>Rainbow</em>
+      </div>
+    </section>
+
+    <section id="brightness">
+      <h2>Brightness</h2>
+      <p>
+        The <strong>Brightness</strong> slider sets the overall brightness of the LED strip from
+        0% (off) to 100% (maximum). Adjusting brightness is separate from the power toggle —
+        setting brightness to 0% dims the lights but does not send a power-off command.
+      </p>
+      <p>
+        For a subtle ambient glow during normal play, 20–40% brightness is often ideal. Increase
+        for dramatic reveals or energetic scenes.
+      </p>
+    </section>
+
+    <section id="cycling">
+      <h2>Colour Cycling</h2>
+      <p>
+        Enable the <strong>Colour Cycling</strong> checkbox to make the LED strip automatically
+        cycle through all hues over time, starting from the currently selected colour. This is
+        different from the <em>Rainbow</em> effect — cycling rotates the chosen base colour slowly,
+        while <em>Rainbow</em> sweeps through the entire spectrum rapidly on the strip itself.
+      </p>
+      <p>
+        Use colour cycling when you want a slow, atmospheric mood shift rather than a visually busy
+        animation.
+      </p>
+    </section>
+
+    <section id="presets">
+      <h2>Presets</h2>
+      <p>
+        WLED devices support numbered <strong>presets</strong> (1–250) that are stored on the
+        device itself. A preset can contain any combination of effect, colour, speed, and intensity
+        settings that you have configured directly on the WLED device using its own web interface.
+      </p>
+      <p>
+        In the Lighting panel, type a preset number into the <strong>Preset</strong> field and
+        press <kbd>Enter</kbd> (or click <strong>Apply Preset</strong>) to activate it. The device
+        switches to that preset immediately.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> Set up your favourite lighting scenes as presets on the WLED device
+        in advance. During a session you can switch between them with a single number entry —
+        much faster than manually adjusting colour, effect, and brightness individually.
+      </div>
+    </section>
+
+    <section id="debug">
+      <h2>Debug Console</h2>
+      <p>
+        The <strong>Debug Console</strong> (shown or hidden via a toggle) displays a live log of
+        all serial commands sent to the WLED device. Each line shows the JSON payload that was
+        transmitted.
+      </p>
+      <p>
+        This is primarily useful for troubleshooting — if the lights are not responding as expected,
+        the console can confirm whether the correct command was sent.
+      </p>
+      <p>
+        The console is not needed during normal use and can be kept hidden.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  TabletopControl User Documentation &mdash;
+  <a href="../docs/index.html">Home</a>
+</footer>
+
+</body>
+</html>

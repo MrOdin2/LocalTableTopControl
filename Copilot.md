@@ -4,6 +4,33 @@ This file provides structured context for GitHub Copilot and AI coding agents wo
 
 ---
 
+## Documentation Maintenance
+
+TabletopControl ships user-facing HTML documentation alongside each plugin and in a shared `docs/` folder.
+**Whenever you add, remove, or change a user-visible feature, you must update the relevant documentation.**
+
+### Documentation File Map
+
+| Changed area | Documentation file(s) to update |
+|---|---|
+| Map plugin features | `map/UserDoc.html` |
+| Audio plugin features (music or soundboard) | `audio/UserDoc.html` |
+| Initiative / HP tracker features | `tracker/UserDoc.html` |
+| Ambient lighting features | `light/UserDoc.html` |
+| Cross-plugin behaviour (tracker ↔ map tokens) | `docs/cross-plugin.html` |
+| Core features (layout, theme, two-screen setup) | `docs/index.html` |
+| Any new plugin added | Create a `<module>/UserDoc.html` following the existing style and add a card link in `docs/index.html` |
+
+### Rules
+
+1. **User-centric language** — describe what the user can *do*, not how it is implemented.
+2. **No implementation details** — do not mention class names, event bus, Kotlin, or JavaFX internals.
+3. **Keep links valid** — if you rename sections or files, update all `href` references across all doc files.
+4. **Interactive links** — use `id` anchors and relative `href` paths so readers can navigate between files and sections.
+5. **Tables for controls** — list all user-facing controls in tables (control name + description).
+
+---
+
 ## Project Summary
 
 TabletopControl is a **Kotlin / JavaFX** desktop application for tabletop RPG sessions.  
