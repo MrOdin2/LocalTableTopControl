@@ -406,7 +406,7 @@ class LayoutSerializerTest {
         val options = computeExtendOptions(root, soundboard)
         assertTrue(options.containsKey("Extend Left"), "Extend Left should be offered for Soundboard")
 
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.25,
             PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
             soundboard)
         assertEquals(expected, options["Extend Left"])
