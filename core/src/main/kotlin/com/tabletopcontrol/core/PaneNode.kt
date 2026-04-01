@@ -191,6 +191,20 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
         removeNode(root, sibling)?.let { options[label] = it }
     }
 
+    // ── 1.5. Sibling is Split with same orientation ──────────────────────
+    // Sibling is a Split whose orientation matches the parent's orientation, and the
+    // sibling's child adjacent to the leaf is a single Leaf.
+    // The leaf absorbs the adjacent child, which is equivalent to closing it.
+    if (sibling is PaneNode.Split && sibling.orientation == parent.orientation) {
+        val adjacentSiblingChild = if (posInParent == ChildPos.FIRST) sibling.first else sibling.second
+        if (adjacentSiblingChild is PaneNode.Leaf) {
+            val label = directionLabel(parent.orientation, posInParent)
+            if (!options.containsKey(label)) {
+                removeNode(root, adjacentSiblingChild)?.let { options[label] = it }
+            }
+        }
+    }
+
     val grandParent = ancestry.grandParent ?: return options
     val posOfParentInGP = ancestry.posOfParentInGP ?: return options
     val uncle = if (posOfParentInGP == ChildPos.FIRST) grandParent.second else grandParent.first
