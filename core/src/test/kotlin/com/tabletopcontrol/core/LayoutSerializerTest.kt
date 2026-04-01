@@ -294,14 +294,32 @@ class LayoutSerializerTest {
         val inner = PaneNode.Split(Orientation.HORIZONTAL, 0.5, a, b)
         val root = PaneNode.Split(Orientation.VERTICAL, 0.5, inner, c)
 
-        // A is FIRST in HORIZONTAL parent; parent is FIRST in VERTICAL grandParent; uncle = C.
-        // combined = Split(VERTICAL, B, C)   [sibling B at parentPos=FIRST, uncle C at unclePos=SECOND]
-        // newGPNode = Split(HORIZONTAL, A, combined)  [A at leafPos=FIRST]
-        val combined = PaneNode.Split(Orientation.VERTICAL, 0.5, b, c)
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5, a, combined)
-        assertEquals(expected, replaceNodeByRef(root, root, expected))
-        // Also verify the construction formula directly:
-        assertEquals(expected, PaneNode.Split(Orientation.HORIZONTAL, 0.5, a, PaneNode.Split(Orientation.VERTICAL, 0.5, b, c)))
+        // Simulate the cross-level extend algorithm for A (same logic as computeExtendOptions):
+        // A is FIRST in HORIZONTAL inner; inner is FIRST in VERTICAL root; uncle = C.
+        val ancestry = findAncestry(root, a)
+        val parent = ancestry.parent!!
+        val posInParent = ancestry.posInParent!!         // FIRST
+        val grandParent = ancestry.grandParent!!
+        val posOfParentInGP = ancestry.posOfParentInGP!! // FIRST
+        val sibling = if (posInParent == ChildPos.FIRST) parent.second else parent.first   // B
+        val uncle = if (posOfParentInGP == ChildPos.FIRST) grandParent.second else grandParent.first // C
+
+        // combined = Split(VERTICAL, B, C)  — sibling at parentPos (FIRST), uncle at unclePos (SECOND)
+        val combined = if (posOfParentInGP == ChildPos.FIRST) {
+            PaneNode.Split(grandParent.orientation, 0.5, sibling, uncle)
+        } else {
+            PaneNode.Split(grandParent.orientation, 0.5, uncle, sibling)
+        }
+        // newGPNode = Split(HORIZONTAL, A, combined)  — leaf at leafPos (FIRST)
+        val newGPNode = if (posInParent == ChildPos.FIRST) {
+            PaneNode.Split(parent.orientation, 0.5, a, combined)
+        } else {
+            PaneNode.Split(parent.orientation, 0.5, combined, a)
+        }
+        val result = replaceNodeByRef(root, grandParent, newGPNode)
+
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5, a, PaneNode.Split(Orientation.VERTICAL, 0.5, b, c))
+        assertEquals(expected, result)
     }
 
     @Test
@@ -312,11 +330,32 @@ class LayoutSerializerTest {
         val inner = PaneNode.Split(Orientation.HORIZONTAL, 0.5, a, b)
         val root = PaneNode.Split(Orientation.VERTICAL, 0.5, inner, c)
 
-        // B is SECOND in HORIZONTAL parent; parent is FIRST in VERTICAL grandParent; uncle = C.
-        // combined = Split(VERTICAL, A, C)   [sibling A at parentPos=FIRST, uncle C at unclePos=SECOND]
-        // newGPNode = Split(HORIZONTAL, combined, B)  [B at leafPos=SECOND]
+        // Simulate the cross-level extend algorithm for B:
+        // B is SECOND in HORIZONTAL inner; inner is FIRST in VERTICAL root; uncle = C.
+        val ancestry = findAncestry(root, b)
+        val parent = ancestry.parent!!
+        val posInParent = ancestry.posInParent!!         // SECOND
+        val grandParent = ancestry.grandParent!!
+        val posOfParentInGP = ancestry.posOfParentInGP!! // FIRST
+        val sibling = if (posInParent == ChildPos.FIRST) parent.second else parent.first   // A
+        val uncle = if (posOfParentInGP == ChildPos.FIRST) grandParent.second else grandParent.first // C
+
+        // combined = Split(VERTICAL, A, C)  — sibling A at parentPos (FIRST), uncle C at unclePos (SECOND)
+        val combined = if (posOfParentInGP == ChildPos.FIRST) {
+            PaneNode.Split(grandParent.orientation, 0.5, sibling, uncle)
+        } else {
+            PaneNode.Split(grandParent.orientation, 0.5, uncle, sibling)
+        }
+        // newGPNode = Split(HORIZONTAL, combined, B)  — leaf B at leafPos (SECOND)
+        val newGPNode = if (posInParent == ChildPos.FIRST) {
+            PaneNode.Split(parent.orientation, 0.5, b, combined)
+        } else {
+            PaneNode.Split(parent.orientation, 0.5, combined, b)
+        }
+        val result = replaceNodeByRef(root, grandParent, newGPNode)
+
         val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5, PaneNode.Split(Orientation.VERTICAL, 0.5, a, c), b)
-        assertEquals(expected, PaneNode.Split(Orientation.HORIZONTAL, 0.5, PaneNode.Split(Orientation.VERTICAL, 0.5, a, c), b))
+        assertEquals(expected, result)
     }
 
     @Test

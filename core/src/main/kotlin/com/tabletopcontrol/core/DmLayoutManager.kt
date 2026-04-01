@@ -206,11 +206,12 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
      */
     private fun computeExtendOptions(leaf: PaneNode.Leaf): Map<String, PaneNode> {
         val ancestry = findAncestry(layoutRoot, leaf)
-        val options = LinkedHashMap<String, PaneNode>()
 
-        val parent = ancestry.parent ?: return options
-        val posInParent = ancestry.posInParent ?: return options
+        val parent = ancestry.parent ?: return emptyMap()
+        val posInParent = ancestry.posInParent ?: return emptyMap()
         val sibling = if (posInParent == ChildPos.FIRST) parent.second else parent.first
+
+        val options = LinkedHashMap<String, PaneNode>()
 
         // Same-level extension: leaf expands into its sibling (only when sibling is a single Leaf).
         if (sibling is PaneNode.Leaf) {
