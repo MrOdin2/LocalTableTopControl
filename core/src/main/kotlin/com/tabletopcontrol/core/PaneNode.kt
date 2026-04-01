@@ -141,7 +141,7 @@ fun directionLabel(orientation: Orientation, childPos: ChildPos): String = when 
  * Computes the extend options available for [leaf] within the layout tree rooted at [root].
  *
  * A leaf can extend in a direction if doing so restructures exactly one neighbouring panel.
- * Four kinds of extension are recognised, evaluated in priority order (higher priority
+ * Five kinds of extension are recognised, evaluated in priority order (higher priority
  * wins when two would produce the same direction label):
  *
  * 1. **Same-level**: sibling within the parent split is a single [PaneNode.Leaf].
