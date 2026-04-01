@@ -258,25 +258,56 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         }
 
         // ── 3. Same-uncle-orientation ────────────────────────────────────────
-        // Uncle is a Split whose orientation matches the parent's orientation.
-        // The uncle's child at the leaf's own position (posInParent) must be a single Leaf.
-        // Removing that one child from the uncle is visually equivalent to extending the
-        // leaf across its row or column into the adjacent panel slot.
+        // Uncle is a Split whose orientation matches the parent's orientation, and the
+        // uncle's child at posInParent (the "parallel slot") is a single Leaf.
+        //
+        // The entire grandParent is restructured: the leaf takes its row/column slice
+        // across the full grandParent width/height; the displaced sibling and the uncle's
+        // surviving child are merged into the other half using the grandParent's orientation
+        // (preserving left/right or top/bottom positions).
+        //
+        // Example — H(V(Tracker,Map), V(Music,Soundboard)), Tracker extends right:
+        //   merged = H(Map, Soundboard)      — sibling left, remainingUncle right (posOfParentInGP=FIRST)
+        //   newGPNode = V(Tracker, H(Map,Soundboard))
         if (uncle is PaneNode.Split && uncle.orientation == parent.orientation) {
             val correspondingUncleChild =
                 if (posInParent == ChildPos.FIRST) uncle.first else uncle.second
             if (correspondingUncleChild is PaneNode.Leaf) {
                 val label = directionLabel(grandParent.orientation, posOfParentInGP)
                 if (!options.containsKey(label)) {
-                    removeNode(layoutRoot, correspondingUncleChild)?.let { options[label] = it }
+                    // The uncle's child NOT being absorbed: it merges with the displaced sibling.
+                    val remainingUncle = if (posInParent == ChildPos.FIRST) uncle.second else uncle.first
+                    // Merged pair: sibling inherits the parent's visual side; remainingUncle inherits
+                    // the uncle's visual side, both relative to the grandParent's orientation.
+                    val merged = if (posOfParentInGP == ChildPos.FIRST) {
+                        PaneNode.Split(grandParent.orientation, 0.5, sibling, remainingUncle)
+                    } else {
+                        PaneNode.Split(grandParent.orientation, 0.5, remainingUncle, sibling)
+                    }
+                    // Leaf and merged replace the grandParent, using the parent's orientation so
+                    // the leaf stays in its own row/column position.
+                    val newGPNode = if (posInParent == ChildPos.FIRST) {
+                        PaneNode.Split(parent.orientation, 0.5, leaf, merged)
+                    } else {
+                        PaneNode.Split(parent.orientation, 0.5, merged, leaf)
+                    }
+                    options[label] = replaceNodeByRef(layoutRoot, grandParent, newGPNode)
                 }
             }
         }
 
         // ── 4. Great-uncle-is-Leaf ───────────────────────────────────────────
         // The leaf's great-grandparent exists and its other child (the great-uncle) is a
-        // single Leaf.  The leaf grows to split the great-uncle's space, occupying the
-        // portion that corresponds to its own position within the parent split.
+        // single Leaf.  The entire great-grandParent is restructured: the leaf claims a new
+        // column/row that spans the great-uncle's space; the displaced sibling is merged
+        // with the great-uncle using the great-grandParent's orientation; the uncle
+        // (grandParent's surviving child) stays unchanged in the grandParent's former slot.
+        //
+        // Example — H(Lights, H(V(Tracker,Map), V(Music,Soundboard))), Tracker extends left:
+        //   merged    = H(Lights, Map)      — great-uncle left, sibling right (posOfGPInGGP=SECOND)
+        //   newNode   = V(Tracker, H(Lights,Map))
+        //   uncle     = V(Music, Soundboard)
+        //   newGGPNode = H(V(Tracker,H(Lights,Map)), V(Music,Soundboard))
         val greatGrandParent = ancestry.greatGrandParent ?: return options
         val posOfGPInGGP = ancestry.posOfGPInGGP ?: return options
         val greatUncle =
@@ -285,23 +316,29 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         if (greatUncle is PaneNode.Leaf) {
             val label = directionLabel(greatGrandParent.orientation, posOfGPInGGP)
             if (!options.containsKey(label)) {
-                // Split the great-uncle's space: leaf takes its own row/column position,
-                // great-uncle takes the other position.  The new split uses the parent's
-                // orientation so the visual position matches the leaf's current alignment.
-                val newGreatUncleNode = if (posInParent == ChildPos.FIRST) {
-                    PaneNode.Split(parent.orientation, 0.5, leaf, greatUncle)
+                // Merged pair: great-uncle keeps its visual side; displaced sibling inherits
+                // the grandParent's former side, both relative to the great-grandParent's orientation.
+                val merged = if (posOfGPInGGP == ChildPos.FIRST) {
+                    // grandParent was FIRST → sibling at FIRST; great-uncle was SECOND → at SECOND
+                    PaneNode.Split(greatGrandParent.orientation, 0.5, sibling, greatUncle)
                 } else {
-                    PaneNode.Split(parent.orientation, 0.5, greatUncle, leaf)
+                    // great-uncle was FIRST → at FIRST; grandParent was SECOND → sibling at SECOND
+                    PaneNode.Split(greatGrandParent.orientation, 0.5, greatUncle, sibling)
                 }
-                // Remove the leaf from the grandparent subtree; the remaining content
-                // keeps its position on the great-grandparent's side.
-                val shrunkGP = removeNode(grandParent, leaf) ?: return options
-                // Reconstruct the great-grandparent with the new great-uncle node on the
-                // great-uncle's side and the shrunk grandparent on the other side.
-                val newGGPNode = if (posOfGPInGGP == ChildPos.FIRST) {
-                    PaneNode.Split(greatGrandParent.orientation, 0.5, shrunkGP, newGreatUncleNode)
+                // Leaf and merged are placed in a new node using the parent's orientation,
+                // so the leaf stays in its own row/column position.
+                val newNode = if (posInParent == ChildPos.FIRST) {
+                    PaneNode.Split(parent.orientation, 0.5, leaf, merged)
                 } else {
-                    PaneNode.Split(greatGrandParent.orientation, 0.5, newGreatUncleNode, shrunkGP)
+                    PaneNode.Split(parent.orientation, 0.5, merged, leaf)
+                }
+                // newNode goes where the great-uncle was; uncle takes the grandParent's former slot.
+                val newGGPNode = if (posOfGPInGGP == ChildPos.FIRST) {
+                    // grandParent was FIRST → uncle at FIRST; great-uncle was SECOND → newNode at SECOND
+                    PaneNode.Split(greatGrandParent.orientation, 0.5, uncle, newNode)
+                } else {
+                    // great-uncle was FIRST → newNode at FIRST; grandParent was SECOND → uncle at SECOND
+                    PaneNode.Split(greatGrandParent.orientation, 0.5, newNode, uncle)
                 }
                 options[label] = replaceNodeByRef(layoutRoot, greatGrandParent, newGGPNode)
             }

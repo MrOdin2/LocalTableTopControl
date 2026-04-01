@@ -90,14 +90,14 @@ Four kinds of extension are supported, evaluated in priority order (higher prior
 |----------|------|-----------|--------|
 | 1 | Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
 | 2 | Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling recombines with the uncle on the opposite side. |
-| 3 | Same-uncle-orientation | Uncle is a `Split` with the *same* orientation as the parent, and the uncle's child at the leaf's position is a single `Leaf` | That one child is removed from the layout; the current pane's row or column gains the freed space. |
-| 4 | Great-uncle-is-Leaf | Great-grandparent exists and its other child (the great-uncle) is a single `Leaf` | The leaf splits the great-uncle's space, occupying the slice that matches its own position within its parent split; the remaining grandparent subtree keeps its original position. |
+| 3 | Same-uncle-orientation | Uncle is a `Split` with the *same* orientation as the parent, and the uncle's child at the leaf's position is a single `Leaf` | The grandparent is restructured: the leaf takes a full-width/height row/column; the displaced sibling and the uncle's surviving child are merged side-by-side into the other half. |
+| 4 | Great-uncle-is-Leaf | Great-grandparent exists and its other child (the great-uncle) is a single `Leaf` | The great-grandparent is restructured: a new node on the great-uncle's side combines the leaf with the great-uncle (leaf at its own row/column position, displaced sibling filling the other slot); the uncle takes the grandparent's former slot. |
 
 Example — layout `H(Lights, H(V(Tracker, Map), V(Music, Soundboard)))`:
-- **Tracker** → "Extend Right" (removes Music via same-uncle-orientation), "Extend Below" (same-level, removes Map), "Extend Left" (great-uncle Lights splits; Tracker takes top).
-- **Map** → "Extend Right" (removes Soundboard), "Extend Above" (same-level, removes Tracker), "Extend Left" (great-uncle Lights splits; Map takes bottom).
-- **Music** → "Extend Left" (removes Tracker via same-uncle-orientation), "Extend Below" (same-level, removes Soundboard).
-- **Soundboard** → "Extend Left" (removes Map via same-uncle-orientation), "Extend Above" (same-level, removes Music).
+- **Tracker** → "Extend Right" → `H(Lights, V(Tracker, H(Map, Soundboard)))`, "Extend Below" (same-level, removes Map), "Extend Left" → `H(V(Tracker, H(Lights, Map)), V(Music, Soundboard))`.
+- **Map** → "Extend Right" → `H(Lights, V(H(Tracker, Music), Map))`, "Extend Above" (same-level, removes Tracker), "Extend Left" → `H(V(H(Lights, Tracker), Map), V(Music, Soundboard))`.
+- **Music** → "Extend Left" → `H(Lights, V(Music, H(Map, Soundboard)))`, "Extend Below" (same-level, removes Soundboard).
+- **Soundboard** → "Extend Left" → `H(Lights, V(H(Tracker, Music), Soundboard))`, "Extend Above" (same-level, removes Music).
 - **Lights** → no extend options (adjacent to a multi-panel section).
 
 ### Key Files

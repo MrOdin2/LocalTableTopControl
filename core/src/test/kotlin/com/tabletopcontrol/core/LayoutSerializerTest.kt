@@ -386,42 +386,7 @@ class LayoutSerializerTest {
     //          | Map     | Soundboard
 
     @Test
-    fun `same-uncle-orientation extend right on Tracker removes Music`() {
-        val lights    = PaneNode.Leaf("Lights")
-        val tracker   = PaneNode.Leaf("Tracker")
-        val map       = PaneNode.Leaf("Map")
-        val music     = PaneNode.Leaf("Music")
-        val soundboard = PaneNode.Leaf("Soundboard")
-        val innerLeft  = PaneNode.Split(Orientation.VERTICAL,   0.5, tracker, map)
-        val innerRight = PaneNode.Split(Orientation.VERTICAL,   0.5, music,   soundboard)
-        val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
-        val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
-
-        // Tracker is FIRST in V parent; uncle = V(Music, Soundboard) same orientation;
-        // uncle.first = Music → "Extend Right" removes Music.
-        val ancestry = findAncestry(root, tracker)
-        val parent = ancestry.parent!!            // V(Tracker, Map)
-        val posInParent = ancestry.posInParent!!  // FIRST
-        val grandParent = ancestry.grandParent!!  // H(innerLeft, innerRight)
-        val posOfParentInGP = ancestry.posOfParentInGP!! // FIRST
-        val uncle = if (posOfParentInGP == ChildPos.FIRST) grandParent.second else grandParent.first // innerRight = V(Music,Soundboard)
-
-        assert(uncle is PaneNode.Split) { "uncle should be a Split" }
-        val uncleAsSplit = uncle as PaneNode.Split
-        assertEquals(parent.orientation, uncleAsSplit.orientation) { "uncle and parent orientations should match" }
-        val correspondingUncleChild = if (posInParent == ChildPos.FIRST) uncleAsSplit.first else uncleAsSplit.second
-        assert(correspondingUncleChild is PaneNode.Leaf) { "corresponding uncle child should be a Leaf" }
-        assertEquals(music, correspondingUncleChild)
-
-        val result = removeNode(root, music)
-        // After removing Music: V(Music,Soundboard) collapses to Soundboard
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,
-            PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, soundboard))
-        assertEquals(expected, result)
-    }
-
-    @Test
-    fun `same-uncle-orientation extend right on Map removes Soundboard`() {
+    fun `same-uncle-orientation extend right on Tracker produces V(Tracker, H(Map, Soundboard))`() {
         val lights     = PaneNode.Leaf("Lights")
         val tracker    = PaneNode.Leaf("Tracker")
         val map        = PaneNode.Leaf("Map")
@@ -432,22 +397,29 @@ class LayoutSerializerTest {
         val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
 
-        // Map is SECOND in V parent; uncle.second = Soundboard → "Extend Right" removes Soundboard.
-        val ancestry = findAncestry(root, map)
-        val posInParent = ancestry.posInParent!!  // SECOND
-        val uncle = (ancestry.grandParent!!.second) as PaneNode.Split // innerRight
+        // Tracker: FIRST in V parent; uncle = V(Music,Sound) same orientation; uncle.first = Music.
+        // posOfParentInGP = FIRST → merged = H(sibling=Map, remainingUncle=Soundboard)
+        // newGPNode = V(Tracker, H(Map, Soundboard))
+        val ancestry       = findAncestry(root, tracker)
+        val posInParent    = ancestry.posInParent!!         // FIRST
+        val grandParent    = ancestry.grandParent!!         // H(innerLeft, innerRight) = rightPart
+        val posOfParentInGP = ancestry.posOfParentInGP!!   // FIRST
+        val uncle          = grandParent.second as PaneNode.Split // V(Music, Soundboard)
+        val remainingUncle = uncle.second                  // Soundboard (uncle.first=Music absorbed)
+        val sibling        = innerLeft.second              // Map
 
-        val correspondingUncleChild = if (posInParent == ChildPos.FIRST) uncle.first else uncle.second
-        assertEquals(soundboard, correspondingUncleChild)
+        val merged    = PaneNode.Split(grandParent.orientation, 0.5, sibling, remainingUncle) // H(Map, Soundboard)
+        val newGPNode = PaneNode.Split(ancestry.parent!!.orientation, 0.5, tracker, merged)   // V(Tracker, H(Map, Soundboard))
+        val result    = replaceNodeByRef(root, grandParent, newGPNode)
 
-        val result = removeNode(root, soundboard)
         val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,
-            PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, music))
+            PaneNode.Split(Orientation.VERTICAL, 0.5, tracker,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.5, map, soundboard)))
         assertEquals(expected, result)
     }
 
     @Test
-    fun `same-uncle-orientation extend left on Music removes Tracker`() {
+    fun `same-uncle-orientation extend right on Map produces V(H(Tracker, Music), Map)`() {
         val lights     = PaneNode.Leaf("Lights")
         val tracker    = PaneNode.Leaf("Tracker")
         val map        = PaneNode.Leaf("Map")
@@ -458,24 +430,21 @@ class LayoutSerializerTest {
         val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
 
-        // Music is FIRST in V parent; parent is SECOND in H grandParent; uncle = innerLeft = V(Tracker,Map);
-        // uncle.first = Tracker → "Extend Left" removes Tracker.
-        val ancestry = findAncestry(root, music)
-        val posInParent = ancestry.posInParent!! // FIRST
-        val uncle = (ancestry.grandParent!!.first) as PaneNode.Split // innerLeft, since parent is SECOND
+        // Map: SECOND in V parent; uncle.second = Soundboard absorbed; remainingUncle = Music.
+        // posOfParentInGP = FIRST → merged = H(sibling=Tracker, remainingUncle=Music)
+        // newGPNode = V(H(Tracker, Music), Map)
+        val merged    = PaneNode.Split(Orientation.HORIZONTAL, 0.5, tracker, music)
+        val newGPNode = PaneNode.Split(Orientation.VERTICAL,   0.5, merged, map)
+        val result    = replaceNodeByRef(root, rightPart, newGPNode)
 
-        val correspondingUncleChild = if (posInParent == ChildPos.FIRST) uncle.first else uncle.second
-        assertEquals(tracker, correspondingUncleChild)
-
-        val result = removeNode(root, tracker)
-        // Removing Tracker collapses innerLeft to Map
         val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,
-            PaneNode.Split(Orientation.HORIZONTAL, 0.5, map, innerRight))
+            PaneNode.Split(Orientation.VERTICAL, 0.5,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.5, tracker, music), map))
         assertEquals(expected, result)
     }
 
     @Test
-    fun `same-uncle-orientation extend left on Soundboard removes Map`() {
+    fun `same-uncle-orientation extend left on Music produces V(Music, H(Map, Soundboard))`() {
         val lights     = PaneNode.Leaf("Lights")
         val tracker    = PaneNode.Leaf("Tracker")
         val map        = PaneNode.Leaf("Map")
@@ -486,17 +455,41 @@ class LayoutSerializerTest {
         val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
 
-        // Soundboard is SECOND in V parent; parent is SECOND in H grandParent; uncle.second = Map.
-        val ancestry = findAncestry(root, soundboard)
-        val posInParent = ancestry.posInParent!! // SECOND
-        val uncle = (ancestry.grandParent!!.first) as PaneNode.Split // innerLeft
+        // Music: FIRST in V parent; uncle = V(Tracker,Map); uncle.first = Tracker absorbed; remainingUncle = Map.
+        // posOfParentInGP = SECOND → merged = H(remainingUncle=Map, sibling=Soundboard)
+        // newGPNode = V(Music, H(Map, Soundboard))
+        val merged    = PaneNode.Split(Orientation.HORIZONTAL, 0.5, map, soundboard)
+        val newGPNode = PaneNode.Split(Orientation.VERTICAL,   0.5, music, merged)
+        val result    = replaceNodeByRef(root, rightPart, newGPNode)
 
-        val correspondingUncleChild = if (posInParent == ChildPos.FIRST) uncle.first else uncle.second
-        assertEquals(map, correspondingUncleChild)
-
-        val result = removeNode(root, map)
         val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,
-            PaneNode.Split(Orientation.HORIZONTAL, 0.5, tracker, innerRight))
+            PaneNode.Split(Orientation.VERTICAL, 0.5, music,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.5, map, soundboard)))
+        assertEquals(expected, result)
+    }
+
+    @Test
+    fun `same-uncle-orientation extend left on Soundboard produces V(H(Tracker, Music), Soundboard)`() {
+        val lights     = PaneNode.Leaf("Lights")
+        val tracker    = PaneNode.Leaf("Tracker")
+        val map        = PaneNode.Leaf("Map")
+        val music      = PaneNode.Leaf("Music")
+        val soundboard = PaneNode.Leaf("Soundboard")
+        val innerLeft  = PaneNode.Split(Orientation.VERTICAL,   0.5, tracker, map)
+        val innerRight = PaneNode.Split(Orientation.VERTICAL,   0.5, music,   soundboard)
+        val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
+        val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
+
+        // Soundboard: SECOND in V parent; uncle.second = Map absorbed; remainingUncle = Tracker.
+        // posOfParentInGP = SECOND → merged = H(remainingUncle=Tracker, sibling=Music)
+        // newGPNode = V(H(Tracker, Music), Soundboard)
+        val merged    = PaneNode.Split(Orientation.HORIZONTAL, 0.5, tracker, music)
+        val newGPNode = PaneNode.Split(Orientation.VERTICAL,   0.5, merged, soundboard)
+        val result    = replaceNodeByRef(root, rightPart, newGPNode)
+
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,
+            PaneNode.Split(Orientation.VERTICAL, 0.5,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.5, tracker, music), soundboard))
         assertEquals(expected, result)
     }
 
@@ -523,7 +516,7 @@ class LayoutSerializerTest {
     // Tracker and Map can extend left into Lights by splitting it.
 
     @Test
-    fun `great-uncle extend left on Tracker produces H(V(Tracker,Lights), H(Map,V(Music,Soundboard)))`() {
+    fun `great-uncle extend left on Tracker produces H(V(Tracker,H(Lights,Map)), V(Music,Soundboard))`() {
         val lights     = PaneNode.Leaf("Lights")
         val tracker    = PaneNode.Leaf("Tracker")
         val map        = PaneNode.Leaf("Map")
@@ -534,48 +527,31 @@ class LayoutSerializerTest {
         val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
 
-        // Tracker: FIRST in V(Tracker,Map); V(T,M) is FIRST in H(innerLeft,innerRight);
-        // H(innerLeft,innerRight) is SECOND in root H(Lights, rightPart).
-        // → great-uncle = Lights (Leaf), direction = "Extend Left"
-        val ancestry = findAncestry(root, tracker)
-        assertEquals(innerLeft,  ancestry.parent)
-        assertEquals(ChildPos.FIRST,  ancestry.posInParent)
-        assertEquals(rightPart,  ancestry.grandParent)
-        assertEquals(ChildPos.FIRST,  ancestry.posOfParentInGP)
-        assertEquals(root,       ancestry.greatGrandParent)
+        // Tracker: FIRST in V(Tracker,Map); V(T,M) is FIRST in rightPart; rightPart is SECOND in root.
+        // → great-uncle = Lights; posOfGPInGGP = SECOND; uncle = innerRight = V(Music,Soundboard)
+        //
+        // merged    = H(greatUncle=Lights, sibling=Map)    [posOfGPInGGP=SECOND → Lights at FIRST]
+        // newNode   = V(tracker, H(Lights,Map))            [posInParent=FIRST → tracker at FIRST]
+        // newGGPNode = H(newNode, uncle)                   [posOfGPInGGP=SECOND → newNode at FIRST]
+        val ancestry    = findAncestry(root, tracker)
+        assertEquals(root,            ancestry.greatGrandParent)
         assertEquals(ChildPos.SECOND, ancestry.posOfGPInGGP)
 
-        val posInParent   = ancestry.posInParent!!   // FIRST
-        val grandParent   = ancestry.grandParent!!   // rightPart
-        val posOfGPInGGP  = ancestry.posOfGPInGGP!!  // SECOND
-        val greatUncle    = lights                   // root.first (since posOfGPInGGP=SECOND → great-uncle is FIRST)
-        val parent        = ancestry.parent!!        // innerLeft
+        val uncle      = innerRight              // grandParent.second (posOfParentInGP=FIRST)
+        val merged     = PaneNode.Split(Orientation.HORIZONTAL, 0.5, lights, map)
+        val newNode    = PaneNode.Split(Orientation.VERTICAL,   0.5, tracker, merged)
+        val newGGPNode = PaneNode.Split(Orientation.HORIZONTAL, 0.5, newNode, uncle)
+        val result     = replaceNodeByRef(root, root, newGGPNode)
 
-        // Leaf takes posInParent (FIRST/top) in new split with great-uncle
-        val newGreatUncleNode = if (posInParent == ChildPos.FIRST) {
-            PaneNode.Split(parent.orientation, 0.5, tracker, greatUncle)
-        } else {
-            PaneNode.Split(parent.orientation, 0.5, greatUncle, tracker)
-        }
-        // Remove tracker from grandParent subtree
-        val shrunkGP = removeNode(grandParent, tracker)!!
-        // Reconstruct GGP: posOfGPInGGP=SECOND means grandParent is SECOND, great-uncle is FIRST
-        val newGGPNode = if (posOfGPInGGP == ChildPos.FIRST) {
-            PaneNode.Split(root.orientation, 0.5, shrunkGP, newGreatUncleNode)
-        } else {
-            PaneNode.Split(root.orientation, 0.5, newGreatUncleNode, shrunkGP)
-        }
-        val result = replaceNodeByRef(root, root, newGGPNode)
-
-        // Expected: H(V(Tracker, Lights), H(Map, V(Music, Soundboard)))
-        val expectedShrunkGP = PaneNode.Split(Orientation.HORIZONTAL, 0.5, map, innerRight)
-        val expectedNewGUNode = PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights)
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5, expectedNewGUNode, expectedShrunkGP)
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
+            PaneNode.Split(Orientation.VERTICAL, 0.5, tracker,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.5, lights, map)),
+            PaneNode.Split(Orientation.VERTICAL, 0.5, music, soundboard))
         assertEquals(expected, result)
     }
 
     @Test
-    fun `great-uncle extend left on Map produces H(V(Lights,Map), H(Tracker,V(Music,Soundboard)))`() {
+    fun `great-uncle extend left on Map produces H(V(H(Lights,Tracker),Map), V(Music,Soundboard))`() {
         val lights     = PaneNode.Leaf("Lights")
         val tracker    = PaneNode.Leaf("Tracker")
         val map        = PaneNode.Leaf("Map")
@@ -586,34 +562,20 @@ class LayoutSerializerTest {
         val rightPart  = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, innerRight)
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.2, lights,  rightPart)
 
-        // Map: SECOND in V(Tracker,Map); great-uncle = Lights
-        val ancestry = findAncestry(root, map)
-        assertEquals(ChildPos.SECOND, ancestry.posInParent)
-        assertEquals(ChildPos.SECOND, ancestry.posOfGPInGGP)
+        // Map: SECOND in V(Tracker,Map); sibling = Tracker; great-uncle = Lights; uncle = innerRight.
+        // merged    = H(greatUncle=Lights, sibling=Tracker)  [posOfGPInGGP=SECOND → Lights at FIRST]
+        // newNode   = V(H(Lights,Tracker), Map)              [posInParent=SECOND → merged at FIRST]
+        // newGGPNode = H(newNode, uncle)                     [posOfGPInGGP=SECOND → newNode at FIRST]
+        val uncle      = innerRight
+        val merged     = PaneNode.Split(Orientation.HORIZONTAL, 0.5, lights, tracker)
+        val newNode    = PaneNode.Split(Orientation.VERTICAL,   0.5, merged, map)
+        val newGGPNode = PaneNode.Split(Orientation.HORIZONTAL, 0.5, newNode, uncle)
+        val result     = replaceNodeByRef(root, root, newGGPNode)
 
-        val posInParent  = ancestry.posInParent!!   // SECOND
-        val grandParent  = ancestry.grandParent!!   // rightPart
-        val posOfGPInGGP = ancestry.posOfGPInGGP!!  // SECOND
-        val parent       = ancestry.parent!!        // innerLeft
-
-        // Leaf takes posInParent (SECOND/bottom) → great-uncle is FIRST/top
-        val newGreatUncleNode = if (posInParent == ChildPos.FIRST) {
-            PaneNode.Split(parent.orientation, 0.5, map, lights)
-        } else {
-            PaneNode.Split(parent.orientation, 0.5, lights, map)
-        }
-        val shrunkGP = removeNode(grandParent, map)!!
-        val newGGPNode = if (posOfGPInGGP == ChildPos.FIRST) {
-            PaneNode.Split(root.orientation, 0.5, shrunkGP, newGreatUncleNode)
-        } else {
-            PaneNode.Split(root.orientation, 0.5, newGreatUncleNode, shrunkGP)
-        }
-        val result = replaceNodeByRef(root, root, newGGPNode)
-
-        // Expected: H(V(Lights, Map), H(Tracker, V(Music, Soundboard)))
-        val expectedShrunkGP = PaneNode.Split(Orientation.HORIZONTAL, 0.5, tracker, innerRight)
-        val expectedNewGUNode = PaneNode.Split(Orientation.VERTICAL, 0.5, lights, map)
-        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5, expectedNewGUNode, expectedShrunkGP)
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
+            PaneNode.Split(Orientation.VERTICAL, 0.5,
+                PaneNode.Split(Orientation.HORIZONTAL, 0.5, lights, tracker), map),
+            PaneNode.Split(Orientation.VERTICAL, 0.5, music, soundboard))
         assertEquals(expected, result)
     }
 
