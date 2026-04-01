@@ -165,8 +165,17 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
-        // Toolbar: [−]  [Next ▶]  Round N
-        val toolbar = HBox(8.0, removeAllBtn, nextBtn, roundLabel).apply {
+        // "Presets…" button — open the preset library dialog.
+        val presetsBtn = Button("Presets…").apply {
+            tooltip = Tooltip("Open preset library to load or manage saved combatants")
+            setOnAction { e ->
+                val owner = (e.source as? Button)?.scene?.window
+                showPresetsDialog(owner) { refresh() }
+            }
+        }
+
+        // Toolbar: [−]  [Next ▶]  [Presets…]  Round N
+        val toolbar = HBox(8.0, removeAllBtn, nextBtn, presetsBtn, roundLabel).apply {
             padding = Insets(4.0, 8.0, 4.0, 8.0)
             alignment = javafx.geometry.Pos.CENTER_LEFT
         }
@@ -362,7 +371,18 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
-        val nameRow = HBox(4.0, swatch, nameField, imgBtn, removeBtn).also {
+        // "★" Save-as-preset button — saves the current card's stats to the preset library.
+        val savePresetBtn = Button("★").apply {
+            accessibleText = "Save as preset"
+            tooltip = Tooltip("Save this combatant as a preset")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                val e = tracker.entries[index]
+                PresetLibrary.savePreset(PresetLibrary.Preset(e.name, e.hp, e.ac, e.initiative))
+            }
+        }
+
+        val nameRow = HBox(4.0, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
             HBox.setHgrow(nameField, Priority.ALWAYS)
         }
         val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)
@@ -745,5 +765,105 @@ class TrackerPlugin : DmPlugin {
         }
 
         return dialog.showAndWait().orElse(null)
+    }
+
+    // ── Preset library dialog ─────────────────────────────────────────────────
+
+    /**
+     * Opens a modal dialog that lists all presets saved in [PresetLibrary].
+     *
+     * From the dialog the DM can:
+     * - **Load** a preset, which adds it to the tracker as a new combatant.
+     * - **Delete** a preset, which removes it from the library permanently.
+     *
+     * @param owner   the owning window for the dialog (may be `null`).
+     * @param refresh callback invoked after a preset is loaded so the card pane
+     *                is rebuilt to show the new combatant.
+     */
+    private fun showPresetsDialog(owner: javafx.stage.Window?, refresh: () -> Unit) {
+        val dialog = Dialog<Unit>().apply {
+            title = "Presets"
+            headerText = "Load or manage saved combatant presets"
+            owner?.let { initOwner(it) }
+            dialogPane.buttonTypes.setAll(ButtonType.CLOSE)
+        }
+
+        val listBox = VBox(4.0).apply { padding = Insets(4.0) }
+
+        fun rebuildList() {
+            listBox.children.clear()
+            val presets = PresetLibrary.loadAll()
+            if (presets.isEmpty()) {
+                listBox.children.add(
+                    Label("No presets saved yet. Use the ★ button on a card to save one.").apply {
+                        padding = Insets(8.0)
+                    },
+                )
+            } else {
+                for (preset in presets) {
+                    val info = Label(
+                        "${preset.name}  HP: ${preset.hp}  AC: ${preset.ac}  Init: ${preset.initiative}",
+                    ).apply {
+                        HBox.setHgrow(this, Priority.ALWAYS)
+                    }
+
+                    val loadBtn = Button("Load").apply {
+                        tooltip = Tooltip("Add this combatant to the initiative tracker")
+                        setOnAction {
+                            val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
+                            val id = UUID.randomUUID().toString()
+                            val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
+                            // Capture the list before the add so we can locate the insertion index
+                            // after the tracker re-sorts by initiative.
+                            val entriesBefore = tracker.entries
+                            tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
+                            val entriesAfter = tracker.entries
+                            // Find the index where the new entry landed after sorting.
+                            val insertIdx = entriesAfter.indices.firstOrNull { i ->
+                                i >= entriesBefore.size || entriesAfter[i] != entriesBefore[i]
+                            } ?: (entriesAfter.size - 1)
+                            tokenIds.add(insertIdx, id)
+                            tokenColors[id] = color
+                            tokenImages[id] = TokenImageSettings(uri = null)
+                            EventBus.publish(TokenAddedEvent(id, preset.name, color))
+                            if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
+                                EventBus.publish(
+                                    ActiveTokenChangedEvent(
+                                        tokenIds.getOrNull(tracker.currentIndex),
+                                        tracker.currentEntry?.name,
+                                    ),
+                                )
+                            }
+                            refresh()
+                        }
+                    }
+
+                    val deleteBtn = Button("Delete").apply {
+                        tooltip = Tooltip("Remove this preset from the library")
+                        setOnAction {
+                            PresetLibrary.delete(preset.name)
+                            rebuildList()
+                        }
+                    }
+
+                    listBox.children.add(
+                        HBox(8.0, info, loadBtn, deleteBtn).apply {
+                            alignment = javafx.geometry.Pos.CENTER_LEFT
+                            padding = Insets(4.0, 2.0, 4.0, 2.0)
+                        },
+                    )
+                }
+            }
+        }
+
+        rebuildList()
+
+        dialog.dialogPane.content = ScrollPane(listBox).apply {
+            isFitToWidth = true
+            prefHeight = 300.0
+            hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+        }
+
+        dialog.showAndWait()
     }
 }
