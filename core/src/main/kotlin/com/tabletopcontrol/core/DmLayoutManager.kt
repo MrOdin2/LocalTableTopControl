@@ -189,16 +189,25 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
     /**
      * Computes the extend options available for [leaf].
      *
-     * A leaf can extend in a direction if doing so covers exactly one neighbouring panel:
-     * - **Same-level**: the sibling within the same parent split is a single [PaneNode.Leaf].
-     *   The leaf grows to absorb the sibling, equivalent to closing the sibling.
-     * - **Cross-level**: the uncle (parent's sibling within the grandparent split) is a
-     *   single [PaneNode.Leaf].  The leaf grows across the grandparent split boundary,
-     *   and the displaced sibling is recombined with the uncle on the other side.
+     * A leaf can extend in a direction if doing so covers exactly one neighbouring panel.
+     * Four kinds of extension are recognised, evaluated in priority order (higher priority
+     * wins when two would produce the same direction label):
      *
-     * Directions that would overwrite more than one panel (sibling or uncle is a [PaneNode.Split])
-     * are not included.  When both same-level and cross-level would produce the same direction
-     * label the same-level option takes priority.
+     * 1. **Same-level**: sibling within the parent split is a single [PaneNode.Leaf].
+     *    The leaf absorbs the sibling — equivalent to closing it.
+     * 2. **Cross-level**: the uncle (parent's sibling within the grandparent split) is a
+     *    single [PaneNode.Leaf].  The leaf grows across the grandparent boundary;
+     *    the displaced sibling recombines with the uncle on the other side.
+     * 3. **Same-uncle-orientation**: the uncle is a [PaneNode.Split] with the *same*
+     *    orientation as the parent, and the uncle's child at the leaf's position is a
+     *    single [PaneNode.Leaf].  Removing that one child from the uncle is equivalent
+     *    to the leaf "extending through" its horizontal or vertical row.
+     * 4. **Great-uncle-is-Leaf**: the great-grandparent exists and its other child
+     *    (the great-uncle) is a single [PaneNode.Leaf].  The leaf grows to split
+     *    the great-uncle's space, taking the slice that matches its own position within
+     *    its parent split.
+     *
+     * Directions that would require overwriting more than one panel are not offered.
      *
      * @return A [LinkedHashMap] mapping each direction label (e.g. `"Extend Right"`) to the
      *   resulting layout tree.  The map preserves insertion order so the menu items appear in
@@ -213,31 +222,22 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
         val options = LinkedHashMap<String, PaneNode>()
 
-        // Same-level extension: leaf expands into its sibling (only when sibling is a single Leaf).
+        // ── 1. Same-level ────────────────────────────────────────────────────
+        // Leaf expands into its sibling (only when sibling is a single Leaf).
         if (sibling is PaneNode.Leaf) {
-            val label = when {
-                parent.orientation == Orientation.HORIZONTAL && posInParent == ChildPos.FIRST  -> "Extend Right"
-                parent.orientation == Orientation.HORIZONTAL && posInParent == ChildPos.SECOND -> "Extend Left"
-                parent.orientation == Orientation.VERTICAL   && posInParent == ChildPos.FIRST  -> "Extend Below"
-                else                                                                            -> "Extend Above"
-            }
+            val label = directionLabel(parent.orientation, posInParent)
             // Removing the sibling collapses the parent, leaving the leaf in the parent's place.
             removeNode(layoutRoot, sibling)?.let { options[label] = it }
         }
 
-        // Cross-level extension: leaf expands across the grandparent split into the uncle
-        // (only when uncle is a single Leaf).
         val grandParent = ancestry.grandParent ?: return options
         val posOfParentInGP = ancestry.posOfParentInGP ?: return options
         val uncle = if (posOfParentInGP == ChildPos.FIRST) grandParent.second else grandParent.first
 
+        // ── 2. Cross-level ───────────────────────────────────────────────────
+        // Uncle is a single Leaf: leaf grows across the grandparent split boundary.
         if (uncle is PaneNode.Leaf) {
-            val label = when {
-                grandParent.orientation == Orientation.HORIZONTAL && posOfParentInGP == ChildPos.FIRST  -> "Extend Right"
-                grandParent.orientation == Orientation.HORIZONTAL && posOfParentInGP == ChildPos.SECOND -> "Extend Left"
-                grandParent.orientation == Orientation.VERTICAL   && posOfParentInGP == ChildPos.FIRST  -> "Extend Below"
-                else                                                                                     -> "Extend Above"
-            }
+            val label = directionLabel(grandParent.orientation, posOfParentInGP)
             if (!options.containsKey(label)) {
                 // The sibling and the uncle are recombined using the grandParent's orientation so
                 // their relative positions (sibling where parent was, uncle where uncle was) are kept.
@@ -257,7 +257,73 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
             }
         }
 
+        // ── 3. Same-uncle-orientation ────────────────────────────────────────
+        // Uncle is a Split whose orientation matches the parent's orientation.
+        // The uncle's child at the leaf's own position (posInParent) must be a single Leaf.
+        // Removing that one child from the uncle is visually equivalent to extending the
+        // leaf across its row or column into the adjacent panel slot.
+        if (uncle is PaneNode.Split && uncle.orientation == parent.orientation) {
+            val correspondingUncleChild =
+                if (posInParent == ChildPos.FIRST) uncle.first else uncle.second
+            if (correspondingUncleChild is PaneNode.Leaf) {
+                val label = directionLabel(grandParent.orientation, posOfParentInGP)
+                if (!options.containsKey(label)) {
+                    removeNode(layoutRoot, correspondingUncleChild)?.let { options[label] = it }
+                }
+            }
+        }
+
+        // ── 4. Great-uncle-is-Leaf ───────────────────────────────────────────
+        // The leaf's great-grandparent exists and its other child (the great-uncle) is a
+        // single Leaf.  The leaf grows to split the great-uncle's space, occupying the
+        // portion that corresponds to its own position within the parent split.
+        val greatGrandParent = ancestry.greatGrandParent ?: return options
+        val posOfGPInGGP = ancestry.posOfGPInGGP ?: return options
+        val greatUncle =
+            if (posOfGPInGGP == ChildPos.FIRST) greatGrandParent.second else greatGrandParent.first
+
+        if (greatUncle is PaneNode.Leaf) {
+            val label = directionLabel(greatGrandParent.orientation, posOfGPInGGP)
+            if (!options.containsKey(label)) {
+                // Split the great-uncle's space: leaf takes its own row/column position,
+                // great-uncle takes the other position.  The new split uses the parent's
+                // orientation so the visual position matches the leaf's current alignment.
+                val newGreatUncleNode = if (posInParent == ChildPos.FIRST) {
+                    PaneNode.Split(parent.orientation, 0.5, leaf, greatUncle)
+                } else {
+                    PaneNode.Split(parent.orientation, 0.5, greatUncle, leaf)
+                }
+                // Remove the leaf from the grandparent subtree; the remaining content
+                // keeps its position on the great-grandparent's side.
+                val shrunkGP = removeNode(grandParent, leaf) ?: return options
+                // Reconstruct the great-grandparent with the new great-uncle node on the
+                // great-uncle's side and the shrunk grandparent on the other side.
+                val newGGPNode = if (posOfGPInGGP == ChildPos.FIRST) {
+                    PaneNode.Split(greatGrandParent.orientation, 0.5, shrunkGP, newGreatUncleNode)
+                } else {
+                    PaneNode.Split(greatGrandParent.orientation, 0.5, newGreatUncleNode, shrunkGP)
+                }
+                options[label] = replaceNodeByRef(layoutRoot, greatGrandParent, newGGPNode)
+            }
+        }
+
         return options
+    }
+
+    /**
+     * Maps a split [orientation] and [childPos] to the direction the child would extend
+     * toward the other child (its sibling or uncle).
+     *
+     * - Horizontal split, first child → "Extend Right"
+     * - Horizontal split, second child → "Extend Left"
+     * - Vertical split, first child → "Extend Below"
+     * - Vertical split, second child → "Extend Above"
+     */
+    private fun directionLabel(orientation: Orientation, childPos: ChildPos): String = when {
+        orientation == Orientation.HORIZONTAL && childPos == ChildPos.FIRST  -> "Extend Right"
+        orientation == Orientation.HORIZONTAL && childPos == ChildPos.SECOND -> "Extend Left"
+        orientation == Orientation.VERTICAL   && childPos == ChildPos.FIRST  -> "Extend Below"
+        else                                                                  -> "Extend Above"
     }
 
     /**

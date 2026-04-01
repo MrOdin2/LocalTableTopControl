@@ -77,22 +77,26 @@ fun replaceNodeByRef(root: PaneNode, target: PaneNode, replacement: PaneNode): P
 enum class ChildPos { FIRST, SECOND }
 
 /**
- * Records the two-level ancestry of a [PaneNode.Leaf] within a tree.
+ * Records the three-level ancestry of a [PaneNode.Leaf] within a tree.
  *
  * @property parent           The immediate parent [PaneNode.Split], or `null` if the leaf is the root.
  * @property posInParent      Whether the leaf is [ChildPos.FIRST] or [ChildPos.SECOND] in [parent].
  * @property grandParent      The parent of [parent], or `null` if [parent] is the root.
  * @property posOfParentInGP  Whether [parent] is [ChildPos.FIRST] or [ChildPos.SECOND] in [grandParent].
+ * @property greatGrandParent The parent of [grandParent], or `null` if [grandParent] is the root.
+ * @property posOfGPInGGP     Whether [grandParent] is [ChildPos.FIRST] or [ChildPos.SECOND] in [greatGrandParent].
  */
 data class LeafAncestry(
     val parent: PaneNode.Split?,
     val posInParent: ChildPos?,
     val grandParent: PaneNode.Split?,
     val posOfParentInGP: ChildPos?,
+    val greatGrandParent: PaneNode.Split? = null,
+    val posOfGPInGGP: ChildPos? = null,
 )
 
 /**
- * Searches [root] for [target] using reference equality (`===`) and returns its two-level ancestry.
+ * Searches [root] for [target] using reference equality (`===`) and returns its three-level ancestry.
  *
  * Returns [LeafAncestry] with all-`null` fields when [target] is the root itself
  * or is not present in the tree.
@@ -104,15 +108,17 @@ fun findAncestry(root: PaneNode, target: PaneNode.Leaf): LeafAncestry {
         posInParent: ChildPos?,
         grandParent: PaneNode.Split?,
         posOfParentInGP: ChildPos?,
+        greatGrandParent: PaneNode.Split?,
+        posOfGPInGGP: ChildPos?,
     ): LeafAncestry? = when (node) {
         is PaneNode.Leaf ->
-            if (node === target) LeafAncestry(parent, posInParent, grandParent, posOfParentInGP)
+            if (node === target) LeafAncestry(parent, posInParent, grandParent, posOfParentInGP, greatGrandParent, posOfGPInGGP)
             else null
         is PaneNode.Split ->
-            search(node.first, node, ChildPos.FIRST, parent, posInParent)
-                ?: search(node.second, node, ChildPos.SECOND, parent, posInParent)
+            search(node.first, node, ChildPos.FIRST, parent, posInParent, grandParent, posOfParentInGP)
+                ?: search(node.second, node, ChildPos.SECOND, parent, posInParent, grandParent, posOfParentInGP)
     }
-    return search(root, null, null, null, null) ?: LeafAncestry(null, null, null, null)
+    return search(root, null, null, null, null, null, null) ?: LeafAncestry(null, null, null, null)
 }
 
 /**

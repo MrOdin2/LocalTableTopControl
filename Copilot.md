@@ -84,17 +84,21 @@ Right-click anywhere on a leaf pane to access:
 
 #### Extend logic
 
-Two kinds of extension are supported:
+Four kinds of extension are supported, evaluated in priority order (higher priority wins when two directions collide):
 
-| Kind | Condition | Effect |
-|------|-----------|--------|
-| Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
-| Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling is recombined with the uncle on the opposite side. |
+| Priority | Kind | Condition | Effect |
+|----------|------|-----------|--------|
+| 1 | Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
+| 2 | Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling recombines with the uncle on the opposite side. |
+| 3 | Same-uncle-orientation | Uncle is a `Split` with the *same* orientation as the parent, and the uncle's child at the leaf's position is a single `Leaf` | That one child is removed from the layout; the current pane's row or column gains the freed space. |
+| 4 | Great-uncle-is-Leaf | Great-grandparent exists and its other child (the great-uncle) is a single `Leaf` | The leaf splits the great-uncle's space, occupying the slice that matches its own position within its parent split; the remaining grandparent subtree keeps its original position. |
 
-Example — layout `Split(VERTICAL, Split(HORIZONTAL, A, B), C)`:
-- Right-click **A** → "Extend Right" (closes B) or "Extend Below" (A takes full left; B+C share right).
-- Right-click **B** → "Extend Left" (closes A) or "Extend Below" (B takes full right; A+C share left).
-- Right-click **C** → no extend options (uncle `Split(HORIZONTAL, A, B)` is not a single pane).
+Example — layout `H(Lights, H(V(Tracker, Map), V(Music, Soundboard)))`:
+- **Tracker** → "Extend Right" (removes Music via same-uncle-orientation), "Extend Below" (same-level, removes Map), "Extend Left" (great-uncle Lights splits; Tracker takes top).
+- **Map** → "Extend Right" (removes Soundboard), "Extend Above" (same-level, removes Tracker), "Extend Left" (great-uncle Lights splits; Map takes bottom).
+- **Music** → "Extend Left" (removes Tracker via same-uncle-orientation), "Extend Below" (same-level, removes Soundboard).
+- **Soundboard** → "Extend Left" (removes Map via same-uncle-orientation), "Extend Above" (same-level, removes Music).
+- **Lights** → no extend options (adjacent to a multi-panel section).
 
 ### Key Files
 
