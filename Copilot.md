@@ -78,9 +78,10 @@ Right-click anywhere on a leaf pane to access:
 - **Add Panel Below** — splits vertically; new pane appears below.
 - **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
 - **Close Pane** — remove this pane (disabled when only one pane remains).
-- **Extend Left / Right / Above / Below** — expand this pane to absorb exactly one
-  neighbouring panel.  Only directions that would overwrite a single leaf pane are offered;
-  directions that would overwrite multiple panels are omitted.
+- **Extend Left / Right / Above / Below** — expand this pane into exactly one neighbouring
+  leaf pane. Only directions where the immediate neighbour in that direction is a single leaf
+  pane are offered; directions whose immediate neighbour is a split containing multiple panes
+  are omitted. Other panes may be resized or restructured but are not discarded.
 
 #### Extend logic
 
