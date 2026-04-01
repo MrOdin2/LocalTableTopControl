@@ -413,7 +413,24 @@ object PresetLibrary {
         return try {
             // Stream-decode directly to the temp file with a small buffer so we
             // never materialise more than the buffer + limit bytes in memory.
-            Base64.getDecoder().wrap(base64.byteInputStream()).use { decoded ->
+            //
+            // We feed the Base64 decoder via a lightweight InputStream that reads
+            // ASCII bytes directly from the String's char array without first
+            // copying the whole string into a byte[] (as String.byteInputStream()
+            // would do).  Base64 only ever uses chars < 128, so casting each char
+            // code to a byte is exact.
+            val charStream = object : java.io.InputStream() {
+                private var pos = 0
+                override fun read(): Int =
+                    if (pos < base64.length) base64[pos++].code and 0xFF else -1
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (pos >= base64.length) return -1
+                    val count = minOf(len, base64.length - pos)
+                    for (i in 0 until count) b[off + i] = (base64[pos++].code and 0xFF).toByte()
+                    return count
+                }
+            }
+            Base64.getDecoder().wrap(charStream).use { decoded ->
                 tmp.outputStream().use { out ->
                     val buf = ByteArray(8 * 1024) // 8 KB read buffer
                     var totalBytes = 0L

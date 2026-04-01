@@ -395,13 +395,27 @@ class TrackerPlugin : DmPlugin {
                 )
                 PresetLibrary.savePreset(presetWithoutThumbnail)
                 if (imageSettings?.uri != null) {
-                    // Generate and embed the thumbnail, then re-save. This runs synchronously
-                    // to avoid race conditions where a background write could overwrite a
-                    // newer preset saved after this button was clicked.
-                    val base64 = PresetLibrary.loadAndScaleImage(imageSettings.uri)
-                    if (base64 != null) {
-                        PresetLibrary.savePreset(presetWithoutThumbnail.copy(imageBase64 = base64))
-                    }
+                    // Generate and embed the thumbnail in a background daemon thread so
+                    // the JavaFX event thread is never blocked on disk I/O or image
+                    // scaling — important on low-power devices (Raspberry Pi, etc.).
+                    //
+                    // Race-condition safety: instead of re-saving the snapshot captured
+                    // at button-press time, the background thread reads the *latest*
+                    // on-disk version of the preset before writing imageBase64.  If the
+                    // user clicked ★ again while we were busy, the newer stats are
+                    // preserved; only the imageBase64 field is patched in.
+                    Thread {
+                        val base64 = PresetLibrary.loadAndScaleImage(imageSettings.uri) ?: return@Thread
+                        // Read whichever version is currently on disk and merge only the thumbnail.
+                        val onDiskFile = PresetLibrary.fileFor(
+                            presetWithoutThumbnail.name,
+                            presetWithoutThumbnail.folder,
+                        )
+                        val latest = runCatching {
+                            PresetLibrary.deserialize(onDiskFile.readText())
+                        }.getOrNull() ?: return@Thread
+                        PresetLibrary.savePreset(latest.copy(imageBase64 = base64))
+                    }.also { it.isDaemon = true }.start()
                 }
             }
         }
@@ -914,10 +928,20 @@ class TrackerPlugin : DmPlugin {
                         }
 
                         val deleteBtn = Button("Delete").apply {
-                            tooltip = Tooltip("Remove this preset from the library")
+                            tooltip = Tooltip("Remove all presets with this name from the library (across all folders)")
                             setOnAction {
-                                PresetLibrary.delete(preset.name)
-                                rebuildList()
+                                val alert = Alert(Alert.AlertType.CONFIRMATION).apply {
+                                    title = "Delete preset"
+                                    headerText = "Delete all presets named \"${preset.name}\"?"
+                                    contentText =
+                                        "This will remove every preset with this name from the presets folder " +
+                                        "and all subfolders. This action cannot be undone."
+                                }
+                                val result = alert.showAndWait()
+                                if (result.isPresent && result.get() == ButtonType.OK) {
+                                    PresetLibrary.delete(preset.name)
+                                    rebuildList()
+                                }
                             }
                         }
 
