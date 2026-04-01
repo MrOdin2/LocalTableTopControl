@@ -265,7 +265,7 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
                 val remainingUncle = if (posInParent == ChildPos.FIRST) uncle.second else uncle.first
                 // Merged pair: sibling inherits the parent's visual side; remainingUncle inherits
                 // the uncle's visual side, both relative to the grandParent's orientation.
-                val merged = if (posInParent == ChildPos.FIRST) {
+                val merged = if (posOfParentInGP == ChildPos.FIRST) {
                     PaneNode.Split(grandParent.orientation, grandParent.dividerPosition, sibling, remainingUncle)
                 } else {
                     PaneNode.Split(grandParent.orientation, grandParent.dividerPosition, remainingUncle, sibling)
