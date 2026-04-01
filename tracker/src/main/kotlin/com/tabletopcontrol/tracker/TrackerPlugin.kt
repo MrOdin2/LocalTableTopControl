@@ -379,21 +379,30 @@ class TrackerPlugin : DmPlugin {
             setOnAction {
                 val entry = tracker.entries[index]
                 val imageSettings = tokenIds.getOrNull(index)?.let { tokenImages[it] }
-                val base64 = imageSettings?.uri?.let { PresetLibrary.loadAndScaleImage(it) }
-                PresetLibrary.savePreset(
-                    PresetLibrary.Preset(
-                        name = entry.name,
-                        hp = entry.hp,
-                        ac = entry.ac,
-                        initiative = entry.initiative,
-                        imageUri = imageSettings?.uri,
-                        imageBase64 = base64,
-                        imageScaleX = imageSettings?.scaleX ?: 1.0,
-                        imageScaleY = imageSettings?.scaleY ?: 1.0,
-                        imageOffsetX = imageSettings?.offsetX ?: 0.0,
-                        imageOffsetY = imageSettings?.offsetY ?: 0.0,
-                    ),
+                // Save immediately without the thumbnail so the preset is usable right away,
+                // then re-save with the embedded Base64 thumbnail in the background.  This
+                // avoids blocking the JavaFX thread on disk I/O and image encode/scale work.
+                val presetWithoutThumbnail = PresetLibrary.Preset(
+                    name = entry.name,
+                    hp = entry.hp,
+                    ac = entry.ac,
+                    initiative = entry.initiative,
+                    imageUri = imageSettings?.uri,
+                    imageScaleX = imageSettings?.scaleX ?: 1.0,
+                    imageScaleY = imageSettings?.scaleY ?: 1.0,
+                    imageOffsetX = imageSettings?.offsetX ?: 0.0,
+                    imageOffsetY = imageSettings?.offsetY ?: 0.0,
                 )
+                PresetLibrary.savePreset(presetWithoutThumbnail)
+                if (imageSettings?.uri != null) {
+                    // Background thread generates and embeds the thumbnail, then re-saves.
+                    Thread {
+                        val base64 = PresetLibrary.loadAndScaleImage(imageSettings.uri)
+                        if (base64 != null) {
+                            PresetLibrary.savePreset(presetWithoutThumbnail.copy(imageBase64 = base64))
+                        }
+                    }.also { it.isDaemon = true }.start()
+                }
             }
         }
 

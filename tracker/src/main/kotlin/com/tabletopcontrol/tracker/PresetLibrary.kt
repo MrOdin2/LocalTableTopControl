@@ -47,6 +47,16 @@ object PresetLibrary {
     const val MAX_EMBEDDED_IMAGE_SIZE: Int = 256
 
     /**
+     * Maximum number of bytes a decoded `imageBase64` thumbnail may occupy.
+     *
+     * A 256×256 RGBA PNG is typically well under 100 KB; 10 MB is a generous
+     * safety cap that still protects low-power devices (Raspberry Pi etc.)
+     * from OOM or unexpectedly large temp-file writes caused by hand-edited or
+     * corrupt `.preset` files.
+     */
+    private const val MAX_BASE64_DECODED_BYTES: Int = 10 * 1024 * 1024 // 10 MB
+
+    /**
      * A saved combatant template.
      *
      * @property name         the combatant's display name
@@ -376,12 +386,18 @@ object PresetLibrary {
      * Use this when loading a preset that has [Preset.imageBase64] set but
      * the original [Preset.imageUri] is inaccessible (e.g. on another machine).
      *
+     * To protect low-power devices from malformed or hand-crafted `.preset`
+     * files, the decoded byte array must be ≤ [MAX_BASE64_DECODED_BYTES]; any
+     * larger payload causes this function to return `null`.
+     *
      * @return a `file:` URI string for the temporary image file, or `null` if
-     *         the Base64 data cannot be decoded or the file cannot be written.
+     *         the Base64 data cannot be decoded, exceeds the size limit, or the
+     *         file cannot be written.
      */
-    internal fun base64ToTempUri(base64: String): String? =
-        try {
+    internal fun base64ToTempUri(base64: String): String? {
+        return try {
             val bytes = Base64.getDecoder().decode(base64)
+            if (bytes.size > MAX_BASE64_DECODED_BYTES) return null
             val tmp = File.createTempFile("tc-preset-", ".png")
             tmp.deleteOnExit()
             tmp.writeBytes(bytes)
@@ -389,4 +405,5 @@ object PresetLibrary {
         } catch (_: Exception) {
             null
         }
+    }
 }

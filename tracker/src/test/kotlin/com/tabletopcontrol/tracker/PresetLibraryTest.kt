@@ -351,14 +351,13 @@ class PresetLibraryTest {
     }
 
     @Test
-    fun `delete removes preset from root but not from subfolder with same name`() {
+    fun `delete removes all matching presets across root and subfolders`() {
         PresetLibrary.savePreset(PresetLibrary.Preset("Orc", 15, 13, 0))
-        // Manually place a same-named preset in a subfolder to ensure delete
-        // in root does not affect subfolder presets in the same call.
+        // Manually place a same-named preset in a subfolder.
         val subDir = tempDir.resolve("Elite").toFile().also { it.mkdirs() }
         File(subDir, "Orc.preset").writeText("name=Orc\nhp=30\nac=16\ninitiative=2")
 
-        // delete() removes ALL matching presets across root and subfolders.
+        // delete() removes ALL matching presets from root and subfolders.
         PresetLibrary.delete("Orc")
 
         assertTrue(PresetLibrary.loadAll().isEmpty())
@@ -416,5 +415,13 @@ class PresetLibraryTest {
     @Test
     fun `base64ToTempUri returns null for invalid base64`() {
         assertNull(PresetLibrary.base64ToTempUri("!!!not-base64!!!"))
+    }
+
+    @Test
+    fun `base64ToTempUri returns null when decoded size exceeds limit`() {
+        // Encode a payload just over 10 MB.
+        val oversized = ByteArray(10 * 1024 * 1024 + 1)
+        val base64 = Base64.getEncoder().encodeToString(oversized)
+        assertNull(PresetLibrary.base64ToTempUri(base64))
     }
 }
