@@ -39,7 +39,9 @@ The DM Panel uses a recursive **split-pane layout** inspired by modern IDEs (VS 
 
 - On first launch, the panel shows a single plugin pane (the first loaded plugin).
 - **Right-click** anywhere on a pane to open the context menu:
+  - *Add Panel to Left*  — splits the current pane left/right and places a new plugin on the left.
   - *Add Panel to Right* — splits the current pane left/right and places a new plugin on the right.
+  - *Add Panel Above* — splits the current pane top/bottom and places a new plugin above.
   - *Add Panel Below* — splits the current pane top/bottom and places a new plugin below.
   - *Change Plugin…* — swaps the plugin shown in the current pane.
   - *Close Pane* — removes the current pane (disabled when it is the only remaining pane).
