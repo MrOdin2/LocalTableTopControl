@@ -338,7 +338,18 @@ object PresetLibrary {
      */
     internal fun loadAndScaleImage(uri: String, maxSize: Int = MAX_EMBEDDED_IMAGE_SIZE): String? =
         try {
-            val file = File(URI(uri))
+            // Accept both `file:` URIs and plain filesystem paths.
+            val file = run {
+                val parsedUri = runCatching { URI(uri) }.getOrNull()
+                when {
+                    // No (or unparsable) URI scheme: treat as a local filesystem path.
+                    parsedUri == null || parsedUri.scheme.isNullOrEmpty() -> File(uri)
+                    // Explicit file: URI: use it directly.
+                    parsedUri.scheme.equals("file", ignoreCase = true) -> File(parsedUri)
+                    // Any other scheme is not supported for local image loading.
+                    else -> return null
+                }
+            }
             val original: BufferedImage = ImageIO.read(file) ?: return null
             val w = original.width
             val h = original.height
