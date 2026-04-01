@@ -297,10 +297,23 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
         if (adjacentUncleChild is PaneNode.Leaf) {
             val label = directionLabel(grandParent.orientation, posOfParentInGP)
             if (!options.containsKey(label)) {
-                val merged = if (posOfParentInGP == ChildPos.FIRST) {
-                    PaneNode.Split(grandParent.orientation, grandParent.dividerPosition, sibling, adjacentUncleChild)
+                val gpDiv = grandParent.dividerPosition
+                val uDiv = uncle.dividerPosition
+                val newGPDiv = if (posOfParentInGP == ChildPos.FIRST) {
+                    gpDiv + uDiv * (1.0 - gpDiv)
                 } else {
-                    PaneNode.Split(grandParent.orientation, grandParent.dividerPosition, adjacentUncleChild, sibling)
+                    gpDiv * uDiv
+                }
+                val mergedDiv = if (posOfParentInGP == ChildPos.FIRST) {
+                    gpDiv / newGPDiv
+                } else {
+                    (gpDiv * (1.0 - uDiv)) / (1.0 - newGPDiv)
+                }
+                
+                val merged = if (posOfParentInGP == ChildPos.FIRST) {
+                    PaneNode.Split(grandParent.orientation, mergedDiv, sibling, adjacentUncleChild)
+                } else {
+                    PaneNode.Split(grandParent.orientation, mergedDiv, adjacentUncleChild, sibling)
                 }
                 val newSharedNode = if (posInParent == ChildPos.FIRST) {
                     PaneNode.Split(parent.orientation, parent.dividerPosition, leaf, merged)
@@ -308,9 +321,9 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
                     PaneNode.Split(parent.orientation, parent.dividerPosition, merged, leaf)
                 }
                 val newGPNode = if (posOfParentInGP == ChildPos.FIRST) {
-                    PaneNode.Split(uncle.orientation, uncle.dividerPosition, newSharedNode, uncle.second)
+                    PaneNode.Split(uncle.orientation, newGPDiv, newSharedNode, uncle.second)
                 } else {
-                    PaneNode.Split(uncle.orientation, uncle.dividerPosition, uncle.first, newSharedNode)
+                    PaneNode.Split(uncle.orientation, newGPDiv, uncle.first, newSharedNode)
                 }
                 options[label] = replaceNodeByRef(root, grandParent, newGPNode)
             }
@@ -353,13 +366,24 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
             } else {
                 PaneNode.Split(parent.orientation, parent.dividerPosition, merged, leaf)
             }
-            // newNode goes where the great-uncle was; uncle takes the grandParent's former slot.
-            val newGGPNode = if (posOfGPInGGP == ChildPos.FIRST) {
-                // grandParent was FIRST → uncle at FIRST; great-uncle was SECOND → newNode at SECOND
-                PaneNode.Split(grandParent.orientation, grandParent.dividerPosition, uncle, newNode)
+            
+            val gpFrac = if (posOfGPInGGP == ChildPos.FIRST) greatGrandParent.dividerPosition else 1.0 - greatGrandParent.dividerPosition
+            val uncleFracInGP = if (posOfParentInGP == ChildPos.FIRST) 1.0 - grandParent.dividerPosition else grandParent.dividerPosition
+            val absoluteUncleSize = gpFrac * uncleFracInGP
+            
+            val newGGPDiv = if (posOfParentInGP == ChildPos.FIRST) {
+                1.0 - absoluteUncleSize
             } else {
-                // great-uncle was FIRST → newNode at FIRST; grandParent was SECOND → uncle at SECOND
-                PaneNode.Split(grandParent.orientation, grandParent.dividerPosition, newNode, uncle)
+                absoluteUncleSize
+            }
+            
+            // newNode goes where the great-uncle was; uncle takes the grandParent's former slot.
+            val newGGPNode = if (posOfParentInGP == ChildPos.FIRST) {
+                // parent was FIRST in GP → newNode is FIRST; uncle was SECOND → uncle is SECOND
+                PaneNode.Split(grandParent.orientation, newGGPDiv, newNode, uncle)
+            } else {
+                // parent was SECOND in GP → newNode is SECOND; uncle was FIRST → uncle is FIRST
+                PaneNode.Split(grandParent.orientation, newGGPDiv, uncle, newNode)
             }
             options[label] = replaceNodeByRef(root, greatGrandParent, newGGPNode)
         }
