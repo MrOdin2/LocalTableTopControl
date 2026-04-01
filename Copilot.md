@@ -90,6 +90,7 @@ Five kinds of extension are supported, evaluated in priority order (higher prior
 | Priority | Kind | Condition | Effect |
 |----------|------|-----------|--------|
 | 1 | Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
+| 1b | Sibling-adjacent-child | Sibling within the parent split is itself a `Split`, and its child on the side closest to the leaf is a single `Leaf` | That child is removed, collapsing the sibling to its remaining child; the leaf stays in place — equivalent to closing just the adjacent sub-panel. |
 | 2 | Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling recombines with the uncle on the opposite side. |
 | 3 | Same-uncle-orientation | Uncle is a `Split` with the *same* orientation as the parent, and the uncle's child at the leaf's position is a single `Leaf` | The grandparent is restructured: the leaf takes a full-width/height row/column; the displaced sibling and the uncle's surviving child are merged side-by-side into the other half. |
 | 4 | Same-grandparent-orientation uncle | Uncle is a `Split` with the *same* orientation as the grandparent (but different from the parent), and the uncle's child on the side adjacent to the parent is a single `Leaf` | The adjacent child's space is shared with the leaf using the parent's orientation (leaf at its row/column position, adjacent child in the other half); the uncle is rebuilt with that shared node; the displaced sibling takes the parent's former slot. |
@@ -105,6 +106,9 @@ Example — layout `H(Lights, H(V(Tracker, Map), V(Music, Soundboard)))`:
 Example — layout `H(H(V(Tracker, Lights), Map), V(Music, Soundboard))` (case 4):
 - **Music** → "Extend Left" → `H(H(V(Tracker, Lights), V(Music, Map)), Soundboard)` — Music takes top half of Map's space, Map keeps bottom half, Soundboard takes parent's former slot.
 - **Soundboard** → "Extend Left" → `H(H(V(Tracker, Lights), V(Map, Soundboard)), Music)` — Soundboard takes bottom half of Map's space, Map keeps top half, Music takes parent's former slot.
+
+Example — layout `H(H(V(Tracker, Lights), Map), Soundboard)` (case 1b):
+- **Soundboard** → "Extend Left" → `H(V(Tracker, Lights), Soundboard)` — Map is removed, sibling collapses to `V(Tracker, Lights)`.
 
 ### Key Files
 

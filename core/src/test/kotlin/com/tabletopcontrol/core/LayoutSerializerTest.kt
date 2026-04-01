@@ -384,6 +384,53 @@ class LayoutSerializerTest {
         assertFalse(options.containsKey("Extend Below"), "Extend Below (cross-level) must NOT be offered when uncle is a Split")
     }
 
+    // ── Panel extension — sibling-adjacent-child ─────────────────────────
+    //
+    // Layout: H(H(V(Tracker,Lights), Map), Soundboard)
+    // Visually:
+    //   [  V(T,L)  ][  Map  ] | [Soundboard]
+    //
+    // Soundboard's sibling is H(V(T,L), Map). Map (sibling.second) is a Leaf.
+    // Extend Left removes Map → H(V(T,L), Soundboard).
+
+    @Test
+    fun `sibling-adjacent-child extend left on Soundboard produces H(V(Tracker,Lights), Soundboard)`() {
+        val tracker    = PaneNode.Leaf("Tracker")
+        val lights     = PaneNode.Leaf("Lights")
+        val map        = PaneNode.Leaf("Map")
+        val soundboard = PaneNode.Leaf("Soundboard")
+        val innerLeft  = PaneNode.Split(Orientation.VERTICAL,   0.5, tracker, lights)
+        val leftPart   = PaneNode.Split(Orientation.HORIZONTAL, 0.5, innerLeft, map)
+        val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.5, leftPart, soundboard)
+
+        val options = computeExtendOptions(root, soundboard)
+        assertTrue(options.containsKey("Extend Left"), "Extend Left should be offered for Soundboard")
+
+        val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
+            PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
+            soundboard)
+        assertEquals(expected, options["Extend Left"])
+    }
+
+    @Test
+    fun `sibling-adjacent-child not offered when adjacent child is a Split`() {
+        // Layout: H(H(V(A,B), V(C,D)), E)
+        // E's sibling = H(V(A,B), V(C,D)); adjacentSiblingChild = V(C,D) which is a Split → case 1b skipped.
+        val a = PaneNode.Leaf("A")
+        val b = PaneNode.Leaf("B")
+        val c = PaneNode.Leaf("C")
+        val d = PaneNode.Leaf("D")
+        val e = PaneNode.Leaf("E")
+        val inner1 = PaneNode.Split(Orientation.VERTICAL,   0.5, a, b)
+        val inner2 = PaneNode.Split(Orientation.VERTICAL,   0.5, c, d)
+        val sibling = PaneNode.Split(Orientation.HORIZONTAL, 0.5, inner1, inner2)
+        val root    = PaneNode.Split(Orientation.HORIZONTAL, 0.5, sibling, e)
+
+        val options = computeExtendOptions(root, e)
+        assertFalse(options.containsKey("Extend Left"),
+            "Extend Left must NOT be offered when sibling's adjacent child is a Split")
+    }
+
     // ── Panel extension — same-uncle-orientation ─────────────────────────────
     //
     // Layout: H(Lights, H(V(Tracker, Map), V(Music, Soundboard)))
