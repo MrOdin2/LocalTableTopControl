@@ -40,7 +40,6 @@ import java.net.URI
 import java.text.NumberFormat
 import java.text.ParsePosition
 import java.util.Locale
-import java.util.Base64
 import java.util.UUID
 
 /**
