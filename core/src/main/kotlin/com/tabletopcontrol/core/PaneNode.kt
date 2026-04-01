@@ -380,10 +380,10 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
             // newNode goes where the great-uncle was; uncle takes the grandParent's former slot.
             val newGGPNode = if (posOfParentInGP == ChildPos.FIRST) {
                 // parent was FIRST in GP → newNode is FIRST; uncle was SECOND → uncle is SECOND
-                PaneNode.Split(grandParent.orientation, newGGPDiv, newNode, uncle)
+                PaneNode.Split(greatGrandParent.orientation, newGGPDiv, newNode, uncle)
             } else {
                 // parent was SECOND in GP → newNode is SECOND; uncle was FIRST → uncle is FIRST
-                PaneNode.Split(grandParent.orientation, newGGPDiv, uncle, newNode)
+                PaneNode.Split(greatGrandParent.orientation, newGGPDiv, uncle, newNode)
             }
             options[label] = replaceNodeByRef(root, greatGrandParent, newGGPNode)
         }
