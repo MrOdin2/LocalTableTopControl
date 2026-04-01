@@ -418,9 +418,10 @@ class PresetLibraryTest {
     }
 
     @Test
-    fun `base64ToTempUri returns null when decoded size exceeds limit`() {
-        // Encode a payload just over 10 MB.
-        val oversized = ByteArray(10 * 1024 * 1024 + 1)
+    fun `base64ToTempUri returns null when decoded size exceeds 5 MB limit`() {
+        // Encode a payload just over 5 MB — the upfront string-length estimate
+        // should reject this before any streaming decode begins.
+        val oversized = ByteArray(5 * 1024 * 1024 + 1)
         val base64 = Base64.getEncoder().encodeToString(oversized)
         assertNull(PresetLibrary.base64ToTempUri(base64))
     }

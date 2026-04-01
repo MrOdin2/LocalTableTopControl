@@ -49,12 +49,15 @@ object PresetLibrary {
     /**
      * Maximum number of bytes a decoded `imageBase64` thumbnail may occupy.
      *
-     * A 256×256 RGBA PNG is typically well under 100 KB; 10 MB is a generous
+     * A 256×256 RGBA PNG is typically well under 100 KB; 5 MB is a generous
      * safety cap that still protects low-power devices (Raspberry Pi etc.)
      * from OOM or unexpectedly large temp-file writes caused by hand-edited or
-     * corrupt `.preset` files.
+     * corrupt `.preset` files.  The limit is enforced both as a cheap upfront
+     * estimate (from the Base64 string length) **and** as a hard streaming cap
+     * during decode so that no more than one small read-buffer (8 KB) of decoded
+     * data is ever held in memory at once.
      */
-    private const val MAX_BASE64_DECODED_BYTES: Int = 10 * 1024 * 1024 // 10 MB
+    private const val MAX_BASE64_DECODED_BYTES: Int = 5 * 1024 * 1024 // 5 MB
 
     /**
      * A saved combatant template.
@@ -386,23 +389,48 @@ object PresetLibrary {
      * Use this when loading a preset that has [Preset.imageBase64] set but
      * the original [Preset.imageUri] is inaccessible (e.g. on another machine).
      *
-     * To protect low-power devices from malformed or hand-crafted `.preset`
-     * files, the decoded byte array must be ≤ [MAX_BASE64_DECODED_BYTES]; any
-     * larger payload causes this function to return `null`.
+     * The decoded data is streamed directly to disk with an 8 KB buffer so
+     * that no full copy of the payload ever lives in heap memory.  An upfront
+     * estimate based on the Base64 string length rejects obviously oversized
+     * payloads before any decode work begins; the streaming loop enforces the
+     * same [MAX_BASE64_DECODED_BYTES] (5 MB) hard cap byte-by-byte.  Any
+     * partial temp file created before the limit is hit is deleted immediately.
      *
      * @return a `file:` URI string for the temporary image file, or `null` if
      *         the Base64 data cannot be decoded, exceeds the size limit, or the
      *         file cannot be written.
      */
     internal fun base64ToTempUri(base64: String): String? {
+        // Cheap upfront estimate: Base64 encodes ~3 decoded bytes per 4 chars.
+        // This never under-estimates, so it safely rejects large strings before
+        // any memory allocation for the actual decode.
+        if ((base64.length.toLong() * 3L) / 4L > MAX_BASE64_DECODED_BYTES) return null
+
+        val tmp = runCatching { File.createTempFile("tc-preset-", ".png") }.getOrNull()
+            ?: return null
+        tmp.deleteOnExit()
+
         return try {
-            val bytes = Base64.getDecoder().decode(base64)
-            if (bytes.size > MAX_BASE64_DECODED_BYTES) return null
-            val tmp = File.createTempFile("tc-preset-", ".png")
-            tmp.deleteOnExit()
-            tmp.writeBytes(bytes)
+            // Stream-decode directly to the temp file with a small buffer so we
+            // never materialise more than the buffer + limit bytes in memory.
+            Base64.getDecoder().wrap(base64.byteInputStream()).use { decoded ->
+                tmp.outputStream().use { out ->
+                    val buf = ByteArray(8 * 1024) // 8 KB read buffer
+                    var totalBytes = 0L
+                    var n: Int
+                    while (decoded.read(buf).also { n = it } != -1) {
+                        totalBytes += n
+                        if (totalBytes > MAX_BASE64_DECODED_BYTES) {
+                            tmp.delete()
+                            return null
+                        }
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
             tmp.toURI().toString()
         } catch (_: Exception) {
+            tmp.delete()
             null
         }
     }
