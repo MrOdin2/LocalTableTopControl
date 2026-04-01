@@ -40,9 +40,9 @@ import javafx.scene.layout.StackPane
  * - *Add Panel Below*    — splits the pane vertically; new pane appears below.
  * - *Change Plugin…* — swaps the plugin shown in this pane.
  * - *Close Pane* — removes this pane (disabled when it is the only pane).
- * - *Extend Left / Right / Above / Below* — expands this pane to absorb exactly one
- *   neighbouring panel (only shown when such an expansion is possible without
- *   overwriting more than one panel).
+ * - *Extend Left / Right / Above / Below* — expands this pane into the space of
+ *   exactly one neighbouring panel (potentially by splitting that panel’s area)
+ *   without affecting any other panels; only shown when such an expansion is possible.
  */
 class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
