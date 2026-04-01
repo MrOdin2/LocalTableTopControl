@@ -395,13 +395,13 @@ class TrackerPlugin : DmPlugin {
                 )
                 PresetLibrary.savePreset(presetWithoutThumbnail)
                 if (imageSettings?.uri != null) {
-                    // Background thread generates and embeds the thumbnail, then re-saves.
-                    Thread {
-                        val base64 = PresetLibrary.loadAndScaleImage(imageSettings.uri)
-                        if (base64 != null) {
-                            PresetLibrary.savePreset(presetWithoutThumbnail.copy(imageBase64 = base64))
-                        }
-                    }.also { it.isDaemon = true }.start()
+                    // Generate and embed the thumbnail, then re-save. This runs synchronously
+                    // to avoid race conditions where a background write could overwrite a
+                    // newer preset saved after this button was clicked.
+                    val base64 = PresetLibrary.loadAndScaleImage(imageSettings.uri)
+                    if (base64 != null) {
+                        PresetLibrary.savePreset(presetWithoutThumbnail.copy(imageBase64 = base64))
+                    }
                 }
             }
         }
