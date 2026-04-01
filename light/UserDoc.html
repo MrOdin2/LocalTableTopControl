@@ -413,8 +413,9 @@
       <h2>Effect Speed &amp; Intensity</h2>
       <p>
         Below the Effect selector you will find two sliders: <strong>Speed</strong> and
-        <strong>Intensity</strong>. Both range from 0 to 255 and map directly to the WLED
-        segment parameters <code>sx</code> (speed) and <code>ix</code> (intensity).
+        <strong>Intensity</strong>. Both range from 0% to 100% in the interface, and map
+        in the background to the WLED segment parameters <code>sx</code> (speed) and
+        <code>ix</code> (intensity) from 0 to 255.
       </p>
       <p>
         The <strong>label above each slider updates automatically</strong> when you switch effects,
@@ -442,7 +443,7 @@
         <tr><td>All others</td><td>Speed</td><td>Intensity</td></tr>
       </table>
       <div class="tip">
-        <strong>Tip:</strong> The default value for both sliders is 128 (midpoint). Start there
+        <strong>Tip:</strong> The default value for both sliders is 50% (midpoint). Start there
         and adjust to taste. For <em>Fire</em>, lower Cooling (Speed) and higher Sparking
         (Intensity) gives a more intense flame; higher Cooling makes the fire more subdued.
       </div>

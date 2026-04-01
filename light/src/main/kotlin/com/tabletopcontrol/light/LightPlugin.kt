@@ -350,37 +350,37 @@ class LightPlugin : DmPlugin {
      * names (e.g. "Cooling" / "Sparking" for Fire).
      */
     private fun buildEffectParamsRow(): VBox {
-        val speedValueLabel = Label(effectParamLabel(controller.effectSpeed))
-        val intensityValueLabel = Label(effectParamLabel(controller.effectIntensity))
+        val speedValueLabel = Label("${(controller.effectSpeed * 100) / 255} %")
+        val intensityValueLabel = Label("${(controller.effectIntensity * 100) / 255} %")
 
         val speedNameLabel = Label("${controller.effect.speedName}:")
         val intensityNameLabel = Label("${controller.effect.intensityName}:")
 
-        val speedSlider = Slider(0.0, 255.0, controller.effectSpeed.toDouble()).apply {
+        val speedSlider = Slider(0.0, 100.0, controller.effectSpeed * 100.0 / 255.0).apply {
             isShowTickMarks = true
             isShowTickLabels = true
-            majorTickUnit = 128.0
-            blockIncrement = 8.0
+            majorTickUnit = 50.0
+            blockIncrement = 5.0
             tooltip = Tooltip("Effect speed parameter (WLED sx) — meaning depends on the selected effect")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
-                val speed = newValue.toInt()
+                val speed = (newValue.toDouble() * 255.0 / 100.0).toInt().coerceIn(0, 255)
                 controller.setEffectSpeed(speed)
-                speedValueLabel.text = effectParamLabel(speed)
+                speedValueLabel.text = "${(speed * 100) / 255} %"
             }
         }
 
-        val intensitySlider = Slider(0.0, 255.0, controller.effectIntensity.toDouble()).apply {
+        val intensitySlider = Slider(0.0, 100.0, controller.effectIntensity * 100.0 / 255.0).apply {
             isShowTickMarks = true
             isShowTickLabels = true
-            majorTickUnit = 128.0
-            blockIncrement = 8.0
+            majorTickUnit = 50.0
+            blockIncrement = 5.0
             tooltip = Tooltip("Effect intensity parameter (WLED ix) — meaning depends on the selected effect")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
-                val intensity = newValue.toInt()
+                val intensity = (newValue.toDouble() * 255.0 / 100.0).toInt().coerceIn(0, 255)
                 controller.setEffectIntensity(intensity)
-                intensityValueLabel.text = effectParamLabel(intensity)
+                intensityValueLabel.text = "${(intensity * 100) / 255} %"
             }
         }
 
@@ -728,8 +728,6 @@ class LightPlugin : DmPlugin {
     /** Formats a normalised brightness value as a percentage label. */
     private fun brightnessLabel(value: Double): String = "${(value * 100).toInt()} %"
 
-    /** Formats a 0–255 WLED parameter value as a simple numeric label. */
-    private fun effectParamLabel(value: Int): String = "$value"
 
     private companion object {
         private val SERIAL_ERROR_LOG_THROTTLE_NANOS: Long = TimeUnit.SECONDS.toNanos(2)
