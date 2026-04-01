@@ -210,8 +210,9 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
      * Directions that would require overwriting more than one panel are not offered.
      *
      * @return A [LinkedHashMap] mapping each direction label (e.g. `"Extend Right"`) to the
-     *   resulting layout tree.  The map preserves insertion order so the menu items appear in
-     *   a consistent left / right / above / below sequence.
+     *   resulting layout tree. The map preserves insertion order, which reflects the
+     *   discovery and priority rules described above (same-level before cross-level, etc.),
+     *   rather than enforcing a fixed left / right / above / below direction sequence.
      */
     private fun computeExtendOptions(leaf: PaneNode.Leaf): Map<String, PaneNode> {
         val ancestry = findAncestry(layoutRoot, leaf)
