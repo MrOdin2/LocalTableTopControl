@@ -137,6 +137,86 @@ class LightControllerTest {
         assertThrows<IllegalArgumentException> { controller.setBrightness(1.1) }
     }
 
+    // ── setEffectSpeed ────────────────────────────────────────────────────────
+
+    @Test
+    fun `default effectSpeed is 128`() {
+        assertEquals(128, controller.effectSpeed)
+    }
+
+    @Test
+    fun `setEffectSpeed updates the speed`() {
+        controller.setEffectSpeed(200)
+        assertEquals(200, controller.effectSpeed)
+    }
+
+    @Test
+    fun `setEffectSpeed accepts boundary values 0 and 255`() {
+        controller.setEffectSpeed(0)
+        assertEquals(0, controller.effectSpeed)
+
+        controller.setEffectSpeed(255)
+        assertEquals(255, controller.effectSpeed)
+    }
+
+    @Test
+    fun `setEffectSpeed throws on value below 0`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectSpeed(-1) }
+    }
+
+    @Test
+    fun `setEffectSpeed throws on value above 255`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectSpeed(256) }
+    }
+
+    @Test
+    fun `change listener is called when effectSpeed changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setEffectSpeed(100)
+        assertEquals(1, callCount)
+    }
+
+    // ── setEffectIntensity ────────────────────────────────────────────────────
+
+    @Test
+    fun `default effectIntensity is 128`() {
+        assertEquals(128, controller.effectIntensity)
+    }
+
+    @Test
+    fun `setEffectIntensity updates the intensity`() {
+        controller.setEffectIntensity(50)
+        assertEquals(50, controller.effectIntensity)
+    }
+
+    @Test
+    fun `setEffectIntensity accepts boundary values 0 and 255`() {
+        controller.setEffectIntensity(0)
+        assertEquals(0, controller.effectIntensity)
+
+        controller.setEffectIntensity(255)
+        assertEquals(255, controller.effectIntensity)
+    }
+
+    @Test
+    fun `setEffectIntensity throws on value below 0`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectIntensity(-1) }
+    }
+
+    @Test
+    fun `setEffectIntensity throws on value above 255`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectIntensity(256) }
+    }
+
+    @Test
+    fun `change listener is called when effectIntensity changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setEffectIntensity(200)
+        assertEquals(1, callCount)
+    }
+
     // ── setPreset ─────────────────────────────────────────────────────────────
 
     @Test
