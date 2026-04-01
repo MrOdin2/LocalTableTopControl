@@ -854,15 +854,18 @@ class TrackerPlugin : DmPlugin {
                                 val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
                                 val id = UUID.randomUUID().toString()
                                 val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
-                                // Capture the list before the add so we can locate the insertion index
+                                // Capture the list before the add so we can locate the newly added entry
                                 // after the tracker re-sorts by initiative.
                                 val entriesBefore = tracker.entries
                                 tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
                                 val entriesAfter = tracker.entries
-                                // Find the index where the new entry landed after sorting.
-                                val insertIdx = entriesAfter.indices.firstOrNull { i ->
-                                    i >= entriesBefore.size || entriesAfter[i] != entriesBefore[i]
-                                } ?: (entriesAfter.size - 1)
+                                // Find the newly added entry by reference identity (===) and use its index.
+                                val newEntry = entriesAfter.firstOrNull { afterEntry ->
+                                    entriesBefore.none { beforeEntry -> beforeEntry === afterEntry }
+                                }
+                                val insertIdx = newEntry?.let { entriesAfter.indexOf(it) }
+                                    ?.takeIf { it >= 0 }
+                                    ?: (entriesAfter.size - 1)
                                 tokenIds.add(insertIdx, id)
                                 tokenColors[id] = color
 
