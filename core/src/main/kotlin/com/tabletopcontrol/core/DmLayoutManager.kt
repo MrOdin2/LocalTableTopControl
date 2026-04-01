@@ -173,6 +173,9 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         )
 
         // Extend options — only shown when there are valid directions to expand into.
+        // Sync live SplitPane divider positions back into the layout model so that
+        // extend options are computed from the current visual state.
+        syncDividers(layoutRoot, container.center)
         val extendOptions = computeExtendOptions(layoutRoot, leaf)
         if (extendOptions.isNotEmpty()) {
             menu.items.add(SeparatorMenuItem())
