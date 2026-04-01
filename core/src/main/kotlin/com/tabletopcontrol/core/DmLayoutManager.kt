@@ -40,6 +40,9 @@ import javafx.scene.layout.StackPane
  * - *Add Panel Below*    — splits the pane vertically; new pane appears below.
  * - *Change Plugin…* — swaps the plugin shown in this pane.
  * - *Close Pane* — removes this pane (disabled when it is the only pane).
+ * - *Extend Left / Right / Above / Below* — expands this pane to absorb exactly one
+ *   neighbouring panel (only shown when such an expansion is possible without
+ *   overwriting more than one panel).
  */
 class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
@@ -168,7 +171,92 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
             SeparatorMenuItem(),
             closePane,
         )
+
+        // Extend options — only shown when there are valid directions to expand into.
+        val extendOptions = computeExtendOptions(leaf)
+        if (extendOptions.isNotEmpty()) {
+            menu.items.add(SeparatorMenuItem())
+            extendOptions.forEach { (label, newRoot) ->
+                val item = MenuItem(label)
+                item.setOnAction { rebuild(newRoot) }
+                menu.items.add(item)
+            }
+        }
+
         return menu
+    }
+
+    /**
+     * Computes the extend options available for [leaf].
+     *
+     * A leaf can extend in a direction if doing so covers exactly one neighbouring panel:
+     * - **Same-level**: the sibling within the same parent split is a single [PaneNode.Leaf].
+     *   The leaf grows to absorb the sibling, equivalent to closing the sibling.
+     * - **Cross-level**: the uncle (parent's sibling within the grandparent split) is a
+     *   single [PaneNode.Leaf].  The leaf grows across the grandparent split boundary,
+     *   and the displaced sibling is recombined with the uncle on the other side.
+     *
+     * Directions that would overwrite more than one panel (sibling or uncle is a [PaneNode.Split])
+     * are not included.  When both same-level and cross-level would produce the same direction
+     * label the same-level option takes priority.
+     *
+     * @return A [LinkedHashMap] mapping each direction label (e.g. `"Extend Right"`) to the
+     *   resulting layout tree.  The map preserves insertion order so the menu items appear in
+     *   a consistent left / right / above / below sequence.
+     */
+    private fun computeExtendOptions(leaf: PaneNode.Leaf): Map<String, PaneNode> {
+        val ancestry = findAncestry(layoutRoot, leaf)
+        val options = LinkedHashMap<String, PaneNode>()
+
+        val parent = ancestry.parent ?: return options
+        val posInParent = ancestry.posInParent ?: return options
+        val sibling = if (posInParent == ChildPos.FIRST) parent.second else parent.first
+
+        // Same-level extension: leaf expands into its sibling (only when sibling is a single Leaf).
+        if (sibling is PaneNode.Leaf) {
+            val label = when {
+                parent.orientation == Orientation.HORIZONTAL && posInParent == ChildPos.FIRST  -> "Extend Right"
+                parent.orientation == Orientation.HORIZONTAL && posInParent == ChildPos.SECOND -> "Extend Left"
+                parent.orientation == Orientation.VERTICAL   && posInParent == ChildPos.FIRST  -> "Extend Below"
+                else                                                                            -> "Extend Above"
+            }
+            // Removing the sibling collapses the parent, leaving the leaf in the parent's place.
+            removeNode(layoutRoot, sibling)?.let { options[label] = it }
+        }
+
+        // Cross-level extension: leaf expands across the grandparent split into the uncle
+        // (only when uncle is a single Leaf).
+        val grandParent = ancestry.grandParent ?: return options
+        val posOfParentInGP = ancestry.posOfParentInGP ?: return options
+        val uncle = if (posOfParentInGP == ChildPos.FIRST) grandParent.second else grandParent.first
+
+        if (uncle is PaneNode.Leaf) {
+            val label = when {
+                grandParent.orientation == Orientation.HORIZONTAL && posOfParentInGP == ChildPos.FIRST  -> "Extend Right"
+                grandParent.orientation == Orientation.HORIZONTAL && posOfParentInGP == ChildPos.SECOND -> "Extend Left"
+                grandParent.orientation == Orientation.VERTICAL   && posOfParentInGP == ChildPos.FIRST  -> "Extend Below"
+                else                                                                                     -> "Extend Above"
+            }
+            if (!options.containsKey(label)) {
+                // The sibling and the uncle are recombined using the grandParent's orientation so
+                // their relative positions (sibling where parent was, uncle where uncle was) are kept.
+                val combined = if (posOfParentInGP == ChildPos.FIRST) {
+                    PaneNode.Split(grandParent.orientation, 0.5, sibling, uncle)
+                } else {
+                    PaneNode.Split(grandParent.orientation, 0.5, uncle, sibling)
+                }
+                // The leaf and the combined node replace the grandParent, using the parent's
+                // orientation so the leaf stays on the same visual side it occupied before.
+                val newGPNode = if (posInParent == ChildPos.FIRST) {
+                    PaneNode.Split(parent.orientation, 0.5, leaf, combined)
+                } else {
+                    PaneNode.Split(parent.orientation, 0.5, combined, leaf)
+                }
+                options[label] = replaceNodeByRef(layoutRoot, grandParent, newGPNode)
+            }
+        }
+
+        return options
     }
 
     /**

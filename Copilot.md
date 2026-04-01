@@ -78,14 +78,31 @@ Right-click anywhere on a leaf pane to access:
 - **Add Panel Below** — splits vertically; new pane appears below.
 - **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
 - **Close Pane** — remove this pane (disabled when only one pane remains).
+- **Extend Left / Right / Above / Below** — expand this pane to absorb exactly one
+  neighbouring panel.  Only directions that would overwrite a single leaf pane are offered;
+  directions that would overwrite multiple panels are omitted.
+
+#### Extend logic
+
+Two kinds of extension are supported:
+
+| Kind | Condition | Effect |
+|------|-----------|--------|
+| Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
+| Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling is recombined with the uncle on the opposite side. |
+
+Example — layout `Split(VERTICAL, Split(HORIZONTAL, A, B), C)`:
+- Right-click **A** → "Extend Right" (closes B) or "Extend Below" (A takes full left; B+C share right).
+- Right-click **B** → "Extend Left" (closes A) or "Extend Below" (B takes full right; A+C share left).
+- Right-click **C** → no extend options (uncle `Split(HORIZONTAL, A, B)` is not a single pane).
 
 ### Key Files
 
 | Path | Purpose |
 |------|---------|
-| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `removeNode` helpers |
+| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `replaceNodeByRef` / `removeNode` / `findAncestry` helpers |
 | `core/src/.../LayoutSerializer.kt` | S-expression serialiser/deserialiser; file I/O |
-| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu, divider sync |
+| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu (including extend options), divider sync |
 
 ---
 

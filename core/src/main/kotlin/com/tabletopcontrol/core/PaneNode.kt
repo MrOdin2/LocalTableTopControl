@@ -55,6 +55,67 @@ fun replaceNode(root: PaneNode, target: PaneNode.Leaf, replacement: PaneNode): P
     }
 
 /**
+ * Returns a new tree identical to [root] except that the exact [target] node (identified
+ * by reference equality, `===`) is replaced by [replacement].
+ *
+ * Unlike [replaceNode], this works for any [PaneNode] — not just leaves — which is needed
+ * when restructuring a grandparent [PaneNode.Split] during a cross-level panel extension.
+ */
+fun replaceNodeByRef(root: PaneNode, target: PaneNode, replacement: PaneNode): PaneNode =
+    when {
+        root === target -> replacement
+        root is PaneNode.Split -> root.copy(
+            first = replaceNodeByRef(root.first, target, replacement),
+            second = replaceNodeByRef(root.second, target, replacement),
+        )
+        else -> root
+    }
+
+// ── Ancestry helpers ─────────────────────────────────────────────────────────
+
+/** Position of a child within its parent [PaneNode.Split]. */
+enum class ChildPos { FIRST, SECOND }
+
+/**
+ * Records the two-level ancestry of a [PaneNode.Leaf] within a tree.
+ *
+ * @property parent           The immediate parent [PaneNode.Split], or `null` if the leaf is the root.
+ * @property posInParent      Whether the leaf is [ChildPos.FIRST] or [ChildPos.SECOND] in [parent].
+ * @property grandParent      The parent of [parent], or `null` if [parent] is the root.
+ * @property posOfParentInGP  Whether [parent] is [ChildPos.FIRST] or [ChildPos.SECOND] in [grandParent].
+ */
+data class LeafAncestry(
+    val parent: PaneNode.Split?,
+    val posInParent: ChildPos?,
+    val grandParent: PaneNode.Split?,
+    val posOfParentInGP: ChildPos?,
+)
+
+/**
+ * Searches [root] for [target] using reference equality (`===`) and returns its two-level ancestry.
+ *
+ * Returns [LeafAncestry] with all-`null` fields when [target] is the root itself
+ * or is not present in the tree.
+ */
+fun findAncestry(root: PaneNode, target: PaneNode.Leaf): LeafAncestry {
+    fun search(
+        node: PaneNode,
+        parent: PaneNode.Split?,
+        posInParent: ChildPos?,
+        grandParent: PaneNode.Split?,
+        posOfParentInGP: ChildPos?,
+    ): LeafAncestry? = when (node) {
+        is PaneNode.Leaf ->
+            if (node === target) LeafAncestry(parent, posInParent, grandParent, posOfParentInGP)
+            else null
+        is PaneNode.Split ->
+            search(node.first, node, ChildPos.FIRST, parent, posInParent)
+                ?: search(node.second, node, ChildPos.SECOND, parent, posInParent)
+    }
+    return search(root, null, null, null, null) ?: LeafAncestry(null, null, null, null)
+}
+
+/**
  * Returns a new tree identical to [root] with [target] removed, collapsing the parent
  * split so the sibling takes its place.
  *
