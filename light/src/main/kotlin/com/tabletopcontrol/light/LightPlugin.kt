@@ -385,11 +385,15 @@ class LightPlugin : DmPlugin {
             }
         }
 
-        // Update the parameter-name labels whenever the active effect changes.
+        // Update the parameter-name labels only when the active effect actually changes.
+        val lastEffect = AtomicReference(controller.effect)
         controller.addChangeListener {
-            Platform.runLater {
-                speedNameLabel.text = "${controller.effect.speedName}:"
-                intensityNameLabel.text = "${controller.effect.intensityName}:"
+            val currentEffect = controller.effect
+            if (currentEffect != lastEffect.getAndSet(currentEffect)) {
+                Platform.runLater {
+                    speedNameLabel.text = "${currentEffect.speedName}:"
+                    intensityNameLabel.text = "${currentEffect.intensityName}:"
+                }
             }
         }
 
