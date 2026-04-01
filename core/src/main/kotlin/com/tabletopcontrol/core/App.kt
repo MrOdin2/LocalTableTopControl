@@ -145,7 +145,8 @@ class App : Application() {
      * fullscreen so it fills that display.
      *
      * A **Theme** button on the left opens the [showThemeDialog] to let the DM
-     * switch between light/dark modes and customise accent colours.
+     * switch between light/dark modes and customise the theme colour roles
+     * (accent, background, surface, border).
      */
     private fun buildDisplayToolbar(tableStage: Stage): ToolBar {
         val screens = Screen.getScreens()
