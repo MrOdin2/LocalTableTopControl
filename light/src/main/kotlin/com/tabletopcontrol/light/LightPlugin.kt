@@ -343,11 +343,12 @@ class LightPlugin : DmPlugin {
     /**
      * Builds the effect speed and intensity sliders.
      *
-     * Both [Slider]s range from 0 to 255, matching the WLED `sx` (speed) and
-     * `ix` (intensity) segment parameters.  A midpoint of 128 is used as the
-     * default.  The labels above each slider update automatically when the
-     * active [LightEffect] changes to reflect the effect-specific parameter
-     * names (e.g. "Cooling" / "Sparking" for Fire).
+     * Both [Slider]s expose a 0–100% range in the UI, which is linearly mapped
+     * to the WLED `sx` (speed) and `ix` (intensity) segment parameters in the
+     * 0–255 range. A midpoint of ~50% corresponds to a value of ~128 and is
+     * used as the default. The labels above each slider update automatically
+     * when the active [LightEffect] changes to reflect the effect-specific
+     * parameter names (e.g. "Cooling" / "Sparking" for Fire).
      */
     private fun buildEffectParamsRow(): VBox {
         val speedValueLabel = Label("${(controller.effectSpeed * 100) / 255} %")
