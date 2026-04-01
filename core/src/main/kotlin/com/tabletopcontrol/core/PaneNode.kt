@@ -157,8 +157,10 @@ fun directionLabel(orientation: Orientation, childPos: ChildPos): String = when 
  * 4. **Same-grandparent-orientation uncle**: the uncle is a [PaneNode.Split] with
  *    the same orientation as the grandparent (which differs from the parent's
  *    orientation), and the uncle's child on the side adjacent to the parent is a
- *    single [PaneNode.Leaf].  The leaf absorbs that adjacent child; the uncle collapses
- *    to its remaining child; the displaced sibling takes the parent's former slot.
+ *    single [PaneNode.Leaf].  The adjacent child's space is shared with the leaf
+ *    using the parent's orientation (leaf at its own row/column position, adjacent
+ *    child in the other half); the uncle is rebuilt with that new shared node; the
+ *    displaced sibling takes the parent's former slot in the grandparent.
  * 5. **Great-uncle-is-Leaf**: the great-grandparent exists and its other child
  *    (the great-uncle) is a single [PaneNode.Leaf].  The great-grandparent is
  *    restructured: the leaf claims the great-uncle's former space (sharing it with
@@ -260,30 +262,34 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
     // (but differs from the parent's), and the uncle's child on the side adjacent
     // to the parent (i.e. at posOfParentInGP) is a single Leaf.
     //
-    // The grandParent is restructured: the leaf absorbs the adjacent uncle child;
-    // the uncle collapses to its remaining child; the displaced sibling takes the
-    // parent's former slot in the grandParent.
+    // The adjacent uncle child's space is shared with the leaf: a new Split using
+    // the parent's orientation places the leaf at its own row/column position and
+    // the adjacent child in the other half.  The uncle is rebuilt with that new
+    // node in place of its original adjacent child.  The displaced sibling takes
+    // the parent's former slot in the grandParent.
     //
     // Example — H(H(V(Tracker,Lights), Map), V(Music, Soundboard)), Music extends left:
     //   adjacentUncleChild = Map  (uncle.second, posOfParentInGP=SECOND)
-    //   remainingUncle = V(Tracker, Lights)
-    //   newInnerNode = H(V(Tracker,Lights), Music)  — remaining at FIRST, leaf at SECOND
-    //   newGPNode = H(H(V(Tracker,Lights),Music), Soundboard)
+    //   newSharedNode = V(Music, Map)  — leaf FIRST (posInParent=FIRST), adjacent SECOND
+    //   newInnerNode = H(V(Tracker,Lights), V(Music,Map))  — uncle rebuilt
+    //   newGPNode = H(newInnerNode, Soundboard)
     if (uncle is PaneNode.Split && uncle.orientation == grandParent.orientation) {
         val adjacentUncleChild =
             if (posOfParentInGP == ChildPos.FIRST) uncle.first else uncle.second
         if (adjacentUncleChild is PaneNode.Leaf) {
             val label = directionLabel(grandParent.orientation, posOfParentInGP)
             if (!options.containsKey(label)) {
-                // Remaining uncle child keeps its position within the rebuilt inner node.
-                val remainingUncle =
-                    if (posOfParentInGP == ChildPos.FIRST) uncle.second else uncle.first
-                // New inner node replaces the uncle: remaining child on the far side,
-                // leaf on the adjacent (absorbed) side, preserving uncle's orientation.
-                val newInnerNode = if (posOfParentInGP == ChildPos.FIRST) {
-                    PaneNode.Split(uncle.orientation, 0.5, leaf, remainingUncle)
+                // New shared node: leaf at its row/column position, adjacent child in the other.
+                val newSharedNode = if (posInParent == ChildPos.FIRST) {
+                    PaneNode.Split(parent.orientation, 0.5, leaf, adjacentUncleChild)
                 } else {
-                    PaneNode.Split(uncle.orientation, 0.5, remainingUncle, leaf)
+                    PaneNode.Split(parent.orientation, 0.5, adjacentUncleChild, leaf)
+                }
+                // Rebuild uncle, replacing the adjacent child with the new shared node.
+                val newInnerNode = if (posOfParentInGP == ChildPos.FIRST) {
+                    PaneNode.Split(uncle.orientation, uncle.dividerPosition, newSharedNode, uncle.second)
+                } else {
+                    PaneNode.Split(uncle.orientation, uncle.dividerPosition, uncle.first, newSharedNode)
                 }
                 // New grandParent: uncle's slot gets newInnerNode; parent's slot gets sibling.
                 val newGPNode = if (posOfParentInGP == ChildPos.FIRST) {

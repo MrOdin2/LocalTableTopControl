@@ -618,7 +618,7 @@ class LayoutSerializerTest {
     //   [Lights ] [     ] | [Soundboard]
 
     @Test
-    fun `same-GP-orientation uncle extend left on Music produces H(H(V(Tracker,Lights),Music), Soundboard)`() {
+    fun `same-GP-orientation uncle extend left on Music produces H(H(V(Tracker,Lights),V(Music,Map)), Soundboard)`() {
         // Layout: H(H(V(Tracker,Lights), Map), V(Music, Soundboard))
         val tracker    = PaneNode.Leaf("Tracker")
         val lights     = PaneNode.Leaf("Lights")
@@ -632,22 +632,22 @@ class LayoutSerializerTest {
 
         // Music: FIRST in V parent; posOfParentInGP=SECOND; uncle=H(V(T,L), Map)
         // uncle.orientation(H) == grandParent.orientation(H); adjacentUncleChild = uncle.second = Map (Leaf)
-        // remainingUncle = uncle.first = V(T,L)
-        // newInnerNode: posOfParentInGP=SECOND → H(remainingUncle, music) = H(V(T,L), Music)
-        // newGPNode: posOfParentInGP=SECOND → H(newInnerNode, sibling) = H(H(V(T,L),Music), Soundboard)
+        // newSharedNode = V(Music, Map)  — leaf FIRST (posInParent=FIRST), Map SECOND
+        // newInnerNode = H(V(T,L), V(Music,Map))  — uncle rebuilt
+        // newGPNode = H(H(V(T,L),V(Music,Map)), Soundboard)
         val options = computeExtendOptions(root, music)
         assertTrue(options.containsKey("Extend Left"), "Extend Left should be offered for Music")
 
         val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
             PaneNode.Split(Orientation.HORIZONTAL, 0.5,
                 PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
-                music),
+                PaneNode.Split(Orientation.VERTICAL, 0.5, music, map)),
             soundboard)
         assertEquals(expected, options["Extend Left"])
     }
 
     @Test
-    fun `same-GP-orientation uncle extend left on Soundboard produces H(H(V(Tracker,Lights),Soundboard), Music)`() {
+    fun `same-GP-orientation uncle extend left on Soundboard produces H(H(V(Tracker,Lights),V(Map,Soundboard)), Music)`() {
         val tracker    = PaneNode.Leaf("Tracker")
         val lights     = PaneNode.Leaf("Lights")
         val map        = PaneNode.Leaf("Map")
@@ -659,14 +659,15 @@ class LayoutSerializerTest {
         val root       = PaneNode.Split(Orientation.HORIZONTAL, 0.5, uncle,    parent)
 
         // Soundboard: SECOND in V parent; sibling=Music; adjacentUncleChild=uncle.second=Map (Leaf)
-        // remainingUncle=V(T,L); newInnerNode=H(V(T,L), Soundboard); newGPNode=H(H(V(T,L),Soundboard), Music)
+        // newSharedNode = V(Map, Soundboard)  — Map FIRST (adjacent), Soundboard SECOND (posInParent=SECOND)
+        // newInnerNode = H(V(T,L), V(Map,Soundboard)); newGPNode = H(H(V(T,L),V(Map,Soundboard)), Music)
         val options = computeExtendOptions(root, soundboard)
         assertTrue(options.containsKey("Extend Left"), "Extend Left should be offered for Soundboard")
 
         val expected = PaneNode.Split(Orientation.HORIZONTAL, 0.5,
             PaneNode.Split(Orientation.HORIZONTAL, 0.5,
                 PaneNode.Split(Orientation.VERTICAL, 0.5, tracker, lights),
-                soundboard),
+                PaneNode.Split(Orientation.VERTICAL, 0.5, map, soundboard)),
             music)
         assertEquals(expected, options["Extend Left"])
     }
