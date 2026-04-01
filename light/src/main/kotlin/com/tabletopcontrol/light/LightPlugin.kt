@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.roundToInt
 
 /**
  * DM-panel plugin for controlling physical ambient lighting via WLED.
@@ -88,6 +89,12 @@ class LightPlugin : DmPlugin {
     private var debugConsole: TextArea? = null
     private val lastSerialErrorLogNanos = AtomicReference(0L)
     private val serialWriteErrorLoggedSinceSuccess = AtomicBoolean(false)
+
+    /**
+     * Tracks the effect-params label-update listener registered by [buildEffectParamsRow]
+     * so it can be removed before a new listener is added on subsequent [createView] calls.
+     */
+    private var effectParamsListener: (() -> Unit)? = null
 
     init {
         // Forward every state change to the WLED device if connected.
@@ -365,7 +372,7 @@ class LightPlugin : DmPlugin {
             tooltip = Tooltip("Effect speed parameter (WLED sx) — meaning depends on the selected effect")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
-                val speed = (newValue.toDouble() * 255.0 / 100.0).toInt().coerceIn(0, 255)
+                val speed = (newValue.toDouble() * 255.0 / 100.0).roundToInt().coerceIn(0, 255)
                 controller.setEffectSpeed(speed)
                 speedValueLabel.text = "${(speed * 100) / 255} %"
             }
@@ -379,15 +386,17 @@ class LightPlugin : DmPlugin {
             tooltip = Tooltip("Effect intensity parameter (WLED ix) — meaning depends on the selected effect")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
-                val intensity = (newValue.toDouble() * 255.0 / 100.0).toInt().coerceIn(0, 255)
+                val intensity = (newValue.toDouble() * 255.0 / 100.0).roundToInt().coerceIn(0, 255)
                 controller.setEffectIntensity(intensity)
                 intensityValueLabel.text = "${(intensity * 100) / 255} %"
             }
         }
 
         // Update the parameter-name labels only when the active effect actually changes.
+        // Remove any listener registered by a previous createView() call to prevent accumulation.
+        effectParamsListener?.let { controller.removeChangeListener(it) }
         val lastEffect = AtomicReference(controller.effect)
-        controller.addChangeListener {
+        effectParamsListener = controller.addChangeListener {
             val currentEffect = controller.effect
             if (currentEffect != lastEffect.getAndSet(currentEffect)) {
                 Platform.runLater {
