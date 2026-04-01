@@ -53,6 +53,13 @@ object PresetLibrary {
      * @property hp           the combatant's hit points
      * @property ac           the combatant's armour class
      * @property initiative   the combatant's default initiative value (defaults to 0)
+     * @property folder       the name of the immediate subdirectory inside the presets
+     *                        directory where this preset lives; empty string means the
+     *                        preset is at the root of the presets directory.  This field
+     *                        is **not** written to the `.preset` file — it is inferred
+     *                        from the file's location on disk, so moving files between
+     *                        folders in the system file browser is all that is needed to
+     *                        reorganise the library.
      * @property imageUri     original local-file URI of the token image (may not
      *                        exist on another machine)
      * @property imageBase64  PNG thumbnail of the token image encoded as Base64;
@@ -67,6 +74,7 @@ object PresetLibrary {
         val hp: Int,
         val ac: Int,
         val initiative: Int = 0,
+        val folder: String = "",
         val imageUri: String? = null,
         val imageBase64: String? = null,
         val imageScaleX: Double = 1.0,
@@ -95,46 +103,78 @@ object PresetLibrary {
      * Saves [preset] to the library.
      *
      * If a `.preset` file whose `name` field matches [preset.name] already
-     * exists it is overwritten in-place; otherwise a new file is created
-     * using a filesystem-safe version of the name.
+     * exists (in the same folder) it is overwritten in-place; otherwise a new
+     * file is created using a filesystem-safe version of the name.  When
+     * [Preset.folder] is non-empty the file is placed inside a matching
+     * subdirectory of [presetsDir]; the subdirectory is created if absent.
      */
     fun savePreset(preset: Preset) {
         try {
             presetsDir.mkdirs()
-            fileFor(preset.name).writeText(serialize(preset))
+            fileFor(preset.name, preset.folder).writeText(serialize(preset))
         } catch (_: Exception) {
             // non-fatal — proceed without persistence
         }
     }
 
     /**
-     * Returns all presets stored in the library, sorted alphabetically by name.
+     * Returns all presets stored in the library, sorted first by folder name
+     * (root presets — those with an empty folder — sort before any named folder)
+     * and then alphabetically by name within each folder.
+     *
+     * Presets at the root of [presetsDir] have [Preset.folder] set to `""`.
+     * Presets inside an immediate subdirectory have [Preset.folder] set to
+     * that directory's name.  Deeper nesting is not scanned.
      *
      * @return a list of saved presets, or an empty list when the directory is
      *         absent or contains no parseable `.preset` files.
      */
     fun loadAll(): List<Preset> =
         try {
-            presetsDir.listFiles { f -> f.extension == "preset" }
-                ?.mapNotNull { runCatching { deserialize(it.readText()) }.getOrNull() }
-                ?.sortedBy { it.name }
-                ?: emptyList()
+            val results = mutableListOf<Preset>()
+            // Root-level .preset files — folder = "".
+            presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
+                ?.mapNotNull { f -> runCatching { deserialize(f.readText()) }.getOrNull() }
+                ?.let { results.addAll(it) }
+            // One level of immediate subdirectories — folder = directory name.
+            presetsDir.listFiles { f -> f.isDirectory }
+                ?.forEach { subDir ->
+                    val folderName = subDir.name
+                    subDir.listFiles { f -> f.isFile && f.extension == "preset" }
+                        ?.mapNotNull { f ->
+                            runCatching { deserialize(f.readText())?.copy(folder = folderName) }.getOrNull()
+                        }
+                        ?.let { results.addAll(it) }
+                }
+            results.sortedWith(compareBy({ it.folder }, { it.name }))
         } catch (_: Exception) {
             emptyList()
         }
 
     /**
-     * Removes every `.preset` file whose `name` field equals [name].
+     * Removes every `.preset` file whose `name` field equals [name], searching
+     * both the root of [presetsDir] and any immediate subdirectories.
      *
      * Does nothing when no such preset exists.
      */
     fun delete(name: String) {
         try {
-            presetsDir.listFiles { f -> f.extension == "preset" }
+            // Remove from root.
+            presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
                 ?.forEach { f ->
                     if (runCatching { deserialize(f.readText())?.name == name }.getOrDefault(false)) {
                         f.delete()
                     }
+                }
+            // Remove from immediate subdirectories.
+            presetsDir.listFiles { f -> f.isDirectory }
+                ?.forEach { subDir ->
+                    subDir.listFiles { f -> f.isFile && f.extension == "preset" }
+                        ?.forEach { f ->
+                            if (runCatching { deserialize(f.readText())?.name == name }.getOrDefault(false)) {
+                                f.delete()
+                            }
+                        }
                 }
         } catch (_: Exception) {
             // non-fatal
@@ -161,15 +201,24 @@ object PresetLibrary {
     /**
      * Returns the [File] that should be used to store the preset with [name].
      *
-     * If a `.preset` file in [presetsDir] already stores a preset with this
-     * exact name it is reused (enabling in-place updates).  Otherwise a new
-     * file is chosen using the sanitized name, appending `_2`, `_3`, … to
-     * avoid collisions with files that have a different actual name.
+     * When [folder] is non-empty the file lives inside
+     * `presetsDir/sanitizeFilename(folder)/`; otherwise it lives directly
+     * in [presetsDir].  The target directory is created if it does not
+     * already exist.
+     *
+     * If a `.preset` file in the target directory already stores a preset
+     * with this exact name it is reused (enabling in-place updates).
+     * Otherwise a new file is chosen using the sanitized name, appending
+     * `_2`, `_3`, … to avoid collisions with files that have a different
+     * actual name.
      */
-    internal fun fileFor(name: String): File {
-        val dir = presetsDir
+    internal fun fileFor(name: String, folder: String = ""): File {
+        val dir = if (folder.isNotEmpty())
+            File(presetsDir, sanitizeFilename(folder)).also { it.mkdirs() }
+        else
+            presetsDir.also { it.mkdirs() }
         // Reuse an existing file that already stores this name.
-        dir.listFiles { f -> f.extension == "preset" }
+        dir.listFiles { f -> f.isFile && f.extension == "preset" }
             ?.forEach { f ->
                 if (runCatching { deserialize(f.readText())?.name == name }.getOrDefault(false)) {
                     return f
@@ -184,6 +233,33 @@ object PresetLibrary {
             val candidate = File(dir, "${base}_$n.preset")
             if (!candidate.exists()) return candidate
             n++
+        }
+    }
+
+    // ── Folder management ─────────────────────────────────────────────────────
+
+    /**
+     * Opens [presetsDir] in the operating system's default file manager.
+     *
+     * The directory is created first if it does not yet exist.  On systems
+     * where [java.awt.Desktop] is unavailable (some Linux SBCs), a fallback
+     * via `xdg-open` is attempted instead.  All errors are swallowed so that
+     * the application is never crashed by a missing file manager.
+     */
+    fun openPresetsFolder() {
+        val dir = presetsDir.also { it.mkdirs() }
+        try {
+            if (java.awt.Desktop.isDesktopSupported()) {
+                java.awt.Desktop.getDesktop().open(dir)
+            } else {
+                ProcessBuilder("xdg-open", dir.absolutePath).start()
+            }
+        } catch (_: Exception) {
+            try {
+                ProcessBuilder("xdg-open", dir.absolutePath).start()
+            } catch (_: Exception) {
+                // silently ignore — the file manager is a convenience, not a critical feature
+            }
         }
     }
 

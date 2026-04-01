@@ -786,7 +786,13 @@ class TrackerPlugin : DmPlugin {
     // ── Preset library dialog ─────────────────────────────────────────────────
 
     /**
-     * Opens a modal dialog that lists all presets saved in [PresetLibrary].
+     * Opens a modal dialog that lists all presets saved in [PresetLibrary],
+     * grouped by the subdirectory they live in.
+     *
+     * The header contains an **Open Preset Folder** button that opens
+     * `~/.tabletopcontrol/presets/` in the operating system's file manager,
+     * allowing the DM to organise presets into subfolders and add/remove
+     * files without using the in-app controls.
      *
      * From the dialog the DM can:
      * - **Load** a preset, which adds it to the tracker as a new combatant.
@@ -799,7 +805,6 @@ class TrackerPlugin : DmPlugin {
     private fun showPresetsDialog(owner: javafx.stage.Window?, refresh: () -> Unit) {
         val dialog = Dialog<Unit>().apply {
             title = "Presets"
-            headerText = "Load or manage saved combatant presets"
             owner?.let { initOwner(it) }
             dialogPane.buttonTypes.setAll(ButtonType.CLOSE)
         }
@@ -816,94 +821,137 @@ class TrackerPlugin : DmPlugin {
                     },
                 )
             } else {
-                for (preset in presets) {
-                    val info = Label(
-                        "${preset.name}  HP: ${preset.hp}  AC: ${preset.ac}  Init: ${preset.initiative}",
-                    ).apply {
-                        HBox.setHgrow(this, Priority.ALWAYS)
+                // Group presets by folder; root presets (folder = "") are listed first.
+                val grouped = presets.groupBy { it.folder }
+                val sortedFolders = grouped.keys.sortedWith(
+                    compareBy({ if (it.isEmpty()) 0 else 1 }, { it }),
+                )
+                val hasMultipleFolders = sortedFolders.size > 1
+
+                for (folder in sortedFolders) {
+                    val presetsInFolder = grouped[folder] ?: continue
+
+                    // Section header — only shown when there is more than one group.
+                    if (hasMultipleFolders) {
+                        val headerText = if (folder.isEmpty()) "📂 Root" else "📁 $folder"
+                        listBox.children.add(
+                            Label(headerText).apply {
+                                style = "-fx-font-weight: bold;"
+                                padding = Insets(6.0, 2.0, 2.0, 2.0)
+                            },
+                        )
                     }
 
-                    val loadBtn = Button("Load").apply {
-                        tooltip = Tooltip("Add this combatant to the initiative tracker")
-                        setOnAction {
-                            val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
-                            val id = UUID.randomUUID().toString()
-                            val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
-                            // Capture the list before the add so we can locate the insertion index
-                            // after the tracker re-sorts by initiative.
-                            val entriesBefore = tracker.entries
-                            tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
-                            val entriesAfter = tracker.entries
-                            // Find the index where the new entry landed after sorting.
-                            val insertIdx = entriesAfter.indices.firstOrNull { i ->
-                                i >= entriesBefore.size || entriesAfter[i] != entriesBefore[i]
-                            } ?: (entriesAfter.size - 1)
-                            tokenIds.add(insertIdx, id)
-                            tokenColors[id] = color
-
-                            // Resolve the image URI: prefer the embedded base64 thumbnail
-                            // (works when sharing across machines), fall back to the original
-                            // URI when the file is still accessible locally.
-                            val effectiveUri = preset.imageBase64?.let { PresetLibrary.base64ToTempUri(it) }
-                                ?: preset.imageUri
-                            tokenImages[id] = TokenImageSettings(
-                                uri = effectiveUri,
-                                scaleX = preset.imageScaleX,
-                                scaleY = preset.imageScaleY,
-                                offsetX = preset.imageOffsetX,
-                                offsetY = preset.imageOffsetY,
-                            )
-
-                            EventBus.publish(TokenAddedEvent(id, preset.name, color))
-                            if (effectiveUri != null) {
-                                EventBus.publish(
-                                    TokenImageChangedEvent(
-                                        id = id,
-                                        imageUri = effectiveUri,
-                                        imageScaleX = preset.imageScaleX,
-                                        imageScaleY = preset.imageScaleY,
-                                        imageOffsetX = preset.imageOffsetX,
-                                        imageOffsetY = preset.imageOffsetY,
-                                    ),
-                                )
-                            }
-                            if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
-                                EventBus.publish(
-                                    ActiveTokenChangedEvent(
-                                        tokenIds.getOrNull(tracker.currentIndex),
-                                        tracker.currentEntry?.name,
-                                    ),
-                                )
-                            }
-                            refresh()
+                    for (preset in presetsInFolder) {
+                        val info = Label(
+                            "${preset.name}  HP: ${preset.hp}  AC: ${preset.ac}  Init: ${preset.initiative}",
+                        ).apply {
+                            HBox.setHgrow(this, Priority.ALWAYS)
                         }
-                    }
 
-                    val deleteBtn = Button("Delete").apply {
-                        tooltip = Tooltip("Remove this preset from the library")
-                        setOnAction {
-                            PresetLibrary.delete(preset.name)
-                            rebuildList()
+                        val loadBtn = Button("Load").apply {
+                            tooltip = Tooltip("Add this combatant to the initiative tracker")
+                            setOnAction {
+                                val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
+                                val id = UUID.randomUUID().toString()
+                                val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
+                                // Capture the list before the add so we can locate the insertion index
+                                // after the tracker re-sorts by initiative.
+                                val entriesBefore = tracker.entries
+                                tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
+                                val entriesAfter = tracker.entries
+                                // Find the index where the new entry landed after sorting.
+                                val insertIdx = entriesAfter.indices.firstOrNull { i ->
+                                    i >= entriesBefore.size || entriesAfter[i] != entriesBefore[i]
+                                } ?: (entriesAfter.size - 1)
+                                tokenIds.add(insertIdx, id)
+                                tokenColors[id] = color
+
+                                // Resolve the image URI: prefer the embedded base64 thumbnail
+                                // (works when sharing across machines), fall back to the original
+                                // URI when the file is still accessible locally.
+                                val effectiveUri = preset.imageBase64?.let { PresetLibrary.base64ToTempUri(it) }
+                                    ?: preset.imageUri
+                                tokenImages[id] = TokenImageSettings(
+                                    uri = effectiveUri,
+                                    scaleX = preset.imageScaleX,
+                                    scaleY = preset.imageScaleY,
+                                    offsetX = preset.imageOffsetX,
+                                    offsetY = preset.imageOffsetY,
+                                )
+
+                                EventBus.publish(TokenAddedEvent(id, preset.name, color))
+                                if (effectiveUri != null) {
+                                    EventBus.publish(
+                                        TokenImageChangedEvent(
+                                            id = id,
+                                            imageUri = effectiveUri,
+                                            imageScaleX = preset.imageScaleX,
+                                            imageScaleY = preset.imageScaleY,
+                                            imageOffsetX = preset.imageOffsetX,
+                                            imageOffsetY = preset.imageOffsetY,
+                                        ),
+                                    )
+                                }
+                                if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
+                                    EventBus.publish(
+                                        ActiveTokenChangedEvent(
+                                            tokenIds.getOrNull(tracker.currentIndex),
+                                            tracker.currentEntry?.name,
+                                        ),
+                                    )
+                                }
+                                refresh()
+                            }
                         }
-                    }
 
-                    listBox.children.add(
-                        HBox(8.0, info, loadBtn, deleteBtn).apply {
-                            alignment = javafx.geometry.Pos.CENTER_LEFT
-                            padding = Insets(4.0, 2.0, 4.0, 2.0)
-                        },
-                    )
+                        val deleteBtn = Button("Delete").apply {
+                            tooltip = Tooltip("Remove this preset from the library")
+                            setOnAction {
+                                PresetLibrary.delete(preset.name)
+                                rebuildList()
+                            }
+                        }
+
+                        listBox.children.add(
+                            HBox(8.0, info, loadBtn, deleteBtn).apply {
+                                alignment = javafx.geometry.Pos.CENTER_LEFT
+                                padding = Insets(4.0, 2.0, 4.0, 2.0)
+                            },
+                        )
+                    }
                 }
             }
         }
 
         rebuildList()
 
-        dialog.dialogPane.content = ScrollPane(listBox).apply {
-            isFitToWidth = true
-            prefHeight = 300.0
-            hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+        // "Open Preset Folder" button — opens the presets directory in the system file manager.
+        val openFolderBtn = Button("📂 Open Preset Folder").apply {
+            tooltip = Tooltip("Open the presets folder in the system file manager to organise presets into subfolders")
+            setOnAction {
+                Thread { PresetLibrary.openPresetsFolder() }.also { it.isDaemon = true }.start()
+            }
         }
+
+        val headerBar = HBox(8.0).apply {
+            alignment = javafx.geometry.Pos.CENTER_LEFT
+            padding = Insets(0.0, 0.0, 8.0, 0.0)
+            children.addAll(
+                Label("Load or manage saved combatant presets").apply { HBox.setHgrow(this, Priority.ALWAYS) },
+                openFolderBtn,
+            )
+        }
+
+        dialog.dialogPane.content = VBox(
+            4.0,
+            headerBar,
+            ScrollPane(listBox).apply {
+                isFitToWidth = true
+                prefHeight = 300.0
+                hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+            },
+        )
 
         dialog.showAndWait()
     }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.nio.file.Path
 import java.util.Base64
 import javax.imageio.ImageIO
@@ -256,6 +257,110 @@ class PresetLibraryTest {
     @Test
     fun `delete on an empty library does not throw`() {
         PresetLibrary.delete("Ghost")
+        assertTrue(PresetLibrary.loadAll().isEmpty())
+    }
+
+    // ── Folder support ────────────────────────────────────────────────────────
+
+    @Test
+    fun `savePreset with folder places file in subdirectory`() {
+        val preset = PresetLibrary.Preset("Goblin", 7, 15, 0, folder = "Monsters")
+        PresetLibrary.savePreset(preset)
+
+        val subDir = tempDir.resolve("Monsters").toFile()
+        assertTrue(subDir.isDirectory)
+        val files = subDir.listFiles { f -> f.extension == "preset" }
+        assertEquals(1, files?.size)
+    }
+
+    @Test
+    fun `loadAll returns subfolder presets with correct folder field`() {
+        // Place a preset file manually in a subdirectory.
+        val subDir = tempDir.resolve("Bosses").toFile().also { it.mkdirs() }
+        val text = "name=Dragon Lord\nhp=300\nac=24\ninitiative=10"
+        File(subDir, "Dragon Lord.preset").writeText(text)
+
+        val presets = PresetLibrary.loadAll()
+        assertEquals(1, presets.size)
+        assertEquals("Bosses", presets[0].folder)
+        assertEquals("Dragon Lord", presets[0].name)
+    }
+
+    @Test
+    fun `loadAll returns root presets with empty folder field`() {
+        PresetLibrary.savePreset(PresetLibrary.Preset("Goblin", 7, 15, 0))
+
+        val presets = PresetLibrary.loadAll()
+        assertEquals(1, presets.size)
+        assertEquals("", presets[0].folder)
+    }
+
+    @Test
+    fun `loadAll returns presets from both root and subdirectories`() {
+        // Root preset
+        PresetLibrary.savePreset(PresetLibrary.Preset("Goblin", 7, 15, 0))
+        // Subfolder preset
+        PresetLibrary.savePreset(PresetLibrary.Preset("Dragon Lord", 300, 24, 10, folder = "Bosses"))
+
+        val presets = PresetLibrary.loadAll()
+        assertEquals(2, presets.size)
+        // Root first (folder = ""), then "Bosses"
+        assertEquals("", presets[0].folder)
+        assertEquals("Bosses", presets[1].folder)
+    }
+
+    @Test
+    fun `loadAll sorts root presets before subfolder presets`() {
+        PresetLibrary.savePreset(PresetLibrary.Preset("Zombie", 22, 8, 0, folder = "Undead"))
+        PresetLibrary.savePreset(PresetLibrary.Preset("Goblin", 7, 15, 0))
+
+        val presets = PresetLibrary.loadAll()
+        assertEquals("", presets[0].folder)   // root first
+        assertEquals("Undead", presets[1].folder)
+    }
+
+    @Test
+    fun `loadAll sorts subfolder presets alphabetically by folder then name`() {
+        PresetLibrary.savePreset(PresetLibrary.Preset("Wyvern", 110, 19, 3, folder = "Beasts"))
+        PresetLibrary.savePreset(PresetLibrary.Preset("Zombie", 22, 8, 0, folder = "Undead"))
+        PresetLibrary.savePreset(PresetLibrary.Preset("Ghoul", 36, 12, 1, folder = "Undead"))
+
+        val presets = PresetLibrary.loadAll()
+        assertEquals("Beasts", presets[0].folder)
+        assertEquals("Ghoul", presets[1].name)
+        assertEquals("Zombie", presets[2].name)
+    }
+
+    @Test
+    fun `savePreset round-trip preserves folder field`() {
+        val preset = PresetLibrary.Preset("Orc", 15, 13, 0, folder = "Monsters")
+        PresetLibrary.savePreset(preset)
+
+        val loaded = PresetLibrary.loadAll()
+        assertEquals(1, loaded.size)
+        assertEquals("Monsters", loaded[0].folder)
+        assertEquals("Orc", loaded[0].name)
+    }
+
+    @Test
+    fun `delete removes preset from subdirectory`() {
+        PresetLibrary.savePreset(PresetLibrary.Preset("Dragon Lord", 300, 24, 10, folder = "Bosses"))
+        PresetLibrary.delete("Dragon Lord")
+
+        assertTrue(PresetLibrary.loadAll().isEmpty())
+    }
+
+    @Test
+    fun `delete removes preset from root but not from subfolder with same name`() {
+        PresetLibrary.savePreset(PresetLibrary.Preset("Orc", 15, 13, 0))
+        // Manually place a same-named preset in a subfolder to ensure delete
+        // in root does not affect subfolder presets in the same call.
+        val subDir = tempDir.resolve("Elite").toFile().also { it.mkdirs() }
+        File(subDir, "Orc.preset").writeText("name=Orc\nhp=30\nac=16\ninitiative=2")
+
+        // delete() removes ALL matching presets across root and subfolders.
+        PresetLibrary.delete("Orc")
+
         assertTrue(PresetLibrary.loadAll().isEmpty())
     }
 
