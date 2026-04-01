@@ -315,6 +315,46 @@ class WledSerialSenderTest {
     }
 
     @Test
+    fun `buildJson throws on speed below 0`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, speed = -1,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on speed above 255`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, speed = 256,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on intensity below 0`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, intensity = -1,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on intensity above 255`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, intensity = 256,
+            )
+        }
+    }
+
+    @Test
     fun `buildJson throws on invalid hex color`() {
         assertThrows<IllegalArgumentException> {
             sender.buildJson(

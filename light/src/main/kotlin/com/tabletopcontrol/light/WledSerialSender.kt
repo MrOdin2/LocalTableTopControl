@@ -166,6 +166,8 @@ class WledSerialSender : Closeable {
         intensity: Int = DEFAULT_EFFECT_INTENSITY,
     ): String {
         require(brightness in 0.0..1.0) { "Brightness must be 0.0–1.0, was $brightness" }
+        require(speed in 0..255) { "Speed must be 0–255, was $speed" }
+        require(intensity in 0..255) { "Intensity must be 0–255, was $intensity" }
         val bri = (brightness * 255).toInt()
         val (r, g, b) = hexToRgb(color)
         val fxId = if (colorCycling) LightEffect.RAINBOW.wledEffectId else effect.wledEffectId

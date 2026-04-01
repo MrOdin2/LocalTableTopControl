@@ -28,7 +28,7 @@ enum class LightEffect(
     BLINK("Blink", 1, speedName = "Speed", intensityName = "Duty Cycle"),
     FADE("Breathe", 2),
     COLOR_WIPE("Color Wipe", 3),
-    COLORLOOP("Color Loop", 8, intensityName = "Saturation"),
+    COLOR_LOOP("Color Loop", 8, intensityName = "Saturation"),
     RAINBOW("Rainbow", 9),
     SCAN("Scan", 10, intensityName = "# LEDs"),
     DUAL_SCAN("Dual Scan", 11, intensityName = "# LEDs"),
