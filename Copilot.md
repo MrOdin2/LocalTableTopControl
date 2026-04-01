@@ -79,9 +79,9 @@ Right-click anywhere on a leaf pane to access:
 - **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
 - **Close Pane** — remove this pane (disabled when only one pane remains).
 - **Extend Left / Right / Above / Below** — expand this pane into exactly one neighbouring
-  leaf pane. Only directions where the immediate neighbour in that direction is a single leaf
-  pane are offered; directions whose immediate neighbour is a split containing multiple panes
-  are omitted. Other panes may be resized or restructured but are not discarded.
+  leaf pane's worth of space, following the rules in the table below (e.g. consuming a direct
+  sibling leaf or an adjacent leaf inside a neighbouring split). Other panes may be resized
+  or restructured but are not discarded.
 
 #### Extend logic
 
