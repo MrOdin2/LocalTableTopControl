@@ -128,8 +128,8 @@ class PresetLibraryTest {
 
     @Test
     fun `deserialize parses imageUri including equals signs in the value`() {
-        val text = "name=Orc\nhp=15\nac=13\ninitiative=0\nimageUri=file:///path/to/orc.png"
-        assertEquals("file:///path/to/orc.png", PresetLibrary.deserialize(text)?.imageUri)
+        val text = "name=Orc\nhp=15\nac=13\ninitiative=0\nimageUri=file:///path/with=equals/orc.png"
+        assertEquals("file:///path/with=equals/orc.png", PresetLibrary.deserialize(text)?.imageUri)
     }
 
     @Test
