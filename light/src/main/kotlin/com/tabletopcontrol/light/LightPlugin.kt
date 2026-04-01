@@ -345,25 +345,28 @@ class LightPlugin : DmPlugin {
      *
      * Both [Slider]s range from 0 to 255, matching the WLED `sx` (speed) and
      * `ix` (intensity) segment parameters.  A midpoint of 128 is used as the
-     * default.  The exact effect of the sliders depends on the active
-     * [LightEffect]; speed typically controls animation rate and intensity
-     * controls density, trail length, or number of particles.
+     * default.  The labels above each slider update automatically when the
+     * active [LightEffect] changes to reflect the effect-specific parameter
+     * names (e.g. "Cooling" / "Sparking" for Fire).
      */
     private fun buildEffectParamsRow(): VBox {
-        val speedLabel = Label(effectParamLabel(controller.effectSpeed))
-        val intensityLabel = Label(effectParamLabel(controller.effectIntensity))
+        val speedValueLabel = Label(effectParamLabel(controller.effectSpeed))
+        val intensityValueLabel = Label(effectParamLabel(controller.effectIntensity))
+
+        val speedNameLabel = Label("${controller.effect.speedName}:")
+        val intensityNameLabel = Label("${controller.effect.intensityName}:")
 
         val speedSlider = Slider(0.0, 255.0, controller.effectSpeed.toDouble()).apply {
             isShowTickMarks = true
             isShowTickLabels = true
             majorTickUnit = 128.0
             blockIncrement = 8.0
-            tooltip = Tooltip("Effect speed — higher values make the animation run faster (WLED sx parameter)")
+            tooltip = Tooltip("Effect speed parameter (WLED sx) — meaning depends on the selected effect")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
                 val speed = newValue.toInt()
                 controller.setEffectSpeed(speed)
-                speedLabel.text = effectParamLabel(speed)
+                speedValueLabel.text = effectParamLabel(speed)
             }
         }
 
@@ -372,29 +375,35 @@ class LightPlugin : DmPlugin {
             isShowTickLabels = true
             majorTickUnit = 128.0
             blockIncrement = 8.0
-            tooltip = Tooltip(
-                "Effect intensity — controls density, trail length, or particle count depending on the effect (WLED ix parameter)"
-            )
+            tooltip = Tooltip("Effect intensity parameter (WLED ix) — meaning depends on the selected effect")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
                 val intensity = newValue.toInt()
                 controller.setEffectIntensity(intensity)
-                intensityLabel.text = effectParamLabel(intensity)
+                intensityValueLabel.text = effectParamLabel(intensity)
             }
         }
 
-        val speedRow = HBox(8.0, speedSlider, speedLabel).apply {
+        // Update the parameter-name labels whenever the active effect changes.
+        controller.addChangeListener {
+            Platform.runLater {
+                speedNameLabel.text = "${controller.effect.speedName}:"
+                intensityNameLabel.text = "${controller.effect.intensityName}:"
+            }
+        }
+
+        val speedRow = HBox(8.0, speedSlider, speedValueLabel).apply {
             HBox.setHgrow(speedSlider, Priority.ALWAYS)
             alignment = Pos.CENTER_LEFT
         }
-        val intensityRow = HBox(8.0, intensitySlider, intensityLabel).apply {
+        val intensityRow = HBox(8.0, intensitySlider, intensityValueLabel).apply {
             HBox.setHgrow(intensitySlider, Priority.ALWAYS)
             alignment = Pos.CENTER_LEFT
         }
 
         return VBox(4.0,
-            Label("Effect Speed:"), speedRow,
-            Label("Effect Intensity:"), intensityRow,
+            speedNameLabel, speedRow,
+            intensityNameLabel, intensityRow,
         )
     }
 
