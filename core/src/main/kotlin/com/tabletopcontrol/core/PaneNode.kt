@@ -146,6 +146,10 @@ fun directionLabel(orientation: Orientation, childPos: ChildPos): String = when 
  *
  * 1. **Same-level**: sibling within the parent split is a single [PaneNode.Leaf].
  *    The leaf absorbs the sibling — equivalent to closing it.
+ * 1b. **Sibling-adjacent-child**: sibling within the parent split is itself a
+ *    [PaneNode.Split] and its child on the side closest to the leaf is a single
+ *    [PaneNode.Leaf].  That child is removed, collapsing the sibling to its remaining
+ *    child; the leaf stays in place — equivalent to closing just that adjacent sub-panel.
  * 2. **Cross-level**: the uncle (parent's sibling within the grandparent split) is a
  *    single [PaneNode.Leaf].  The leaf grows across the grandparent boundary;
  *    the displaced sibling recombines with the uncle on the other side.
@@ -189,6 +193,28 @@ fun computeExtendOptions(root: PaneNode, leaf: PaneNode.Leaf): Map<String, PaneN
         val label = directionLabel(parent.orientation, posInParent)
         // Removing the sibling collapses the parent, leaving the leaf in the parent's place.
         removeNode(root, sibling)?.let { options[label] = it }
+    }
+
+    // ── 1b. Sibling-adjacent-child ───────────────────────────────────────
+    // Sibling is a Split and its child on the side closest to the leaf is a single Leaf.
+    // Removing that child collapses the sibling to its remaining child, while the leaf
+    // stays in place — equivalent to closing just the adjacent sub-panel.
+    //
+    // Only applies when the sibling's orientation matches the parent's orientation, so
+    // that there is a single geometrically adjacent child rather than two.
+    //
+    // Example — H(H(V(Tracker,Lights), Map), Soundboard), Soundboard extends left:
+    //   sibling = H(V(Tracker,Lights), Map), adjacentSiblingChild = Map (sibling.second, Leaf)
+    //   removeNode(root, Map) → H(V(Tracker,Lights), Soundboard)
+    if (sibling is PaneNode.Split && sibling.orientation == parent.orientation) {
+        val adjacentSiblingChild =
+            if (posInParent == ChildPos.FIRST) sibling.first else sibling.second
+        if (adjacentSiblingChild is PaneNode.Leaf) {
+            val label = directionLabel(parent.orientation, posInParent)
+            if (!options.containsKey(label)) {
+                removeNode(root, adjacentSiblingChild)?.let { options[label] = it }
+            }
+        }
     }
 
     val grandParent = ancestry.grandParent ?: return options
