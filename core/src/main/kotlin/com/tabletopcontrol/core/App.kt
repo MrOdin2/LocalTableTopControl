@@ -292,7 +292,7 @@ class App : Application() {
         // Group 1: Background & Surfaces
         grid.add(Label("Background:"), 0, row)
         grid.add(bgPicker, 1, row++)
-        grid.add(Label("Surface (panels):"), 0, row)
+        grid.add(Label("Surface (Buttons):"), 0, row)
         grid.add(surfacePicker, 1, row++)
         grid.add(Label("Border / edges:"), 0, row)
         grid.add(borderPicker, 1, row++)
@@ -300,7 +300,7 @@ class App : Application() {
         grid.add(Separator(), 0, row++, 2, 1)
 
         // Group 2: Interactive / Accent
-        grid.add(Label("Button / accent:"), 0, row)
+        grid.add(Label("Accent:"), 0, row)
         grid.add(accentPicker, 1, row++)
 
         grid.add(Separator(), 0, row++, 2, 1)
