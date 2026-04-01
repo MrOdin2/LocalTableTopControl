@@ -2,8 +2,10 @@ package com.tabletopcontrol.core
 
 import javafx.geometry.Orientation
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class LayoutSerializerTest {
@@ -361,21 +363,21 @@ class LayoutSerializerTest {
 
     @Test
     fun `cross-level extend not offered when uncle is a Split`() {
-        // Layout: Split(VERTICAL, Split(HORIZONTAL, A, B), Split(HORIZONTAL, D, E))
-        // C has a Split uncle, so cross-level extend is unavailable.
+        // Layout: V(H(A, B), V(D, E))
+        // A's uncle V(D,E) is a Split → cross-level (case 2) is skipped.
+        // V(D,E) also has different orientation than H(A,B) → same-uncle-orientation (case 3) skipped too.
+        // Only same-level "Extend Right" (absorbing B) is available.
         val a = PaneNode.Leaf("A")
         val b = PaneNode.Leaf("B")
         val d = PaneNode.Leaf("D")
         val e = PaneNode.Leaf("E")
         val inner = PaneNode.Split(Orientation.HORIZONTAL, 0.5, a, b)
-        val uncle = PaneNode.Split(Orientation.HORIZONTAL, 0.5, d, e)
-        val root = PaneNode.Split(Orientation.VERTICAL, 0.5, inner, uncle)
+        val uncle = PaneNode.Split(Orientation.VERTICAL,   0.5, d, e)
+        val root  = PaneNode.Split(Orientation.VERTICAL,   0.5, inner, uncle)
 
-        // findAncestry(root, a).grandParent.second is a Split → cross-level extend should be skipped.
-        val ancestry = findAncestry(root, a)
-        val uncleNode = if (ancestry.posOfParentInGP == ChildPos.FIRST) ancestry.grandParent!!.second else ancestry.grandParent!!.first
-        // The uncle is a Split — verifying the guard condition is correct.
-        assert(uncleNode is PaneNode.Split) { "Expected uncle to be a Split" }
+        val options = computeExtendOptions(root, a)
+        assertTrue(options.containsKey("Extend Right"),  "Expected same-level Extend Right to be offered")
+        assertFalse(options.containsKey("Extend Below"), "Extend Below (cross-level) must NOT be offered when uncle is a Split")
     }
 
     // ── Panel extension — same-uncle-orientation ─────────────────────────────
