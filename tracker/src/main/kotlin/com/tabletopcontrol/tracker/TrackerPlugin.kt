@@ -40,6 +40,7 @@ import java.net.URI
 import java.text.NumberFormat
 import java.text.ParsePosition
 import java.util.Locale
+import java.util.Base64
 import java.util.UUID
 
 /**
@@ -377,8 +378,23 @@ class TrackerPlugin : DmPlugin {
             tooltip = Tooltip("Save this combatant as a preset")
             style = "-fx-min-width: 28px; -fx-max-width: 28px;"
             setOnAction {
-                val e = tracker.entries[index]
-                PresetLibrary.savePreset(PresetLibrary.Preset(e.name, e.hp, e.ac, e.initiative))
+                val entry = tracker.entries[index]
+                val imageSettings = tokenIds.getOrNull(index)?.let { tokenImages[it] }
+                val base64 = imageSettings?.uri?.let { PresetLibrary.loadAndScaleImage(it) }
+                PresetLibrary.savePreset(
+                    PresetLibrary.Preset(
+                        name = entry.name,
+                        hp = entry.hp,
+                        ac = entry.ac,
+                        initiative = entry.initiative,
+                        imageUri = imageSettings?.uri,
+                        imageBase64 = base64,
+                        imageScaleX = imageSettings?.scaleX ?: 1.0,
+                        imageScaleY = imageSettings?.scaleY ?: 1.0,
+                        imageOffsetX = imageSettings?.offsetX ?: 0.0,
+                        imageOffsetY = imageSettings?.offsetY ?: 0.0,
+                    ),
+                )
             }
         }
 
@@ -824,8 +840,33 @@ class TrackerPlugin : DmPlugin {
                             } ?: (entriesAfter.size - 1)
                             tokenIds.add(insertIdx, id)
                             tokenColors[id] = color
-                            tokenImages[id] = TokenImageSettings(uri = null)
+
+                            // Resolve the image URI: prefer the embedded base64 thumbnail
+                            // (works when sharing across machines), fall back to the original
+                            // URI when the file is still accessible locally.
+                            val effectiveUri = preset.imageBase64?.let { PresetLibrary.base64ToTempUri(it) }
+                                ?: preset.imageUri
+                            tokenImages[id] = TokenImageSettings(
+                                uri = effectiveUri,
+                                scaleX = preset.imageScaleX,
+                                scaleY = preset.imageScaleY,
+                                offsetX = preset.imageOffsetX,
+                                offsetY = preset.imageOffsetY,
+                            )
+
                             EventBus.publish(TokenAddedEvent(id, preset.name, color))
+                            if (effectiveUri != null) {
+                                EventBus.publish(
+                                    TokenImageChangedEvent(
+                                        id = id,
+                                        imageUri = effectiveUri,
+                                        imageScaleX = preset.imageScaleX,
+                                        imageScaleY = preset.imageScaleY,
+                                        imageOffsetX = preset.imageOffsetX,
+                                        imageOffsetY = preset.imageOffsetY,
+                                    ),
+                                )
+                            }
                             if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
                                 EventBus.publish(
                                     ActiveTokenChangedEvent(
