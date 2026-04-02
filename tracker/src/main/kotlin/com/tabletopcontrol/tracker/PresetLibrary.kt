@@ -532,11 +532,21 @@ object PresetLibrary {
                     }
                 }
             }
-            // Store in cache, evicting stale (deleted) entries when limit exceeded.
-            if (tempUriCache.size >= TEMP_URI_CACHE_MAX) {
-                tempUriCache.entries.removeIf { !it.value.exists() }
-            }
+            // Store in cache and enforce a hard size cap.
             tempUriCache[key] = tmp
+
+            // First, drop any entries whose underlying temp file has been deleted.
+            tempUriCache.entries.removeIf { !it.value.exists() }
+
+            // If we are still over the cap, evict arbitrary entries until the limit is met.
+            while (tempUriCache.size > TEMP_URI_CACHE_MAX) {
+                val iterator = tempUriCache.entries.iterator()
+                if (!iterator.hasNext()) {
+                    break
+                }
+                iterator.next()
+                iterator.remove()
+            }
             tmp.toURI().toString()
         } catch (_: Exception) {
             tmp.delete()
