@@ -41,6 +41,7 @@ import java.net.URI
 import java.text.NumberFormat
 import java.text.ParsePosition
 import java.util.Locale
+import java.util.IdentityHashMap
 import java.util.UUID
 
 /**
@@ -879,10 +880,14 @@ class TrackerPlugin : DmPlugin {
                                 val id = UUID.randomUUID().toString()
                                 val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
                                 // Snapshot entry references before the add so we can map each
-                                // pre-existing entry to its current token id.
+                                // pre-existing entry to its current token id.  Use an IdentityHashMap
+                                // so that multiple entries with identical stats (e.g. a group of
+                                // identical enemies) are never confused with each other.
                                 val entriesBefore = tracker.entries
-                                val entryToId: Map<Any, String> = entriesBefore.indices.associate { i ->
-                                    entriesBefore[i] to (tokenIds.getOrElse(i) { "" })
+                                val entryToId = IdentityHashMap<Any, String>().also { map ->
+                                    entriesBefore.indices.forEach { i ->
+                                        map[entriesBefore[i]] = tokenIds.getOrElse(i) { "" }
+                                    }
                                 }
                                 tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
                                 val entriesAfter = tracker.entries
