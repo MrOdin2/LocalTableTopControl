@@ -296,10 +296,25 @@ object PresetLibrary {
      * actual name.
      */
     internal fun fileFor(name: String, folder: String = ""): File {
-        val dir = if (folder.isNotEmpty())
-            File(presetsDir, sanitizeFilename(folder)).also { it.mkdirs() }
-        else
-            presetsDir.also { it.mkdirs() }
+        // Always work with the canonical presets directory as the base.
+        val baseDir = presetsDir.also { it.mkdirs() }.canonicalFile
+
+        val dir = if (folder.isNotEmpty()) {
+            val sanitizedFolder = sanitizeFilename(folder)
+            // Disallow special directory names that could escape the base dir.
+            require(sanitizedFolder != "." && sanitizedFolder != "..") {
+                "Folder name '$folder' is not allowed"
+            }
+            val candidate = File(baseDir, sanitizedFolder)
+            val canonicalDir = candidate.canonicalFile
+            // Ensure the resolved directory is still inside presetsDir.
+            require(canonicalDir.toPath().startsWith(baseDir.toPath())) {
+                "Resolved folder '$folder' is outside the presets directory"
+            }
+            canonicalDir.also { it.mkdirs() }
+        } else {
+            baseDir
+        }
         // Reuse an existing file that already stores this name.
         dir.listFiles { f -> f.isFile && f.extension == "preset" }
             ?.forEach { f ->
