@@ -551,8 +551,8 @@ object PresetLibrary {
                     break
                 }
                 val entry = iterator.next()
-                // Best-effort deletion of the underlying temp file so on-disk usage stays bounded.
-                runCatching { entry.value.delete() }
+                // Evict from the in-memory cache only; rely on deleteOnExit() for file cleanup
+                // to avoid deleting files while their URIs may still be in use.
                 // Remove via the map API; ConcurrentHashMap iterators do not support remove().
                 tempUriCache.remove(entry.key, entry.value)
             }
