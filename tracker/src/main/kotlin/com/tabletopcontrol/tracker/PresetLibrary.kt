@@ -153,10 +153,11 @@ object PresetLibrary {
         try {
             presetsDir.mkdirs()
             val target = fileFor(preset.name, preset.folder)
-            // Write to a sibling temp file first, then rename to the target path.
-            // An atomic rename ensures a concurrent background-thread write (thumbnail
-            // generation) never leaves a partially-written `.preset` file on disk.
-            val tmp = File(target.parentFile, "${target.name}.tmp")
+            // Write to a unique temp file in the same directory, then rename atomically.
+            // Using Files.createTempFile (rather than a deterministic ".tmp" name) avoids
+            // a race where two concurrent saves of the same preset collide on the same
+            // temp path and corrupt each other's content.
+            val tmp = Files.createTempFile(target.parentFile.toPath(), target.name, ".tmp").toFile()
             tmp.writeText(serialize(preset))
             runCatching {
                 Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)

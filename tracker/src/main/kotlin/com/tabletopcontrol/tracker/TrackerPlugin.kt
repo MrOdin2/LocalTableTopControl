@@ -416,6 +416,12 @@ class TrackerPlugin : DmPlugin {
                         val latest = runCatching {
                             PresetLibrary.deserialize(onDiskFile.readText())
                         }.getOrNull() ?: return@Thread
+                        // Only patch imageBase64 when the latest on-disk preset still references
+                        // the same imageUri that was current when the button was clicked.  If the
+                        // user changed the image and clicked ★ again before this thread finished,
+                        // latest.imageUri will differ and we skip the write, avoiding a preset
+                        // where imageUri points to image B but imageBase64 contains image A's thumbnail.
+                        if (latest.imageUri != imageSettings.uri) return@Thread
                         PresetLibrary.savePreset(latest.copy(imageBase64 = base64))
                     }.also { it.isDaemon = true }.start()
                 }
@@ -948,6 +954,10 @@ class TrackerPlugin : DmPlugin {
                                                 // thumbnail was decoding, skip the update so we
                                                 // don't resurrect a stale token.
                                                 if (!tokenIds.contains(id)) return@runLater
+                                                // Guard: if the user changed the token image after
+                                                // preset load but before the decode finished, skip
+                                                // the update so we don't overwrite the newer selection.
+                                                if (tokenImages[id]?.uri != initialUri) return@runLater
                                                 tokenImages[id] = TokenImageSettings(
                                                     uri = decodedUri,
                                                     scaleX = preset.imageScaleX,
