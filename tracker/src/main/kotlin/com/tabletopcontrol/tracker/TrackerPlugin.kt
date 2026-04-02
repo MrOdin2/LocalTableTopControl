@@ -884,7 +884,7 @@ class TrackerPlugin : DmPlugin {
                                 // so that multiple entries with identical stats (e.g. a group of
                                 // identical enemies) are never confused with each other.
                                 val entriesBefore = tracker.entries
-                                val entryToId = IdentityHashMap<Any, String>().also { map ->
+                                val entryToId = IdentityHashMap<InitiativeTracker.Entry, String>().also { map ->
                                     entriesBefore.indices.forEach { i ->
                                         map[entriesBefore[i]] = tokenIds.getOrElse(i) { "" }
                                     }
