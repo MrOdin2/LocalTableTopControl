@@ -919,6 +919,14 @@ class TrackerPlugin : DmPlugin {
                                         // Rebuild tokenIds in the new post-sort order.  Pre-existing entries
                                         // keep their id; the one entry not found in entryToId is the new one.
                                         val newIds = entriesAfter.map { entry -> entryToId[entry] ?: id }
+                                        // Preserve the same logical combatant as active across the add+sort
+                                        // operation by restoring currentIndex based on the previously-active id.
+                                        if (previousActiveId != null) {
+                                            val newActiveIndex = newIds.indexOf(previousActiveId)
+                                            if (newActiveIndex >= 0) {
+                                                tracker.currentIndex = newActiveIndex
+                                            }
+                                        }
                                         tokenIds.clear()
                                         tokenIds.addAll(newIds)
                                         tokenColors[id] = color
