@@ -842,173 +842,182 @@ class TrackerPlugin : DmPlugin {
         val listBox = VBox(4.0).apply { padding = Insets(4.0) }
 
         fun rebuildList() {
-            listBox.children.clear()
-            val presets = PresetLibrary.loadAll()
-            if (presets.isEmpty()) {
-                listBox.children.add(
-                    Label("No presets saved yet. Use the ★ button on a card to save one.").apply {
-                        padding = Insets(8.0)
-                    },
-                )
-            } else {
-                // Group presets by folder; root presets (folder = "") are listed first.
-                val grouped = presets.groupBy { it.folder }
-                val sortedFolders = grouped.keys.sortedWith(
-                    compareBy({ if (it.isEmpty()) 0 else 1 }, { it }),
-                )
-                val hasMultipleFolders = sortedFolders.size > 1
-
-                for (folder in sortedFolders) {
-                    val presetsInFolder = grouped[folder] ?: continue
-
-                    // Section header — only shown when there is more than one group.
-                    if (hasMultipleFolders) {
-                        val headerText = if (folder.isEmpty()) "📂 Root" else "📁 $folder"
+            // Show a "Loading" placeholder immediately so the user sees feedback.
+            listBox.children.setAll(Label("Loading…").apply { padding = Insets(8.0) })
+            // loadAll() reads every .preset file — potentially several MB of Base64 on
+            // large libraries — so run it on a daemon thread to keep the UI responsive
+            // on slow disks and low-power devices such as Raspberry Pi.
+            Thread {
+                val presets = PresetLibrary.loadAll()
+                Platform.runLater {
+                    listBox.children.clear()
+                    if (presets.isEmpty()) {
                         listBox.children.add(
-                            Label(headerText).apply {
-                                style = "-fx-font-weight: bold;"
-                                padding = Insets(6.0, 2.0, 2.0, 2.0)
+                            Label("No presets saved yet. Use the ★ button on a card to save one.").apply {
+                                padding = Insets(8.0)
                             },
                         )
-                    }
+                    } else {
+                        // Group presets by folder; root presets (folder = "") are listed first.
+                        val grouped = presets.groupBy { it.folder }
+                        val sortedFolders = grouped.keys.sortedWith(
+                            compareBy({ if (it.isEmpty()) 0 else 1 }, { it }),
+                        )
+                        val hasMultipleFolders = sortedFolders.size > 1
 
-                    for (preset in presetsInFolder) {
-                        val info = Label(
-                            "${preset.name}  HP: ${preset.hp}  AC: ${preset.ac}  Init: ${preset.initiative}",
-                        ).apply {
-                            HBox.setHgrow(this, Priority.ALWAYS)
-                        }
+                        for (folder in sortedFolders) {
+                            val presetsInFolder = grouped[folder] ?: continue
 
-                        val loadBtn = Button("Load").apply {
-                            tooltip = Tooltip("Add this combatant to the initiative tracker")
-                            setOnAction {
-                                val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
-                                val id = UUID.randomUUID().toString()
-                                val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
-                                // Snapshot entry references before the add so we can map each
-                                // pre-existing entry to its current token id.  Use an IdentityHashMap
-                                // so that multiple entries with identical stats (e.g. a group of
-                                // identical enemies) are never confused with each other.
-                                val entriesBefore = tracker.entries
-                                val entryToId = IdentityHashMap<InitiativeTracker.Entry, String>().also { map ->
-                                    entriesBefore.indices.forEach { i ->
-                                        map[entriesBefore[i]] = tokenIds.getOrElse(i) { "" }
-                                    }
-                                }
-                                tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
-                                val entriesAfter = tracker.entries
-                                // Rebuild tokenIds in the new post-sort order.  Pre-existing entries
-                                // keep their id; the one entry not found in entryToId is the new one.
-                                val newIds = entriesAfter.map { entry -> entryToId[entry] ?: id }
-                                tokenIds.clear()
-                                tokenIds.addAll(newIds)
-                                tokenColors[id] = color
-
-                                // Use the original imageUri immediately so the token appears right
-                                // away; if there is an embedded Base64 thumbnail it will be decoded
-                                // in the background and pushed via Platform.runLater once ready,
-                                // keeping this event handler fast on low-power devices.
-                                val initialUri = preset.imageUri
-                                tokenImages[id] = TokenImageSettings(
-                                    uri = initialUri,
-                                    scaleX = preset.imageScaleX,
-                                    scaleY = preset.imageScaleY,
-                                    offsetX = preset.imageOffsetX,
-                                    offsetY = preset.imageOffsetY,
+                            // Section header — only shown when there is more than one group.
+                            if (hasMultipleFolders) {
+                                val headerText = if (folder.isEmpty()) "📂 Root" else "📁 $folder"
+                                listBox.children.add(
+                                    Label(headerText).apply {
+                                        style = "-fx-font-weight: bold;"
+                                        padding = Insets(6.0, 2.0, 2.0, 2.0)
+                                    },
                                 )
+                            }
 
-                                EventBus.publish(TokenAddedEvent(id, preset.name, color))
-                                if (initialUri != null) {
-                                    EventBus.publish(
-                                        TokenImageChangedEvent(
-                                            id = id,
-                                            imageUri = initialUri,
-                                            imageScaleX = preset.imageScaleX,
-                                            imageScaleY = preset.imageScaleY,
-                                            imageOffsetX = preset.imageOffsetX,
-                                            imageOffsetY = preset.imageOffsetY,
-                                        ),
-                                    )
+                            for (preset in presetsInFolder) {
+                                val info = Label(
+                                    "${preset.name}  HP: ${preset.hp}  AC: ${preset.ac}  Init: ${preset.initiative}",
+                                ).apply {
+                                    HBox.setHgrow(this, Priority.ALWAYS)
                                 }
-                                if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
-                                    EventBus.publish(
-                                        ActiveTokenChangedEvent(
-                                            tokenIds.getOrNull(tracker.currentIndex),
-                                            tracker.currentEntry?.name,
-                                        ),
-                                    )
-                                }
-                                refresh()
 
-                                // Decode the embedded thumbnail on a daemon thread and update the
-                                // token image once ready — avoids blocking the UI thread on I/O and
-                                // Base64 decode work (especially important on Raspberry Pi / SBCs).
-                                if (preset.imageBase64 != null) {
-                                    Thread {
-                                        runCatching {
-                                            val decodedUri =
-                                                PresetLibrary.base64ToTempUri(preset.imageBase64)
-                                                    ?: return@runCatching
-                                            Platform.runLater {
-                                                // Guard: if the combatant was removed while the
-                                                // thumbnail was decoding, skip the update so we
-                                                // don't resurrect a stale token.
-                                                if (!tokenIds.contains(id)) return@runLater
-                                                // Guard: if the user changed the token image after
-                                                // preset load but before the decode finished, skip
-                                                // the update so we don't overwrite the newer selection.
-                                                if (tokenImages[id]?.uri != initialUri) return@runLater
-                                                tokenImages[id] = TokenImageSettings(
-                                                    uri = decodedUri,
-                                                    scaleX = preset.imageScaleX,
-                                                    scaleY = preset.imageScaleY,
-                                                    offsetX = preset.imageOffsetX,
-                                                    offsetY = preset.imageOffsetY,
-                                                )
-                                                EventBus.publish(
-                                                    TokenImageChangedEvent(
-                                                        id = id,
-                                                        imageUri = decodedUri,
-                                                        imageScaleX = preset.imageScaleX,
-                                                        imageScaleY = preset.imageScaleY,
-                                                        imageOffsetX = preset.imageOffsetX,
-                                                        imageOffsetY = preset.imageOffsetY,
-                                                    ),
-                                                )
+                                val loadBtn = Button("Load").apply {
+                                    tooltip = Tooltip("Add this combatant to the initiative tracker")
+                                    setOnAction {
+                                        val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
+                                        val id = UUID.randomUUID().toString()
+                                        val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
+                                        // Snapshot entry references before the add so we can map each
+                                        // pre-existing entry to its current token id.  Use an IdentityHashMap
+                                        // so that multiple entries with identical stats (e.g. a group of
+                                        // identical enemies) are never confused with each other.
+                                        val entriesBefore = tracker.entries
+                                        val entryToId = IdentityHashMap<InitiativeTracker.Entry, String>().also { map ->
+                                            entriesBefore.indices.forEach { i ->
+                                                map[entriesBefore[i]] = tokenIds.getOrElse(i) { "" }
                                             }
                                         }
-                                    }.also { it.isDaemon = true }.start()
+                                        tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
+                                        val entriesAfter = tracker.entries
+                                        // Rebuild tokenIds in the new post-sort order.  Pre-existing entries
+                                        // keep their id; the one entry not found in entryToId is the new one.
+                                        val newIds = entriesAfter.map { entry -> entryToId[entry] ?: id }
+                                        tokenIds.clear()
+                                        tokenIds.addAll(newIds)
+                                        tokenColors[id] = color
+
+                                        // Use the original imageUri immediately so the token appears right
+                                        // away; if there is an embedded Base64 thumbnail it will be decoded
+                                        // in the background and pushed via Platform.runLater once ready,
+                                        // keeping this event handler fast on low-power devices.
+                                        val initialUri = preset.imageUri
+                                        tokenImages[id] = TokenImageSettings(
+                                            uri = initialUri,
+                                            scaleX = preset.imageScaleX,
+                                            scaleY = preset.imageScaleY,
+                                            offsetX = preset.imageOffsetX,
+                                            offsetY = preset.imageOffsetY,
+                                        )
+
+                                        EventBus.publish(TokenAddedEvent(id, preset.name, color))
+                                        if (initialUri != null) {
+                                            EventBus.publish(
+                                                TokenImageChangedEvent(
+                                                    id = id,
+                                                    imageUri = initialUri,
+                                                    imageScaleX = preset.imageScaleX,
+                                                    imageScaleY = preset.imageScaleY,
+                                                    imageOffsetX = preset.imageOffsetX,
+                                                    imageOffsetY = preset.imageOffsetY,
+                                                ),
+                                            )
+                                        }
+                                        if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
+                                            EventBus.publish(
+                                                ActiveTokenChangedEvent(
+                                                    tokenIds.getOrNull(tracker.currentIndex),
+                                                    tracker.currentEntry?.name,
+                                                ),
+                                            )
+                                        }
+                                        refresh()
+
+                                        // Decode the embedded thumbnail on a daemon thread and update the
+                                        // token image once ready — avoids blocking the UI thread on I/O and
+                                        // Base64 decode work (especially important on Raspberry Pi / SBCs).
+                                        if (preset.imageBase64 != null) {
+                                            Thread {
+                                                runCatching {
+                                                    val decodedUri =
+                                                        PresetLibrary.base64ToTempUri(preset.imageBase64)
+                                                            ?: return@runCatching
+                                                    Platform.runLater {
+                                                        // Guard: if the combatant was removed while the
+                                                        // thumbnail was decoding, skip the update so we
+                                                        // don't resurrect a stale token.
+                                                        if (!tokenIds.contains(id)) return@runLater
+                                                        // Guard: if the user changed the token image after
+                                                        // preset load but before the decode finished, skip
+                                                        // the update so we don't overwrite the newer selection.
+                                                        if (tokenImages[id]?.uri != initialUri) return@runLater
+                                                        tokenImages[id] = TokenImageSettings(
+                                                            uri = decodedUri,
+                                                            scaleX = preset.imageScaleX,
+                                                            scaleY = preset.imageScaleY,
+                                                            offsetX = preset.imageOffsetX,
+                                                            offsetY = preset.imageOffsetY,
+                                                        )
+                                                        EventBus.publish(
+                                                            TokenImageChangedEvent(
+                                                                id = id,
+                                                                imageUri = decodedUri,
+                                                                imageScaleX = preset.imageScaleX,
+                                                                imageScaleY = preset.imageScaleY,
+                                                                imageOffsetX = preset.imageOffsetX,
+                                                                imageOffsetY = preset.imageOffsetY,
+                                                            ),
+                                                        )
+                                                    }
+                                                }
+                                            }.also { it.isDaemon = true }.start()
+                                        }
+                                    }
                                 }
+
+                                val deleteBtn = Button("Delete").apply {
+                                    tooltip = Tooltip("Remove all presets with this name from the library (across all folders)")
+                                    setOnAction {
+                                        val alert = Alert(Alert.AlertType.CONFIRMATION).apply {
+                                            title = "Delete preset"
+                                            headerText = "Delete all presets named \"${preset.name}\"?"
+                                            contentText =
+                                                "This will remove every preset with this name from the presets folder " +
+                                                "and all subfolders. This action cannot be undone."
+                                        }
+                                        val result = alert.showAndWait()
+                                        if (result.isPresent && result.get() == ButtonType.OK) {
+                                            PresetLibrary.delete(preset.name)
+                                            rebuildList()
+                                        }
+                                    }
+                                }
+
+                                listBox.children.add(
+                                    HBox(8.0, info, loadBtn, deleteBtn).apply {
+                                        alignment = javafx.geometry.Pos.CENTER_LEFT
+                                        padding = Insets(4.0, 2.0, 4.0, 2.0)
+                                    },
+                                )
                             }
                         }
-
-                        val deleteBtn = Button("Delete").apply {
-                            tooltip = Tooltip("Remove all presets with this name from the library (across all folders)")
-                            setOnAction {
-                                val alert = Alert(Alert.AlertType.CONFIRMATION).apply {
-                                    title = "Delete preset"
-                                    headerText = "Delete all presets named \"${preset.name}\"?"
-                                    contentText =
-                                        "This will remove every preset with this name from the presets folder " +
-                                        "and all subfolders. This action cannot be undone."
-                                }
-                                val result = alert.showAndWait()
-                                if (result.isPresent && result.get() == ButtonType.OK) {
-                                    PresetLibrary.delete(preset.name)
-                                    rebuildList()
-                                }
-                            }
-                        }
-
-                        listBox.children.add(
-                            HBox(8.0, info, loadBtn, deleteBtn).apply {
-                                alignment = javafx.geometry.Pos.CENTER_LEFT
-                                padding = Insets(4.0, 2.0, 4.0, 2.0)
-                            },
-                        )
                     }
                 }
-            }
+            }.also { it.isDaemon = true }.start()
         }
 
         rebuildList()

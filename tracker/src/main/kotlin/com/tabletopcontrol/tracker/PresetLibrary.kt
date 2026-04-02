@@ -150,6 +150,8 @@ object PresetLibrary {
      * subdirectory of [presetsDir]; the subdirectory is created if absent.
      */
     fun savePreset(preset: Preset) {
+        // Declared before the try so the catch block can clean it up on failure.
+        var tmp: File? = null
         try {
             presetsDir.mkdirs()
             val target = fileFor(preset.name, preset.folder)
@@ -157,11 +159,11 @@ object PresetLibrary {
             // Using Files.createTempFile (rather than a deterministic ".tmp" name) avoids
             // a race where two concurrent saves of the same preset collide on the same
             // temp path and corrupt each other's content.
-            val tmp = Files.createTempFile(target.parentFile.toPath(), target.name, ".tmp").toFile()
+            tmp = Files.createTempFile(target.parentFile.toPath(), target.name, ".tmp").toFile()
             tmp.writeText(serialize(preset))
-            runCatching {
+            try {
                 Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            }.onFailure {
+            } catch (_: Exception) {
                 // ATOMIC_MOVE can fail when the JVM temp dir and the presets dir are on
                 // different mount points, or when the underlying file system does not
                 // support atomic rename (e.g., some network file systems).  Fall back to
@@ -169,7 +171,10 @@ object PresetLibrary {
                 Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         } catch (_: Exception) {
-            // non-fatal — proceed without persistence
+            // non-fatal — proceed without persistence; best-effort cleanup of any
+            // orphaned temp file (on a successful move the file no longer exists at
+            // tmp's path, so delete() returns false without effect).
+            runCatching { tmp?.delete() }
         }
     }
 
