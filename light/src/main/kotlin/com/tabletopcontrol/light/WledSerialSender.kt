@@ -277,11 +277,23 @@ class WledSerialSender : Closeable {
         /** Default baud rate used by WLED's serial interface. */
         const val DEFAULT_BAUD_RATE: Int = 115_200
 
-        /** Default effect speed sent to WLED (midpoint of the 0–255 range). */
-        const val DEFAULT_EFFECT_SPEED: Int = 128
+        /**
+         * Default effect speed sent to WLED (midpoint of the 0–255 range).
+         *
+         * Delegates to [LightController.DEFAULT_EFFECT_SPEED] to keep the UI and
+         * sender defaults in sync.
+         */
+        val DEFAULT_EFFECT_SPEED: Int
+            get() = LightController.DEFAULT_EFFECT_SPEED
 
-        /** Default effect intensity sent to WLED (midpoint of the 0–255 range). */
-        const val DEFAULT_EFFECT_INTENSITY: Int = 128
+        /**
+         * Default effect intensity sent to WLED (midpoint of the 0–255 range).
+         *
+         * Delegates to [LightController.DEFAULT_EFFECT_INTENSITY] to keep the UI
+         * and sender defaults in sync.
+         */
+        val DEFAULT_EFFECT_INTENSITY: Int
+            get() = LightController.DEFAULT_EFFECT_INTENSITY
 
         private const val WRITE_TIMEOUT_MS: Int = 2_000
     }
