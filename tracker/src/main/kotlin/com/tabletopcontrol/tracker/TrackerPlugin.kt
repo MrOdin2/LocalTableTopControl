@@ -43,6 +43,7 @@ import java.text.ParsePosition
 import java.util.Locale
 import java.util.IdentityHashMap
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * DM-panel plugin providing a combined initiative and HP/AC tracker.
@@ -841,15 +842,25 @@ class TrackerPlugin : DmPlugin {
 
         val listBox = VBox(4.0).apply { padding = Insets(4.0) }
 
+        // Monotonically-increasing counter; each rebuildList() call captures its own
+        // generation value and only applies results when no newer call has started.
+        val rebuildGeneration = AtomicInteger(0)
+
         fun rebuildList() {
             // Show a "Loading" placeholder immediately so the user sees feedback.
             listBox.children.setAll(Label("Loading…").apply { padding = Insets(8.0) })
+            // Capture the generation for this specific load; discard results if
+            // a subsequent rebuildList() call has already incremented past it.
+            val generation = rebuildGeneration.incrementAndGet()
             // loadAll() reads every .preset file — potentially several MB of Base64 on
             // large libraries — so run it on a daemon thread to keep the UI responsive
             // on slow disks and low-power devices such as Raspberry Pi.
             Thread {
                 val presets = PresetLibrary.loadAll()
                 Platform.runLater {
+                    // Only apply results from the most recent load to prevent stale
+                    // data from an older background thread overwriting a newer list.
+                    if (rebuildGeneration.get() != generation) return@runLater
                     listBox.children.clear()
                     if (presets.isEmpty()) {
                         listBox.children.add(
