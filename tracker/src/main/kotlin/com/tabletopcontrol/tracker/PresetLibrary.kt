@@ -5,7 +5,10 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URI
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
 
 /**
@@ -69,6 +72,20 @@ object PresetLibrary {
      * treated as "name not found" by [delete] and [fileFor].
      */
     private val MAX_PRESET_FILE_BYTES: Long = MAX_BASE64_DECODED_BYTES.toLong() * 2L
+
+    /**
+     * Cache of decoded Base64 thumbnail temp files, keyed by a fingerprint of
+     * the Base64 content (string length + first 256 chars + last 256 chars).
+     *
+     * Reusing temp files for repeated loads of the same preset avoids
+     * accumulating many `tc-preset-*.png` files in the system temp directory
+     * during long gaming sessions.  Entries whose [File.exists] check returns
+     * `false` (e.g., after an OS temp cleanup) are ignored and re-decoded.
+     *
+     * The cache is deliberately small and bounded by [TEMP_URI_CACHE_MAX].
+     */
+    private val tempUriCache: ConcurrentHashMap<String, File> = ConcurrentHashMap()
+    private const val TEMP_URI_CACHE_MAX: Int = 50
 
     /**
      * A saved combatant template.
@@ -135,7 +152,21 @@ object PresetLibrary {
     fun savePreset(preset: Preset) {
         try {
             presetsDir.mkdirs()
-            fileFor(preset.name, preset.folder).writeText(serialize(preset))
+            val target = fileFor(preset.name, preset.folder)
+            // Write to a sibling temp file first, then rename to the target path.
+            // An atomic rename ensures a concurrent background-thread write (thumbnail
+            // generation) never leaves a partially-written `.preset` file on disk.
+            val tmp = File(target.parentFile, "${target.name}.tmp")
+            tmp.writeText(serialize(preset))
+            runCatching {
+                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            }.onFailure {
+                // ATOMIC_MOVE can fail when the JVM temp dir and the presets dir are on
+                // different mount points, or when the underlying file system does not
+                // support atomic rename (e.g., some network file systems).  Fall back to
+                // a plain replace, which is still safer than writing in-place.
+                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
         } catch (_: Exception) {
             // non-fatal — proceed without persistence
         }
@@ -443,6 +474,10 @@ object PresetLibrary {
         // any memory allocation for the actual decode.
         if ((base64.length.toLong() * 3L) / 4L > MAX_BASE64_DECODED_BYTES) return null
 
+        // Return a cached temp file if we already decoded this payload this session.
+        val key = base64ContentKey(base64)
+        tempUriCache[key]?.takeIf { it.exists() }?.let { return it.toURI().toString() }
+
         val tmp = runCatching { File.createTempFile("tc-preset-", ".png") }.getOrNull()
             ?: return null
         tmp.deleteOnExit()
@@ -482,10 +517,30 @@ object PresetLibrary {
                     }
                 }
             }
+            // Store in cache, evicting stale (deleted) entries when limit exceeded.
+            if (tempUriCache.size >= TEMP_URI_CACHE_MAX) {
+                tempUriCache.entries.removeIf { !it.value.exists() }
+            }
+            tempUriCache[key] = tmp
             tmp.toURI().toString()
         } catch (_: Exception) {
             tmp.delete()
             null
         }
+    }
+
+    /**
+     * Returns a fast, statistically-unique fingerprint of [base64] suitable for
+     * use as a cache key.
+     *
+     * Uses the string length plus up to the first and last 256 characters —
+     * enough to distinguish any two different embedded thumbnails in practice
+     * without iterating over the whole (potentially multi-megabyte) string.
+     */
+    private fun base64ContentKey(base64: String): String {
+        val len = base64.length
+        val prefix = base64.substring(0, minOf(256, len))
+        val suffix = base64.substring(maxOf(0, len - 256))
+        return "$len:$prefix:$suffix"
     }
 }

@@ -878,16 +878,19 @@ class TrackerPlugin : DmPlugin {
                                 val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
                                 val id = UUID.randomUUID().toString()
                                 val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
-                                // Capture the list before the add so we can locate the newly added entry
-                                // after the tracker re-sorts by initiative.
+                                // Snapshot entry references before the add so we can map each
+                                // pre-existing entry to its current token id.
                                 val entriesBefore = tracker.entries
+                                val entryToId: Map<Any, String> = entriesBefore.indices.associate { i ->
+                                    entriesBefore[i] to (tokenIds.getOrElse(i) { "" })
+                                }
                                 tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
                                 val entriesAfter = tracker.entries
-                                // Find the index of the newly added entry using reference identity (===).
-                                val insertIdx = entriesAfter.indexOfFirst { afterEntry ->
-                                    entriesBefore.none { beforeEntry -> beforeEntry === afterEntry }
-                                }.takeIf { it >= 0 } ?: (entriesAfter.size - 1)
-                                tokenIds.add(insertIdx, id)
+                                // Rebuild tokenIds in the new post-sort order.  Pre-existing entries
+                                // keep their id; the one entry not found in entryToId is the new one.
+                                val newIds = entriesAfter.map { entry -> entryToId[entry] ?: id }
+                                tokenIds.clear()
+                                tokenIds.addAll(newIds)
                                 tokenColors[id] = color
 
                                 // Use the original imageUri immediately so the token appears right
