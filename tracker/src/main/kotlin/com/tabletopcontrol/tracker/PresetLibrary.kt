@@ -544,7 +544,9 @@ object PresetLibrary {
                 if (!iterator.hasNext()) {
                     break
                 }
-                iterator.next()
+                val entry = iterator.next()
+                // Best-effort deletion of the underlying temp file so on-disk usage stays bounded.
+                runCatching { entry.value.delete() }
                 iterator.remove()
             }
             tmp.toURI().toString()
