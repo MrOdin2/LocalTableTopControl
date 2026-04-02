@@ -164,10 +164,10 @@ object PresetLibrary {
             try {
                 Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             } catch (_: Exception) {
-                // ATOMIC_MOVE can fail when the JVM temp dir and the presets dir are on
-                // different mount points, or when the underlying file system does not
-                // support atomic rename (e.g., some network file systems).  Fall back to
-                // a plain replace, which is still safer than writing in-place.
+                // ATOMIC_MOVE can fail when the underlying file system does not support
+                // atomic renames (e.g., some network or virtual file systems), or due to
+                // platform or permission limitations. Fall back to a plain replace, which
+                // is still safer than writing in-place.
                 Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         } catch (_: Exception) {
