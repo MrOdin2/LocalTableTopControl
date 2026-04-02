@@ -60,6 +60,17 @@ object PresetLibrary {
     private const val MAX_BASE64_DECODED_BYTES: Int = 5 * 1024 * 1024 // 5 MB
 
     /**
+     * Maximum on-disk size of a `.preset` file that will be read into memory.
+     *
+     * Base64-encodes a [MAX_BASE64_DECODED_BYTES] payload to roughly
+     * `MAX_BASE64_DECODED_BYTES × 4/3` bytes; doubling gives a comfortable
+     * margin that still protects against pathological hand-edited files.
+     * Files larger than this limit are silently skipped by [loadAll] and
+     * treated as "name not found" by [delete] and [fileFor].
+     */
+    private val MAX_PRESET_FILE_BYTES: Long = MAX_BASE64_DECODED_BYTES.toLong() * 2L
+
+    /**
      * A saved combatant template.
      *
      * @property name         the combatant's display name
@@ -147,7 +158,10 @@ object PresetLibrary {
             val results = mutableListOf<Preset>()
             // Root-level .preset files — folder = "".
             presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
-                ?.mapNotNull { f -> runCatching { deserialize(f.readText()) }.getOrNull() }
+                ?.mapNotNull { f ->
+                    if (f.length() > MAX_PRESET_FILE_BYTES) return@mapNotNull null
+                    runCatching { deserialize(f.readText()) }.getOrNull()
+                }
                 ?.let { results.addAll(it) }
             // One level of immediate subdirectories — folder = directory name.
             presetsDir.listFiles { f -> f.isDirectory }
@@ -155,6 +169,7 @@ object PresetLibrary {
                     val folderName = subDir.name
                     subDir.listFiles { f -> f.isFile && f.extension == "preset" }
                         ?.mapNotNull { f ->
+                            if (f.length() > MAX_PRESET_FILE_BYTES) return@mapNotNull null
                             runCatching { deserialize(f.readText())?.copy(folder = folderName) }.getOrNull()
                         }
                         ?.let { results.addAll(it) }
@@ -175,18 +190,14 @@ object PresetLibrary {
             // Remove from root.
             presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
                 ?.forEach { f ->
-                    if (runCatching { deserialize(f.readText())?.name == name }.getOrDefault(false)) {
-                        f.delete()
-                    }
+                    if (readNameFromFile(f) == name) f.delete()
                 }
             // Remove from immediate subdirectories.
             presetsDir.listFiles { f -> f.isDirectory }
                 ?.forEach { subDir ->
                     subDir.listFiles { f -> f.isFile && f.extension == "preset" }
                         ?.forEach { f ->
-                            if (runCatching { deserialize(f.readText())?.name == name }.getOrDefault(false)) {
-                                f.delete()
-                            }
+                            if (readNameFromFile(f) == name) f.delete()
                         }
                 }
         } catch (_: Exception) {
@@ -195,6 +206,34 @@ object PresetLibrary {
     }
 
     // ── File naming ───────────────────────────────────────────────────────────
+
+    /**
+     * Returns the `name` value stored in [file] by scanning only as far as
+     * needed, without reading the entire file into memory.
+     *
+     * The parser stops as soon as the `name=` line is found.  It also stops
+     * (returning `null`) when it reaches an `imageBase64=` line, because that
+     * line can be megabytes long and `name=` is always serialised before it.
+     * Files that exceed [MAX_PRESET_FILE_BYTES] are skipped outright to protect
+     * low-power devices from OOM caused by corrupt or hand-edited presets.
+     *
+     * @return the preset name, or `null` if not found or the file is unreadable.
+     */
+    private fun readNameFromFile(file: File): String? {
+        if (file.length() > MAX_PRESET_FILE_BYTES) return null
+        return runCatching {
+            file.bufferedReader().use { reader ->
+                reader.lineSequence().forEach { l ->
+                    when {
+                        l.startsWith("name=") -> return l.substring(5)
+                        // imageBase64 is the last field and can be huge; stop scanning here.
+                        l.startsWith("imageBase64=") -> return null
+                    }
+                }
+                null
+            }
+        }.getOrNull()
+    }
 
     /**
      * Converts [name] to a safe filename component.
@@ -233,9 +272,7 @@ object PresetLibrary {
         // Reuse an existing file that already stores this name.
         dir.listFiles { f -> f.isFile && f.extension == "preset" }
             ?.forEach { f ->
-                if (runCatching { deserialize(f.readText())?.name == name }.getOrDefault(false)) {
-                    return f
-                }
+                if (readNameFromFile(f) == name) return f
             }
         // No existing file — pick a fresh filename.
         val base = sanitizeFilename(name)

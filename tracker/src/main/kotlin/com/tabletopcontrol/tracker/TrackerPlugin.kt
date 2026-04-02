@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.scene.Node
@@ -889,13 +890,13 @@ class TrackerPlugin : DmPlugin {
                                 tokenIds.add(insertIdx, id)
                                 tokenColors[id] = color
 
-                                // Resolve the image URI: prefer the embedded base64 thumbnail
-                                // (works when sharing across machines), fall back to the original
-                                // URI when the file is still accessible locally.
-                                val effectiveUri = preset.imageBase64?.let { PresetLibrary.base64ToTempUri(it) }
-                                    ?: preset.imageUri
+                                // Use the original imageUri immediately so the token appears right
+                                // away; if there is an embedded Base64 thumbnail it will be decoded
+                                // in the background and pushed via Platform.runLater once ready,
+                                // keeping this event handler fast on low-power devices.
+                                val initialUri = preset.imageUri
                                 tokenImages[id] = TokenImageSettings(
-                                    uri = effectiveUri,
+                                    uri = initialUri,
                                     scaleX = preset.imageScaleX,
                                     scaleY = preset.imageScaleY,
                                     offsetX = preset.imageOffsetX,
@@ -903,11 +904,11 @@ class TrackerPlugin : DmPlugin {
                                 )
 
                                 EventBus.publish(TokenAddedEvent(id, preset.name, color))
-                                if (effectiveUri != null) {
+                                if (initialUri != null) {
                                     EventBus.publish(
                                         TokenImageChangedEvent(
                                             id = id,
-                                            imageUri = effectiveUri,
+                                            imageUri = initialUri,
                                             imageScaleX = preset.imageScaleX,
                                             imageScaleY = preset.imageScaleY,
                                             imageOffsetX = preset.imageOffsetX,
@@ -924,6 +925,38 @@ class TrackerPlugin : DmPlugin {
                                     )
                                 }
                                 refresh()
+
+                                // Decode the embedded thumbnail on a daemon thread and update the
+                                // token image once ready — avoids blocking the UI thread on I/O and
+                                // Base64 decode work (especially important on Raspberry Pi / SBCs).
+                                if (preset.imageBase64 != null) {
+                                    Thread {
+                                        runCatching {
+                                            val decodedUri =
+                                                PresetLibrary.base64ToTempUri(preset.imageBase64)
+                                                    ?: return@runCatching
+                                            Platform.runLater {
+                                                tokenImages[id] = TokenImageSettings(
+                                                    uri = decodedUri,
+                                                    scaleX = preset.imageScaleX,
+                                                    scaleY = preset.imageScaleY,
+                                                    offsetX = preset.imageOffsetX,
+                                                    offsetY = preset.imageOffsetY,
+                                                )
+                                                EventBus.publish(
+                                                    TokenImageChangedEvent(
+                                                        id = id,
+                                                        imageUri = decodedUri,
+                                                        imageScaleX = preset.imageScaleX,
+                                                        imageScaleY = preset.imageScaleY,
+                                                        imageOffsetX = preset.imageOffsetX,
+                                                        imageOffsetY = preset.imageOffsetY,
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                    }.also { it.isDaemon = true }.start()
+                                }
                             }
                         }
 
