@@ -182,6 +182,86 @@ class WledSerialSenderTest {
         )
     }
 
+    // ── buildJson — speed and intensity ──────────────────────────────────────
+
+    @Test
+    fun `buildJson includes sx field for speed`() {
+        val json = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, speed = 200,
+        )
+        assertTrue(json.contains("\"sx\":200"), "Expected sx:200 in $json")
+    }
+
+    @Test
+    fun `buildJson includes ix field for intensity`() {
+        val json = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, intensity = 50,
+        )
+        assertTrue(json.contains("\"ix\":50"), "Expected ix:50 in $json")
+    }
+
+    @Test
+    fun `buildJson uses default speed of 128 when not specified`() {
+        val json = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false,
+        )
+        assertTrue(json.contains("\"sx\":128"), "Expected default sx:128 in $json")
+    }
+
+    @Test
+    fun `buildJson uses default intensity of 128 when not specified`() {
+        val json = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false,
+        )
+        assertTrue(json.contains("\"ix\":128"), "Expected default ix:128 in $json")
+    }
+
+    @Test
+    fun `buildJson accepts boundary speed values 0 and 255`() {
+        val jsonMin = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, speed = 0,
+        )
+        assertTrue(jsonMin.contains("\"sx\":0"), "Expected sx:0 in $jsonMin")
+
+        val jsonMax = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, speed = 255,
+        )
+        assertTrue(jsonMax.contains("\"sx\":255"), "Expected sx:255 in $jsonMax")
+    }
+
+    @Test
+    fun `buildJson accepts boundary intensity values 0 and 255`() {
+        val jsonMin = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, intensity = 0,
+        )
+        assertTrue(jsonMin.contains("\"ix\":0"), "Expected ix:0 in $jsonMin")
+
+        val jsonMax = sender.buildJson(
+            on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, intensity = 255,
+        )
+        assertTrue(jsonMax.contains("\"ix\":255"), "Expected ix:255 in $jsonMax")
+    }
+
+    @Test
+    fun `buildJson snapshot with custom speed and intensity`() {
+        val json = sender.buildJson(
+            on = true, color = "#FF0000", effect = LightEffect.NONE,
+            brightness = 1.0, colorCycling = false, speed = 200, intensity = 50,
+        )
+        assertEquals(
+            """{"on":true,"bri":255,"seg":[{"col":[[255,0,0]],"fx":0,"sx":200,"ix":50}]}""",
+            json,
+        )
+    }
+
     // ── buildJson — output format ─────────────────────────────────────────────
 
     @Test
@@ -209,7 +289,7 @@ class WledSerialSenderTest {
             on = true, color = "#FF0000", effect = LightEffect.NONE,
             brightness = 1.0, colorCycling = false,
         )
-        assertEquals("""{"on":true,"bri":255,"seg":[{"col":[[255,0,0]],"fx":0}]}""", json)
+        assertEquals("""{"on":true,"bri":255,"seg":[{"col":[[255,0,0]],"fx":0,"sx":128,"ix":128}]}""", json)
     }
 
     // ── buildJson — validation ────────────────────────────────────────────────
@@ -230,6 +310,46 @@ class WledSerialSenderTest {
             sender.buildJson(
                 on = true, color = "#FFFFFF", effect = LightEffect.NONE,
                 brightness = 1.1, colorCycling = false,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on speed below 0`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, speed = -1,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on speed above 255`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, speed = 256,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on intensity below 0`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, intensity = -1,
+            )
+        }
+    }
+
+    @Test
+    fun `buildJson throws on intensity above 255`() {
+        assertThrows<IllegalArgumentException> {
+            sender.buildJson(
+                on = true, color = "#FFFFFF", effect = LightEffect.NONE,
+                brightness = 1.0, colorCycling = false, intensity = 256,
             )
         }
     }

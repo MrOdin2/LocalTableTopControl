@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.roundToInt
 
 /**
  * DM-panel plugin for controlling physical ambient lighting via WLED.
@@ -89,6 +90,12 @@ class LightPlugin : DmPlugin {
     private val lastSerialErrorLogNanos = AtomicReference(0L)
     private val serialWriteErrorLoggedSinceSuccess = AtomicBoolean(false)
 
+    /**
+     * Tracks the effect-params label-update listener registered by [buildEffectParamsRow]
+     * so it can be removed before a new listener is added on subsequent [createView] calls.
+     */
+    private var effectParamsListener: (() -> Unit)? = null
+
     init {
         // Forward every state change to the WLED device if connected.
         controller.addChangeListener { scheduleStateUpdate() }
@@ -105,6 +112,7 @@ class LightPlugin : DmPlugin {
             buildPowerRow(),
             buildColorRow(),
             buildEffectRow(),
+            buildEffectParamsRow(),
             buildColorCyclingRow(),
             buildBrightnessRow(),
             Separator(),
@@ -340,6 +348,80 @@ class LightPlugin : DmPlugin {
     }
 
     /**
+     * Builds the effect speed and intensity sliders.
+     *
+     * Both [Slider]s expose a 0–100% range in the UI, which is linearly mapped
+     * to the WLED `sx` (speed) and `ix` (intensity) segment parameters in the
+     * 0–255 range. A midpoint of ~50% corresponds to a value of ~128 and is
+     * used as the default. The labels above each slider update automatically
+     * when the active [LightEffect] changes to reflect the effect-specific
+     * parameter names (e.g. "Cooling" / "Sparking" for Fire).
+     */
+    private fun buildEffectParamsRow(): VBox {
+        val speedValueLabel = Label("${(controller.effectSpeed * 100) / 255} %")
+        val intensityValueLabel = Label("${(controller.effectIntensity * 100) / 255} %")
+
+        val speedNameLabel = Label("${controller.effect.speedName}:")
+        val intensityNameLabel = Label("${controller.effect.intensityName}:")
+
+        val speedSlider = Slider(0.0, 100.0, controller.effectSpeed * 100.0 / 255.0).apply {
+            isShowTickMarks = true
+            isShowTickLabels = true
+            majorTickUnit = 50.0
+            blockIncrement = 5.0
+            tooltip = Tooltip("Effect speed parameter (WLED sx) — meaning depends on the selected effect")
+            maxWidth = Double.MAX_VALUE
+            valueProperty().addListener { _, _, newValue ->
+                val speed = (newValue.toDouble() * 255.0 / 100.0).roundToInt().coerceIn(0, 255)
+                controller.setEffectSpeed(speed)
+                speedValueLabel.text = "${(speed * 100) / 255} %"
+            }
+        }
+
+        val intensitySlider = Slider(0.0, 100.0, controller.effectIntensity * 100.0 / 255.0).apply {
+            isShowTickMarks = true
+            isShowTickLabels = true
+            majorTickUnit = 50.0
+            blockIncrement = 5.0
+            tooltip = Tooltip("Effect intensity parameter (WLED ix) — meaning depends on the selected effect")
+            maxWidth = Double.MAX_VALUE
+            valueProperty().addListener { _, _, newValue ->
+                val intensity = (newValue.toDouble() * 255.0 / 100.0).roundToInt().coerceIn(0, 255)
+                controller.setEffectIntensity(intensity)
+                intensityValueLabel.text = "${(intensity * 100) / 255} %"
+            }
+        }
+
+        // Update the parameter-name labels only when the active effect actually changes.
+        // Remove any listener registered by a previous createView() call to prevent accumulation.
+        effectParamsListener?.let { controller.removeChangeListener(it) }
+        val lastEffect = AtomicReference(controller.effect)
+        effectParamsListener = controller.addChangeListener {
+            val currentEffect = controller.effect
+            if (currentEffect != lastEffect.getAndSet(currentEffect)) {
+                Platform.runLater {
+                    speedNameLabel.text = "${currentEffect.speedName}:"
+                    intensityNameLabel.text = "${currentEffect.intensityName}:"
+                }
+            }
+        }
+
+        val speedRow = HBox(8.0, speedSlider, speedValueLabel).apply {
+            HBox.setHgrow(speedSlider, Priority.ALWAYS)
+            alignment = Pos.CENTER_LEFT
+        }
+        val intensityRow = HBox(8.0, intensitySlider, intensityValueLabel).apply {
+            HBox.setHgrow(intensitySlider, Priority.ALWAYS)
+            alignment = Pos.CENTER_LEFT
+        }
+
+        return VBox(4.0,
+            speedNameLabel, speedRow,
+            intensityNameLabel, intensityRow,
+        )
+    }
+
+    /**
      * Builds the color-cycling toggle row.
      *
      * When the [CheckBox] is selected, automatic color cycling is enabled in
@@ -513,6 +595,8 @@ class LightPlugin : DmPlugin {
         val effect: LightEffect,
         val brightness: Double,
         val colorCycling: Boolean,
+        val effectSpeed: Int,
+        val effectIntensity: Int,
         val preset: Int?,
     )
 
@@ -544,12 +628,14 @@ class LightPlugin : DmPlugin {
     /** Captures controller state on FX thread and starts the write drain if needed. */
     private fun publishSnapshotAndScheduleWrite() {
         val snapshot = ControllerSnapshot(
-            power        = controller.power,
-            color        = controller.color,
-            effect       = controller.effect,
-            brightness   = controller.brightness,
-            colorCycling = controller.colorCycling,
-            preset       = controller.preset,
+            power          = controller.power,
+            color          = controller.color,
+            effect         = controller.effect,
+            brightness     = controller.brightness,
+            colorCycling   = controller.colorCycling,
+            effectSpeed    = controller.effectSpeed,
+            effectIntensity = controller.effectIntensity,
+            preset         = controller.preset,
         )
         latestSnapshot.set(snapshot)
         if (!pendingWrite.compareAndSet(false, true)) return
@@ -576,6 +662,8 @@ class LightPlugin : DmPlugin {
                             effect       = next.effect,
                             brightness   = next.brightness,
                             colorCycling = next.colorCycling,
+                            speed        = next.effectSpeed,
+                            intensity    = next.effectIntensity,
                         )
                         // Preset mode: let the microcontroller run the animation.
                         next.preset != null -> sender.sendPresetJson(next.preset)
@@ -586,6 +674,8 @@ class LightPlugin : DmPlugin {
                             effect       = next.effect,
                             brightness   = next.brightness,
                             colorCycling = next.colorCycling,
+                            speed        = next.effectSpeed,
+                            intensity    = next.effectIntensity,
                         )
                     }
                     appendDebugCommand(sentJson)
@@ -651,6 +741,7 @@ class LightPlugin : DmPlugin {
 
     /** Formats a normalised brightness value as a percentage label. */
     private fun brightnessLabel(value: Double): String = "${(value * 100).toInt()} %"
+
 
     private companion object {
         private val SERIAL_ERROR_LOG_THROTTLE_NANOS: Long = TimeUnit.SECONDS.toNanos(2)

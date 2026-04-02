@@ -23,6 +23,8 @@ import java.io.IOException
  *     effect       = LightEffect.FIRE,
  *     brightness   = 0.8,
  *     colorCycling = false,
+ *     speed        = 128,
+ *     intensity    = 128,
  * )
  * sender.disconnect()
  * ```
@@ -103,9 +105,12 @@ class WledSerialSender : Closeable {
      * @param effect       the [LightEffect] to apply
      * @param brightness   brightness in the range `0.0` (off) to `1.0` (full)
      * @param colorCycling when `true` the Rainbow effect overrides [effect]
+     * @param speed        effect speed in the range `0` (slowest) to `255` (fastest)
+     * @param intensity    effect intensity in the range `0` (least) to `255` (most)
      * @throws IOException              if the port is not connected or the write fails
-     * @throws IllegalArgumentException if [color] is not a valid CSS hex string or
-     *                                  [brightness] is outside `0.0..1.0`
+     * @throws IllegalArgumentException if [color] is not a valid CSS hex string,
+     *                                  [brightness] is outside `0.0..1.0`, or
+     *                                  [speed] / [intensity] are outside `0..255`
      */
     @Throws(IOException::class)
     fun sendState(
@@ -114,8 +119,10 @@ class WledSerialSender : Closeable {
         effect: LightEffect,
         brightness: Double,
         colorCycling: Boolean,
+        speed: Int = DEFAULT_EFFECT_SPEED,
+        intensity: Int = DEFAULT_EFFECT_INTENSITY,
     ) {
-        sendStateJson(on, color, effect, brightness, colorCycling)
+        sendStateJson(on, color, effect, brightness, colorCycling, speed, intensity)
     }
 
     /**
@@ -145,6 +152,9 @@ class WledSerialSender : Closeable {
      * The resulting JSON follows the
      * [WLED state object](https://kno.wled.ge/interfaces/json-api/#state-object)
      * format, targeting the first segment (`seg[0]`).
+     *
+     * @param speed     effect speed mapped to `sx` (0–255)
+     * @param intensity effect intensity mapped to `ix` (0–255)
      */
     internal fun buildJson(
         on: Boolean,
@@ -152,12 +162,16 @@ class WledSerialSender : Closeable {
         effect: LightEffect,
         brightness: Double,
         colorCycling: Boolean,
+        speed: Int = DEFAULT_EFFECT_SPEED,
+        intensity: Int = DEFAULT_EFFECT_INTENSITY,
     ): String {
         require(brightness in 0.0..1.0) { "Brightness must be 0.0–1.0, was $brightness" }
+        require(speed in 0..255) { "Speed must be 0–255, was $speed" }
+        require(intensity in 0..255) { "Intensity must be 0–255, was $intensity" }
         val bri = (brightness * 255).toInt()
         val (r, g, b) = hexToRgb(color)
         val fxId = if (colorCycling) LightEffect.RAINBOW.wledEffectId else effect.wledEffectId
-        return """{"on":$on,"bri":$bri,"seg":[{"col":[[$r,$g,$b]],"fx":$fxId}]}"""
+        return """{"on":$on,"bri":$bri,"seg":[{"col":[[$r,$g,$b]],"fx":$fxId,"sx":$speed,"ix":$intensity}]}"""
     }
 
     /**
@@ -187,8 +201,10 @@ class WledSerialSender : Closeable {
         effect: LightEffect,
         brightness: Double,
         colorCycling: Boolean,
+        speed: Int = DEFAULT_EFFECT_SPEED,
+        intensity: Int = DEFAULT_EFFECT_INTENSITY,
     ): String {
-        val json = buildJson(on, color, effect, brightness, colorCycling)
+        val json = buildJson(on, color, effect, brightness, colorCycling, speed, intensity)
         writeJson(json)
         return json
     }
@@ -260,6 +276,24 @@ class WledSerialSender : Closeable {
     companion object {
         /** Default baud rate used by WLED's serial interface. */
         const val DEFAULT_BAUD_RATE: Int = 115_200
+
+        /**
+         * Default effect speed sent to WLED (midpoint of the 0–255 range).
+         *
+         * Delegates to [LightController.DEFAULT_EFFECT_SPEED] to keep the UI and
+         * sender defaults in sync.
+         */
+        val DEFAULT_EFFECT_SPEED: Int
+            get() = LightController.DEFAULT_EFFECT_SPEED
+
+        /**
+         * Default effect intensity sent to WLED (midpoint of the 0–255 range).
+         *
+         * Delegates to [LightController.DEFAULT_EFFECT_INTENSITY] to keep the UI
+         * and sender defaults in sync.
+         */
+        val DEFAULT_EFFECT_INTENSITY: Int
+            get() = LightController.DEFAULT_EFFECT_INTENSITY
 
         private const val WRITE_TIMEOUT_MS: Int = 2_000
     }

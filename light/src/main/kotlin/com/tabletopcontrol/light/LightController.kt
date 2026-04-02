@@ -7,12 +7,14 @@ package com.tabletopcontrol.light
  * running FX toolkit.  The [LightPlugin] binds UI controls to it.
  *
  * State fields:
- * - **power**        — whether the lights are on.
- * - **color**        — selected color as a CSS hex string (`#RRGGBB` or `#RGB`).
- * - **effect**       — selected [LightEffect].
- * - **colorCycling** — whether automatic color cycling is active.
- * - **brightness**   — output brightness in the range `0.0`–`1.0`.
- * - **preset**       — active WLED preset ID (`1–250`), or `null` for manual control.
+ * - **power**           — whether the lights are on.
+ * - **color**           — selected color as a CSS hex string (`#RRGGBB` or `#RGB`).
+ * - **effect**          — selected [LightEffect].
+ * - **colorCycling**    — whether automatic color cycling is active.
+ * - **brightness**      — output brightness in the range `0.0`–`1.0`.
+ * - **effectSpeed**     — WLED effect speed in the range `0`–`255` (maps to `sx`).
+ * - **effectIntensity** — WLED effect intensity in the range `0`–`255` (maps to `ix`).
+ * - **preset**          — active WLED preset ID (`1–250`), or `null` for manual control.
  *
  * When [preset] is non-null the WLED device runs its stored preset animation
  * autonomously; the host does not need to continuously send state updates.
@@ -37,6 +39,20 @@ class LightController {
 
     /** Whether automatic color cycling is enabled. */
     var colorCycling: Boolean = false
+        private set
+
+    /**
+     * WLED effect speed in the range `0` (slowest) to `255` (fastest).
+     * Maps to the `sx` field in the WLED segment JSON.
+     */
+    var effectSpeed: Int = DEFAULT_EFFECT_SPEED
+        private set
+
+    /**
+     * WLED effect intensity in the range `0` (least) to `255` (most).
+     * Maps to the `ix` field in the WLED segment JSON.
+     */
+    var effectIntensity: Int = DEFAULT_EFFECT_INTENSITY
         private set
 
     /** Brightness level in the range `0.0` (off) to `1.0` (full). */
@@ -113,6 +129,37 @@ class LightController {
     }
 
     /**
+     * Sets the WLED effect speed.
+     *
+     * Higher values make the effect run faster.  The value is sent as the
+     * `sx` field in the WLED segment JSON.
+     *
+     * @param speed a value in the range `0` (slowest) to `255` (fastest)
+     * @throws IllegalArgumentException if [speed] is outside `0..255`
+     */
+    fun setEffectSpeed(speed: Int) {
+        require(speed in 0..255) { "Effect speed must be between 0 and 255, was $speed" }
+        effectSpeed = speed
+        notifyChange()
+    }
+
+    /**
+     * Sets the WLED effect intensity.
+     *
+     * The exact meaning depends on the active effect; common examples are
+     * density, trail length, or number of sparkles.  The value is sent as the
+     * `ix` field in the WLED segment JSON.
+     *
+     * @param intensity a value in the range `0` (least) to `255` (most)
+     * @throws IllegalArgumentException if [intensity] is outside `0..255`
+     */
+    fun setEffectIntensity(intensity: Int) {
+        require(intensity in 0..255) { "Effect intensity must be between 0 and 255, was $intensity" }
+        effectIntensity = intensity
+        notifyChange()
+    }
+
+    /**
      * Sets the output brightness.
      *
      * @param value a value in the range `0.0` (off) to `1.0` (full brightness)
@@ -150,5 +197,11 @@ class LightController {
     private companion object {
         /** Matches `#RGB` and `#RRGGBB` (case-insensitive). */
         val HEX_COLOR_REGEX = Regex("^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$")
+
+        /** WLED default speed (midpoint of 0–255 range). */
+        const val DEFAULT_EFFECT_SPEED: Int = 128
+
+        /** WLED default intensity (midpoint of 0–255 range). */
+        const val DEFAULT_EFFECT_INTENSITY: Int = 128
     }
 }

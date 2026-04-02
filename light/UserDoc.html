@@ -137,7 +137,11 @@
         <li><a href="#connection">Connecting</a></li>
         <li><a href="#power">Power Control</a></li>
         <li><a href="#color">Colour</a></li>
-        <li><a href="#effects">Effects</a></li>
+        <li><a href="#effects">Effects</a>
+          <ul>
+            <li><a href="#effect-params">Speed &amp; Intensity</a></li>
+          </ul>
+        </li>
         <li><a href="#brightness">Brightness</a></li>
         <li><a href="#cycling">Colour Cycling</a></li>
         <li><a href="#presets">Presets</a></li>
@@ -262,46 +266,186 @@
       <h2>Effects</h2>
       <p>
         Select a lighting effect from the <strong>Effect</strong> dropdown to animate the LED strip.
-        The effect starts immediately.
+        The effect starts immediately. Effects marked with ✱ use the selected colour as their base;
+        others generate their own palette automatically.
       </p>
       <table>
         <tr><th>Effect</th><th>Description</th></tr>
         <tr>
-          <td>None</td>
+          <td>None ✱</td>
           <td>Solid static colour — no animation. The strip displays the selected colour at full brightness.</td>
         </tr>
         <tr>
-          <td>Fade</td>
+          <td>Blink ✱</td>
+          <td>Hard on–off flash in the selected colour. Duty cycle (on-time ratio) is set with the Intensity slider.</td>
+        </tr>
+        <tr>
+          <td>Fade (Breathe) ✱</td>
           <td>The strip smoothly pulses (fades in and out) in the selected colour. Great for a calm, atmospheric glow.</td>
         </tr>
         <tr>
-          <td>Strobe</td>
-          <td>Rapid on–off flashing in the selected colour. Good for lightning storms or dramatic reveals.</td>
+          <td>Color Wipe ✱</td>
+          <td>Fills the strip pixel-by-pixel in the selected colour, then wipes it away.</td>
+        </tr>
+        <tr>
+          <td>Color Loop</td>
+          <td>Cycles through the entire hue spectrum. Intensity controls colour saturation.</td>
         </tr>
         <tr>
           <td>Rainbow</td>
           <td>Cycles through all hues continuously. The selected colour is ignored. Ideal for celebratory moments.</td>
         </tr>
         <tr>
-          <td>Fire</td>
-          <td>Simulates flickering fire with warm orange and red tones. Great for tavern scenes or torch-lit dungeons.</td>
+          <td>Scan ✱</td>
+          <td>A bright dot bounces back and forth along the strip. Intensity sets the number of lit LEDs in the dot.</td>
         </tr>
         <tr>
-          <td>Candle</td>
-          <td>Gentle, slow flicker resembling a single candle flame. A subtler alternative to Fire.</td>
+          <td>Dual Scan ✱</td>
+          <td>Two opposing scanning dots travel from opposite ends. Intensity sets the dot width.</td>
+        </tr>
+        <tr>
+          <td>Theater ✱</td>
+          <td>Classic marquee-style chaser in the selected colour. Intensity controls gap size between lit segments.</td>
+        </tr>
+        <tr>
+          <td>Theater Rainbow</td>
+          <td>Marquee chaser with a rainbow palette. Intensity controls gap size.</td>
+        </tr>
+        <tr>
+          <td>Running ✱</td>
+          <td>Coloured blocks run along the strip. Intensity controls the width of each block.</td>
+        </tr>
+        <tr>
+          <td>Twinkle ✱</td>
+          <td>Random pixels flicker on and off like stars. Intensity controls how many pixels twinkle at once.</td>
+        </tr>
+        <tr>
+          <td>Sparkle ✱</td>
+          <td>Random bright sparks appear briefly on the strip. Good for magical or mystical scenes.</td>
+        </tr>
+        <tr>
+          <td>Strobe ✱</td>
+          <td>Rapid on–off flashing in the selected colour. Good for lightning storms or dramatic reveals.</td>
+        </tr>
+        <tr>
+          <td>Strobe Rainbow</td>
+          <td>Rapid flashing that steps through hues. Dramatic and colourful.</td>
+        </tr>
+        <tr>
+          <td>Chase Color ✱</td>
+          <td>A single-colour chaser pattern runs along the strip.</td>
+        </tr>
+        <tr>
+          <td>Rainbow Runner</td>
+          <td>A rainbow-coloured wave runs along the strip. Intensity controls wave width.</td>
+        </tr>
+        <tr>
+          <td>Scanner ✱</td>
+          <td>Larson scanner — a dot sweeps back and forth with a fading trail. Intensity controls trail decay rate.</td>
+        </tr>
+        <tr>
+          <td>Fireworks ✱</td>
+          <td>Random colour bursts erupt along the strip. Intensity controls how frequently fireworks appear.</td>
+        </tr>
+        <tr>
+          <td>Fire</td>
+          <td>Simulates flickering fire with warm orange and red tones. Speed = Cooling (how fast the fire cools); Intensity = Sparking (ignition rate). Great for tavern scenes or torch-lit dungeons.</td>
+        </tr>
+        <tr>
+          <td>Lightning ✱</td>
+          <td>Occasional bright flashes along the strip. Speed = Frequency (time between strikes); Intensity = number of simultaneous strikes.</td>
+        </tr>
+        <tr>
+          <td>Meteor ✱</td>
+          <td>A meteor travels along the strip leaving a decaying trail. Intensity controls trail decay rate.</td>
+        </tr>
+        <tr>
+          <td>Smooth Meteor ✱</td>
+          <td>Like Meteor but with an anti-aliased, smoother trail. Intensity controls trail smoothing.</td>
+        </tr>
+        <tr>
+          <td>Glitter</td>
+          <td>Random bright white or coloured glitter sparks over the base colour. Intensity controls glitter density.</td>
+        </tr>
+        <tr>
+          <td>Candle ✱</td>
+          <td>Gentle, slow flicker resembling a single candle flame. Intensity controls flicker amount. A subtler alternative to Fire.</td>
+        </tr>
+        <tr>
+          <td>Bouncing Balls ✱</td>
+          <td>Simulates coloured balls bouncing with gravity. Speed = Gravity strength; Intensity = number of balls.</td>
+        </tr>
+        <tr>
+          <td>Sinelon ✱</td>
+          <td>A dot moves back and forth following a sine-wave pattern, fading to black.</td>
+        </tr>
+        <tr>
+          <td>Drip ✱</td>
+          <td>Drops of colour fall from one end of the strip. Speed = Gravity; Intensity = number of drips.</td>
+        </tr>
+        <tr>
+          <td>Heartbeat ✱</td>
+          <td>Double-pulse fade that mimics a heartbeat. Effective for horror or tension scenes.</td>
         </tr>
         <tr>
           <td>Ocean</td>
           <td>Slow, flowing blue-green waves. Use for underwater scenes or peaceful open-air locations.</td>
         </tr>
+        <tr>
+          <td>Candle Multi ✱</td>
+          <td>Multiple independent candle-flicker zones along the strip, each at a slightly different phase. Intensity controls flicker amount.</td>
+        </tr>
       </table>
       <div class="tip">
         <strong>Ideas by scene type:</strong>
         Tavern → <em>Candle</em> or warm <em>Fade</em> &bull;
-        Dungeon → dim <em>None</em> (orange) &bull;
+        Dungeon → dim <em>None</em> (orange) or <em>Candle Multi</em> &bull;
         Outdoors at night → cool <em>None</em> (dark blue) &bull;
-        Battle → <em>Strobe</em> or <em>Fire</em> &bull;
-        Celebration → <em>Rainbow</em>
+        Thunderstorm → <em>Lightning</em> or <em>Strobe</em> &bull;
+        Battle → <em>Fire</em> or <em>Strobe</em> &bull;
+        Horror → <em>Heartbeat</em> or slow red <em>Fade</em> &bull;
+        Underwater → <em>Ocean</em> &bull;
+        Celebration → <em>Rainbow</em> or <em>Fireworks</em>
+      </div>
+    </section>
+
+    <section id="effect-params">
+      <h2>Effect Speed &amp; Intensity</h2>
+      <p>
+        Below the Effect selector you will find two sliders: <strong>Speed</strong> and
+        <strong>Intensity</strong>. Both range from 0% to 100% in the interface, and map
+        in the background to the WLED segment parameters <code>sx</code> (speed) and
+        <code>ix</code> (intensity) from 0 to 255.
+      </p>
+      <p>
+        The <strong>label above each slider updates automatically</strong> when you switch effects,
+        showing you the specific parameter that slider controls for the active effect. For example:
+      </p>
+      <table>
+        <tr><th>Effect</th><th>Speed label</th><th>Intensity label</th></tr>
+        <tr><td>Fire</td><td>Cooling</td><td>Sparking</td></tr>
+        <tr><td>Lightning</td><td>Frequency</td><td># Strikes</td></tr>
+        <tr><td>Bouncing Balls</td><td>Gravity</td><td># Balls</td></tr>
+        <tr><td>Drip</td><td>Gravity</td><td># Drips</td></tr>
+        <tr><td>Blink</td><td>Speed</td><td>Duty Cycle</td></tr>
+        <tr><td>Candle / Candle Multi</td><td>Speed</td><td>Flicker</td></tr>
+        <tr><td>Fireworks</td><td>Speed</td><td>Frequency</td></tr>
+        <tr><td>Color Loop</td><td>Speed</td><td>Saturation</td></tr>
+        <tr><td>Scan / Dual Scan</td><td>Speed</td><td># LEDs</td></tr>
+        <tr><td>Theater / Theater Rainbow</td><td>Speed</td><td>Gap Size</td></tr>
+        <tr><td>Running</td><td>Speed</td><td>Wave Width</td></tr>
+        <tr><td>Twinkle</td><td>Speed</td><td># Twinkles</td></tr>
+        <tr><td>Rainbow Runner</td><td>Speed</td><td>Wave Width</td></tr>
+        <tr><td>Scanner</td><td>Speed</td><td>Trail Decay</td></tr>
+        <tr><td>Meteor</td><td>Speed</td><td>Trail Decay</td></tr>
+        <tr><td>Smooth Meteor</td><td>Speed</td><td>Trail Smoothing</td></tr>
+        <tr><td>Glitter</td><td>Speed</td><td># Glitter</td></tr>
+        <tr><td>All others</td><td>Speed</td><td>Intensity</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip:</strong> The default value for both sliders is 50% (midpoint). Start there
+        and adjust to taste. For <em>Fire</em>, lower Cooling (Speed) and higher Sparking
+        (Intensity) gives a more intense flame; higher Cooling makes the fire more subdued.
       </div>
     </section>
 
