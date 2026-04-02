@@ -924,7 +924,7 @@ class TrackerPlugin : DmPlugin {
                                         if (previousActiveId != null) {
                                             val newActiveIndex = newIds.indexOf(previousActiveId)
                                             if (newActiveIndex >= 0) {
-                                                tracker.currentIndex = newActiveIndex
+                                                tracker.jumpTo(newActiveIndex)
                                             }
                                         }
                                         tokenIds.clear()

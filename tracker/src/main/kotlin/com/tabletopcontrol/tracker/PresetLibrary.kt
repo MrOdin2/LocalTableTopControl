@@ -192,6 +192,7 @@ object PresetLibrary {
      */
     fun loadAll(): List<Preset> =
         try {
+            val baseDir = presetsDir.canonicalFile
             val results = mutableListOf<Preset>()
             // Root-level .preset files — folder = "".
             presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
@@ -201,7 +202,12 @@ object PresetLibrary {
                 }
                 ?.let { results.addAll(it) }
             // One level of immediate subdirectories — folder = directory name.
-            presetsDir.listFiles { f -> f.isDirectory }
+            // Symlinks are excluded so a crafted symlink cannot expose files outside presetsDir.
+            presetsDir.listFiles { f -> f.isDirectory && !java.nio.file.Files.isSymbolicLink(f.toPath()) }
+                ?.filter { subDir ->
+                    // Extra canonical-path guard: the resolved directory must still be inside baseDir.
+                    runCatching { subDir.canonicalFile.toPath().startsWith(baseDir.toPath()) }.getOrDefault(false)
+                }
                 ?.forEach { subDir ->
                     val folderName = subDir.name
                     subDir.listFiles { f -> f.isFile && f.extension == "preset" }
@@ -224,13 +230,18 @@ object PresetLibrary {
      */
     fun delete(name: String) {
         try {
+            val baseDir = presetsDir.canonicalFile
             // Remove from root.
             presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
                 ?.forEach { f ->
                     if (readNameFromFile(f) == name) f.delete()
                 }
             // Remove from immediate subdirectories.
-            presetsDir.listFiles { f -> f.isDirectory }
+            // Symlinks are excluded so a crafted symlink cannot delete files outside presetsDir.
+            presetsDir.listFiles { f -> f.isDirectory && !java.nio.file.Files.isSymbolicLink(f.toPath()) }
+                ?.filter { subDir ->
+                    runCatching { subDir.canonicalFile.toPath().startsWith(baseDir.toPath()) }.getOrDefault(false)
+                }
                 ?.forEach { subDir ->
                     subDir.listFiles { f -> f.isFile && f.extension == "preset" }
                         ?.forEach { f ->
