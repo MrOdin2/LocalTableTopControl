@@ -517,6 +517,7 @@ object PresetLibrary {
                 override fun read(): Int =
                     if (pos < base64.length) base64[pos++].code and 0xFF else -1
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (len == 0) return 0
                     if (pos >= base64.length) return -1
                     val count = minOf(len, base64.length - pos)
                     for (i in 0 until count) b[off + i] = (base64[pos++].code and 0xFF).toByte()

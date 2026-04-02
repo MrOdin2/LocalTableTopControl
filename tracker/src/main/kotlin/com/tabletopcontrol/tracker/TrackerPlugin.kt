@@ -384,7 +384,8 @@ class TrackerPlugin : DmPlugin {
                 val imageSettings = tokenIds.getOrNull(index)?.let { tokenImages[it] }
                 // Save immediately without the thumbnail so the preset is usable right away,
                 // then re-save with the embedded Base64 thumbnail in a background thread.
-                // This keeps the expensive image decode/scale/encode work off the JavaFX thread.
+                // The initial save runs on the JavaFX thread; only the expensive thumbnail
+                // encode/scale work is deferred to the background.
                 val presetWithoutThumbnail = PresetLibrary.Preset(
                     name = entry.name,
                     hp = entry.hp,
@@ -993,6 +994,10 @@ class TrackerPlugin : DmPlugin {
                                                                 imageOffsetY = preset.imageOffsetY,
                                                             ),
                                                         )
+                                                        // Refresh the DM-screen card so the image button
+                                                        // state updates even when initialUri was null
+                                                        // (preset with embedded Base64 but no imageUri).
+                                                        refresh()
                                                     }
                                                 }
                                             }.also { it.isDaemon = true }.start()
