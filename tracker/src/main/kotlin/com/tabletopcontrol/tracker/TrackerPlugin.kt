@@ -939,6 +939,10 @@ class TrackerPlugin : DmPlugin {
                                                 PresetLibrary.base64ToTempUri(preset.imageBase64)
                                                     ?: return@runCatching
                                             Platform.runLater {
+                                                // Guard: if the combatant was removed while the
+                                                // thumbnail was decoding, skip the update so we
+                                                // don't resurrect a stale token.
+                                                if (!tokenIds.contains(id)) return@runLater
                                                 tokenImages[id] = TokenImageSettings(
                                                     uri = decodedUri,
                                                     scaleX = preset.imageScaleX,
