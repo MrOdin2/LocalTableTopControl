@@ -517,10 +517,16 @@ object PresetLibrary {
                 override fun read(): Int =
                     if (pos < base64.length) base64[pos++].code and 0xFF else -1
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    // Enforce the standard InputStream contract for bounds checking.
+                    if (off < 0 || len < 0 || len > b.size - off) {
+                        throw IndexOutOfBoundsException("off=$off, len=$len, buffer size=${b.size}")
+                    }
                     if (len == 0) return 0
                     if (pos >= base64.length) return -1
                     val count = minOf(len, base64.length - pos)
-                    for (i in 0 until count) b[off + i] = (base64[pos++].code and 0xFF).toByte()
+                    for (i in 0 until count) {
+                        b[off + i] = (base64[pos++].code and 0xFF).toByte()
+                    }
                     return count
                 }
             }
