@@ -11,6 +11,7 @@ import javafx.scene.control.CustomMenuItem
 import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
 import javafx.scene.control.ComboBox
+import javafx.scene.control.ContentDisplay
 import javafx.scene.control.Label
 import javafx.scene.control.MenuButton
 import javafx.scene.control.ScrollPane
@@ -102,6 +103,7 @@ class LightPlugin : DmPlugin {
      * so it can be removed before a new listener is added on subsequent [createView] calls.
      */
     private var effectParamsListener: (() -> Unit)? = null
+    /** Recent applied color hex values, stored most-recent-first up to [MAX_RECENT_COLORS]. */
     private val recentColors = ArrayDeque<String>()
 
     init {
@@ -324,12 +326,12 @@ class LightPlugin : DmPlugin {
             minHeight = 16.0
             prefWidth = 16.0
             prefHeight = 16.0
-            style = "-fx-background-radius: 3; -fx-border-radius: 3; -fx-border-color: -tc-border;"
+            style = SWATCH_STYLE_BASE
         }
         val valueLabel = Label()
         fun refreshButtonLabel(color: Color) {
             val hex = colorToHex(color)
-            swatch.style = "-fx-background-color: $hex; -fx-background-radius: 3; -fx-border-radius: 3; -fx-border-color: -tc-border;"
+            swatch.style = "-fx-background-color: $hex; $SWATCH_STYLE_BASE"
             valueLabel.text = hex
         }
         refreshButtonLabel(appliedColor)
@@ -392,47 +394,40 @@ class LightPlugin : DmPlugin {
             prefColumnCount = 4
             tooltip = Tooltip("Value (0–100%)")
         }
-        val currentSwatch = Region().apply {
-            minWidth = 28.0
-            minHeight = 28.0
-            prefWidth = 28.0
-            prefHeight = 28.0
-            style = "-fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
+        /** Creates a square swatch region with optional background [color]. */
+        fun createSwatch(size: Double, color: Color? = null): Region = Region().apply {
+            minWidth = size
+            minHeight = size
+            prefWidth = size
+            prefHeight = size
+            style = color?.let { "-fx-background-color: ${colorToHex(it)}; $SWATCH_STYLE_BASE" } ?: SWATCH_STYLE_BASE
         }
-        val newSwatch = Region().apply {
-            minWidth = 28.0
-            minHeight = 28.0
-            prefWidth = 28.0
-            prefHeight = 28.0
-            style = "-fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
-        }
+        val currentSwatch = createSwatch(28.0)
+        val newSwatch = createSwatch(28.0)
         val currentHex = Label()
         val newHex = Label()
         val recentBox = VBox(6.0)
-        lateinit var applyDraftColor: (Color) -> Unit
+        var applyDraftColorCallback: (Color) -> Unit = {}
+        /** Updates a swatch's fill color while keeping border/radius styling intact. */
         fun styleSwatch(region: Region, color: Color) {
-            region.style = "-fx-background-color: ${colorToHex(color)}; -fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
+            region.style = "-fx-background-color: ${colorToHex(color)}; $SWATCH_STYLE_BASE"
         }
+        /** Rebuilds the recent-color swatch buttons shown in the right-side panel. */
         fun renderRecentColors() {
             recentBox.children.clear()
             recentColors.forEach { hex ->
                 val color = Color.web(hex)
-                val recentSwatch = Region().apply {
-                    minWidth = 24.0
-                    minHeight = 24.0
-                    prefWidth = 24.0
-                    prefHeight = 24.0
-                    styleSwatch(this, color)
-                }
+                val recentSwatch = createSwatch(24.0, color)
                 val btn = Button("", recentSwatch).apply {
-                    contentDisplay = javafx.scene.control.ContentDisplay.GRAPHIC_ONLY
+                    contentDisplay = ContentDisplay.GRAPHIC_ONLY
                     tooltip = Tooltip(hex)
-                    setOnAction { applyDraftColor(color) }
+                    setOnAction { applyDraftColorCallback(color) }
                     prefWidth = 34.0
                 }
                 recentBox.children.add(btn)
             }
         }
+        /** Pushes [color] into recents, de-duplicating and enforcing max size. */
         fun rememberRecentColor(color: Color) {
             val hex = colorToHex(color)
             recentColors.remove(hex)
@@ -482,13 +477,15 @@ class LightPlugin : DmPlugin {
             drawWheel(valuePercent)
             lastWheelValuePercent = valuePercent
         }
+        /** Syncs current/new comparison swatches and labels from applied + draft colors. */
         fun refreshComparisonPanel() {
             styleSwatch(currentSwatch, appliedColor)
             styleSwatch(newSwatch, draftColor)
             currentHex.text = colorToHex(appliedColor)
             newHex.text = colorToHex(draftColor)
         }
-        applyDraftColor = { color ->
+        /** Updates the draft color state and editor UI without committing to controller/serial. */
+        fun applyDraftColor(color: Color) {
             val clamped = Color.hsb(color.hue, color.saturation, color.brightness.coerceIn(0.0, 1.0))
             draftColor = clamped
             isUpdatingInputs = true
@@ -509,6 +506,7 @@ class LightPlugin : DmPlugin {
             markerFromColor(clamped)
             refreshComparisonPanel()
         }
+        applyDraftColorCallback = ::applyDraftColor
         fun fromWheel(x: Double, y: Double) {
             val dx = (x - wheelRadius)
             val dy = (y - wheelRadius)
@@ -561,8 +559,7 @@ class LightPlugin : DmPlugin {
         }
         val cancelBtn = Button("Cancel").apply {
             setOnAction {
-                draftColor = appliedColor
-                applyDraftColor(draftColor)
+                applyDraftColor(appliedColor)
                 menu.hide()
             }
         }
@@ -1066,6 +1063,8 @@ class LightPlugin : DmPlugin {
         private const val WHEEL_NOT_DRAWN: Int = -1
         private const val MAX_RECENT_COLORS: Int = 10
         private const val MARKER_WHITE_STROKE_BRIGHTNESS_THRESHOLD: Double = 0.45
+        private const val SWATCH_STYLE_BASE: String =
+            "-fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
         /** Practical hue upper bound kept below 360 because 360 maps to 0 in HSB. */
         private const val MAX_HUE_BELOW_360: Double = 359.999
     }
