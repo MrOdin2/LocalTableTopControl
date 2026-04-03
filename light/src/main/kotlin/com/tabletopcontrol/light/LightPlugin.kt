@@ -4,22 +4,28 @@ import com.tabletopcontrol.core.DmPlugin
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Pos
+import javafx.scene.canvas.Canvas
 import javafx.scene.Node
+import javafx.scene.control.CustomMenuItem
 import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
-import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
+import javafx.scene.control.MenuButton
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Separator
 import javafx.scene.control.Slider
 import javafx.scene.control.TextArea
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
+import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
+import javafx.scene.layout.StackPane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.scene.shape.Circle
 import javafx.util.StringConverter
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -34,7 +40,7 @@ import kotlin.math.roundToInt
  * - **Serial connection** — port selector, baud-rate field, connect / disconnect button,
  *   and a live connection-status label.
  * - **Power** — a toggle to turn the LEDs on or off.
- * - **Color select** — a [ColorPicker] to choose the light color.
+ * - **Color select** — a dropdown with a color wheel and direct color inputs.
  * - **Effect select** — a [ComboBox] to pick from the available [LightEffect]s.
  * - **Color cycling** — a [CheckBox] to enable automatic color cycling.
  * - **Brightness** — a [Slider] to set output brightness (0 – 100 %).
@@ -302,20 +308,201 @@ class LightPlugin : DmPlugin {
 
     /**
      * Builds the color-picker row.
-     *
-     * The [ColorPicker] is pre-seeded with the controller's current color and
-     * writes back to the controller on every selection change.
      */
     private fun buildColorRow(): HBox {
-        val picker = ColorPicker(hexToColor(controller.color)).apply {
+        val selectedColor = AtomicReference(hexToColor(controller.color))
+        val menu = MenuButton().apply {
             tooltip = Tooltip("Select the ambient light color")
             maxWidth = Double.MAX_VALUE
-            valueProperty().addListener { _, _, newColor ->
-                controller.setColor(colorToHex(newColor))
+        }
+
+        val swatch = Region().apply {
+            minWidth = 16.0
+            minHeight = 16.0
+            prefWidth = 16.0
+            prefHeight = 16.0
+            style = "-fx-background-radius: 3; -fx-border-radius: 3; -fx-border-color: -tc-border;"
+        }
+        val valueLabel = Label()
+        fun refreshButtonLabel(color: Color) {
+            val hex = colorToHex(color)
+            swatch.style = "-fx-background-color: $hex; -fx-background-radius: 3; -fx-border-radius: 3; -fx-border-color: -tc-border;"
+            valueLabel.text = hex
+        }
+        refreshButtonLabel(selectedColor.get())
+        menu.graphic = HBox(8.0, swatch, valueLabel).apply { alignment = Pos.CENTER_LEFT }
+        menu.text = ""
+
+        val wheelSize = 170.0
+        val wheelRadius = wheelSize / 2.0
+        val wheel = Canvas(wheelSize, wheelSize)
+        val marker = Circle(4.0).apply {
+            fill = Color.TRANSPARENT
+            stroke = Color.WHITE
+            strokeWidth = 2.0
+            isMouseTransparent = true
+        }
+        val wheelPane = StackPane(wheel, marker).apply {
+            prefWidth = wheelSize
+            prefHeight = wheelSize
+            minWidth = wheelSize
+            minHeight = wheelSize
+            maxWidth = wheelSize
+            maxHeight = wheelSize
+        }
+
+        val brightnessLabel = Label()
+        val brightnessSlider = Slider(0.0, 100.0, (selectedColor.get().brightness * 100.0)).apply {
+            blockIncrement = 1.0
+            majorTickUnit = 25.0
+            isShowTickMarks = true
+            isShowTickLabels = true
+            maxWidth = Double.MAX_VALUE
+            tooltip = Tooltip("Brightness")
+        }
+        val hexField = TextField(colorToHex(selectedColor.get())).apply {
+            prefColumnCount = 8
+            promptText = "#RRGGBB"
+            tooltip = Tooltip("Hex color")
+        }
+        val rField = TextField(((selectedColor.get().red * 255).toInt()).toString()).apply { prefColumnCount = 4 }
+        val gField = TextField(((selectedColor.get().green * 255).toInt()).toString()).apply { prefColumnCount = 4 }
+        val bField = TextField(((selectedColor.get().blue * 255).toInt()).toString()).apply { prefColumnCount = 4 }
+        val hField = TextField((selectedColor.get().hue.toInt()).toString()).apply { prefColumnCount = 4 }
+        val sField = TextField((selectedColor.get().saturation * 100.0).toInt().toString()).apply { prefColumnCount = 4 }
+        val vField = TextField((selectedColor.get().brightness * 100.0).toInt().toString()).apply { prefColumnCount = 4 }
+
+        var updatingInputs = false
+        fun drawWheel(brightness: Double) {
+            val gc = wheel.graphicsContext2D
+            gc.clearRect(0.0, 0.0, wheelSize, wheelSize)
+            var y = 0
+            while (y < wheelSize.toInt()) {
+                var x = 0
+                while (x < wheelSize.toInt()) {
+                    val dx = x + 0.5 - wheelRadius
+                    val dy = y + 0.5 - wheelRadius
+                    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                    if (distance <= wheelRadius) {
+                        val saturation = (distance / wheelRadius).coerceIn(0.0, 1.0)
+                        val hue = (Math.toDegrees(kotlin.math.atan2(dy, dx)) + 360.0) % 360.0
+                        gc.fill = Color.hsb(hue, saturation, brightness.coerceIn(0.0, 1.0))
+                    } else {
+                        gc.fill = Color.TRANSPARENT
+                    }
+                    gc.fillRect(x.toDouble(), y.toDouble(), 1.0, 1.0)
+                    x++
+                }
+                y++
             }
         }
-        return HBox(8.0, Label("Color:"), picker).apply {
-            HBox.setHgrow(picker, Priority.ALWAYS)
+        fun markerFromColor(color: Color) {
+            val hueRad = Math.toRadians(color.hue)
+            val radius = color.saturation * wheelRadius
+            marker.centerX = wheelRadius + kotlin.math.cos(hueRad) * radius
+            marker.centerY = wheelRadius + kotlin.math.sin(hueRad) * radius
+            marker.stroke = if (color.brightness < 0.45) Color.WHITE else Color.BLACK
+        }
+        fun applyColor(color: Color) {
+            val clamped = Color.hsb(color.hue, color.saturation, color.brightness.coerceIn(0.0, 1.0))
+            selectedColor.set(clamped)
+            controller.setColor(colorToHex(clamped))
+            refreshButtonLabel(clamped)
+            updatingInputs = true
+            try {
+                brightnessSlider.value = clamped.brightness * 100.0
+                brightnessLabel.text = "${(clamped.brightness * 100.0).toInt()}%"
+                hexField.text = colorToHex(clamped)
+                rField.text = (clamped.red * 255).toInt().toString()
+                gField.text = (clamped.green * 255).toInt().toString()
+                bField.text = (clamped.blue * 255).toInt().toString()
+                hField.text = clamped.hue.toInt().toString()
+                sField.text = (clamped.saturation * 100.0).toInt().toString()
+                vField.text = (clamped.brightness * 100.0).toInt().toString()
+            } finally {
+                updatingInputs = false
+            }
+            drawWheel(clamped.brightness)
+            markerFromColor(clamped)
+        }
+        fun fromWheel(x: Double, y: Double) {
+            val dx = (x - wheelRadius)
+            val dy = (y - wheelRadius)
+            val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtMost(wheelRadius)
+            val saturation = (distance / wheelRadius).coerceIn(0.0, 1.0)
+            val hue = (Math.toDegrees(kotlin.math.atan2(dy, dx)) + 360.0) % 360.0
+            applyColor(Color.hsb(hue, saturation, brightnessSlider.value / 100.0))
+        }
+        wheelPane.setOnMousePressed { e -> fromWheel(e.x, e.y) }
+        wheelPane.setOnMouseDragged { e -> fromWheel(e.x, e.y) }
+
+        brightnessSlider.valueProperty().addListener { _, _, newValue ->
+            if (updatingInputs) return@addListener
+            val c = selectedColor.get()
+            applyColor(Color.hsb(c.hue, c.saturation, newValue.toDouble() / 100.0))
+        }
+        fun parseIntField(field: TextField, min: Int, max: Int): Int? =
+            field.text.trim().toIntOrNull()?.coerceIn(min, max)
+
+        fun applyFromRgbFields() {
+            val r = parseIntField(rField, 0, 255) ?: return
+            val g = parseIntField(gField, 0, 255) ?: return
+            val b = parseIntField(bField, 0, 255) ?: return
+            applyColor(Color.rgb(r, g, b))
+        }
+
+        fun applyFromHsvFields() {
+            val h = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 360.0) ?: return
+            val s = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
+            val v = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
+            applyColor(Color.hsb(h, s / 100.0, v / 100.0))
+        }
+
+        hexField.setOnAction {
+            val text = hexField.text.trim()
+            runCatching { Color.web(text) }.getOrNull()?.let { applyColor(it) }
+        }
+        listOf(rField, gField, bField).forEach { it.setOnAction { applyFromRgbFields() } }
+        listOf(hField, sField, vField).forEach { it.setOnAction { applyFromHsvFields() } }
+
+        val inputs = GridPane().apply {
+            hgap = 6.0
+            vgap = 6.0
+            add(Label("Hex"), 0, 0)
+            add(hexField, 1, 0, 3, 1)
+
+            add(Label("R"), 0, 1)
+            add(rField, 1, 1)
+            add(Label("G"), 2, 1)
+            add(gField, 3, 1)
+            add(Label("B"), 4, 1)
+            add(bField, 5, 1)
+
+            add(Label("H"), 0, 2)
+            add(hField, 1, 2)
+            add(Label("S"), 2, 2)
+            add(sField, 3, 2)
+            add(Label("V"), 4, 2)
+            add(vField, 5, 2)
+        }
+
+        val popupContent = VBox(8.0,
+            wheelPane,
+            HBox(8.0, Label("Brightness"), brightnessSlider, brightnessLabel).apply {
+                HBox.setHgrow(brightnessSlider, Priority.ALWAYS)
+                alignment = Pos.CENTER_LEFT
+            },
+            inputs,
+        ).apply {
+            padding = Insets(8.0)
+            prefWidth = 320.0
+        }
+
+        menu.items.add(CustomMenuItem(popupContent, false))
+        applyColor(selectedColor.get())
+
+        return HBox(8.0, Label("Color:"), menu).apply {
+            HBox.setHgrow(menu, Priority.ALWAYS)
             alignment = Pos.CENTER_LEFT
         }
     }
