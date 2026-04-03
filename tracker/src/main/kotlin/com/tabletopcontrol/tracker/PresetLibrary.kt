@@ -231,8 +231,11 @@ object PresetLibrary {
     fun delete(name: String) {
         try {
             val baseDir = presetsDir.canonicalFile
-            // Remove from root.
-            presetsDir.listFiles { f -> f.isFile && f.extension == "preset" }
+            // Remove from root. Symlinked .preset files are skipped so a crafted
+            // symlink cannot cause reads or deletes outside presetsDir.
+            presetsDir.listFiles { f ->
+                f.isFile && f.extension == "preset" && !java.nio.file.Files.isSymbolicLink(f.toPath())
+            }
                 ?.forEach { f ->
                     if (readNameFromFile(f) == name) f.delete()
                 }
@@ -243,7 +246,9 @@ object PresetLibrary {
                     runCatching { subDir.canonicalFile.toPath().startsWith(baseDir.toPath()) }.getOrDefault(false)
                 }
                 ?.forEach { subDir ->
-                    subDir.listFiles { f -> f.isFile && f.extension == "preset" }
+                    subDir.listFiles { f ->
+                        f.isFile && f.extension == "preset" && !java.nio.file.Files.isSymbolicLink(f.toPath())
+                    }
                         ?.forEach { f ->
                             if (readNameFromFile(f) == name) f.delete()
                         }
