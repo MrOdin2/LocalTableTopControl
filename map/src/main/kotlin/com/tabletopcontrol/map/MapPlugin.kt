@@ -343,8 +343,7 @@ class MapPlugin : DmPlugin {
         var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
         val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
-        var measurementStartCell: Pair<Int, Int>? = null
-        var unitsBoxRef: ComboBox<String>? = null
+        var unitsComboBox: ComboBox<String>? = null
 
         fun setMeasurementUnits(units: String) {
             val normalized = units.trim().lowercase().let {
@@ -354,7 +353,7 @@ class MapPlugin : DmPlugin {
                 }
             }
             measurementUnits = normalized
-            val combo = unitsBoxRef
+            val combo = unitsComboBox
             if (combo != null && combo.selectionModel.selectedItem != normalized) {
                 combo.selectionModel.select(normalized)
             }
@@ -406,7 +405,6 @@ class MapPlugin : DmPlugin {
                         mirroredToTable = defaultMirrorToTable,
                         unitsSuffix = measurementUnits,
                     )
-                    measurementStartCell = cell
                     activeMeasurementId = overlay.id
                     publishMeasurement(overlay, isUpdate = false)
                 } else if (fogTool != FogTool.NONE) {
@@ -507,7 +505,7 @@ class MapPlugin : DmPlugin {
         }
         minimapCanvas.setOnMouseDragged { e ->
             if (e.isPrimaryButtonDown) {
-                if (measurementTool != MeasurementTool.NONE && activeMeasurementId != null && measurementStartCell != null) {
+                if (measurementTool != MeasurementTool.NONE && activeMeasurementId != null) {
                     val cell = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
                     val id = activeMeasurementId ?: return@setOnMouseDragged
                     val current = measurements[id] ?: return@setOnMouseDragged
@@ -548,7 +546,6 @@ class MapPlugin : DmPlugin {
                 draggingToken = null
                 lastDragCell = null
                 activeMeasurementId = null
-                measurementStartCell = null
             }
         }
         // Prevent the parent DM pane context menu from opening after a minimap
@@ -668,7 +665,7 @@ class MapPlugin : DmPlugin {
                 setMeasurementUnits(value ?: "ft")
             }
         }
-        unitsBoxRef = unitsBox
+        unitsComboBox = unitsBox
         val coneAngleBox = ComboBox<String>().apply {
             // Common tabletop cone templates (15°–120°) offered as quick presets.
             items.addAll("15°", "30°", "45°", "60°", "90°", "120°")
