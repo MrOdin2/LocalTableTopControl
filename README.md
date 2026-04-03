@@ -21,7 +21,7 @@ No flashy animations, no heavy 3D models; just the tools you actually need at th
 ### DM Control Screen
 - Map selection and map-view control (pan, zoom, etc.).
 - Placement of visual obstructions (fog of war / line-of-sight blockers).
-- **Music Control** — three independent audio layers:
+- **Music Control** — dynamic, reorderable music track cards (1–16):
   - Background music
   - Ambient sounds
   - Sound effects

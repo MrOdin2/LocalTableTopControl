@@ -2,7 +2,6 @@ package com.tabletopcontrol.audio
 
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -90,7 +89,8 @@ class MusicSettingsSerializerTest {
         assertEquals("file:///legacy/two.mp3", loaded.tracks[1].uri)
         assertEquals(0.9, loaded.tracks[1].volume)
         assertEquals(false, loaded.tracks[1].loop)
+        assertNull(loaded.tracks[2].uri)
         assertEquals(0.5, loaded.tracks[2].volume)
-        assertNotNull(loaded.tracks[2])
+        assertTrue(loaded.tracks[2].loop)
     }
 }
