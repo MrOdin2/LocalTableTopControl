@@ -343,15 +343,22 @@ class MapPlugin : DmPlugin {
         var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
         val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
-        var measurementStartCell: Pair<Int, Int>?
-            get() = activeMeasurementId
-                ?.let(measurements::get)
-                ?.let { it.originCellX to it.originCellY }
-            set(@Suppress("UNUSED_PARAMETER") value) {
-                // Intentionally derived from the active measurement state.
-                // Keep the setter as a no-op so existing event-handler assignments
-                // continue to compile without reintroducing redundant mutable state.
+        var measurementStartCell: Pair<Int, Int>? = null
+        var unitsBoxRef: ComboBox<String>? = null
+
+        fun setMeasurementUnits(units: String) {
+            val normalized = units.trim().lowercase().let {
+                when (it) {
+                    "m", "ft" -> it
+                    else -> "ft"
+                }
             }
+            measurementUnits = normalized
+            val combo = unitsBoxRef
+            if (combo != null && combo.selectionModel.selectedItem != normalized) {
+                combo.selectionModel.select(normalized)
+            }
+        }
 
         fun publishMeasurement(overlay: MeasurementOverlay, isUpdate: Boolean) {
             measurements[overlay.id] = overlay
@@ -433,7 +440,7 @@ class MapPlugin : DmPlugin {
                         section = MenuSection.BASIC,
                         isEnabled = true,
                         isVisible = measurementUnits != "ft",
-                        onAction = { measurementUnits = "ft" },
+                        onAction = { setMeasurementUnits("ft") },
                     ),
                     MenuAction(
                         id = "map.measure.units-m",
@@ -441,7 +448,7 @@ class MapPlugin : DmPlugin {
                         section = MenuSection.BASIC,
                         isEnabled = true,
                         isVisible = measurementUnits != "m",
-                        onAction = { measurementUnits = "m" },
+                        onAction = { setMeasurementUnits("m") },
                     ),
                     MenuAction(
                         id = "map.measure.clear-all",
@@ -658,9 +665,10 @@ class MapPlugin : DmPlugin {
             selectionModel.select(measurementUnits)
             tooltip = Tooltip("Units for measurement labels")
             setOnAction {
-                measurementUnits = value ?: "ft"
+                setMeasurementUnits(value ?: "ft")
             }
         }
+        unitsBoxRef = unitsBox
         val coneAngleBox = ComboBox<String>().apply {
             // Common tabletop cone templates (15°–120°) offered as quick presets.
             items.addAll("15°", "30°", "45°", "60°", "90°", "120°")

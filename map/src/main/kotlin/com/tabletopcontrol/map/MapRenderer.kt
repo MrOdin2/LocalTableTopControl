@@ -798,7 +798,7 @@ class MapRenderer(private val canvas: Canvas) {
                 }
             }
 
-            val unitsLabel = measurement.dimensionText(gridConfig?.cellSizeInUnits ?: 5.0)
+            val unitsLabel = measurement.dimensionText(DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS)
             val fullLabel = if (measurement.unitLabel.isBlank()) unitsLabel else "${measurement.unitLabel}: $unitsLabel"
             val lx = (sx + ex) / 2.0 + 8.0
             val ly = (sy + ey) / 2.0 - 8.0
@@ -915,5 +915,6 @@ class MapRenderer(private val canvas: Canvas) {
          */
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
         private const val MEASUREMENT_FILL_OPACITY = 0.18
+        private const val DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS = 5.0
     }
 }
