@@ -21,6 +21,7 @@ import javafx.scene.image.PixelWriter
 import javafx.scene.image.WritableImage
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
+import javafx.scene.layout.StackPane
 import javafx.scene.layout.TilePane
 import javafx.scene.layout.VBox
 import javafx.scene.media.Media
@@ -64,13 +65,15 @@ class SoundboardPlugin : DmPlugin {
         private const val MAX_COLUMN_COUNT = 8
         private const val TILE_WIDTH = 90.0
         private const val TILE_GAP = 4.0
+        private const val TILE_PANE_PADDING = 4.0
 
         private const val CONFIG_VERSION = 1
         private const val DRAG_FORMAT = "tabletopcontrol/soundboard-slot"
 
         /** Returns the preferred column count for a given available [width]. */
         fun columnsForWidth(width: Double): Int {
-            val columns = ((width + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).toInt()
+            val usableWidth = (width - (TILE_PANE_PADDING * 2)).coerceAtLeast(0.0)
+            val columns = ((usableWidth + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).toInt()
             return columns.coerceIn(MIN_COLUMN_COUNT, MAX_COLUMN_COUNT)
         }
 
@@ -167,11 +170,11 @@ class SoundboardPlugin : DmPlugin {
             initialized = true
         }
 
-        tilePane = TilePane(4.0, 4.0).apply {
-            prefTileWidth = 90.0
+        tilePane = TilePane(TILE_GAP, TILE_GAP).apply {
+            prefTileWidth = TILE_WIDTH
             prefTileHeight = 48.0
             prefColumns = columnsForWidth(0.0)
-            style = "-fx-padding: 4;"
+            style = "-fx-padding: $TILE_PANE_PADDING;"
             widthProperty().addListener { _, _, newWidth ->
                 val cols = columnsForWidth(newWidth.toDouble())
                 if (prefColumns != cols) {
@@ -231,7 +234,7 @@ class SoundboardPlugin : DmPlugin {
         if (shouldShowInlineAddButton(slots.size, tilePane.prefColumns)) {
             tilePane.children.add(
                 Button("+").apply {
-                    prefWidth = 90.0
+                    prefWidth = TILE_WIDTH
                     prefHeight = 48.0
                     maxWidth = Double.MAX_VALUE
                     tooltip = Tooltip("Add a soundboard button (up to $MAX_BUTTON_COUNT)")
@@ -249,7 +252,7 @@ class SoundboardPlugin : DmPlugin {
     private fun buildButton(index: Int): Button {
         val slot = slots[index]
         val btn = Button(slot.displayLabel(index)).apply {
-            prefWidth = 90.0
+            prefWidth = TILE_WIDTH
             prefHeight = 48.0
             maxWidth = Double.MAX_VALUE
             isWrapText = true
@@ -430,6 +433,19 @@ class SoundboardPlugin : DmPlugin {
         val wheelSize = 220
         val wheelImage = WritableImage(wheelSize, wheelSize)
         val wheelPreview = javafx.scene.image.ImageView(wheelImage)
+        val markerOuter = Circle(7.0).apply {
+            fill = Color.TRANSPARENT
+            stroke = Color.BLACK
+            strokeWidth = 2.0
+            isMouseTransparent = true
+        }
+        val markerInner = Circle(5.0).apply {
+            fill = Color.TRANSPARENT
+            stroke = Color.WHITE
+            strokeWidth = 2.0
+            isMouseTransparent = true
+        }
+        val wheelContainer = StackPane(wheelPreview, markerOuter, markerInner)
         val preview = Circle(14.0, initial)
         val brightnessSlider = Slider(0.0, 1.0, initial.brightness).apply {
             tooltip = Tooltip("Brightness")
@@ -458,6 +474,19 @@ class SoundboardPlugin : DmPlugin {
             }
         }
 
+        fun updateMarkerPosition(color: Color) {
+            val center = wheelSize / 2.0
+            val radius = center - 2.0
+            val angle = Math.toRadians(color.hue)
+            val distance = color.saturation * radius
+            val markerX = center + kotlin.math.cos(angle) * distance
+            val markerY = center + kotlin.math.sin(angle) * distance
+            markerOuter.translateX = markerX - center
+            markerOuter.translateY = markerY - center
+            markerInner.translateX = markerX - center
+            markerInner.translateY = markerY - center
+        }
+
         fun updateSelectionFrom(x: Double, y: Double) {
             val center = wheelSize / 2.0
             val radius = center - 2.0
@@ -468,15 +497,18 @@ class SoundboardPlugin : DmPlugin {
             val hue = ((kotlin.math.atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
             selectedColor = Color.hsb(hue, saturation, brightnessSlider.value)
             preview.fill = selectedColor
+            updateMarkerPosition(selectedColor)
         }
 
         drawWheel()
-        wheelPreview.setOnMousePressed { updateSelectionFrom(it.x, it.y) }
-        wheelPreview.setOnMouseDragged { updateSelectionFrom(it.x, it.y) }
+        updateMarkerPosition(selectedColor)
+        wheelContainer.setOnMousePressed { updateSelectionFrom(it.x, it.y) }
+        wheelContainer.setOnMouseDragged { updateSelectionFrom(it.x, it.y) }
         brightnessSlider.valueProperty().addListener { _, _, _ ->
             drawWheel()
             preview.fill = Color.hsb(selectedColor.hue, selectedColor.saturation, brightnessSlider.value)
             selectedColor = preview.fill as Color
+            updateMarkerPosition(selectedColor)
         }
 
         val dialog = Dialog<Color>().apply {
@@ -484,7 +516,7 @@ class SoundboardPlugin : DmPlugin {
             dialogPane.content = VBox(
                 8.0,
                 Label("Choose a color for this button"),
-                wheelPreview,
+                wheelContainer,
                 HBox(8.0, Label("Brightness"), brightnessSlider),
                 HBox(8.0, Label("Preview"), preview),
             ).apply {

@@ -24,6 +24,12 @@ class SoundboardPluginTest {
     }
 
     @Test
+    fun `columnsForWidth uses tile pane padding when computing fit`() {
+        assertEquals(4, SoundboardPlugin.columnsForWidth(473.0))
+        assertEquals(5, SoundboardPlugin.columnsForWidth(474.0))
+    }
+
+    @Test
     fun `columnsForWidth returns 8 for wide layout`() {
         assertEquals(8, SoundboardPlugin.columnsForWidth(1200.0))
     }
@@ -77,11 +83,13 @@ class SoundboardPluginTest {
         assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 20, columns = 4)) // 4x5
         assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 18, columns = 6)) // 6x3
         assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 16, columns = 8)) // 8x2
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 24, columns = 4)) // 4x6
 
         // Same slot counts under different pane widths (different columns) may be imperfect: show inline add.
         assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 18, columns = 4)) // 4x5 imperfect
         assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 20, columns = 6)) // 6x4 imperfect
         assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 10, columns = 3)) // 3x4 imperfect
+        assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 24, columns = 5)) // 5x5 imperfect
     }
 
     @Test
