@@ -343,7 +343,15 @@ class MapPlugin : DmPlugin {
         var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
         val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
-        var measurementStartCell: Pair<Int, Int>? = null
+        var measurementStartCell: Pair<Int, Int>?
+            get() = activeMeasurementId
+                ?.let(measurements::get)
+                ?.let { it.originCellX to it.originCellY }
+            set(@Suppress("UNUSED_PARAMETER") value) {
+                // Intentionally derived from the active measurement state.
+                // Keep the setter as a no-op so existing event-handler assignments
+                // continue to compile without reintroducing redundant mutable state.
+            }
 
         fun publishMeasurement(overlay: MeasurementOverlay, isUpdate: Boolean) {
             measurements[overlay.id] = overlay
