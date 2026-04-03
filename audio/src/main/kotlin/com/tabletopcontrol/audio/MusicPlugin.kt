@@ -179,7 +179,7 @@ class MusicPlugin : DmPlugin {
         val browseBtn = Button("Browse…").apply {
             setOnAction { evt ->
                 val chooser = FileChooser().apply {
-                    title = "Select audio file for ${index + 1}"
+                    title = "Select audio file for card ${index + 1}"
                     extensionFilters.addAll(
                         FileChooser.ExtensionFilter("MP3 files", "*.mp3"),
                         FileChooser.ExtensionFilter(
