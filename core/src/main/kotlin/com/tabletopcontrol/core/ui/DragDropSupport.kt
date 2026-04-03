@@ -127,18 +127,22 @@ object DragDropSupport {
      * within their shared [javafx.scene.layout.Pane] parent.
      *
      * The indicator is permanently kept out of the layout flow (`isManaged = false`) so it
-     * never displaces [sibling] or any other child.  Its `layoutY` is set to the top of
-     * [sibling] minus half the indicator height so it straddles the boundary between the
-     * item above and [sibling], and its width is stretched to fill the parent.
+     * never displaces [sibling] or any other child.  Because an unmanaged node is not sized
+     * by its parent, [resizeRelocate] is used to explicitly set its width and position in a
+     * single call.  The indicator is then brought to front so it is not occluded by items.
      *
      * Does nothing if [sibling] has no [javafx.scene.layout.Pane] parent.
      */
     private fun repositionIndicator(indicator: DropIndicator, sibling: Node) {
         val parent = sibling.parent as? javafx.scene.layout.Pane ?: return
-        indicator.layoutX = 0.0
-        indicator.prefWidth = parent.width
-        // Centre the bar on the top edge of the hovered node so it appears between items.
-        indicator.layoutY = sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2
+        // Use parent.width for the already-laid-out size; fall back to layoutBounds during
+        // very early layout passes.  If both are 0 the indicator will be invisible on that
+        // single frame — acceptable since a drag-over can only fire once the scene is shown.
+        val indicatorWidth = parent.width.takeIf { it > 0.0 } ?: parent.layoutBounds.width
+        val indicatorY = sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2
+        // resizeRelocate explicitly sizes the unmanaged node and sets its layout position.
+        indicator.resizeRelocate(0.0, indicatorY, indicatorWidth, DropIndicator.HEIGHT)
+        indicator.toFront()
     }
 
     /**
@@ -151,8 +155,10 @@ object DragDropSupport {
     private fun autoScroll(scrollPane: javafx.scene.control.ScrollPane?, sceneY: Double) {
         if (scrollPane == null) return
         val bounds = scrollPane.localToScene(scrollPane.boundsInLocal)
-        val step = AUTO_SCROLL_STEP /
-            (scrollPane.content?.boundsInLocal?.height?.takeIf { it > 0 } ?: 1.0)
+        val contentHeight = scrollPane.content?.boundsInLocal?.height ?: 0.0
+        val viewportHeight = scrollPane.viewportBounds?.height ?: 0.0
+        val scrollRange = (contentHeight - viewportHeight).takeIf { it > 0.0 } ?: return
+        val step = AUTO_SCROLL_STEP / scrollRange
         when {
             sceneY < bounds.minY + AUTO_SCROLL_ZONE ->
                 scrollPane.vvalue = (scrollPane.vvalue - step).coerceAtLeast(0.0)
