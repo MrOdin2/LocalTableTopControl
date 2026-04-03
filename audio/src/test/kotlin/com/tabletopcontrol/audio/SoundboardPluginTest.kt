@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import javafx.scene.paint.Color
 
 class SoundboardPluginTest {
 
@@ -59,5 +60,37 @@ class SoundboardPluginTest {
     @Test
     fun `parseConfig returns null for empty payload`() {
         assertNull(SoundboardPlugin.parseConfig("   \n  "))
+    }
+
+    @Test
+    fun `serialize and parse preserves color hex values`() {
+        val text = SoundboardPlugin.serializeConfig(
+            listOf(
+                SoundboardPlugin.SlotConfig(label = "Bell", uri = "file:///tmp/bell.mp3", colorHex = "#123ABC"),
+            ),
+        )
+
+        val parsed = SoundboardPlugin.parseConfig(text)
+        assertEquals("#123ABC", parsed?.firstOrNull()?.colorHex)
+    }
+
+    @Test
+    fun `serialize and parse drops invalid color values`() {
+        val malformed = """
+            version=1
+            count=1
+            slot=QmVsbA|ZmlsZTovLy90bXAvYmVsbC5tcDM|bm90LWEtY29sb3I
+        """.trimIndent()
+
+        val parsed = SoundboardPlugin.parseConfig(malformed)
+        assertNull(parsed?.firstOrNull()?.colorHex)
+    }
+
+    @Test
+    fun `color web parsing supports output hex format`() {
+        val parsed = Color.web("#A1B2C3")
+        assertEquals(0xA1 / 255.0, parsed.red, 0.0001)
+        assertEquals(0xB2 / 255.0, parsed.green, 0.0001)
+        assertEquals(0xC3 / 255.0, parsed.blue, 0.0001)
     }
 }

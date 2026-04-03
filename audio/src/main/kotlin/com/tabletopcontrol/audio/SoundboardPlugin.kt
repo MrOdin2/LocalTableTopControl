@@ -266,7 +266,7 @@ class SoundboardPlugin : DmPlugin {
             ),
             MenuAction(
                 id = "soundboard.remove",
-                label = "remove button",
+                label = "Remove Button",
                 icon = "➖",
                 section = MenuSection.ARRANGE,
                 onAction = { removeSlot(slot) },
@@ -395,7 +395,7 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun showColorPicker(slot: SlotState, btn: Button) {
-        val initial = runCatching { slot.colorHex?.let { Color.web(it) } ?: Color.web("#888888") }
+        val initial = runCatching { slot.colorHex?.let { Color.web(it) } ?: Color.GRAY }
             .getOrDefault(Color.GRAY)
         val picker = ColorPicker(initial)
         val dialog = Dialog<Color>().apply {
@@ -429,6 +429,11 @@ class SoundboardPlugin : DmPlugin {
         saveConfig()
     }
 
+    /**
+     * Chooses black or white text for [hex] button backgrounds using the ITU-R BT.601
+     * luma approximation (`0.299R + 0.587G + 0.114B`). A threshold of `0.55` keeps
+     * labels readable across the brighter custom colours users commonly pick.
+     */
     private fun textColorFor(hex: String): String {
         val color = runCatching { Color.web(hex) }.getOrDefault(Color.GRAY)
         val luminance = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
