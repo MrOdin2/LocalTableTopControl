@@ -65,6 +65,11 @@ class MapPlugin : DmPlugin {
     override val displayName: String = "Map"
     override val iconPath: String? = null
 
+    private companion object {
+        private const val DEFAULT_CONE_ANGLE_DEGREES = 60.0
+        private const val DEFAULT_CONE_ANGLE_TEXT = "60°"
+    }
+
     /** The most recently confirmed map calibration; used to restore on dialog cancel. */
     private var lastMapCalibration: MapCalibration
 
@@ -340,7 +345,7 @@ class MapPlugin : DmPlugin {
         var measurementTool: MeasurementTool = MeasurementTool.NONE
         var defaultMirrorToTable = false
         var measurementUnits = "ft"
-        var coneAngleDegrees = 60.0
+        var coneAngleDegrees = DEFAULT_CONE_ANGLE_DEGREES
         val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
         var measurementStartCell: Pair<Int, Int>? = null
@@ -640,7 +645,10 @@ class MapPlugin : DmPlugin {
         }
         val mirrorCheck = CheckBox("Mirror").apply {
             isSelected = defaultMirrorToTable
-            tooltip = Tooltip("When enabled, newly created measurements are also shown on the table screen")
+            tooltip = Tooltip(
+                "When enabled, newly created measurements are also shown on the table screen.\n" +
+                    "This default applies to the current app session.",
+            )
             setOnAction { defaultMirrorToTable = isSelected }
         }
         val unitsBox = ComboBox<String>().apply {
@@ -653,10 +661,12 @@ class MapPlugin : DmPlugin {
         }
         val coneAngleBox = ComboBox<String>().apply {
             items.addAll("15°", "30°", "45°", "60°", "90°", "120°")
-            selectionModel.select("60°")
+            val angleText = "${coneAngleDegrees.toInt()}°"
+            selectionModel.select(if (items.contains(angleText)) angleText else DEFAULT_CONE_ANGLE_TEXT)
             tooltip = Tooltip("Cone angle for cone measurements")
             setOnAction {
-                coneAngleDegrees = (value ?: "60°").removeSuffix("°").toDoubleOrNull() ?: 60.0
+                coneAngleDegrees =
+                    (value ?: DEFAULT_CONE_ANGLE_TEXT).removeSuffix("°").toDoubleOrNull() ?: DEFAULT_CONE_ANGLE_DEGREES
             }
         }
 

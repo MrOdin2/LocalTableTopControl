@@ -21,11 +21,11 @@ data class MeasurementOverlay(
     val startRow: Int,
     val endCol: Int,
     val endRow: Int,
-    val coneAngleDegrees: Double = 60.0,
+    val coneAngleDegrees: Double = DEFAULT_CONE_ANGLE_DEGREES,
     val mirroredToTable: Boolean = false,
     val unitLabel: String = "",
     val unitsSuffix: String = "ft",
-    val color: Color = Color.color(0.98, 0.86, 0.12, 0.95),
+    val color: Color = DEFAULT_MEASUREMENT_COLOR,
 ) {
     init {
         require(coneAngleDegrees in 1.0..360.0) { "coneAngleDegrees must be in [1, 360], was $coneAngleDegrees" }
@@ -92,9 +92,15 @@ data class MeasurementOverlay(
                 if (distance <= toleranceCells) return true
                 val direction = Math.toDegrees(atan2((endRow - startRow).toDouble(), (endCol - startCol).toDouble()))
                 val pointAngle = Math.toDegrees(atan2(dy, dx))
-                abs(normalizeAngle(pointAngle - direction)) <= coneAngleDegrees / 2.0 + 6.0
+                abs(normalizeAngle(pointAngle - direction)) <= coneAngleDegrees / 2.0 + CONE_SELECTION_TOLERANCE_DEGREES
             }
         }
+    }
+
+    companion object {
+        private const val DEFAULT_CONE_ANGLE_DEGREES = 60.0
+        private const val CONE_SELECTION_TOLERANCE_DEGREES = 6.0
+        private val DEFAULT_MEASUREMENT_COLOR = Color.color(0.98, 0.86, 0.12, 0.95)
     }
 }
 

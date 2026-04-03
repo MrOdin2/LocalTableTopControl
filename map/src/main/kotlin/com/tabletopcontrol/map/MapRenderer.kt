@@ -750,7 +750,12 @@ class MapRenderer(private val canvas: Canvas) {
             val ey = originY + (measurement.endRow + 0.5) * cellPx
             val lineWidth = (cellPx * 0.07).coerceIn(2.0, 5.0)
             gc.stroke = measurement.color
-            gc.fill = Color.color(measurement.color.red, measurement.color.green, measurement.color.blue, 0.18)
+            gc.fill = Color.color(
+                measurement.color.red,
+                measurement.color.green,
+                measurement.color.blue,
+                MEASUREMENT_FILL_OPACITY,
+            )
             gc.lineWidth = lineWidth
 
             when (measurement.type) {
@@ -905,5 +910,6 @@ class MapRenderer(private val canvas: Canvas) {
          * proportionally with [viewportScale] on the minimap.
          */
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
+        private const val MEASUREMENT_FILL_OPACITY = 0.18
     }
 }
