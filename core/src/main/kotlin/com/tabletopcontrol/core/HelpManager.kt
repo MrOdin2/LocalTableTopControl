@@ -22,6 +22,7 @@ object HelpManager {
     private val DOC_RESOURCES = listOf(
         "userdocs/docs/index.html",
         "userdocs/docs/cross-plugin.html",
+        "userdocs/docs/ui-primitives.html",
         "userdocs/map/UserDoc.html",
         "userdocs/audio/UserDoc.html",
         "userdocs/tracker/UserDoc.html",
