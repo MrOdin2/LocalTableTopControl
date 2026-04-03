@@ -430,19 +430,21 @@ class PresetLibraryTest {
 
     @Test
     fun `base64ToTempUri accepts payload that decodes to exactly 5 MB`() {
-        // A payload of exactly 5 MiB must be accepted; the upfront size estimate
-        // must not over-reject due to Base64 padding characters.
+        // A payload of exactly 5 MiB must be accepted and written to a temp file.
+        // This exercises the actual boundary behavior of base64ToTempUri().
         val exactly5MB = ByteArray(5 * 1024 * 1024)
         val base64 = Base64.getEncoder().encodeToString(exactly5MB)
-        // base64ToTempUri decodes as an image — a raw 5 MiB zero-byte array is not
-        // a valid PNG, so the function may return null from the ImageIO decode step.
-        // What must NOT happen is a null return from the size-guard before decoding.
-        // We verify this indirectly: the upfront check must pass, so any null result
-        // must come only from the ImageIO decode failure path, not the guard.
-        // We check that the guard formula itself does not over-reject:
-        val paddingCount = base64.takeLast(2).count { it == '=' }
-        val estimatedSize = (base64.length.toLong() * 3L) / 4L - paddingCount
-        assertTrue(estimatedSize <= 5L * 1024 * 1024, "Upfront estimate must not exceed 5 MiB for a 5 MiB payload")
+
+        val uri = PresetLibrary.base64ToTempUri(base64)
+        assertNotNull(uri, "Exactly 5 MiB payload should be accepted")
+
+        val tempFile = File(uri!!)
+        try {
+            assertTrue(tempFile.exists(), "Temp file should exist")
+            assertEquals(5L * 1024 * 1024, tempFile.length(), "Temp file should contain exactly 5 MiB of decoded data")
+        } finally {
+            tempFile.delete()
+        }
     }
 
     @Test
