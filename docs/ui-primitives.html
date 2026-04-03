@@ -395,13 +395,19 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
       <h3 id="drop-indicator">DropIndicator</h3>
       <p>
         A thin (<code>3 px</code>) horizontal bar that signals a valid drop position.
-        Add one instance to your list container and pass it to
+        Create one instance for your list container and pass it to
         <code>DragDropSupport.installDropTarget</code>. It manages its own
         <code>isVisible</code> state automatically, while <code>isManaged</code> remains
         <code>false</code> so showing the indicator does not affect layout or cause flicker.
+        If you later rebuild the container with <code>children.setAll(...)</code> (or any
+        other operation that replaces the child list), include the indicator in the new
+        children or re-add it afterwards, because replacing the child list removes it.
       </p>
 <pre><code><span class="kw">val</span> indicator = <span class="ty">DropIndicator</span>()
-listContainer.children.<span class="fn">add</span>(indicator)   <span class="cm">// add once to the container</span></code></pre>
+listContainer.children.<span class="fn">add</span>(indicator)   <span class="cm">// initial setup</span>
+
+<span class="cm">// later refreshes that replace children must preserve the indicator</span>
+listContainer.children.<span class="fn">setAll</span>(items + indicator)</code></pre>
       <p>
         The bar uses the application's <code>-tc-accent</code> CSS variable for its colour,
         so it automatically matches the user's selected theme. You may also style it via the
