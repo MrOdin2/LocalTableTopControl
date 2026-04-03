@@ -30,6 +30,11 @@ import javafx.scene.paint.Color
  *
  * The [DragDropContext.dataFormat] string is converted to a JavaFX [DataFormat] (MIME
  * type) internally.  It must be unique per list type to avoid cross-container drops.
+ *
+ * **Important:** Each `index` value is captured at installation time.  Call
+ * `installDragSource` and `installDropTarget` again for every item after any operation
+ * that changes list ordering (such as a reorder or full rebuild), otherwise the stored
+ * indices become stale and subsequent drags will target the wrong positions.
  */
 object DragDropSupport {
 
@@ -42,7 +47,10 @@ object DragDropSupport {
      * snapshot of [node] itself is used.
      *
      * @param node    The draggable node.
-     * @param index   The item's current position within its container.
+     * @param index   The item's current position within its container. This value is captured
+     *                at installation time; if the list is reordered or rebuilt without
+     *                reinstalling drag handlers, the stored index will become stale and
+     *                reorders may target the wrong items.
      * @param context Configuration and callbacks.
      */
     fun installDragSource(node: Node, index: Int, context: DragDropContext) {
@@ -74,7 +82,10 @@ object DragDropSupport {
      * target indices.  The indicator is hidden on both exit and drop.
      *
      * @param node          The target node.
-     * @param index         The target item's current position within its container.
+     * @param index         The target item's current position within its container. This value
+     *                      is captured at installation time; if the list is reordered or
+     *                      rebuilt without reinstalling drop handlers, the stored index will
+     *                      become stale and drops may reorder to the wrong position.
      * @param context       Configuration and callbacks.
      * @param dropIndicator Optional [DropIndicator] to show while dragging over this node.
      */
