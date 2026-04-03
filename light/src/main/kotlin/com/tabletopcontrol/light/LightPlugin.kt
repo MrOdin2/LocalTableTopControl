@@ -6,6 +6,7 @@ import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.canvas.Canvas
 import javafx.scene.Node
+import javafx.scene.image.WritableImage
 import javafx.scene.control.CustomMenuItem
 import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
@@ -310,7 +311,7 @@ class LightPlugin : DmPlugin {
      * Builds the color-picker row.
      */
     private fun buildColorRow(): HBox {
-        val selectedColor = AtomicReference(hexToColor(controller.color))
+        var currentColor = hexToColor(controller.color)
         val menu = MenuButton().apply {
             tooltip = Tooltip("Select the ambient light color")
             maxWidth = Double.MAX_VALUE
@@ -329,7 +330,7 @@ class LightPlugin : DmPlugin {
             swatch.style = "-fx-background-color: $hex; -fx-background-radius: 3; -fx-border-radius: 3; -fx-border-color: -tc-border;"
             valueLabel.text = hex
         }
-        refreshButtonLabel(selectedColor.get())
+        refreshButtonLabel(currentColor)
         menu.graphic = HBox(8.0, swatch, valueLabel).apply { alignment = Pos.CENTER_LEFT }
         menu.text = ""
 
@@ -351,78 +352,106 @@ class LightPlugin : DmPlugin {
             maxHeight = wheelSize
         }
 
-        val brightnessLabel = Label()
-        val brightnessSlider = Slider(0.0, 100.0, (selectedColor.get().brightness * 100.0)).apply {
+        val valuePercentLabel = Label()
+        val valueSlider = Slider(0.0, 100.0, normalizedValuePercent(currentColor)).apply {
             blockIncrement = 1.0
             majorTickUnit = 25.0
             isShowTickMarks = true
             isShowTickLabels = true
             maxWidth = Double.MAX_VALUE
-            tooltip = Tooltip("Brightness")
+            tooltip = Tooltip("Value (brightness)")
         }
-        val hexField = TextField(colorToHex(selectedColor.get())).apply {
+        val hexField = TextField(colorToHex(currentColor)).apply {
             prefColumnCount = 8
             promptText = "#RRGGBB"
             tooltip = Tooltip("Hex color")
         }
-        val rField = TextField(((selectedColor.get().red * 255).toInt()).toString()).apply { prefColumnCount = 4 }
-        val gField = TextField(((selectedColor.get().green * 255).toInt()).toString()).apply { prefColumnCount = 4 }
-        val bField = TextField(((selectedColor.get().blue * 255).toInt()).toString()).apply { prefColumnCount = 4 }
-        val hField = TextField((selectedColor.get().hue.toInt()).toString()).apply { prefColumnCount = 4 }
-        val sField = TextField((selectedColor.get().saturation * 100.0).toInt().toString()).apply { prefColumnCount = 4 }
-        val vField = TextField((selectedColor.get().brightness * 100.0).toInt().toString()).apply { prefColumnCount = 4 }
+        val rField = TextField(((currentColor.red * 255).toInt()).toString()).apply {
+            prefColumnCount = 4
+            tooltip = Tooltip("Red (0–255)")
+        }
+        val gField = TextField(((currentColor.green * 255).toInt()).toString()).apply {
+            prefColumnCount = 4
+            tooltip = Tooltip("Green (0–255)")
+        }
+        val bField = TextField(((currentColor.blue * 255).toInt()).toString()).apply {
+            prefColumnCount = 4
+            tooltip = Tooltip("Blue (0–255)")
+        }
+        val hField = TextField(normalizedHueDegrees(currentColor).toInt().toString()).apply {
+            prefColumnCount = 4
+            tooltip = Tooltip("Hue (0–359°)")
+        }
+        val sField = TextField((currentColor.saturation * 100.0).toInt().toString()).apply {
+            prefColumnCount = 4
+            tooltip = Tooltip("Saturation (0–100%)")
+        }
+        val vField = TextField((currentColor.brightness * 100.0).toInt().toString()).apply {
+            prefColumnCount = 4
+            tooltip = Tooltip("Value (0–100%)")
+        }
 
-        var updatingInputs = false
-        fun drawWheel(brightness: Double) {
-            val gc = wheel.graphicsContext2D
-            gc.clearRect(0.0, 0.0, wheelSize, wheelSize)
-            var y = 0
-            while (y < wheelSize.toInt()) {
-                var x = 0
-                while (x < wheelSize.toInt()) {
+        var isUpdatingInputs = false
+        val wheelImageCache = mutableMapOf<Int, WritableImage>()
+        fun wheelImageFor(valuePercent: Int): WritableImage = wheelImageCache.getOrPut(valuePercent) {
+            val image = WritableImage(wheelSize.toInt(), wheelSize.toInt())
+            val pixels = image.pixelWriter
+            val value = valuePercent / 100.0
+            for (y in 0 until wheelSize.toInt()) {
+                for (x in 0 until wheelSize.toInt()) {
                     val dx = x + 0.5 - wheelRadius
                     val dy = y + 0.5 - wheelRadius
                     val distance = kotlin.math.sqrt(dx * dx + dy * dy)
                     if (distance <= wheelRadius) {
                         val saturation = (distance / wheelRadius).coerceIn(0.0, 1.0)
-                        val hue = (Math.toDegrees(kotlin.math.atan2(dy, dx)) + 360.0) % 360.0
-                        gc.fill = Color.hsb(hue, saturation, brightness.coerceIn(0.0, 1.0))
+                        val hue = ((kotlin.math.atan2(dy, dx) * 180.0 / kotlin.math.PI) + 360.0) % 360.0
+                        pixels.setColor(x, y, Color.hsb(hue, saturation, value))
                     } else {
-                        gc.fill = Color.TRANSPARENT
+                        pixels.setColor(x, y, Color.TRANSPARENT)
                     }
-                    gc.fillRect(x.toDouble(), y.toDouble(), 1.0, 1.0)
-                    x++
                 }
-                y++
             }
+            image
+        }
+        fun drawWheel(valuePercent: Int) {
+            val gc = wheel.graphicsContext2D
+            gc.clearRect(0.0, 0.0, wheelSize, wheelSize)
+            gc.drawImage(wheelImageFor(valuePercent.coerceIn(0, 100)), 0.0, 0.0)
         }
         fun markerFromColor(color: Color) {
-            val hueRad = Math.toRadians(color.hue)
+            val hueRad = color.hue * kotlin.math.PI / 180.0
             val radius = color.saturation * wheelRadius
             marker.centerX = wheelRadius + kotlin.math.cos(hueRad) * radius
             marker.centerY = wheelRadius + kotlin.math.sin(hueRad) * radius
-            marker.stroke = if (color.brightness < 0.45) Color.WHITE else Color.BLACK
+            marker.stroke = if (color.brightness < MARKER_WHITE_STROKE_BRIGHTNESS_THRESHOLD) Color.WHITE else Color.BLACK
+        }
+        var lastWheelValuePercent = WHEEL_NOT_DRAWN
+        fun redrawWheelIfNeeded(value: Double) {
+            val valuePercent = (value * 100.0).roundToInt().coerceIn(0, 100)
+            if (valuePercent == lastWheelValuePercent) return
+            drawWheel(valuePercent)
+            lastWheelValuePercent = valuePercent
         }
         fun applyColor(color: Color) {
             val clamped = Color.hsb(color.hue, color.saturation, color.brightness.coerceIn(0.0, 1.0))
-            selectedColor.set(clamped)
+            currentColor = clamped
             controller.setColor(colorToHex(clamped))
             refreshButtonLabel(clamped)
-            updatingInputs = true
+            isUpdatingInputs = true
             try {
-                brightnessSlider.value = clamped.brightness * 100.0
-                brightnessLabel.text = "${(clamped.brightness * 100.0).toInt()}%"
+                valueSlider.value = normalizedValuePercent(clamped)
+                valuePercentLabel.text = "${normalizedValuePercent(clamped).toInt()}%"
                 hexField.text = colorToHex(clamped)
                 rField.text = (clamped.red * 255).toInt().toString()
                 gField.text = (clamped.green * 255).toInt().toString()
                 bField.text = (clamped.blue * 255).toInt().toString()
-                hField.text = clamped.hue.toInt().toString()
+                hField.text = normalizedHueDegrees(clamped).toInt().toString()
                 sField.text = (clamped.saturation * 100.0).toInt().toString()
                 vField.text = (clamped.brightness * 100.0).toInt().toString()
             } finally {
-                updatingInputs = false
+                isUpdatingInputs = false
             }
-            drawWheel(clamped.brightness)
+            redrawWheelIfNeeded(clamped.brightness)
             markerFromColor(clamped)
         }
         fun fromWheel(x: Double, y: Double) {
@@ -430,32 +459,32 @@ class LightPlugin : DmPlugin {
             val dy = (y - wheelRadius)
             val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtMost(wheelRadius)
             val saturation = (distance / wheelRadius).coerceIn(0.0, 1.0)
-            val hue = (Math.toDegrees(kotlin.math.atan2(dy, dx)) + 360.0) % 360.0
-            applyColor(Color.hsb(hue, saturation, brightnessSlider.value / 100.0))
+            val hue = ((kotlin.math.atan2(dy, dx) * 180.0 / kotlin.math.PI) + 360.0) % 360.0
+            applyColor(Color.hsb(hue, saturation, valueSlider.value / 100.0))
         }
         wheelPane.setOnMousePressed { e -> fromWheel(e.x, e.y) }
         wheelPane.setOnMouseDragged { e -> fromWheel(e.x, e.y) }
 
-        brightnessSlider.valueProperty().addListener { _, _, newValue ->
-            if (updatingInputs) return@addListener
-            val c = selectedColor.get()
+        valueSlider.valueProperty().addListener { _, _, newValue ->
+            if (isUpdatingInputs) return@addListener
+            val c = currentColor
             applyColor(Color.hsb(c.hue, c.saturation, newValue.toDouble() / 100.0))
         }
         fun parseIntField(field: TextField, min: Int, max: Int): Int? =
             field.text.trim().toIntOrNull()?.coerceIn(min, max)
 
         fun applyFromRgbFields() {
-            val r = parseIntField(rField, 0, 255) ?: return
-            val g = parseIntField(gField, 0, 255) ?: return
-            val b = parseIntField(bField, 0, 255) ?: return
-            applyColor(Color.rgb(r, g, b))
+            val red = parseIntField(rField, 0, 255) ?: return
+            val green = parseIntField(gField, 0, 255) ?: return
+            val blue = parseIntField(bField, 0, 255) ?: return
+            applyColor(Color.rgb(red, green, blue))
         }
 
         fun applyFromHsvFields() {
-            val h = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 360.0) ?: return
-            val s = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
-            val v = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
-            applyColor(Color.hsb(h, s / 100.0, v / 100.0))
+            val hue = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, MAX_HUE_BELOW_360) ?: return
+            val saturation = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
+            val value = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
+            applyColor(Color.hsb(hue, saturation / 100.0, value / 100.0))
         }
 
         hexField.setOnAction {
@@ -488,8 +517,8 @@ class LightPlugin : DmPlugin {
 
         val popupContent = VBox(8.0,
             wheelPane,
-            HBox(8.0, Label("Brightness"), brightnessSlider, brightnessLabel).apply {
-                HBox.setHgrow(brightnessSlider, Priority.ALWAYS)
+            HBox(8.0, Label("Value"), valueSlider, valuePercentLabel).apply {
+                HBox.setHgrow(valueSlider, Priority.ALWAYS)
                 alignment = Pos.CENTER_LEFT
             },
             inputs,
@@ -499,7 +528,7 @@ class LightPlugin : DmPlugin {
         }
 
         menu.items.add(CustomMenuItem(popupContent, false))
-        applyColor(selectedColor.get())
+        applyColor(currentColor)
 
         return HBox(8.0, Label("Color:"), menu).apply {
             HBox.setHgrow(menu, Priority.ALWAYS)
@@ -929,8 +958,18 @@ class LightPlugin : DmPlugin {
     /** Formats a normalised brightness value as a percentage label. */
     private fun brightnessLabel(value: Double): String = "${(value * 100).toInt()} %"
 
+    private fun normalizedHueDegrees(color: Color): Double =
+        color.hue.takeUnless { it.isNaN() || it.isInfinite() }?.coerceIn(0.0, 359.999) ?: 0.0
+
+    private fun normalizedValuePercent(color: Color): Double =
+        (color.brightness * 100.0).takeUnless { it.isNaN() || it.isInfinite() }?.coerceIn(0.0, 100.0) ?: 0.0
+
 
     private companion object {
         private val SERIAL_ERROR_LOG_THROTTLE_NANOS: Long = TimeUnit.SECONDS.toNanos(2)
+        private const val WHEEL_NOT_DRAWN: Int = -1
+        private const val MARKER_WHITE_STROKE_BRIGHTNESS_THRESHOLD: Double = 0.45
+        /** Practical hue upper bound kept below 360 because 360 maps to 0 in HSB. */
+        private const val MAX_HUE_BELOW_360: Double = 359.999
     }
 }
