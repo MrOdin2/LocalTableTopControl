@@ -5,8 +5,10 @@ package com.tabletopcontrol.core.ui
  * context menus built by [ContextMenuRenderer].
  *
  * Implementors are passed to [ContextMenuRenderer.build] alongside the host's base
- * action list.  The renderer merges all contributions: if a contributor returns an
+ * action list. The renderer merges all contributions: if a contributor returns an
  * action whose [MenuAction.id] matches a base action, the contributor's version wins.
+ * If multiple contributors return actions with the same [MenuAction.id], the last one
+ * processed by the renderer wins.
  *
  * **Registration** — a plugin that wishes to contribute to menus should implement this
  * interface (in addition to [com.tabletopcontrol.core.DmPlugin]) and pass `this` (or
