@@ -110,6 +110,7 @@ class MapPlugin : DmPlugin {
      */
     private var fogInitialized = false
 
+    /** Supported measurement unit suffixes accepted by the minimap measurement controls. */
     private val supportedMeasurementUnits = setOf("ft", "m")
 
     /**
@@ -347,6 +348,12 @@ class MapPlugin : DmPlugin {
         var activeMeasurementId: String? = null
         var measurementUnitsComboBox: ComboBox<String>? = null
 
+        /**
+         * Normalizes and applies the active measurement units.
+         *
+         * Input is trimmed/lowercased, invalid values fall back to `ft`, and the
+         * minimap toolbar units ComboBox is kept synchronized with the applied value.
+         */
         fun setMeasurementUnits(units: String) {
             val normalized = units.trim().lowercase().takeIf { it in supportedMeasurementUnits } ?: "ft"
             measurementUnits = normalized
