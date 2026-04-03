@@ -397,7 +397,8 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
         A thin (<code>3 px</code>) horizontal bar that signals a valid drop position.
         Add one instance to your list container and pass it to
         <code>DragDropSupport.installDropTarget</code>. It manages its own
-        <code>isVisible</code> and <code>isManaged</code> state automatically.
+        <code>isVisible</code> state automatically, while <code>isManaged</code> remains
+        <code>false</code> so showing the indicator does not affect layout or cause flicker.
       </p>
 <pre><code><span class="kw">val</span> indicator = <span class="ty">DropIndicator</span>()
 listContainer.children.<span class="fn">add</span>(indicator)   <span class="cm">// add once to the container</span></code></pre>
