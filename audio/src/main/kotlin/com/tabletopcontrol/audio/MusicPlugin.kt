@@ -125,7 +125,14 @@ class MusicPlugin : DmPlugin {
             valueProperty().addListener { _, _, newValue ->
                 masterVolume = newValue.toDouble()
                 tracks.forEach { track -> track.player?.volume = masterVolume * track.volume }
-                saveSettings()
+                if (!isValueChanging) {
+                    saveSettings()
+                }
+            }
+            valueChangingProperty().addListener { _, wasChanging, isChanging ->
+                if (wasChanging && !isChanging) {
+                    saveSettings()
+                }
             }
         }
 
