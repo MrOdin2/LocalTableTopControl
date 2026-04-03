@@ -218,7 +218,8 @@ class SoundboardPlugin : DmPlugin {
             onReorder = { fromIndex, toIndex ->
                 if (fromIndex !in slots.indices || toIndex !in slots.indices) return@DragDropContext
                 val moved = slots.removeAt(fromIndex)
-                slots.add(toIndex, moved)
+                val adjustedToIndex = if (fromIndex < toIndex) toIndex - 1 else toIndex
+                slots.add(adjustedToIndex, moved)
                 renderButtons()
                 saveConfig()
             },
