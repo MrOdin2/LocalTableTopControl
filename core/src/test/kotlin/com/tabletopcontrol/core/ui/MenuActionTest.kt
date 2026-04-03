@@ -86,10 +86,11 @@ class MenuActionTest {
     }
 
     @Test
-    fun `two actions with same id and properties are equal`() {
+    fun `two actions with same non-lambda properties match`() {
         val a1 = MenuAction(id = "x", label = "X", onAction = {})
         val a2 = MenuAction(id = "x", label = "X", onAction = {})
-        // data class equality ignores lambda identity
+        // Compare fields manually because the onAction lambdas are different instances,
+        // so data class equality would include them and not consider these objects equal.
         assertEquals(a1.id, a2.id)
         assertEquals(a1.label, a2.label)
         assertEquals(a1.section, a2.section)
