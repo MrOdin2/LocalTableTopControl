@@ -111,8 +111,9 @@ object DragDropSupport {
 
         node.setOnDragDropped { e ->
             val board = e.dragboard
-            val fromIdx = (board.getContent(format) as? String)?.toIntOrNull()
-            val success = fromIdx != null && fromIdx != index
+            val sourceData = if (board.hasContent(format)) board.getContent(format) as? String else null
+            val fromIdx = sourceData?.toIntOrNull()
+            val success = fromIdx != null && fromIdx != index && context.canAcceptDrop(sourceData!!)
             if (success) {
                 context.onReorder(fromIdx!!, index)
             }
