@@ -18,7 +18,7 @@ import javafx.scene.control.ScrollPane
  *                          a custom ghost-preview node rendered under the cursor during the
  *                          drag.  When `null` a snapshot of the source node is used.
  * @property onReorder      Callback invoked when a drop is accepted, receiving the
- *                          [fromIndex] of the dragged item and the [toIndex] of the drop
+ *                          `fromIndex` of the dragged item and the `toIndex` of the drop
  *                          target.  Implementations should move the item in their backing
  *                          data model and refresh the UI.
  * @property canAcceptDrop  Optional predicate that can veto a drag-over event.  Receives
