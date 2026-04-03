@@ -504,11 +504,18 @@ class SoundboardPlugin : DmPlugin {
         updateMarkerPosition(selectedColor)
         wheelContainer.setOnMousePressed { updateSelectionFrom(it.x, it.y) }
         wheelContainer.setOnMouseDragged { updateSelectionFrom(it.x, it.y) }
-        brightnessSlider.valueProperty().addListener { _, _, _ ->
-            drawWheel()
-            preview.fill = Color.hsb(selectedColor.hue, selectedColor.saturation, brightnessSlider.value)
-            selectedColor = preview.fill as Color
+        brightnessSlider.valueProperty().addListener { _, _, newValue ->
+            selectedColor = Color.hsb(selectedColor.hue, selectedColor.saturation, newValue.toDouble())
+            preview.fill = selectedColor
             updateMarkerPosition(selectedColor)
+        }
+        brightnessSlider.valueChangingProperty().addListener { _, _, isChanging ->
+            if (!isChanging) {
+                drawWheel()
+            }
+        }
+        brightnessSlider.setOnMouseReleased {
+            drawWheel()
         }
 
         val dialog = Dialog<Color>().apply {
