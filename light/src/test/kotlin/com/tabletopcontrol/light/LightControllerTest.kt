@@ -2,6 +2,7 @@ package com.tabletopcontrol.light
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -17,6 +18,11 @@ class LightControllerTest {
     }
 
     // ── defaults ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `default power is on`() {
+        assertTrue(controller.power)
+    }
 
     @Test
     fun `default color is white`() {
@@ -36,6 +42,21 @@ class LightControllerTest {
     @Test
     fun `default brightness is 1_0`() {
         assertEquals(1.0, controller.brightness)
+    }
+
+    // ── setPower ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `setPower turns lights off`() {
+        controller.setPower(false)
+        assertFalse(controller.power)
+    }
+
+    @Test
+    fun `setPower turns lights back on`() {
+        controller.setPower(false)
+        controller.setPower(true)
+        assertTrue(controller.power)
     }
 
     // ── setColor ─────────────────────────────────────────────────────────────
@@ -116,6 +137,158 @@ class LightControllerTest {
         assertThrows<IllegalArgumentException> { controller.setBrightness(1.1) }
     }
 
+    // ── setEffectSpeed ────────────────────────────────────────────────────────
+
+    @Test
+    fun `default effectSpeed is 128`() {
+        assertEquals(128, controller.effectSpeed)
+    }
+
+    @Test
+    fun `setEffectSpeed updates the speed`() {
+        controller.setEffectSpeed(200)
+        assertEquals(200, controller.effectSpeed)
+    }
+
+    @Test
+    fun `setEffectSpeed accepts boundary values 0 and 255`() {
+        controller.setEffectSpeed(0)
+        assertEquals(0, controller.effectSpeed)
+
+        controller.setEffectSpeed(255)
+        assertEquals(255, controller.effectSpeed)
+    }
+
+    @Test
+    fun `setEffectSpeed throws on value below 0`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectSpeed(-1) }
+    }
+
+    @Test
+    fun `setEffectSpeed throws on value above 255`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectSpeed(256) }
+    }
+
+    @Test
+    fun `change listener is called when effectSpeed changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setEffectSpeed(100)
+        assertEquals(1, callCount)
+    }
+
+    // ── setEffectIntensity ────────────────────────────────────────────────────
+
+    @Test
+    fun `default effectIntensity is 128`() {
+        assertEquals(128, controller.effectIntensity)
+    }
+
+    @Test
+    fun `setEffectIntensity updates the intensity`() {
+        controller.setEffectIntensity(50)
+        assertEquals(50, controller.effectIntensity)
+    }
+
+    @Test
+    fun `setEffectIntensity accepts boundary values 0 and 255`() {
+        controller.setEffectIntensity(0)
+        assertEquals(0, controller.effectIntensity)
+
+        controller.setEffectIntensity(255)
+        assertEquals(255, controller.effectIntensity)
+    }
+
+    @Test
+    fun `setEffectIntensity throws on value below 0`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectIntensity(-1) }
+    }
+
+    @Test
+    fun `setEffectIntensity throws on value above 255`() {
+        assertThrows<IllegalArgumentException> { controller.setEffectIntensity(256) }
+    }
+
+    @Test
+    fun `change listener is called when effectIntensity changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setEffectIntensity(200)
+        assertEquals(1, callCount)
+    }
+
+    // ── setPreset ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun `default preset is null`() {
+        assertNull(controller.preset)
+    }
+
+    @Test
+    fun `setPreset stores a valid preset id`() {
+        controller.setPreset(5)
+        assertEquals(5, controller.preset)
+    }
+
+    @Test
+    fun `setPreset accepts boundary values 1 and 250`() {
+        controller.setPreset(1)
+        assertEquals(1, controller.preset)
+
+        controller.setPreset(250)
+        assertEquals(250, controller.preset)
+    }
+
+    @Test
+    fun `setPreset null clears the active preset`() {
+        controller.setPreset(10)
+        controller.setPreset(null)
+        assertNull(controller.preset)
+    }
+
+    @Test
+    fun `setPreset throws on id below 1`() {
+        assertThrows<IllegalArgumentException> { controller.setPreset(0) }
+        assertThrows<IllegalArgumentException> { controller.setPreset(-1) }
+    }
+
+    @Test
+    fun `setPreset throws on id above 250`() {
+        assertThrows<IllegalArgumentException> { controller.setPreset(251) }
+    }
+
+    @Test
+    fun `change listener is called when preset changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setPreset(3)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when preset is cleared`() {
+        controller.setPreset(3)
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setPreset(null)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `setting preset does not affect other fields`() {
+        controller.setColor("#AABBCC")
+        controller.setEffect(LightEffect.FIRE)
+        controller.setBrightness(0.5)
+        controller.setPower(false)
+
+        controller.setPreset(42)
+
+        assertEquals("#AABBCC", controller.color)
+        assertEquals(LightEffect.FIRE, controller.effect)
+        assertEquals(0.5, controller.brightness)
+        assertFalse(controller.power)
+    }
+
     // ── independent state fields ──────────────────────────────────────────────
 
     @Test
@@ -129,5 +302,83 @@ class LightControllerTest {
         assertEquals(LightEffect.STROBE, controller.effect)
         assertTrue(controller.colorCycling)
         assertEquals(0.7, controller.brightness)
+    }
+
+    // ── change listeners ──────────────────────────────────────────────────────
+
+    @Test
+    fun `change listener is called when power changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setPower(false)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when color changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setColor("#123456")
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when effect changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setEffect(LightEffect.FIRE)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when color cycling changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setColorCycling(true)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `change listener is called when brightness changes`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+        controller.setBrightness(0.3)
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `multiple change listeners are all notified`() {
+        var a = 0
+        var b = 0
+        controller.addChangeListener { a++ }
+        controller.addChangeListener { b++ }
+        controller.setColor("#AABBCC")
+        assertEquals(1, a)
+        assertEquals(1, b)
+    }
+
+    @Test
+    fun `removed change listener is not called after removal`() {
+        var callCount = 0
+        val listener = controller.addChangeListener { callCount++ }
+        controller.removeChangeListener(listener)
+        controller.setColor("#AABBCC")
+        assertEquals(0, callCount)
+    }
+
+    @Test
+    fun `listener can remove itself during notification`() {
+        var callCount = 0
+        lateinit var self: () -> Unit
+        self = {
+            callCount++
+            controller.removeChangeListener(self)
+        }
+        controller.addChangeListener(self)
+
+        controller.setPower(false)
+        controller.setPower(true)
+
+        assertEquals(1, callCount)
     }
 }

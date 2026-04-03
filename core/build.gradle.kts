@@ -40,6 +40,16 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// Bundle all user documentation HTML files into the JAR under "userdocs/".
+// The directory structure mirrors the relative links between the files so that
+// HelpManager can extract them to disk and the browser can resolve inter-file hrefs.
+tasks.processResources {
+    from(rootProject.file("docs")) { into("userdocs/docs") }
+    listOf("map", "audio", "tracker", "light").forEach { module ->
+        from(rootProject.file("$module/UserDoc.html")) { into("userdocs/$module") }
+    }
+}
+
 val javaVersion = 17
 
 kotlin {

@@ -84,6 +84,25 @@ Each module follows the standard Gradle source layout: `src/main/kotlin/...` and
 
 ---
 
+## Documentation
+
+Each plugin module ships a **`UserDoc.html`** file (e.g. `light/UserDoc.html`,
+`audio/UserDoc.html`, `map/UserDoc.html`, `tracker/UserDoc.html`) that is the
+primary user-facing reference for that plugin.
+
+**Whenever you add, change, or remove a feature in any plugin, you must also
+update the corresponding `UserDoc.html`:**
+
+- Add new effects, controls, or parameters to the relevant table or section.
+- Update descriptions if behaviour changes.
+- Add new ToC entries for significant new sections.
+- The docs index (`docs/index.html`) and cross-plugin guide (`docs/cross-plugin.html`)
+  should also be updated if you introduce cross-plugin interactions.
+
+Failing to keep `UserDoc.html` files current is considered an incomplete change.
+
+---
+
 ## What to Avoid
 
 - No WebView, WebGL, or embedded browser for rendering.

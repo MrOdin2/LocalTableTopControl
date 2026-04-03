@@ -39,11 +39,15 @@ The DM Panel uses a recursive **split-pane layout** inspired by modern IDEs (VS 
 
 - On first launch, the panel shows a single plugin pane (the first loaded plugin).
 - **Right-click** anywhere on a pane to open the context menu:
+  - *Add Panel to Left*  — splits the current pane left/right and places a new plugin on the left.
   - *Add Panel to Right* — splits the current pane left/right and places a new plugin on the right.
+  - *Add Panel Above* — splits the current pane top/bottom and places a new plugin above.
   - *Add Panel Below* — splits the current pane top/bottom and places a new plugin below.
   - *Change Plugin…* — swaps the plugin shown in the current pane.
   - *Close Pane* — removes the current pane (disabled when it is the only remaining pane).
-- **Drag the divider** between any two panes to resize them freely.
+  - *Extend Left / Right / Above / Below* — expands the current pane into the space of exactly one
+    neighbouring pane, resizing that neighbour without affecting any others. Only directions that
+    would interact with a single neighbouring pane are offered.
 - Both halves of a split can themselves be split again — the nesting is unlimited.
 - When the application closes, the current layout (including divider positions) is saved to `~/.tabletopcontrol/dm-layout.conf` and automatically restored on the next start-up.
 

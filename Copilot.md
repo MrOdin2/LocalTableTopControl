@@ -4,6 +4,33 @@ This file provides structured context for GitHub Copilot and AI coding agents wo
 
 ---
 
+## Documentation Maintenance
+
+TabletopControl ships user-facing HTML documentation alongside each plugin and in a shared `docs/` folder.
+**Whenever you add, remove, or change a user-visible feature, you must update the relevant documentation.**
+
+### Documentation File Map
+
+| Changed area | Documentation file(s) to update |
+|---|---|
+| Map plugin features | `map/UserDoc.html` |
+| Audio plugin features (music or soundboard) | `audio/UserDoc.html` |
+| Initiative / HP tracker features | `tracker/UserDoc.html` |
+| Ambient lighting features | `light/UserDoc.html` |
+| Cross-plugin behaviour (tracker ↔ map tokens) | `docs/cross-plugin.html` |
+| Core features (layout, theme, two-screen setup) | `docs/index.html` |
+| Any new plugin added | Create a `<module>/UserDoc.html` following the existing style and add a card link in `docs/index.html` |
+
+### Rules
+
+1. **User-centric language** — describe what the user can *do*, not how it is implemented.
+2. **No implementation details** — do not mention class names, event bus, Kotlin, or JavaFX internals.
+3. **Keep links valid** — if you rename sections or files, update all `href` references across all doc files.
+4. **Interactive links** — use `id` anchors and relative `href` paths so readers can navigate between files and sections.
+5. **Tables for controls** — list all user-facing controls in tables (control name + description).
+
+---
+
 ## Project Summary
 
 TabletopControl is a **Kotlin / JavaFX** desktop application for tabletop RPG sessions.  
@@ -72,22 +99,155 @@ The DM Panel uses a **recursive split-pane layout** so the DM can view and contr
 ### Right-Click Context Menu
 
 Right-click anywhere on a leaf pane to access:
+- **Add Panel to Left**  — splits horizontally; new pane appears on the left.
 - **Add Panel to Right** — splits horizontally; new pane appears on the right.
+- **Add Panel Above** — splits vertically; new pane appears above.
 - **Add Panel Below** — splits vertically; new pane appears below.
 - **Change Plugin…** — replace the plugin shown in this pane (choice dialog).
 - **Close Pane** — remove this pane (disabled when only one pane remains).
+- **Extend Left / Right / Above / Below** — expand this pane into exactly one neighbouring
+  leaf pane's worth of space, following the rules in the table below (e.g. consuming a direct
+  sibling leaf or an adjacent leaf inside a neighbouring split). Other panes may be resized
+  or restructured but are not discarded.
+
+#### Extend logic
+
+Five kinds of extension are supported, evaluated in priority order (higher priority wins when two directions collide):
+
+| Priority | Kind | Condition | Effect |
+|----------|------|-----------|--------|
+| 1 | Same-level | Sibling within the parent split is a single `Leaf` | Equivalent to closing the sibling; the current pane takes its place. |
+| 1b | Sibling-adjacent-child | Sibling within the parent split is itself a `Split`, and its child on the side closest to the leaf is a single `Leaf` | That child is removed, collapsing the sibling to its remaining child; the leaf stays in place — equivalent to closing just the adjacent sub-panel. |
+| 2 | Cross-level | Uncle (parent's sibling within the grandparent split) is a single `Leaf` | The current pane grows across the grandparent boundary; the displaced sibling recombines with the uncle on the opposite side. |
+| 3 | Same-uncle-orientation | Uncle is a `Split` with the *same* orientation as the parent, and the uncle's child at the leaf's position is a single `Leaf` | The grandparent is restructured: the leaf takes a full-width/height row/column; the displaced sibling and the uncle's surviving child are merged side-by-side into the other half. |
+| 4 | Same-grandparent-orientation uncle | Uncle is a `Split` with the *same* orientation as the grandparent (but different from the parent), and the uncle's child on the side adjacent to the parent is a single `Leaf` | The adjacent child's space is shared with the leaf using the parent's orientation (leaf at its row/column position, adjacent child in the other half); the uncle is rebuilt with that shared node; the displaced sibling takes the parent's former slot. |
+| 5 | Great-uncle-is-Leaf | Great-grandparent exists and its other child (the great-uncle) is a single `Leaf` | The great-grandparent is restructured: a new node on the great-uncle's side combines the leaf with the great-uncle (leaf at its own row/column position, displaced sibling filling the other slot); the uncle takes the grandparent's former slot. |
+
+Example — layout `H(Lights, H(V(Tracker, Map), V(Music, Soundboard)))`:
+- **Tracker** → "Extend Right" → `H(Lights, V(Tracker, H(Map, Soundboard)))`, "Extend Below" (same-level, removes Map), "Extend Left" → `H(V(Tracker, H(Lights, Map)), V(Music, Soundboard))`.
+- **Map** → "Extend Right" → `H(Lights, V(H(Tracker, Music), Map))`, "Extend Above" (same-level, removes Tracker), "Extend Left" → `H(V(H(Lights, Tracker), Map), V(Music, Soundboard))`.
+- **Music** → "Extend Left" → `H(Lights, V(Music, H(Map, Soundboard)))`, "Extend Below" (same-level, removes Soundboard).
+- **Soundboard** → "Extend Left" → `H(Lights, V(H(Tracker, Music), Soundboard))`, "Extend Above" (same-level, removes Music).
+- **Lights** → no extend options (adjacent to a multi-panel section).
+
+Example — layout `H(H(V(Tracker, Lights), Map), V(Music, Soundboard))` (case 4):
+- **Music** → "Extend Left" → `H(H(V(Tracker, Lights), V(Music, Map)), Soundboard)` — Music takes top half of Map's space, Map keeps bottom half, Soundboard takes parent's former slot.
+- **Soundboard** → "Extend Left" → `H(H(V(Tracker, Lights), V(Map, Soundboard)), Music)` — Soundboard takes bottom half of Map's space, Map keeps top half, Music takes parent's former slot.
+
+Example — layout `H(H(V(Tracker, Lights), Map), Soundboard)` (case 1b):
+- **Soundboard** → "Extend Left" → `H(V(Tracker, Lights), Soundboard)` — Map is removed, sibling collapses to `V(Tracker, Lights)`.
 
 ### Key Files
 
 | Path | Purpose |
 |------|---------|
-| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `removeNode` helpers |
+| `core/src/.../PaneNode.kt` | Immutable tree model; `replaceNode` / `replaceNodeByRef` / `removeNode` / `findAncestry` helpers |
 | `core/src/.../LayoutSerializer.kt` | S-expression serialiser/deserialiser; file I/O |
-| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu, divider sync |
+| `core/src/.../DmLayoutManager.kt` | JavaFX UI builder, context menu (including extend options), divider sync |
 
 ---
 
-## Coding Conventions
+## Theme System
+
+TabletopControl supports **light and dark modes** plus user-selectable colours for the four concrete UI roles: accent/buttons, background, surfaces/panels, and borders.  The theme system is built on JavaFX CSS and is self-contained within the `core` module.
+
+### Architecture
+
+| File | Purpose |
+|------|---------|
+| `core/src/.../ThemeConfig.kt` | Immutable `ThemeConfig` data class; `ThemeMode` enum (LIGHT / DARK); built-in defaults; hex-color validation |
+| `core/src/.../ThemeEvents.kt` | `ThemeChangedEvent` published on `EventBus` whenever the theme changes |
+| `core/src/.../ThemeManager.kt` | Singleton — loads/saves theme, registers scenes, applies CSS stylesheets, validates loaded colors |
+| `core/src/main/resources/.../theme-light.css` | Light-theme CSS: defines all `-tc-*` colour variables |
+| `core/src/main/resources/.../theme-dark.css` | Dark-theme CSS: overrides JavaFX Modena base colours + defines `-tc-*` variables |
+
+### CSS Looked-Up Colour Variables
+
+Variables are grouped by role.  Any descendant node can reference them in inline `style` strings or CSS class rules **without importing any extra files**.
+
+#### Group 1 — Background & Surfaces (user-configurable)
+
+| Variable      | Purpose                        | Light default | Dark default |
+|---------------|-------------------------------|---------------|--------------|
+| `-tc-bg`      | Window / scene background      | `#f4f4f4`     | `#1e1e2e`    |
+| `-tc-surface` | Panel and card surfaces        | `#ffffff`     | `#2d2d3e`    |
+| `-tc-border`  | Panel edges, control borders   | `#c8c8c8`     | `#555577`    |
+
+#### Group 2 — Interactive / Accent (user-configurable)
+
+| Variable       | Purpose                                     | Light default | Dark default |
+|----------------|---------------------------------------------|---------------|--------------|
+| `-tc-accent`   | Buttons, links, active highlights           | `#1565c0`     | `#82b1ff`    |
+| `-tc-on-accent`| Text on top of an accent-coloured surface   | `#ffffff`     | `#212121`    |
+
+#### Group 3 — Text (fixed per mode)
+
+| Variable         | Purpose                | Light default | Dark default |
+|------------------|------------------------|---------------|--------------|
+| `-tc-text`       | Primary text           | `#212121`     | `#e0e0e0`    |
+| `-tc-text-muted` | Secondary / hint text  | `#888888`     | `#9e9e9e`    |
+
+#### Group 4 — Status (fixed semantic)
+
+| Variable      | Purpose              | Light default | Dark default |
+|---------------|----------------------|---------------|--------------|
+| `-tc-success` | Connected / OK state | `#00aa00`     | `#66bb6a`    |
+| `-tc-error`   | Error state          | `#cc0000`     | `#ef9a9a`    |
+
+#### Group 5 — Tracker Card States (derived)
+
+| Variable                    | Derived from            |
+|-----------------------------|-------------------------|
+| `-tc-card-bg`               | `-tc-surface`           |
+| `-tc-card-border`           | `-tc-border`            |
+| `-tc-card-active-border`    | `-tc-accent`            |
+| `-tc-card-active-bg`        | Fixed warm tint         |
+| `-tc-card-dragover-border`  | `-tc-accent`            |
+| `-tc-card-dragover-bg`      | Fixed cool tint         |
+
+### Incorporating Themes in a New Plugin
+
+1. **Use CSS variables** for any colour you set via `node.style`:
+   ```kotlin
+   label.style = "-fx-text-fill: -tc-error;"        // error state
+   label.style = "-fx-text-fill: -tc-success;"      // success state
+   label.style = "-fx-text-fill: -tc-text-muted;"   // secondary text
+   button.style = "-fx-base: -tc-accent;"           // action button
+   vbox.style = "-fx-background-color: -tc-surface;" // panel background
+   ```
+   Because these are JavaFX "looked-up colours", they resolve automatically from the active theme CSS — no event subscription needed.
+
+2. **For Canvas-based rendering** (e.g. `MapRenderer`) that cannot use CSS, subscribe to `ThemeChangedEvent` on the `EventBus` and redraw with the new palette colours:
+   ```kotlin
+   EventBus.subscribe<ThemeChangedEvent> { (theme) ->
+       // theme.accentColor is a CSS hex string such as "#82b1ff"
+       redrawWithPalette(Color.web(theme.accentColor))
+   }
+   ```
+
+3. **Avoid hardcoded hex colours** in `node.style` strings.  Always prefer the `-tc-*` semantic variables so the component automatically adapts to future themes.
+
+### Persistence
+
+The active theme is saved to `~/.tabletopcontrol/theme.conf` as simple `key=value` lines:
+
+```
+mode=DARK
+accentColor=#82b1ff
+bgColor=#1e1e2e
+surfaceColor=#2d2d3e
+borderColor=#555577
+```
+
+A small per-user override file (`~/.tabletopcontrol/theme-custom.css`) is also written and loaded as a stylesheet to apply the four colour overrides on top of the base theme.  Color values loaded from this file are validated as `#RGB` or `#RRGGBB` hex strings; invalid values silently fall back to the mode defaults.
+
+### Adding a New Theme Variable
+
+1. Add the variable to **both** `theme-light.css` and `theme-dark.css` under `.root`, in the appropriate group comment.
+2. Document it in the relevant group table above.
+3. Reference it in components using `node.style = "-fx-...: -tc-new-var;"`.
+
+---
 
 - **Language:** Kotlin idioms are preferred over Java-style patterns (data classes, extension functions, sealed classes, coroutines where appropriate).
 - **Naming:** `PascalCase` for classes/interfaces, `camelCase` for functions and properties, `SCREAMING_SNAKE_CASE` for constants.

@@ -34,10 +34,15 @@ import javafx.scene.layout.StackPane
  * is found the default layout (a single pane showing the first plugin) is used.
  *
  * **Right-click context menu** (on any leaf pane)
- * - *Add Panel to Right* — splits the pane horizontally (left / right).
- * - *Add Panel Below* — splits the pane vertically (top / bottom).
+ * - *Add Panel to Left*  — splits the pane horizontally; new pane appears on the left.
+ * - *Add Panel to Right* — splits the pane horizontally; new pane appears on the right.
+ * - *Add Panel Above*    — splits the pane vertically; new pane appears above.
+ * - *Add Panel Below*    — splits the pane vertically; new pane appears below.
  * - *Change Plugin…* — swaps the plugin shown in this pane.
  * - *Close Pane* — removes this pane (disabled when it is the only pane).
+ * - *Extend Left / Right / Above / Below* — expands this pane into the space of
+ *   exactly one neighbouring panel (potentially by splitting that panel’s area)
+ *   without affecting any other panels; only shown when such an expansion is possible.
  */
 class DmLayoutManager(private val plugins: List<DmPlugin>) {
 
@@ -112,7 +117,7 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
             else -> pluginMap[leaf.pluginName]?.createView()
                 ?: Label("Plugin not found: ${leaf.pluginName}").apply {
                     padding = Insets(16.0)
-                    style = "-fx-text-fill: #cc4444;"
+                    style = "-fx-text-fill: -tc-error;"
                 }
         }
         val wrapper = StackPane(content)
@@ -136,11 +141,17 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
     private fun buildContextMenu(leaf: PaneNode.Leaf): ContextMenu {
         val menu = ContextMenu()
 
+        val splitLeft = MenuItem("Add Panel to Left")
+        splitLeft.setOnAction { promptSplit(leaf, Orientation.HORIZONTAL, newPaneFirst = true) }
+
         val splitRight = MenuItem("Add Panel to Right")
-        splitRight.setOnAction { promptSplit(leaf, Orientation.HORIZONTAL) }
+        splitRight.setOnAction { promptSplit(leaf, Orientation.HORIZONTAL, newPaneFirst = false) }
+
+        val splitAbove = MenuItem("Add Panel Above")
+        splitAbove.setOnAction { promptSplit(leaf, Orientation.VERTICAL, newPaneFirst = true) }
 
         val splitBelow = MenuItem("Add Panel Below")
-        splitBelow.setOnAction { promptSplit(leaf, Orientation.VERTICAL) }
+        splitBelow.setOnAction { promptSplit(leaf, Orientation.VERTICAL, newPaneFirst = false) }
 
         val changePlugin = MenuItem("Change Plugin…")
         changePlugin.setOnAction { promptChangePlugin(leaf) }
@@ -151,17 +162,41 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         closePane.isDisable = layoutRoot is PaneNode.Leaf
 
         menu.items.addAll(
+            splitLeft,
             splitRight,
+            splitAbove,
             splitBelow,
             SeparatorMenuItem(),
             changePlugin,
             SeparatorMenuItem(),
             closePane,
         )
+
+        // Extend options — only shown when there are valid directions to expand into.
+        // Sync live SplitPane divider positions back into the layout model so that
+        // extend options are computed from the current visual state.
+        syncDividers(layoutRoot, container.center)
+        val extendOptions = computeExtendOptions(layoutRoot, leaf)
+        if (extendOptions.isNotEmpty()) {
+            menu.items.add(SeparatorMenuItem())
+            extendOptions.forEach { (label, newRoot) ->
+                val item = MenuItem(label)
+                item.setOnAction { rebuild(newRoot) }
+                menu.items.add(item)
+            }
+        }
+
         return menu
     }
 
-    private fun promptSplit(leaf: PaneNode.Leaf, orientation: Orientation) {
+    /**
+     * Opens a plugin-chooser dialog and splits [leaf] along [orientation].
+     *
+     * When [newPaneFirst] is `true` the new pane is placed before [leaf] (i.e. to
+     * the left for a horizontal split, or above for a vertical split).  When
+     * [newPaneFirst] is `false` the new pane is placed after [leaf] (right / below).
+     */
+    private fun promptSplit(leaf: PaneNode.Leaf, orientation: Orientation, newPaneFirst: Boolean) {
         val names = plugins.map { it.displayName }
         if (names.isEmpty()) return
 
@@ -171,7 +206,12 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         dialog.contentText = "Plugin:"
 
         dialog.showAndWait().ifPresent { chosenName ->
-            val split = PaneNode.Split(orientation, 0.5, leaf, PaneNode.Leaf(chosenName))
+            val newLeaf = PaneNode.Leaf(chosenName)
+            val split = if (newPaneFirst) {
+                PaneNode.Split(orientation, 0.5, newLeaf, leaf)
+            } else {
+                PaneNode.Split(orientation, 0.5, leaf, newLeaf)
+            }
             rebuild(replaceNode(layoutRoot, leaf, split))
         }
     }

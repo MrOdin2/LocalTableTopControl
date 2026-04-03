@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Map Plugin – TabletopControl User Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside { width: 220px; flex-shrink: 0; }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    aside .toc ul ul { margin-left: 0.8rem; margin-top: 0.25rem; }
+    aside .other-docs { margin-top: 1rem; }
+    aside .other-docs h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .other-docs ul { list-style: none; }
+    aside .other-docs ul li { margin-bottom: 0.35rem; }
+    aside .other-docs ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .other-docs ul li a:hover { text-decoration: underline; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #333; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .tip strong { color: var(--accent); }
+    .warning {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .warning strong { color: #f57f17; }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🗺️ Map Plugin</h1>
+  <p>TabletopControl User Documentation</p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="../docs/index.html">Home</a> &rsaquo; Map
+</nav>
+
+<div class="layout">
+
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#loading">Loading a Map</a></li>
+        <li><a href="#calibration">Map Calibration</a></li>
+        <li><a href="#grid">Grid Overlay</a>
+          <ul>
+            <li><a href="#grid-enable">Enabling the Grid</a></li>
+            <li><a href="#grid-calibration">Grid Calibration</a></li>
+          </ul>
+        </li>
+        <li><a href="#fog">Fog of War</a>
+          <ul>
+            <li><a href="#fog-paint">Painting &amp; Erasing</a></li>
+            <li><a href="#fog-bulk">Bulk Controls</a></li>
+          </ul>
+        </li>
+        <li><a href="#tokens">Tokens</a></li>
+        <li><a href="#rotation">Map Rotation</a></li>
+        <li><a href="#background">Background Colour</a></li>
+      </ul>
+    </div>
+    <div class="other-docs">
+      <h2>Other Plugins</h2>
+      <ul>
+        <li><a href="../audio/UserDoc.html">🎵 Audio</a></li>
+        <li><a href="../tracker/UserDoc.html">⚔️ Tracker</a></li>
+        <li><a href="../light/UserDoc.html">💡 Lighting</a></li>
+        <li><a href="../docs/cross-plugin.html">🔗 Cross-Plugin</a></li>
+        <li><a href="../docs/index.html">📖 Home</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        The Map plugin is the heart of TabletopControl. It renders a high-resolution map image on the
+        <strong>table screen</strong> at physical scale so that miniatures can be placed directly on
+        the surface. On the <strong>DM screen</strong> it shows a minimap preview and all controls.
+      </p>
+      <p>Key capabilities:</p>
+      <ul>
+        <li>Load any image file as a map (JPEG, PNG, BMP, and other common formats).</li>
+        <li>Calibrate scale so the rendered map matches real-world miniature scale (typically 1 inch per grid square).</li>
+        <li>Overlay a customisable grid aligned to the map's coordinate system.</li>
+        <li>Paint fog of war to hide unexplored areas from the players.</li>
+        <li>Place and move tokens representing combatants on the map.</li>
+        <li>Rotate the map in 90° increments.</li>
+      </ul>
+    </section>
+
+    <section id="loading">
+      <h2>Loading a Map</h2>
+      <p>
+        Click the <strong>Load Map</strong> button on the DM panel. A file chooser opens — navigate
+        to your map image and select it. The map appears immediately on the table screen.
+      </p>
+      <p>
+        The minimap preview in the DM panel shows a scaled-down copy of the map with the fog of war
+        overlay and token positions. Use the minimap to get an overview at a glance and to paint fog
+        of war (see <a href="#fog">Fog of War</a>).
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> High-resolution maps (2000 × 2000 px and above) give the sharpest
+        results when scaled to fit the physical table.
+      </div>
+    </section>
+
+    <section id="calibration">
+      <h2>Map Calibration</h2>
+      <p>
+        Calibration sets the scale and position of the map on the table screen so miniatures are
+        correctly sized and aligned with grid squares.
+      </p>
+      <p>TabletopControl offers a <strong>Guided Calibration</strong> workflow:</p>
+      <ol>
+        <li>Click <strong>Calibrate Map</strong> to open the calibration dialog.</li>
+        <li>
+          <strong>Step 1 — Grid Centre:</strong> Click the centre of any grid intersection on the
+          map image in the dialog.
+        </li>
+        <li>
+          <strong>Step 2 — Grid Corner:</strong> Click an adjacent grid corner (one cell away in
+          any direction) to define the cell size.
+        </li>
+        <li>
+          Confirm. The scale and offset are applied immediately to the table screen.
+        </li>
+      </ol>
+      <div class="tip">
+        <strong>Tip:</strong> If the calibration looks slightly off, open the calibration dialog again
+        and fine-tune by clicking a clearer intersection. The two-click process is designed to be fast
+        and repeatable.
+      </div>
+    </section>
+
+    <section id="grid">
+      <h2>Grid Overlay</h2>
+
+      <h3 id="grid-enable">Enabling the Grid</h3>
+      <p>
+        Toggle the grid on or off with the <strong>Show Grid</strong> checkbox or button on the
+        DM panel. When enabled, a grid is drawn on top of the map image on the table screen.
+      </p>
+      <p>Grid appearance settings:</p>
+      <table>
+        <tr><th>Setting</th><th>Description</th></tr>
+        <tr><td>Cell size</td><td>The size of one grid square in screen units. Adjust to match your map's grid.</td></tr>
+        <tr><td>Line colour</td><td>Colour of the grid lines. The plugin can also pick an automatic contrasting colour based on the map image.</td></tr>
+        <tr><td>Line width</td><td>Thickness of the grid lines in pixels.</td></tr>
+      </table>
+
+      <h3 id="grid-calibration">Grid Calibration</h3>
+      <p>
+        Use <strong>Calibrate Grid</strong> to align the grid precisely to the map image. This is
+        a separate step from <a href="#calibration">map calibration</a> and only affects the grid
+        offset and scale, not the map image itself.
+      </p>
+      <p>
+        After calibration, the grid lines should line up with the printed grid (or intended grid
+        squares) of the map image.
+      </p>
+    </section>
+
+    <section id="fog">
+      <h2>Fog of War</h2>
+      <p>
+        Fog of war hides portions of the map from the players. Cells are either
+        <strong>hidden</strong> (opaque overlay on the table screen) or <strong>revealed</strong>
+        (fully visible). The DM controls which cells are revealed.
+      </p>
+
+      <h3 id="fog-paint">Painting &amp; Erasing</h3>
+      <p>
+        Use the <strong>minimap</strong> on the DM panel to paint or erase fog of war:
+      </p>
+      <ul>
+        <li><strong>Left-click and drag</strong> on the minimap — reveals cells (removes fog).</li>
+        <li><strong>Right-click and drag</strong> on the minimap — hides cells (adds fog back).</li>
+      </ul>
+      <p>
+        The brush size corresponds to the grid cell size. Each cell you paint over changes state.
+        Changes appear on the table screen in real time.
+      </p>
+
+      <h3 id="fog-bulk">Bulk Controls</h3>
+      <table>
+        <tr><th>Button</th><th>Effect</th></tr>
+        <tr><td>Reveal All</td><td>Removes all fog — the entire map becomes visible to players.</td></tr>
+        <tr><td>Hide All</td><td>Covers the entire map with fog — nothing is visible to players.</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip:</strong> Start each session with <em>Hide All</em>, then gradually reveal areas
+        as the players explore. This keeps the mystery intact even if the map is already loaded.
+      </div>
+    </section>
+
+    <section id="tokens">
+      <h2>Tokens</h2>
+      <p>
+        Tokens are visual markers placed on the map that represent combatants. They are
+        <strong>managed through the <a href="../tracker/UserDoc.html">Initiative Tracker</a></strong>
+        plugin — when you add a combatant in the tracker, a corresponding token can appear on the map.
+      </p>
+      <p>Each token can display:</p>
+      <ul>
+        <li>A <strong>colour circle</strong> matching the combatant's assigned colour.</li>
+        <li>A <strong>custom image</strong> (portrait or token art) uploaded in the tracker.</li>
+        <li>The combatant's <strong>name label</strong> (toggle with the <em>Show Token Names</em> option).</li>
+      </ul>
+      <p>
+        Token positions are set via the tracker's drag-and-drop placement, or by dragging the token
+        directly on the minimap. See <a href="../docs/cross-plugin.html">Cross-Plugin Features</a>
+        for the full details of how the tracker and map work together.
+      </p>
+    </section>
+
+    <section id="rotation">
+      <h2>Map Rotation</h2>
+      <p>
+        Use the <strong>Rotate</strong> button on the DM panel to rotate the map in
+        <strong>90° increments</strong>. This is useful when a map image is saved in landscape
+        orientation but needs to be displayed in portrait orientation on the table screen, or vice
+        versa.
+      </p>
+      <p>
+        Rotation affects the table screen display only — the original image file is not modified.
+        The grid and fog of war rotate with the map.
+      </p>
+    </section>
+
+    <section id="background">
+      <h2>Background Colour</h2>
+      <p>
+        The area around the map image (visible when the map does not fill the entire screen) can be
+        set to a custom background colour. Click <strong>Set Background</strong> on the DM panel and
+        pick a colour from the colour picker.
+      </p>
+      <p>
+        Setting a dark background (such as black) works well for dungeon maps where the edges should
+        appear as darkness; a blue background can simulate ocean or sky.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  TabletopControl User Documentation &mdash;
+  <a href="../docs/index.html">Home</a> &mdash;
+  <a href="../docs/cross-plugin.html">Cross-Plugin Features</a>
+</footer>
+
+</body>
+</html>

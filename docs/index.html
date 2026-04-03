@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TabletopControl – User Documentation</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside {
+      width: 220px;
+      flex-shrink: 0;
+    }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    aside .toc ul ul { margin-left: 0.8rem; margin-top: 0.25rem; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #333; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .tip strong { color: var(--accent); }
+    .plugin-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .plugin-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      display: block;
+    }
+    .plugin-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 2px 8px rgba(21,101,192,0.12);
+      text-decoration: none;
+    }
+    .plugin-card .card-icon { font-size: 2rem; margin-bottom: 0.4rem; }
+    .plugin-card h3 { margin: 0 0 0.35rem; font-size: 1rem; color: var(--accent); }
+    .plugin-card p { margin: 0; font-size: 0.88rem; color: var(--text-muted); }
+    kbd {
+      display: inline-block;
+      background: #e9ecef;
+      border: 1px solid #adb5bd;
+      border-radius: 3px;
+      padding: 0.1em 0.45em;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🎲 TabletopControl</h1>
+    <p>User Documentation — Main Index</p>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <strong>Home</strong>
+</nav>
+
+<div class="layout">
+
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#two-screens">Two-Screen Setup</a></li>
+        <li><a href="#layout">DM Panel Layout</a>
+          <ul>
+            <li><a href="#layout-context-menu">Context Menu</a></li>
+            <li><a href="#layout-extend">Extending Panes</a></li>
+            <li><a href="#layout-persistence">Saving Your Layout</a></li>
+          </ul>
+        </li>
+        <li><a href="#theme">Theme &amp; Appearance</a></li>
+        <li><a href="#plugins">Plugin Documentation</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+
+    <section id="overview">
+      <h2>What is TabletopControl?</h2>
+      <p>
+        TabletopControl is a lightweight companion application for tabletop RPG sessions (D&amp;D,
+        Pathfinder, and similar games). It drives <strong>two screens simultaneously</strong>: one
+        facing the players (showing the map at physical scale) and one for the Dungeon Master
+        (a full control panel).
+      </p>
+      <p>
+        No internet connection is needed. No subscription. Just a desktop application that runs even
+        on modest hardware such as a Raspberry Pi.
+      </p>
+    </section>
+
+    <section id="two-screens">
+      <h2>Two-Screen Setup</h2>
+
+      <h3>Table Screen (Player View)</h3>
+      <p>
+        The table screen is designed to be placed flat on the table, or projected onto a surface,
+        so that physical miniatures can be placed on top of it. It shows:
+      </p>
+      <ul>
+        <li>The full map image, scaled to match real-world miniature sizes.</li>
+        <li>An optional grid overlay aligned to the map's coordinate system.</li>
+        <li>Fog of war — unexplored areas are hidden until the DM reveals them.</li>
+        <li>Tokens representing combatants, placed on the correct grid cells.</li>
+      </ul>
+      <p>
+        The table screen updates automatically whenever the DM makes changes on the DM screen. Players
+        always see the current state without any extra interaction.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> If you have multiple monitors, you can move the table screen to any
+        connected display from the DM screen's application menu.
+      </div>
+
+      <h3>DM Screen (Control Panel)</h3>
+      <p>
+        The DM screen is the main control interface. It hosts all loaded plugins in a
+        <a href="#layout">split-pane layout</a>. From here the DM can:
+      </p>
+      <ul>
+        <li>Load and control the map.</li>
+        <li>Paint or erase fog of war.</li>
+        <li>Manage the initiative order and combatant HP/AC.</li>
+        <li>Control background music and sound effects.</li>
+        <li>Control ambient lighting via WLED devices.</li>
+      </ul>
+    </section>
+
+    <section id="layout">
+      <h2>DM Panel Layout System</h2>
+      <p>
+        The DM panel uses a <strong>recursive split-pane layout</strong> — similar to the panel
+        system in IDEs such as VS Code or IntelliJ — so you can arrange any combination of plugins
+        side-by-side. No tab-switching required.
+      </p>
+      <p>
+        On first launch, a single plugin pane fills the DM window. You can split it into as many
+        panels as you like and arrange them however suits your workflow.
+      </p>
+
+      <h3 id="layout-context-menu">Context Menu</h3>
+      <p>
+        <strong>Right-click</strong> anywhere on a pane to open the layout context menu:
+      </p>
+      <table>
+        <tr><th>Action</th><th>What it does</th></tr>
+        <tr><td>Add Panel to Left</td><td>Splits the current pane left–right and inserts a new plugin pane on the left.</td></tr>
+        <tr><td>Add Panel to Right</td><td>Splits the current pane left–right and inserts a new plugin pane on the right.</td></tr>
+        <tr><td>Add Panel Above</td><td>Splits the current pane top–bottom and inserts a new plugin pane above.</td></tr>
+        <tr><td>Add Panel Below</td><td>Splits the current pane top–bottom and inserts a new plugin pane below.</td></tr>
+        <tr><td>Change Plugin…</td><td>Opens a dialog to swap the plugin shown in this pane for a different one.</td></tr>
+        <tr><td>Close Pane</td><td>Removes this pane. Disabled when it is the only pane remaining.</td></tr>
+        <tr><td>Extend Left / Right / Above / Below</td><td>Expands this pane into exactly one neighbouring pane's space (see below).</td></tr>
+      </table>
+
+      <h3 id="layout-extend">Extending Panes</h3>
+      <p>
+        The <strong>Extend</strong> options let you grow a pane without rearranging the rest of the
+        layout manually. Only directions that have a compatible single neighbouring pane are shown —
+        so the menu only ever offers valid moves. The neighbouring pane's content is consumed
+        and the layout restructured accordingly.
+      </p>
+      <div class="tip">
+        <strong>Example:</strong> You have the Map pane on the left and two stacked panes (Tracker
+        on top, Music on bottom) on the right. Right-clicking Tracker and choosing
+        <em>Extend Left</em> will consume the Map pane to its left and expand Tracker horizontally
+        into that space, while Music remains in place on the right.
+      </div>
+
+      <h3 id="layout-persistence">Saving Your Layout</h3>
+      <p>
+        Your layout — including which plugins are in which panes and how the dividers are
+        positioned — is saved automatically when you close the application. The next time you launch
+        TabletopControl, the exact same arrangement is restored.
+      </p>
+      <p>
+        The layout is stored in <code>~/.tabletopcontrol/dm-layout.conf</code>. You can delete
+        this file to reset the layout to its default (single-pane) state.
+      </p>
+    </section>
+
+    <section id="theme">
+      <h2>Theme &amp; Appearance</h2>
+      <p>
+        TabletopControl supports <strong>light and dark modes</strong>, plus user-selectable colours
+        for the four key UI roles: accent, background, surface panels, and borders.
+      </p>
+      <p>
+        Open the theme settings from the application menu. Changes apply immediately across all
+        open panes. Your theme preferences are saved to
+        <code>~/.tabletopcontrol/theme.conf</code> and restored on the next launch.
+      </p>
+      <table>
+        <tr><th>Setting</th><th>What it affects</th></tr>
+        <tr><td>Mode (Light / Dark)</td><td>Overall colour scheme — light background or dark background.</td></tr>
+        <tr><td>Accent colour</td><td>Buttons, links, active highlights, and the current-turn border in the tracker.</td></tr>
+        <tr><td>Background colour</td><td>The main window / scene background.</td></tr>
+        <tr><td>Surface colour</td><td>Panel and card surfaces (e.g. combatant cards in the tracker).</td></tr>
+        <tr><td>Border colour</td><td>Panel edges and control borders.</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip:</strong> If you reset the theme to defaults, all four colour settings return to
+        the built-in values for the selected mode.
+      </div>
+    </section>
+
+    <section id="plugins">
+      <h2>Plugin Documentation</h2>
+      <p>Click a plugin below to read its full user guide.</p>
+      <div class="plugin-cards">
+        <a class="plugin-card" href="../map/UserDoc.html">
+          <div class="card-icon">🗺️</div>
+          <h3>Map</h3>
+          <p>Load maps, configure the grid, paint fog of war, and manage tokens on the table screen.</p>
+        </a>
+        <a class="plugin-card" href="../audio/UserDoc.html">
+          <div class="card-icon">🎵</div>
+          <h3>Audio</h3>
+          <p>Three independent music layers plus a 16-button soundboard for instant sound effects.</p>
+        </a>
+        <a class="plugin-card" href="../tracker/UserDoc.html">
+          <div class="card-icon">⚔️</div>
+          <h3>Initiative Tracker</h3>
+          <p>Manage combatant turn order, hit points, armour class, and token images.</p>
+        </a>
+        <a class="plugin-card" href="../light/UserDoc.html">
+          <div class="card-icon">💡</div>
+          <h3>Ambient Lighting</h3>
+          <p>Control WLED RGB lighting strips with effects, colours, brightness, and presets.</p>
+        </a>
+        <a class="plugin-card" href="cross-plugin.html">
+          <div class="card-icon">🔗</div>
+          <h3>Cross-Plugin Features</h3>
+          <p>How the Tracker and Map work together — token placement, images, and sync.</p>
+        </a>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  TabletopControl User Documentation &mdash; <a href="../README.md">README</a>
+</footer>
+
+</body>
+</html>

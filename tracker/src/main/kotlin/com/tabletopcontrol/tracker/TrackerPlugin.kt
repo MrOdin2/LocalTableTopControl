@@ -4,15 +4,19 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
+import javafx.scene.control.Dialog
 import javafx.scene.control.Label
+import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
@@ -22,9 +26,24 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
+import javafx.scene.layout.StackPane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.scene.shape.Circle
+import javafx.scene.shape.Rectangle
+import javafx.scene.shape.Shape
+import javafx.scene.transform.Scale
+import javafx.scene.image.Image
+import javafx.scene.image.ImageView
+import javafx.stage.FileChooser
+import java.io.File
+import java.net.URI
+import java.text.NumberFormat
+import java.text.ParsePosition
+import java.util.Locale
+import java.util.IdentityHashMap
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * DM-panel plugin providing a combined initiative and HP/AC tracker.
@@ -77,6 +96,22 @@ class TrackerPlugin : DmPlugin {
      */
     private val tokenColors: MutableMap<String, Color> = mutableMapOf()
 
+    /**
+     * Maps each combatant's stable id to the file URI of its token picture, or `null`
+     * when no picture has been uploaded.  Keyed by id so the mapping survives renames.
+     * The current value is republished as [TokenImageChangedEvent] whenever the DM
+     * picks a new file in the per-card image button.
+     */
+    private val tokenImages: MutableMap<String, TokenImageSettings> = mutableMapOf()
+
+    private data class TokenImageSettings(
+        val uri: String?,
+        val scaleX: Double = 1.0,
+        val scaleY: Double = 1.0,
+        val offsetX: Double = 0.0,
+        val offsetY: Double = 0.0,
+    )
+
     override fun createView(): Node {
         val roundLabel = Label(roundText()).apply {
             style = "-fx-font-weight: bold;"
@@ -111,6 +146,7 @@ class TrackerPlugin : DmPlugin {
                     tokenColorIndex = 0
                     tokenIds.clear()
                     tokenColors.clear()
+                    tokenImages.clear()
                     EventBus.publish(TokensResetEvent())
                     refresh()
                 }
@@ -132,8 +168,17 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
-        // Toolbar: [−]  [Next ▶]  Round N
-        val toolbar = HBox(8.0, removeAllBtn, nextBtn, roundLabel).apply {
+        // "Presets…" button — open the preset library dialog.
+        val presetsBtn = Button("Presets…").apply {
+            tooltip = Tooltip("Open preset library to load or manage saved combatants")
+            setOnAction { e ->
+                val owner = (e.source as? Button)?.scene?.window
+                showPresetsDialog(owner) { refresh() }
+            }
+        }
+
+        // Toolbar: [−]  [Next ▶]  [Presets…]  Round N
+        val toolbar = HBox(8.0, removeAllBtn, nextBtn, presetsBtn, roundLabel).apply {
             padding = Insets(4.0, 8.0, 4.0, 8.0)
             alignment = javafx.geometry.Pos.CENTER_LEFT
         }
@@ -196,6 +241,7 @@ class TrackerPlugin : DmPlugin {
                 // new entry goes to the end (stable sort), so appending the id is correct.
                 tokenIds.add(id)
                 tokenColors[id] = color
+                tokenImages[id] = TokenImageSettings(uri = null)
                 EventBus.publish(TokenAddedEvent(id, name, color))
                 // When the tracker was empty before, currentIndex advances from -1 to 0.
                 if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
@@ -253,6 +299,7 @@ class TrackerPlugin : DmPlugin {
                 tracker.remove(index)
                 tokenIds.removeAt(index)
                 tokenColors.remove(id)
+                tokenImages.remove(id)
                 EventBus.publish(TokenRemovedEvent(id, name))
                 EventBus.publish(
                     ActiveTokenChangedEvent(
@@ -294,7 +341,96 @@ class TrackerPlugin : DmPlugin {
             Tooltip.install(this, Tooltip("Map token colour"))
         }
 
-        val nameRow = HBox(4.0, swatch, nameField, removeBtn).also {
+        // Image button — lets the DM assign a picture to this token.
+        val tokenId = tokenIds.getOrNull(index)
+        val currentImageSettings = tokenId?.let { tokenImages[it] } ?: TokenImageSettings(uri = null)
+        val hasImage = currentImageSettings.uri != null
+        val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
+            accessibleText = if (hasImage) "Token image set" else "No token image set"
+            tooltip = Tooltip(
+                if (hasImage) "Token has a custom picture — click to change it"
+                else "Upload a picture for this token",
+            )
+            style = "-fx-min-width: 32px; -fx-max-width: 32px;"
+            setOnAction { e ->
+                val id = tokenIds.getOrNull(index) ?: return@setOnAction
+                val owner = (e.source as? Button)?.scene?.window
+                val chosen = showTokenImageDialog(owner, tokenImages[id] ?: TokenImageSettings(uri = null))
+                if (chosen != null) {
+                    tokenImages[id] = chosen
+                    EventBus.publish(
+                        TokenImageChangedEvent(
+                            id = id,
+                            imageUri = chosen.uri,
+                            imageScaleX = chosen.scaleX,
+                            imageScaleY = chosen.scaleY,
+                            imageOffsetX = chosen.offsetX,
+                            imageOffsetY = chosen.offsetY,
+                        ),
+                    )
+                    // Refresh the card so the button label updates.
+                    refresh()
+                }
+            }
+        }
+
+        // "★" Save-as-preset button — saves the current card's stats to the preset library.
+        val savePresetBtn = Button("★").apply {
+            accessibleText = "Save as preset"
+            tooltip = Tooltip("Save this combatant as a preset")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction {
+                val entry = tracker.entries[index]
+                val imageSettings = tokenIds.getOrNull(index)?.let { tokenImages[it] }
+                // Save immediately without the thumbnail so the preset is usable right away,
+                // then re-save with the embedded Base64 thumbnail in a background thread.
+                // The initial save runs on the JavaFX thread; only the expensive thumbnail
+                // encode/scale work is deferred to the background.
+                val presetWithoutThumbnail = PresetLibrary.Preset(
+                    name = entry.name,
+                    hp = entry.hp,
+                    ac = entry.ac,
+                    initiative = entry.initiative,
+                    imageUri = imageSettings?.uri,
+                    imageScaleX = imageSettings?.scaleX ?: 1.0,
+                    imageScaleY = imageSettings?.scaleY ?: 1.0,
+                    imageOffsetX = imageSettings?.offsetX ?: 0.0,
+                    imageOffsetY = imageSettings?.offsetY ?: 0.0,
+                )
+                PresetLibrary.savePreset(presetWithoutThumbnail)
+                if (imageSettings?.uri != null) {
+                    // Generate and embed the thumbnail in a background daemon thread so
+                    // the JavaFX event thread is never blocked on disk I/O or image
+                    // scaling — important on low-power devices (Raspberry Pi, etc.).
+                    //
+                    // Race-condition safety: instead of re-saving the snapshot captured
+                    // at button-press time, the background thread reads the *latest*
+                    // on-disk version of the preset before writing imageBase64.  If the
+                    // user clicked ★ again while we were busy, the newer stats are
+                    // preserved; only the imageBase64 field is patched in.
+                    Thread {
+                        val base64 = PresetLibrary.loadAndScaleImage(imageSettings.uri) ?: return@Thread
+                        // Read whichever version is currently on disk and merge only the thumbnail.
+                        val onDiskFile = PresetLibrary.fileFor(
+                            presetWithoutThumbnail.name,
+                            presetWithoutThumbnail.folder,
+                        )
+                        val latest = runCatching {
+                            PresetLibrary.deserialize(onDiskFile.readText())
+                        }.getOrNull() ?: return@Thread
+                        // Only patch imageBase64 when the latest on-disk preset still references
+                        // the same imageUri that was current when the button was clicked.  If the
+                        // user changed the image and clicked ★ again before this thread finished,
+                        // latest.imageUri will differ and we skip the write, avoiding a preset
+                        // where imageUri points to image B but imageBase64 contains image A's thumbnail.
+                        if (latest.imageUri != imageSettings.uri) return@Thread
+                        PresetLibrary.savePreset(latest.copy(imageBase64 = base64))
+                    }.also { it.isDaemon = true }.start()
+                }
+            }
+        }
+
+        val nameRow = HBox(4.0, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
             HBox.setHgrow(nameField, Priority.ALWAYS)
         }
         val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)
@@ -348,17 +484,19 @@ class TrackerPlugin : DmPlugin {
     // ── Constants ─────────────────────────────────────────────────────────────
 
     private companion object {
+        private const val SLIDER_VALUE_EPSILON = 1e-9
+
         private const val CARD_STYLE_NORMAL =
-            "-fx-border-color: #888888; -fx-border-radius: 4; " +
-                "-fx-background-color: #f5f5f5; -fx-background-radius: 4;"
+            "-fx-border-color: -tc-card-border; -fx-border-radius: 4; " +
+                "-fx-background-color: -tc-card-bg; -fx-background-radius: 4;"
 
         private const val CARD_STYLE_ACTIVE =
-            "-fx-border-color: #e67e00; -fx-border-width: 2; -fx-border-radius: 4; " +
-                "-fx-background-color: #fff3e0; -fx-background-radius: 4;"
+            "-fx-border-color: -tc-card-active-border; -fx-border-width: 2; -fx-border-radius: 4; " +
+                "-fx-background-color: -tc-card-active-bg; -fx-background-radius: 4;"
 
         private const val CARD_STYLE_DRAG_OVER =
-            "-fx-border-color: #4488ff; -fx-border-radius: 4; " +
-                "-fx-background-color: #e8f0ff; -fx-background-radius: 4;"
+            "-fx-border-color: -tc-card-dragover-border; -fx-border-radius: 4; " +
+                "-fx-background-color: -tc-card-dragover-bg; -fx-background-radius: 4;"
 
         /**
          * 64 perceptually distinct token colours generated from 16 evenly spaced hues
@@ -394,10 +532,558 @@ class TrackerPlugin : DmPlugin {
             )
     }
 
+    private fun normalizeSupportedTokenImageUri(uri: String): String? {
+        return try {
+            val trimmed = uri.trim()
+            if (trimmed.isEmpty()) {
+                return null
+            }
+
+            val parsed = URI(trimmed)
+            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+
+            when {
+                // No scheme → treat as a local file system path, return canonical file: URI.
+                scheme == null || scheme.isEmpty() ->
+                    File(trimmed).canonicalFile.toURI().toString()
+
+                // Explicit file: URI → normalize the URI representation and return it.
+                scheme == "file" ->
+                    parsed.normalize().toString()
+
+                // Any other scheme (http, https, etc.) is not supported.
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Returns the resting style for a card at [index] based on whether it is the active combatant. */
     private fun cardStyle(index: Int): String =
         if (index == tracker.currentIndex) CARD_STYLE_ACTIVE else CARD_STYLE_NORMAL
 
     /** Formats the round counter text from the current tracker state. */
     private fun roundText(): String = "Round: ${tracker.round}"
+
+    // ── Token image dialog ─────────────────────────────────────────────────────
+
+    private fun showTokenImageDialog(owner: javafx.stage.Window?, initial: TokenImageSettings): TokenImageSettings? {
+        val dialog = Dialog<TokenImageSettings>().apply {
+            title = "Token Image"
+            headerText = "Select a picture and adjust scale/position"
+            owner?.let { initOwner(it) }
+            dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
+        }
+
+        var working = initial
+
+        val previewSize = 160.0
+        val previewRadius = 70.0
+        val previewCenter = previewSize / 2
+
+        val imageView = ImageView().apply {
+            fitWidth = previewRadius * 2
+            fitHeight = previewRadius * 2
+            isPreserveRatio = true
+        }
+        val scaleTransform = Scale(working.scaleX, working.scaleY, previewRadius, previewRadius)
+        imageView.transforms.setAll(scaleTransform)
+
+        val tokenCircle = Circle(previewCenter, previewCenter, previewRadius).apply {
+            fill = Color.TRANSPARENT
+            stroke = Color.web("#bbbbbb")
+            strokeWidth = 1.5
+        }
+
+        val outsideOverlay = Shape.subtract(
+            Rectangle(0.0, 0.0, previewSize, previewSize),
+            Circle(previewCenter, previewCenter, previewRadius),
+        ).apply {
+            fill = Color.gray(0.4, 0.35)
+        }
+
+        val previewPane = StackPane(
+            Rectangle(previewSize, previewSize, Color.web("#f7f7f7")).apply {
+                stroke = Color.web("#dddddd")
+            },
+            imageView,
+            outsideOverlay,
+            tokenCircle,
+        ).apply {
+            minWidth = previewSize
+            maxWidth = previewSize
+            minHeight = previewSize
+            maxHeight = previewSize
+        }
+
+        fun loadImage(uri: String?): Boolean {
+            if (uri == null) {
+                imageView.image = null
+                return true
+            }
+            val normalizedUri = normalizeSupportedTokenImageUri(uri)
+            if (normalizedUri == null) {
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Unsupported image location"
+                    contentText = "Only local file images are supported."
+                }.showAndWait()
+                return false
+            }
+
+            val image = try {
+                Image(normalizedUri, false)
+            } catch (e: Exception) {
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Could not load image"
+                    contentText = buildString {
+                        appendLine("Failed to load image from:")
+                        appendLine(uri)
+                        val message = e.message
+                        if (!message.isNullOrBlank()) {
+                            appendLine()
+                            append("Details: ")
+                            append(message)
+                        }
+                    }
+                }.showAndWait()
+                return false
+            }
+
+            if (image.isError) {
+                val message = image.exception?.message
+                Alert(Alert.AlertType.ERROR).apply {
+                    title = "Image load failed"
+                    headerText = "Could not load image"
+                    contentText = buildString {
+                        appendLine("Failed to load image from:")
+                        appendLine(uri)
+                        if (!message.isNullOrBlank()) {
+                            appendLine()
+                            append("Details: ")
+                            append(message)
+                        }
+                    }
+                }.showAndWait()
+                return false
+            }
+
+            imageView.image = image
+            return true
+        }
+
+        fun applyTransforms(settings: TokenImageSettings) {
+            scaleTransform.x = settings.scaleX
+            scaleTransform.y = settings.scaleY
+            imageView.translateX = settings.offsetX
+            imageView.translateY = settings.offsetY
+        }
+
+        loadImage(working.uri)
+        applyTransforms(working)
+
+        val scaleXSlider = Slider(0.3, 3.0, working.scaleX).apply { isShowTickLabels = true }
+        val scaleYSlider = Slider(0.3, 3.0, working.scaleY).apply { isShowTickLabels = true }
+        val offsetXSlider = Slider(-80.0, 80.0, working.offsetX).apply { isShowTickLabels = true }
+        val offsetYSlider = Slider(-80.0, 80.0, working.offsetY).apply { isShowTickLabels = true }
+
+        fun bindSliderToField(slider: Slider, field: TextField, decimals: Int = 2) {
+            val numberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
+                minimumFractionDigits = decimals
+                maximumFractionDigits = decimals
+                isGroupingUsed = false
+            }
+            fun formatValue(value: Double): String = numberFormat.format(value)
+            fun parseValue(text: String): Double? {
+                val raw = text.trim()
+                if (raw.isEmpty()) return null
+                val parsePosition = ParsePosition(0)
+                val parsed = numberFormat.parse(raw, parsePosition) ?: return null
+                if (parsePosition.index != raw.length) return null
+                return parsed.toDouble()
+            }
+            slider.valueProperty().addListener { _, _, v ->
+                val value = v.toDouble()
+                if (!field.isFocused) field.text = formatValue(value)
+            }
+            field.text = formatValue(slider.value)
+            field.textProperty().addListener { _, _, text ->
+                // Only apply typed values while the field is focused to prevent
+                // programmatic slider->text updates from snapping slider precision.
+                if (!field.isFocused) return@addListener
+                val parsed = parseValue(text) ?: return@addListener
+                val clamped = parsed.coerceIn(slider.min, slider.max)
+                if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
+                    slider.value = clamped
+                }
+            }
+            field.focusedProperty().addListener { _, _, focused ->
+                if (!focused) {
+                    val parsed = parseValue(field.text)
+                    if (parsed == null) {
+                        // Revert to the current slider value if the text is not a valid number.
+                        field.text = formatValue(slider.value)
+                    } else {
+                        val clamped = parsed.coerceIn(slider.min, slider.max)
+                        if (kotlin.math.abs(clamped - slider.value) > SLIDER_VALUE_EPSILON) {
+                            // Update the slider; its listener will refresh the text because the field is not focused.
+                            slider.value = clamped
+                        } else {
+                            // Just normalize the text formatting to the effective value.
+                            field.text = formatValue(slider.value)
+                        }
+                    }
+                }
+            }
+        }
+
+        val scaleXField = TextField().apply { prefColumnCount = 6 }
+        val scaleYField = TextField().apply { prefColumnCount = 6 }
+        val offsetXField = TextField().apply { prefColumnCount = 6 }
+        val offsetYField = TextField().apply { prefColumnCount = 6 }
+        bindSliderToField(scaleXSlider, scaleXField, 2)
+        bindSliderToField(scaleYSlider, scaleYField, 2)
+        bindSliderToField(offsetXSlider, offsetXField, 1)
+        bindSliderToField(offsetYSlider, offsetYField, 1)
+
+        scaleXSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(scaleX = v.toDouble())
+            applyTransforms(working)
+        }
+        scaleYSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(scaleY = v.toDouble())
+            applyTransforms(working)
+        }
+        offsetXSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(offsetX = v.toDouble())
+            applyTransforms(working)
+        }
+        offsetYSlider.valueProperty().addListener { _, _, v ->
+            working = working.copy(offsetY = v.toDouble())
+            applyTransforms(working)
+        }
+
+        val clearBtn = Button("Clear Image").apply {
+            isDisable = working.uri == null
+            setOnAction {
+                working = working.copy(uri = null)
+                loadImage(null)
+                isDisable = true
+            }
+        }
+
+        val chooseBtn = Button("Choose Image…").apply {
+            setOnAction {
+                val chooser = FileChooser().apply {
+                    title = "Select token image"
+                    extensionFilters.addAll(
+                        FileChooser.ExtensionFilter(
+                            "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif",
+                        ),
+                        FileChooser.ExtensionFilter("All files", "*.*"),
+                    )
+                }
+                val file = chooser.showOpenDialog(owner)
+                if (file != null) {
+                    val uri = file.toURI().toString()
+                    if (loadImage(uri)) {
+                        working = working.copy(uri = uri)
+                        applyTransforms(working)
+                        clearBtn.isDisable = false
+                    }
+                }
+            }
+        }
+
+        val content = VBox(
+            10.0,
+            previewPane,
+            HBox(8.0, chooseBtn, clearBtn),
+            Label("Scale X"), HBox(8.0, scaleXSlider, scaleXField).apply { HBox.setHgrow(scaleXSlider, Priority.ALWAYS) },
+            Label("Scale Y"), HBox(8.0, scaleYSlider, scaleYField).apply { HBox.setHgrow(scaleYSlider, Priority.ALWAYS) },
+            Label("Offset X"), HBox(8.0, offsetXSlider, offsetXField).apply { HBox.setHgrow(offsetXSlider, Priority.ALWAYS) },
+            Label("Offset Y"), HBox(8.0, offsetYSlider, offsetYField).apply { HBox.setHgrow(offsetYSlider, Priority.ALWAYS) },
+        ).apply { padding = Insets(10.0) }
+
+        dialog.dialogPane.content = content
+        dialog.setResultConverter { button ->
+            if (button == ButtonType.OK) working else null
+        }
+
+        return dialog.showAndWait().orElse(null)
+    }
+
+    // ── Preset library dialog ─────────────────────────────────────────────────
+
+    /**
+     * Opens a modal dialog that lists all presets saved in [PresetLibrary],
+     * grouped by the subdirectory they live in.
+     *
+     * The header contains an **Open Preset Folder** button that opens
+     * `~/.tabletopcontrol/presets/` in the operating system's file manager,
+     * allowing the DM to organise presets into subfolders and add/remove
+     * files without using the in-app controls.
+     *
+     * From the dialog the DM can:
+     * - **Load** a preset, which adds it to the tracker as a new combatant.
+     * - **Delete** a preset, which removes it from the library permanently.
+     *
+     * @param owner   the owning window for the dialog (may be `null`).
+     * @param refresh callback invoked after a preset is loaded so the card pane
+     *                is rebuilt to show the new combatant.
+     */
+    private fun showPresetsDialog(owner: javafx.stage.Window?, refresh: () -> Unit) {
+        val dialog = Dialog<Unit>().apply {
+            title = "Presets"
+            owner?.let { initOwner(it) }
+            dialogPane.buttonTypes.setAll(ButtonType.CLOSE)
+        }
+
+        val listBox = VBox(4.0).apply { padding = Insets(4.0) }
+
+        // Monotonically-increasing counter; each rebuildList() call captures its own
+        // generation value and only applies results when no newer call has started.
+        val rebuildGeneration = AtomicInteger(0)
+
+        // Single-thread executor caps concurrent disk reads to one task at a time,
+        // regardless of how many times rebuildList() is called (e.g. once per delete).
+        // The daemon thread keeps the JVM from blocking on shutdown.
+        val rebuildExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "preset-rebuild").apply { isDaemon = true }
+        }
+
+        fun rebuildList() {
+            // Show a "Loading" placeholder immediately so the user sees feedback.
+            listBox.children.setAll(Label("Loading…").apply { padding = Insets(8.0) })
+            // Capture the generation for this specific load; discard results if
+            // a subsequent rebuildList() call has already incremented past it.
+            val generation = rebuildGeneration.incrementAndGet()
+            // loadAll() reads every .preset file — potentially several MB of Base64 on
+            // large libraries — so run it via rebuildExecutor (a single-thread daemon
+            // executor) to keep the UI responsive on slow disks and low-power devices
+            // such as Raspberry Pi, while bounding concurrency to one task at a time.
+            rebuildExecutor.submit {
+                val presets = PresetLibrary.loadAll()
+                Platform.runLater {
+                    // Only apply results from the most recent load to prevent stale
+                    // data from an older background thread overwriting a newer list.
+                    if (rebuildGeneration.get() != generation) return@runLater
+                    listBox.children.clear()
+                    if (presets.isEmpty()) {
+                        listBox.children.add(
+                            Label("No presets saved yet. Use the ★ button on a card to save one.").apply {
+                                padding = Insets(8.0)
+                            },
+                        )
+                    } else {
+                        // Group presets by folder; root presets (folder = "") are listed first.
+                        val grouped = presets.groupBy { it.folder }
+                        val sortedFolders = grouped.keys.sortedWith(
+                            compareBy({ if (it.isEmpty()) 0 else 1 }, { it }),
+                        )
+                        val hasMultipleFolders = sortedFolders.size > 1
+
+                        for (folder in sortedFolders) {
+                            val presetsInFolder = grouped[folder] ?: continue
+
+                            // Section header — only shown when there is more than one group.
+                            if (hasMultipleFolders) {
+                                val headerText = if (folder.isEmpty()) "📂 Root" else "📁 $folder"
+                                listBox.children.add(
+                                    Label(headerText).apply {
+                                        style = "-fx-font-weight: bold;"
+                                        padding = Insets(6.0, 2.0, 2.0, 2.0)
+                                    },
+                                )
+                            }
+
+                            for (preset in presetsInFolder) {
+                                val info = Label(
+                                    "${preset.name}  HP: ${preset.hp}  AC: ${preset.ac}  Init: ${preset.initiative}",
+                                ).apply {
+                                    HBox.setHgrow(this, Priority.ALWAYS)
+                                }
+
+                                val loadBtn = Button("Load").apply {
+                                    tooltip = Tooltip("Add this combatant to the initiative tracker")
+                                    setOnAction {
+                                        val color = TOKEN_COLORS[tokenColorIndex++ % TOKEN_COLORS.size]
+                                        val id = UUID.randomUUID().toString()
+                                        val previousActiveId = tokenIds.getOrNull(tracker.currentIndex)
+                                        // Snapshot entry references before the add so we can map each
+                                        // pre-existing entry to its current token id.  Use an IdentityHashMap
+                                        // so that multiple entries with identical stats (e.g. a group of
+                                        // identical enemies) are never confused with each other.
+                                        val entriesBefore = tracker.entries
+                                        val entryToId = IdentityHashMap<InitiativeTracker.Entry, String>().also { map ->
+                                            entriesBefore.indices.forEach { i ->
+                                                map[entriesBefore[i]] = tokenIds.getOrElse(i) { "" }
+                                            }
+                                        }
+                                        tracker.add(preset.name, preset.initiative, preset.hp, preset.ac)
+                                        val entriesAfter = tracker.entries
+                                        // Rebuild tokenIds in the new post-sort order.  Pre-existing entries
+                                        // keep their id; the one entry not found in entryToId is the new one.
+                                        val newIds = entriesAfter.map { entry -> entryToId[entry] ?: id }
+                                        // Preserve the same logical combatant as active across the add+sort
+                                        // operation by restoring currentIndex based on the previously-active id.
+                                        if (previousActiveId != null) {
+                                            val newActiveIndex = newIds.indexOf(previousActiveId)
+                                            if (newActiveIndex >= 0) {
+                                                tracker.jumpTo(newActiveIndex)
+                                            }
+                                        }
+                                        tokenIds.clear()
+                                        tokenIds.addAll(newIds)
+                                        tokenColors[id] = color
+
+                                        // Use the original imageUri immediately so the token appears right
+                                        // away; if there is an embedded Base64 thumbnail it will be decoded
+                                        // in the background and pushed via Platform.runLater once ready,
+                                        // keeping this event handler fast on low-power devices.
+                                        val initialUri = preset.imageUri
+                                        tokenImages[id] = TokenImageSettings(
+                                            uri = initialUri,
+                                            scaleX = preset.imageScaleX,
+                                            scaleY = preset.imageScaleY,
+                                            offsetX = preset.imageOffsetX,
+                                            offsetY = preset.imageOffsetY,
+                                        )
+
+                                        EventBus.publish(TokenAddedEvent(id, preset.name, color))
+                                        if (initialUri != null) {
+                                            EventBus.publish(
+                                                TokenImageChangedEvent(
+                                                    id = id,
+                                                    imageUri = initialUri,
+                                                    imageScaleX = preset.imageScaleX,
+                                                    imageScaleY = preset.imageScaleY,
+                                                    imageOffsetX = preset.imageOffsetX,
+                                                    imageOffsetY = preset.imageOffsetY,
+                                                ),
+                                            )
+                                        }
+                                        if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
+                                            EventBus.publish(
+                                                ActiveTokenChangedEvent(
+                                                    tokenIds.getOrNull(tracker.currentIndex),
+                                                    tracker.currentEntry?.name,
+                                                ),
+                                            )
+                                        }
+                                        refresh()
+
+                                        // Decode the embedded thumbnail on a daemon thread and update the
+                                        // token image once ready — avoids blocking the UI thread on I/O and
+                                        // Base64 decode work (especially important on Raspberry Pi / SBCs).
+                                        if (preset.imageBase64 != null) {
+                                            Thread {
+                                                runCatching {
+                                                    val decodedUri =
+                                                        PresetLibrary.base64ToTempUri(preset.imageBase64)
+                                                            ?: return@runCatching
+                                                    Platform.runLater {
+                                                        // Guard: if the combatant was removed while the
+                                                        // thumbnail was decoding, skip the update so we
+                                                        // don't resurrect a stale token.
+                                                        if (!tokenIds.contains(id)) return@runLater
+                                                        // Guard: if the user changed the token image after
+                                                        // preset load but before the decode finished, skip
+                                                        // the update so we don't overwrite the newer selection.
+                                                        if (tokenImages[id]?.uri != initialUri) return@runLater
+                                                        tokenImages[id] = TokenImageSettings(
+                                                            uri = decodedUri,
+                                                            scaleX = preset.imageScaleX,
+                                                            scaleY = preset.imageScaleY,
+                                                            offsetX = preset.imageOffsetX,
+                                                            offsetY = preset.imageOffsetY,
+                                                        )
+                                                        EventBus.publish(
+                                                            TokenImageChangedEvent(
+                                                                id = id,
+                                                                imageUri = decodedUri,
+                                                                imageScaleX = preset.imageScaleX,
+                                                                imageScaleY = preset.imageScaleY,
+                                                                imageOffsetX = preset.imageOffsetX,
+                                                                imageOffsetY = preset.imageOffsetY,
+                                                            ),
+                                                        )
+                                                        // Refresh the DM-screen card so the image button
+                                                        // state updates even when initialUri was null
+                                                        // (preset with embedded Base64 but no imageUri).
+                                                        refresh()
+                                                    }
+                                                }
+                                            }.also { it.isDaemon = true }.start()
+                                        }
+                                    }
+                                }
+
+                                val deleteBtn = Button("Delete").apply {
+                                    tooltip = Tooltip("Remove all presets with this name from the library (across all folders)")
+                                    setOnAction {
+                                        val alert = Alert(Alert.AlertType.CONFIRMATION).apply {
+                                            title = "Delete preset"
+                                            headerText = "Delete all presets named \"${preset.name}\"?"
+                                            contentText =
+                                                "This will remove every preset with this name from the presets folder " +
+                                                "and all subfolders. This action cannot be undone."
+                                        }
+                                        val result = alert.showAndWait()
+                                        if (result.isPresent && result.get() == ButtonType.OK) {
+                                            PresetLibrary.delete(preset.name)
+                                            rebuildList()
+                                        }
+                                    }
+                                }
+
+                                listBox.children.add(
+                                    HBox(8.0, info, loadBtn, deleteBtn).apply {
+                                        alignment = javafx.geometry.Pos.CENTER_LEFT
+                                        padding = Insets(4.0, 2.0, 4.0, 2.0)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        rebuildList()
+
+        // "Open Preset Folder" button — opens the presets directory in the system file manager.
+        val openFolderBtn = Button("📂 Open Preset Folder").apply {
+            tooltip = Tooltip("Open the presets folder in the system file manager to organise presets into subfolders")
+            setOnAction {
+                Thread { PresetLibrary.openPresetsFolder() }.also { it.isDaemon = true }.start()
+            }
+        }
+
+        val headerBar = HBox(8.0).apply {
+            alignment = javafx.geometry.Pos.CENTER_LEFT
+            padding = Insets(0.0, 0.0, 8.0, 0.0)
+            children.addAll(
+                Label("Load or manage saved combatant presets").apply { HBox.setHgrow(this, Priority.ALWAYS) },
+                openFolderBtn,
+            )
+        }
+
+        dialog.dialogPane.content = VBox(
+            4.0,
+            headerBar,
+            ScrollPane(listBox).apply {
+                isFitToWidth = true
+                prefHeight = 300.0
+                hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+            },
+        )
+
+        dialog.showAndWait()
+        // Shut down the executor after the dialog closes so in-flight or queued
+        // tasks are cancelled and the daemon thread can be reclaimed promptly.
+        rebuildExecutor.shutdownNow()
+    }
 }

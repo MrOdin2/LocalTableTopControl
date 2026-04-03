@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audio Plugins – TabletopControl User Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside { width: 220px; flex-shrink: 0; }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    aside .toc ul ul { margin-left: 0.8rem; margin-top: 0.25rem; }
+    aside .other-docs { margin-top: 1rem; }
+    aside .other-docs h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .other-docs ul { list-style: none; }
+    aside .other-docs ul li { margin-bottom: 0.35rem; }
+    aside .other-docs ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .other-docs ul li a:hover { text-decoration: underline; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #333; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .tip strong { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    .sound-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin: 0.75rem 0;
+    }
+    .sound-grid .btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem;
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎵 Audio Plugins</h1>
+  <p>TabletopControl User Documentation</p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="../docs/index.html">Home</a> &rsaquo; Audio
+</nav>
+
+<div class="layout">
+
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#music">Music Player</a>
+          <ul>
+            <li><a href="#music-loading">Loading Tracks</a></li>
+            <li><a href="#music-controls">Playback Controls</a></li>
+            <li><a href="#music-volume">Volume &amp; Loop</a></li>
+            <li><a href="#music-master">Master Controls</a></li>
+          </ul>
+        </li>
+        <li><a href="#soundboard">Soundboard</a>
+          <ul>
+            <li><a href="#soundboard-load">Loading Sounds</a></li>
+            <li><a href="#soundboard-play">Playing Sounds</a></li>
+            <li><a href="#soundboard-layout">Responsive Layout</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    <div class="other-docs">
+      <h2>Other Plugins</h2>
+      <ul>
+        <li><a href="../map/UserDoc.html">🗺️ Map</a></li>
+        <li><a href="../tracker/UserDoc.html">⚔️ Tracker</a></li>
+        <li><a href="../light/UserDoc.html">💡 Lighting</a></li>
+        <li><a href="../docs/cross-plugin.html">🔗 Cross-Plugin</a></li>
+        <li><a href="../docs/index.html">📖 Home</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        TabletopControl provides two separate audio plugins that can be displayed side-by-side in
+        the DM panel:
+      </p>
+      <ul>
+        <li>
+          <strong>Music Player</strong> — three independent audio tracks for layered ambient
+          soundscapes (e.g. background music, atmospheric sounds, and environmental loops all
+          playing at once).
+        </li>
+        <li>
+          <strong>Soundboard</strong> — 16 quick-fire buttons for instant sound effects (combat
+          hits, door creaks, tavern noise, etc.).
+        </li>
+      </ul>
+      <p>
+        All audio is loaded from files on your computer. No internet connection is required for
+        playback.
+      </p>
+    </section>
+
+    <section id="music">
+      <h2>Music Player</h2>
+      <p>
+        The Music Player provides <strong>three independent tracks</strong> that play simultaneously,
+        each with its own file, playback controls, and volume slider. Use them to layer a
+        background music track, a wind or rain loop, and a subtle tavern ambience all at once.
+      </p>
+
+      <h3 id="music-loading">Loading Tracks</h3>
+      <p>
+        Each of the three track rows has a <strong>Browse</strong> (or file picker) button. Click it
+        and select an audio file from your computer. Supported formats include MP3 and other formats
+        supported by your Java runtime.
+      </p>
+      <p>
+        The file name is shown next to the button once a track is loaded. You can change the file at
+        any time — even while the other tracks are playing.
+      </p>
+
+      <h3 id="music-controls">Playback Controls</h3>
+      <table>
+        <tr><th>Control</th><th>Description</th></tr>
+        <tr><td>▶ Play / ⏸ Pause</td><td>Start or pause playback of this track. The button toggles between the two states.</td></tr>
+        <tr><td>⏹ Stop</td><td>Stop playback and reset the position to the beginning.</td></tr>
+        <tr><td>Progress bar</td><td>Shows how far through the track you are. The elapsed and total time are displayed alongside it.</td></tr>
+      </table>
+
+      <h3 id="music-volume">Volume &amp; Loop</h3>
+      <table>
+        <tr><th>Control</th><th>Description</th></tr>
+        <tr><td>Volume slider</td><td>Sets the volume for this individual track (0–100%). Independent of the other tracks and the master volume.</td></tr>
+        <tr><td>Loop checkbox</td><td>When ticked, the track restarts automatically when it reaches the end. Ideal for ambient loops.</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip:</strong> Enable looping on all three tracks and set them to different lengths
+        so they fall in and out of sync, creating a naturally evolving soundscape.
+      </div>
+
+      <h3 id="music-master">Master Controls</h3>
+      <p>
+        At the bottom (or top) of the Music Player panel you will find master controls that affect
+        all three tracks together:
+      </p>
+      <table>
+        <tr><th>Control</th><th>Description</th></tr>
+        <tr><td>Master Volume</td><td>A global volume multiplier applied on top of each track's individual volume.</td></tr>
+        <tr><td>Stop All</td><td>Immediately stops all three tracks and resets their positions to the beginning.</td></tr>
+      </table>
+    </section>
+
+    <section id="soundboard">
+      <h2>Soundboard</h2>
+      <p>
+        The Soundboard gives you <strong>16 instant-play buttons</strong> arranged in a grid. Each
+        button can be loaded with a sound effect that plays immediately when clicked — perfect for
+        combat sounds, door slams, thunder claps, and anything else that needs to happen right now.
+      </p>
+
+      <h3 id="soundboard-load">Loading Sounds</h3>
+      <p>
+        <strong>Right-click</strong> any button to open a file chooser and load a sound file onto
+        that button. The button label updates to show the file name (or a shortened version of it).
+      </p>
+      <p>
+        You can right-click a button that already has a sound to replace it with a different file.
+      </p>
+
+      <h3 id="soundboard-play">Playing Sounds</h3>
+      <p>
+        <strong>Left-click</strong> a loaded button to play the sound immediately. The button
+        indicates whether a sound is currently playing. When the sound finishes, the button resets
+        automatically — ready for the next click.
+      </p>
+      <p>
+        Clicking the same button again while a sound is still playing restarts it from the
+        beginning.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> Assign your most-used effects to the first row of buttons so they
+        are always visible, even when the soundboard panel is narrow.
+      </div>
+
+      <h3 id="soundboard-layout">Responsive Layout</h3>
+      <p>
+        The soundboard adapts to the available panel width:
+      </p>
+      <ul>
+        <li><strong>Wide panel</strong> — 8 buttons per row (2 rows of 8).</li>
+        <li><strong>Narrow panel</strong> — 2 buttons per column (8 rows of 2).</li>
+      </ul>
+      <p>
+        The layout switches automatically as you resize the DM panel. All 16 buttons are always
+        accessible regardless of the panel size.
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  TabletopControl User Documentation &mdash;
+  <a href="../docs/index.html">Home</a>
+</footer>
+
+</body>
+</html>
