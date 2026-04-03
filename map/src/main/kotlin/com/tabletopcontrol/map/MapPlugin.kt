@@ -110,6 +110,8 @@ class MapPlugin : DmPlugin {
      */
     private var fogInitialized = false
 
+    private val supportedMeasurementUnits = setOf("ft", "m")
+
     /**
      * Publishes [FogOfWarSetupEvent] the first time it is called, creating a fog grid
      * centred on the grid origin and large enough to cover a typical tabletop display.
@@ -343,17 +345,12 @@ class MapPlugin : DmPlugin {
         var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
         val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
-        var unitsComboBox: ComboBox<String>? = null
+        var measurementUnitsComboBox: ComboBox<String>? = null
 
         fun setMeasurementUnits(units: String) {
-            val normalized = units.trim().lowercase().let {
-                when (it) {
-                    "m", "ft" -> it
-                    else -> "ft"
-                }
-            }
+            val normalized = units.trim().lowercase().takeIf { it in supportedMeasurementUnits } ?: "ft"
             measurementUnits = normalized
-            val combo = unitsComboBox
+            val combo = measurementUnitsComboBox
             if (combo != null && combo.selectionModel.selectedItem != normalized) {
                 combo.selectionModel.select(normalized)
             }
@@ -665,7 +662,7 @@ class MapPlugin : DmPlugin {
                 setMeasurementUnits(value ?: "ft")
             }
         }
-        unitsComboBox = unitsBox
+        measurementUnitsComboBox = unitsBox
         val coneAngleBox = ComboBox<String>().apply {
             // Common tabletop cone templates (15°–120°) offered as quick presets.
             items.addAll("15°", "30°", "45°", "60°", "90°", "120°")
