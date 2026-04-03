@@ -102,6 +102,7 @@ class LightPlugin : DmPlugin {
      * so it can be removed before a new listener is added on subsequent [createView] calls.
      */
     private var effectParamsListener: (() -> Unit)? = null
+    private val recentColors = ArrayDeque<String>()
 
     init {
         // Forward every state change to the WLED device if connected.
@@ -311,7 +312,8 @@ class LightPlugin : DmPlugin {
      * Builds the color-picker row.
      */
     private fun buildColorRow(): HBox {
-        var currentColor = hexToColor(controller.color)
+        var appliedColor = hexToColor(controller.color)
+        var draftColor = appliedColor
         val menu = MenuButton().apply {
             tooltip = Tooltip("Select the ambient light color")
             maxWidth = Double.MAX_VALUE
@@ -330,7 +332,7 @@ class LightPlugin : DmPlugin {
             swatch.style = "-fx-background-color: $hex; -fx-background-radius: 3; -fx-border-radius: 3; -fx-border-color: -tc-border;"
             valueLabel.text = hex
         }
-        refreshButtonLabel(currentColor)
+        refreshButtonLabel(appliedColor)
         menu.graphic = HBox(8.0, swatch, valueLabel).apply { alignment = Pos.CENTER_LEFT }
         menu.text = ""
 
@@ -353,7 +355,7 @@ class LightPlugin : DmPlugin {
         }
 
         val valuePercentLabel = Label()
-        val valueSlider = Slider(0.0, 100.0, normalizedValuePercent(currentColor)).apply {
+        val valueSlider = Slider(0.0, 100.0, normalizedValuePercent(draftColor)).apply {
             blockIncrement = 1.0
             majorTickUnit = 25.0
             isShowTickMarks = true
@@ -361,34 +363,82 @@ class LightPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
             tooltip = Tooltip("Value (brightness)")
         }
-        val hexField = TextField(colorToHex(currentColor)).apply {
+        val hexField = TextField(colorToHex(draftColor)).apply {
             prefColumnCount = 8
             promptText = "#RRGGBB"
             tooltip = Tooltip("Hex color")
         }
-        val rField = TextField(((currentColor.red * 255).toInt()).toString()).apply {
+        val rField = TextField(((draftColor.red * 255).toInt()).toString()).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Red (0–255)")
         }
-        val gField = TextField(((currentColor.green * 255).toInt()).toString()).apply {
+        val gField = TextField(((draftColor.green * 255).toInt()).toString()).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Green (0–255)")
         }
-        val bField = TextField(((currentColor.blue * 255).toInt()).toString()).apply {
+        val bField = TextField(((draftColor.blue * 255).toInt()).toString()).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Blue (0–255)")
         }
-        val hField = TextField(normalizedHueDegrees(currentColor).toInt().toString()).apply {
+        val hField = TextField(normalizedHueDegrees(draftColor).toInt().toString()).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Hue (0–359°)")
         }
-        val sField = TextField((currentColor.saturation * 100.0).toInt().toString()).apply {
+        val sField = TextField((draftColor.saturation * 100.0).toInt().toString()).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Saturation (0–100%)")
         }
-        val vField = TextField((currentColor.brightness * 100.0).toInt().toString()).apply {
+        val vField = TextField((draftColor.brightness * 100.0).toInt().toString()).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Value (0–100%)")
+        }
+        val currentSwatch = Region().apply {
+            minWidth = 28.0
+            minHeight = 28.0
+            prefWidth = 28.0
+            prefHeight = 28.0
+            style = "-fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
+        }
+        val newSwatch = Region().apply {
+            minWidth = 28.0
+            minHeight = 28.0
+            prefWidth = 28.0
+            prefHeight = 28.0
+            style = "-fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
+        }
+        val currentHex = Label()
+        val newHex = Label()
+        val recentBox = VBox(6.0)
+        lateinit var applyDraftColor: (Color) -> Unit
+        fun styleSwatch(region: Region, color: Color) {
+            region.style = "-fx-background-color: ${colorToHex(color)}; -fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
+        }
+        fun renderRecentColors() {
+            recentBox.children.clear()
+            recentColors.forEach { hex ->
+                val color = Color.web(hex)
+                val recentSwatch = Region().apply {
+                    minWidth = 24.0
+                    minHeight = 24.0
+                    prefWidth = 24.0
+                    prefHeight = 24.0
+                    styleSwatch(this, color)
+                }
+                val btn = Button("", recentSwatch).apply {
+                    contentDisplay = javafx.scene.control.ContentDisplay.GRAPHIC_ONLY
+                    tooltip = Tooltip(hex)
+                    setOnAction { applyDraftColor(color) }
+                    prefWidth = 34.0
+                }
+                recentBox.children.add(btn)
+            }
+        }
+        fun rememberRecentColor(color: Color) {
+            val hex = colorToHex(color)
+            recentColors.remove(hex)
+            recentColors.addFirst(hex)
+            while (recentColors.size > MAX_RECENT_COLORS) recentColors.removeLast()
+            renderRecentColors()
         }
 
         var isUpdatingInputs = false
@@ -432,11 +482,15 @@ class LightPlugin : DmPlugin {
             drawWheel(valuePercent)
             lastWheelValuePercent = valuePercent
         }
-        fun applyColor(color: Color) {
+        fun refreshComparisonPanel() {
+            styleSwatch(currentSwatch, appliedColor)
+            styleSwatch(newSwatch, draftColor)
+            currentHex.text = colorToHex(appliedColor)
+            newHex.text = colorToHex(draftColor)
+        }
+        applyDraftColor = { color ->
             val clamped = Color.hsb(color.hue, color.saturation, color.brightness.coerceIn(0.0, 1.0))
-            currentColor = clamped
-            controller.setColor(colorToHex(clamped))
-            refreshButtonLabel(clamped)
+            draftColor = clamped
             isUpdatingInputs = true
             try {
                 valueSlider.value = normalizedValuePercent(clamped)
@@ -453,6 +507,7 @@ class LightPlugin : DmPlugin {
             }
             redrawWheelIfNeeded(clamped.brightness)
             markerFromColor(clamped)
+            refreshComparisonPanel()
         }
         fun fromWheel(x: Double, y: Double) {
             val dx = (x - wheelRadius)
@@ -460,15 +515,15 @@ class LightPlugin : DmPlugin {
             val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtMost(wheelRadius)
             val saturation = (distance / wheelRadius).coerceIn(0.0, 1.0)
             val hue = ((kotlin.math.atan2(dy, dx) * 180.0 / kotlin.math.PI) + 360.0) % 360.0
-            applyColor(Color.hsb(hue, saturation, valueSlider.value / 100.0))
+            applyDraftColor(Color.hsb(hue, saturation, valueSlider.value / 100.0))
         }
         wheelPane.setOnMousePressed { e -> fromWheel(e.x, e.y) }
         wheelPane.setOnMouseDragged { e -> fromWheel(e.x, e.y) }
 
         valueSlider.valueProperty().addListener { _, _, newValue ->
             if (isUpdatingInputs) return@addListener
-            val c = currentColor
-            applyColor(Color.hsb(c.hue, c.saturation, newValue.toDouble() / 100.0))
+            val c = draftColor
+            applyDraftColor(Color.hsb(c.hue, c.saturation, newValue.toDouble() / 100.0))
         }
         fun parseIntField(field: TextField, min: Int, max: Int): Int? =
             field.text.trim().toIntOrNull()?.coerceIn(min, max)
@@ -477,22 +532,40 @@ class LightPlugin : DmPlugin {
             val red = parseIntField(rField, 0, 255) ?: return
             val green = parseIntField(gField, 0, 255) ?: return
             val blue = parseIntField(bField, 0, 255) ?: return
-            applyColor(Color.rgb(red, green, blue))
+            applyDraftColor(Color.rgb(red, green, blue))
         }
 
         fun applyFromHsvFields() {
             val hue = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, MAX_HUE_BELOW_360) ?: return
             val saturation = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
             val value = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
-            applyColor(Color.hsb(hue, saturation / 100.0, value / 100.0))
+            applyDraftColor(Color.hsb(hue, saturation / 100.0, value / 100.0))
         }
 
         hexField.setOnAction {
             val text = hexField.text.trim()
-            runCatching { Color.web(text) }.getOrNull()?.let { applyColor(it) }
+            runCatching { Color.web(text) }.getOrNull()?.let { applyDraftColor(it) }
         }
         listOf(rField, gField, bField).forEach { it.setOnAction { applyFromRgbFields() } }
         listOf(hField, sField, vField).forEach { it.setOnAction { applyFromHsvFields() } }
+
+        val saveBtn = Button("Save").apply {
+            setOnAction {
+                appliedColor = draftColor
+                controller.setColor(colorToHex(appliedColor))
+                refreshButtonLabel(appliedColor)
+                rememberRecentColor(appliedColor)
+                refreshComparisonPanel()
+                menu.hide()
+            }
+        }
+        val cancelBtn = Button("Cancel").apply {
+            setOnAction {
+                draftColor = appliedColor
+                applyDraftColor(draftColor)
+                menu.hide()
+            }
+        }
 
         val inputs = GridPane().apply {
             hgap = 6.0
@@ -514,21 +587,44 @@ class LightPlugin : DmPlugin {
             add(Label("V"), 4, 2)
             add(vField, 5, 2)
         }
+        val comparison = VBox(6.0,
+            Label("Current / New"),
+            HBox(6.0, currentSwatch, currentHex),
+            HBox(6.0, newSwatch, newHex),
+            Separator(),
+            Label("Recent"),
+            recentBox,
+        ).apply { prefWidth = 132.0 }
 
-        val popupContent = VBox(8.0,
-            wheelPane,
-            HBox(8.0, Label("Value"), valueSlider, valuePercentLabel).apply {
-                HBox.setHgrow(valueSlider, Priority.ALWAYS)
-                alignment = Pos.CENTER_LEFT
-            },
-            inputs,
-        ).apply {
+        val editor = VBox(8.0,
+            HBox(8.0,
+                VBox(8.0,
+                    wheelPane,
+                    HBox(8.0, Label("Value"), valueSlider, valuePercentLabel).apply {
+                        HBox.setHgrow(valueSlider, Priority.ALWAYS)
+                        alignment = Pos.CENTER_LEFT
+                    },
+                    inputs,
+                ).apply { HBox.setHgrow(this, Priority.ALWAYS) },
+                comparison,
+            ),
+            HBox(8.0, saveBtn, cancelBtn).apply { alignment = Pos.CENTER_RIGHT },
+        )
+        val popupContent = VBox(editor).apply {
             padding = Insets(8.0)
-            prefWidth = 320.0
+            prefWidth = 470.0
         }
 
         menu.items.add(CustomMenuItem(popupContent, false))
-        applyColor(currentColor)
+        renderRecentColors()
+        refreshComparisonPanel()
+        menu.showingProperty().addListener { _, _, showing ->
+            if (showing) {
+                draftColor = appliedColor
+                applyDraftColor(draftColor)
+            }
+        }
+        applyDraftColor(draftColor)
 
         return HBox(8.0, Label("Color:"), menu).apply {
             HBox.setHgrow(menu, Priority.ALWAYS)
@@ -968,6 +1064,7 @@ class LightPlugin : DmPlugin {
     private companion object {
         private val SERIAL_ERROR_LOG_THROTTLE_NANOS: Long = TimeUnit.SECONDS.toNanos(2)
         private const val WHEEL_NOT_DRAWN: Int = -1
+        private const val MAX_RECENT_COLORS: Int = 10
         private const val MARKER_WHITE_STROKE_BRIGHTNESS_THRESHOLD: Double = 0.45
         /** Practical hue upper bound kept below 360 because 360 maps to 0 in HSB. */
         private const val MAX_HUE_BELOW_360: Double = 359.999
