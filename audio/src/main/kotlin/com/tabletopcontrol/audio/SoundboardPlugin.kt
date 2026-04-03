@@ -19,6 +19,7 @@ import javafx.scene.control.Slider
 import javafx.scene.control.Tooltip
 import javafx.scene.image.PixelWriter
 import javafx.scene.image.WritableImage
+import javafx.scene.input.KeyCode
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.StackPane
@@ -31,6 +32,11 @@ import javafx.scene.shape.Circle
 import javafx.stage.FileChooser
 import java.io.File
 import java.util.Base64
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * DM-panel plugin for a simple soundboard.
@@ -374,7 +380,13 @@ class SoundboardPlugin : DmPlugin {
             return false
         }
 
-        slot.player = MediaPlayer(media).apply {
+        val player = try {
+            MediaPlayer(media)
+        } catch (_: Exception) {
+            return false
+        }
+
+        slot.player = player.apply {
             cycleCount = 1
 
             setOnEndOfMedia {
@@ -465,22 +477,33 @@ class SoundboardPlugin : DmPlugin {
         val brightnessSlider = Slider(0.0, 1.0, initial.brightness).apply {
             tooltip = Tooltip("Brightness")
         }
+        val center = wheelSize / 2.0
+        val radius = center - 2.0
+        val hueMap = Array(wheelSize) { DoubleArray(wheelSize) }
+        val saturationMap = Array(wheelSize) { DoubleArray(wheelSize) }
+        val inWheel = Array(wheelSize) { BooleanArray(wheelSize) }
         var selectedColor = initial
+
+        for (y in 0 until wheelSize) {
+            for (x in 0 until wheelSize) {
+                val dx = x - center
+                val dy = y - center
+                val distance = sqrt(dx * dx + dy * dy)
+                if (distance <= radius) {
+                    inWheel[y][x] = true
+                    saturationMap[y][x] = (distance / radius).coerceIn(0.0, 1.0)
+                    hueMap[y][x] = ((atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
+                }
+            }
+        }
 
         fun drawWheel() {
             val writer: PixelWriter = wheelImage.pixelWriter
-            val center = wheelSize / 2.0
-            val radius = center - 2.0
             val brightness = brightnessSlider.value
             for (y in 0 until wheelSize) {
                 for (x in 0 until wheelSize) {
-                    val dx = x - center
-                    val dy = y - center
-                    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-                    val pixelColor = if (distance <= radius) {
-                        val saturation = (distance / radius).coerceIn(0.0, 1.0)
-                        val hue = ((kotlin.math.atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
-                        Color.hsb(hue, saturation, brightness)
+                    val pixelColor = if (inWheel[y][x]) {
+                        Color.hsb(hueMap[y][x], saturationMap[y][x], brightness)
                     } else {
                         Color.TRANSPARENT
                     }
@@ -490,12 +513,10 @@ class SoundboardPlugin : DmPlugin {
         }
 
         fun updateMarkerPosition(color: Color) {
-            val center = wheelSize / 2.0
-            val radius = center - 2.0
             val angle = Math.toRadians(color.hue)
             val distance = color.saturation * radius
-            val markerX = center + kotlin.math.cos(angle) * distance
-            val markerY = center + kotlin.math.sin(angle) * distance
+            val markerX = center + cos(angle) * distance
+            val markerY = center + sin(angle) * distance
             markerOuter.translateX = markerX - center
             markerOuter.translateY = markerY - center
             markerInner.translateX = markerX - center
@@ -503,13 +524,11 @@ class SoundboardPlugin : DmPlugin {
         }
 
         fun updateSelectionFrom(x: Double, y: Double) {
-            val center = wheelSize / 2.0
-            val radius = center - 2.0
             val dx = x - center
             val dy = y - center
-            val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtMost(radius)
+            val distance = sqrt(dx * dx + dy * dy).coerceAtMost(radius)
             val saturation = (distance / radius).coerceIn(0.0, 1.0)
-            val hue = ((kotlin.math.atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
+            val hue = ((atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
             selectedColor = Color.hsb(hue, saturation, brightnessSlider.value)
             preview.fill = selectedColor
             updateMarkerPosition(selectedColor)
@@ -519,6 +538,24 @@ class SoundboardPlugin : DmPlugin {
         updateMarkerPosition(selectedColor)
         wheelContainer.setOnMousePressed { updateSelectionFrom(it.x, it.y) }
         wheelContainer.setOnMouseDragged { updateSelectionFrom(it.x, it.y) }
+        wheelContainer.isFocusTraversable = true
+        wheelContainer.accessibleText = "Color wheel. Use arrow keys to adjust hue and saturation."
+        wheelContainer.setOnKeyPressed { event ->
+            val hueStep = 3.0
+            val saturationStep = 0.02
+            selectedColor = when (event.code) {
+                KeyCode.LEFT -> Color.hsb((selectedColor.hue - hueStep + 360.0) % 360.0, selectedColor.saturation, brightnessSlider.value)
+                KeyCode.RIGHT -> Color.hsb((selectedColor.hue + hueStep) % 360.0, selectedColor.saturation, brightnessSlider.value)
+                KeyCode.UP -> Color.hsb(selectedColor.hue, (selectedColor.saturation + saturationStep).coerceIn(0.0, 1.0), brightnessSlider.value)
+                KeyCode.DOWN -> Color.hsb(selectedColor.hue, (selectedColor.saturation - saturationStep).coerceIn(0.0, 1.0), brightnessSlider.value)
+                else -> selectedColor
+            }
+            if (event.code in setOf(KeyCode.LEFT, KeyCode.RIGHT, KeyCode.UP, KeyCode.DOWN)) {
+                preview.fill = selectedColor
+                updateMarkerPosition(selectedColor)
+                event.consume()
+            }
+        }
         brightnessSlider.valueProperty().addListener { _, _, newValue ->
             selectedColor = Color.hsb(selectedColor.hue, selectedColor.saturation, newValue.toDouble())
             preview.fill = selectedColor
@@ -594,9 +631,9 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun colorToHex(color: Color): String {
-        val r = (color.red * 255).toInt()
-        val g = (color.green * 255).toInt()
-        val b = (color.blue * 255).toInt()
+        val r = (color.red * 255).roundToInt().coerceIn(0, 255)
+        val g = (color.green * 255).roundToInt().coerceIn(0, 255)
+        val b = (color.blue * 255).roundToInt().coerceIn(0, 255)
         return "#%02X%02X%02X".format(r, g, b)
     }
 
