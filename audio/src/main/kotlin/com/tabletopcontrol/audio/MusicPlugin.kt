@@ -8,6 +8,7 @@ import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import javafx.beans.value.ChangeListener
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
@@ -70,7 +71,7 @@ class MusicPlugin : DmPlugin {
     private lateinit var dropIndicator: DropIndicator
 
     override fun createView(): Node {
-        tracks.forEach { it.player?.dispose() }
+        tracks.forEach(::disposeTrackPlayer)
         val loaded = MusicSettingsSerializer.load()
         masterVolume = loaded.masterVolume
         tracks.clear()
@@ -105,7 +106,7 @@ class MusicPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
-        tracks.forEach { it.player?.dispose() }
+        tracks.forEach(::disposeTrackPlayer)
         saveSettings()
     }
 
@@ -152,7 +153,7 @@ class MusicPlugin : DmPlugin {
     }
 
     /** Builds the control content for a single track. */
-    private fun buildTrackCard(index: Int, track: TrackState): VBox {
+    private fun buildTrackCard(index: Int, track: TrackState): TrackCardNodes {
         val pathLabel = Label(track.uri?.let(::fileNameFromUri) ?: "No file loaded").apply {
             maxWidth = Double.MAX_VALUE
             tooltip = Tooltip(track.uri ?: "No file loaded")
@@ -179,7 +180,14 @@ class MusicPlugin : DmPlugin {
             valueProperty().addListener { _, _, newValue ->
                 track.volume = newValue.toDouble()
                 track.player?.volume = masterVolume * track.volume
-                saveSettings()
+                if (!isValueChanging) {
+                    saveSettings()
+                }
+            }
+            valueChangingProperty().addListener { _, wasChanging, isChanging ->
+                if (wasChanging && !isChanging) {
+                    saveSettings()
+                }
             }
         }
 
@@ -279,7 +287,7 @@ class MusicPlugin : DmPlugin {
             }
         }
 
-        return card
+        return TrackCardNodes(card = card, dragHandle = grabHandle)
     }
 
     // -------------------------------------------------------------------------
@@ -302,8 +310,7 @@ class MusicPlugin : DmPlugin {
         timeLabel: Label,
     ) {
         val uri = track.uri ?: return
-        track.player?.dispose()
-        track.player = null
+        disposeTrackPlayer(track)
 
         // Disable controls while the new media loads.
         playPauseBtn.isDisable = true
@@ -362,14 +369,17 @@ class MusicPlugin : DmPlugin {
 
         // currentTimeProperty fires on the FX thread; no Platform.runLater needed.
         // Early firings (before media is READY) return immediately via the isUnknown guard.
-        player.currentTimeProperty().addListener { _, _, current ->
-            val total = media.duration ?: return@addListener
-            if (total.isUnknown || total.isIndefinite) return@addListener
+        track.timeListener?.let(player.currentTimeProperty()::removeListener)
+        val timeListener = ChangeListener<Duration> { _, _, current ->
+            val total = media.duration
+            if (total.isUnknown || total.isIndefinite) return@ChangeListener
             val frac = (current.toSeconds() / total.toSeconds()).coerceIn(0.0, 1.0)
             val remaining = total.subtract(current)
             progressBar.progress = frac
             timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
         }
+        track.timeListener = timeListener
+        player.currentTimeProperty().addListener(timeListener)
 
         player.setOnError {
             Platform.runLater {
@@ -397,10 +407,10 @@ class MusicPlugin : DmPlugin {
         )
 
         tracks.forEachIndexed { index, track ->
-            val card = buildTrackCard(index, track)
-            DragDropSupport.installDragSource(card, index, dragContext)
-            DragDropSupport.installDropTarget(card, index, dragContext, dropIndicator)
-            tracksContainer.children.add(card)
+            val cardNodes = buildTrackCard(index, track)
+            DragDropSupport.installDragSource(cardNodes.dragHandle, index, dragContext)
+            DragDropSupport.installDropTarget(cardNodes.card, index, dragContext, dropIndicator)
+            tracksContainer.children.add(cardNodes.card)
         }
 
         addTrackButton.isDisable = tracks.size >= MAX_TRACK_COUNT
@@ -415,7 +425,7 @@ class MusicPlugin : DmPlugin {
 
     private fun removeTrack(index: Int) {
         if (tracks.size <= 1 || index !in tracks.indices) return
-        tracks.removeAt(index).player?.dispose()
+        disposeTrackPlayer(tracks.removeAt(index))
         rebuildTrackCards()
         saveSettings()
     }
@@ -438,6 +448,14 @@ class MusicPlugin : DmPlugin {
                 },
             ),
         )
+    }
+
+    private fun disposeTrackPlayer(track: TrackState) {
+        val player = track.player ?: return
+        track.timeListener?.let(player.currentTimeProperty()::removeListener)
+        track.timeListener = null
+        player.dispose()
+        track.player = null
     }
 
     /** Formats a [Duration] as `M:SS`, or [TIME_UNKNOWN] for unknown/indefinite durations. */
@@ -463,5 +481,11 @@ class MusicPlugin : DmPlugin {
         var loop: Boolean = true,
         var player: MediaPlayer? = null,
         var playPauseBtn: Button? = null,
+        var timeListener: ChangeListener<Duration>? = null,
+    )
+
+    private data class TrackCardNodes(
+        val card: VBox,
+        val dragHandle: Node,
     )
 }
