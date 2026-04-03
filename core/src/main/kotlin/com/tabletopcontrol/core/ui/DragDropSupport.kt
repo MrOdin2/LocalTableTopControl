@@ -92,7 +92,7 @@ object DragDropSupport {
                 val sourceData = board.getContent(format) as? String ?: ""
                 val fromIdx = sourceData.toIntOrNull()
                 val isSameItem = fromIdx == index
-                if (!isSameItem && e.gestureSource !== node && context.canAcceptDrop(sourceData)) {
+                if (fromIdx != null && !isSameItem && e.gestureSource !== node && context.canAcceptDrop(sourceData)) {
                     e.acceptTransferModes(TransferMode.MOVE)
                     if (dropIndicator != null) {
                         repositionIndicator(dropIndicator, node)
