@@ -1,6 +1,13 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.ui.ContextMenuRenderer
+import com.tabletopcontrol.core.ui.DragDropContext
+import com.tabletopcontrol.core.ui.DragDropSupport
+import com.tabletopcontrol.core.ui.DropIndicator
+import com.tabletopcontrol.core.ui.GrabHandle
+import com.tabletopcontrol.core.ui.MenuAction
+import com.tabletopcontrol.core.ui.MenuSection
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
@@ -11,7 +18,6 @@ import javafx.scene.control.ProgressBar
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Separator
 import javafx.scene.control.Slider
-import javafx.scene.control.TitledPane
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
@@ -20,27 +26,29 @@ import javafx.scene.media.Media
 import javafx.scene.media.MediaPlayer
 import javafx.stage.FileChooser
 import javafx.util.Duration
+import java.io.File
+import java.net.URI
 
 /**
  * DM-panel plugin for layered music control.
  *
- * Provides [TRACK_COUNT] independent music tracks, each with:
+ * Provides an ordered list of independent music tracks, each with:
  * - .mp3 (and other audio format) file selection
  * - play/pause, stop, and loop controls
  * - per-track volume slider
  * - per-track progress bar and remaining-time display
  *
  * A master row contains a volume slider and a "Stop All" button that halts
- * every track simultaneously.  Each track is wrapped in a collapsible
- * [TitledPane] so the DM can hide inactive tracks to reclaim pane space.
+ * every track simultaneously. Track cards can be added, reordered via drag/drop,
+ * and removed from a right-click context menu.
  */
 class MusicPlugin : DmPlugin {
 
     override val displayName: String = "Music"
 
     companion object {
-        /** Number of independent music layers. */
-        const val TRACK_COUNT = 3
+        /** Maximum number of simultaneous music tracks. */
+        const val MAX_TRACK_COUNT = 16
 
         private const val TIME_UNKNOWN = "--:--"
     }
@@ -48,31 +56,46 @@ class MusicPlugin : DmPlugin {
     /** Current master volume level in the range 0.0–1.0. */
     private var masterVolume: Double = 1.0
 
-    /** One [MediaPlayer] per track; `null` when no file is loaded for that track. */
-    private val players = arrayOfNulls<MediaPlayer>(TRACK_COUNT)
+    /** Ordered list of track states. */
+    private val tracks = mutableListOf<TrackState>()
 
-    /** Per-track volume levels in the range 0.0–1.0. */
-    private val trackVolumes = DoubleArray(TRACK_COUNT) { 1.0 }
+    /** Container that holds reorderable track cards. */
+    private lateinit var tracksContainer: VBox
 
-    /**
-     * Per-track play/pause buttons – stored so the "Stop All" handler can reset
-     * their labels without needing a direct reference to each track's closure.
-     */
-    private val playPauseBtns = arrayOfNulls<Button>(TRACK_COUNT)
+    /** "Add Track" button (disabled when [MAX_TRACK_COUNT] is reached). */
+    private lateinit var addTrackButton: Button
+
+    /** Shared drop indicator for drag/drop reordering visuals. */
+    private lateinit var dropIndicator: DropIndicator
 
     override fun createView(): Node {
+        tracks.forEach { it.player?.dispose() }
+        val loaded = MusicSettingsSerializer.load()
+        masterVolume = loaded.masterVolume
+        tracks.clear()
+        tracks += loaded.tracks
+            .take(MAX_TRACK_COUNT)
+            .ifEmpty { listOf(PersistedMusicTrack()) }
+            .map { TrackState(uri = it.uri, volume = it.volume, loop = it.loop) }
+
         val root = VBox(6.0).apply { padding = Insets(8.0) }
+        tracksContainer = VBox(6.0)
+        dropIndicator = DropIndicator()
+        addTrackButton = Button("+ Add Track").apply {
+            tooltip = Tooltip("Add another music track (up to $MAX_TRACK_COUNT)")
+            setOnAction { addTrack() }
+        }
 
         root.children.addAll(
             Label("Music Controls"),
             Separator(),
             buildMasterSection(),
             Separator(),
+            HBox(addTrackButton),
+            tracksContainer,
         )
 
-        for (i in 0 until TRACK_COUNT) {
-            root.children.add(buildTrackPane(i))
-        }
+        rebuildTrackCards()
 
         return ScrollPane(root).apply {
             isFitToWidth = true
@@ -81,7 +104,8 @@ class MusicPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
-        players.forEach { it?.dispose() }
+        tracks.forEach { it.player?.dispose() }
+        saveSettings()
     }
 
     // -------------------------------------------------------------------------
@@ -93,24 +117,23 @@ class MusicPlugin : DmPlugin {
      * "Stop All" button that stops every active player.
      */
     private fun buildMasterSection(): HBox {
-        val slider = Slider(0.0, 1.0, 1.0).apply {
+        val slider = Slider(0.0, 1.0, masterVolume).apply {
             isShowTickMarks = false
             tooltip = Tooltip("Master volume – scales all tracks proportionally")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
                 masterVolume = newValue.toDouble()
-                for (i in players.indices) {
-                    players[i]?.volume = masterVolume * trackVolumes[i]
-                }
+                tracks.forEach { track -> track.player?.volume = masterVolume * track.volume }
+                saveSettings()
             }
         }
 
         val stopAllBtn = Button("⏹ Stop All").apply {
             tooltip = Tooltip("Stop all currently playing tracks")
             setOnAction {
-                for (i in players.indices) {
-                    players[i]?.stop()
-                    playPauseBtns[i]?.text = "▶ Play"
+                tracks.forEach { track ->
+                    track.player?.stop()
+                    track.playPauseBtn?.text = "▶ Play"
                 }
             }
         }
@@ -120,46 +143,41 @@ class MusicPlugin : DmPlugin {
         }
     }
 
-    /**
-     * Wraps one track's controls in a collapsible [TitledPane] so the DM can
-     * hide tracks that are not currently in use and recover vertical space.
-     */
-    private fun buildTrackPane(index: Int): TitledPane =
-        TitledPane("Track ${index + 1}", buildTrackContent(index)).apply {
-            isCollapsible = true
-            isExpanded = true
-        }
-
     /** Builds the control content for a single track. */
-    private fun buildTrackContent(index: Int): VBox {
-        val pathLabel = Label("No file loaded").apply {
+    private fun buildTrackCard(index: Int, track: TrackState): VBox {
+        val trackNumberLabel = Label("Track ${index + 1}")
+        val pathLabel = Label(track.uri?.let(::fileNameFromUri) ?: "No file loaded").apply {
             maxWidth = Double.MAX_VALUE
-            tooltip = Tooltip("No file loaded")
+            tooltip = Tooltip(track.uri ?: "No file loaded")
         }
 
-        val playPauseBtn = Button("▶ Play").apply { isDisable = true }
-        val stopBtn = Button("⏹ Stop").apply { isDisable = true }
-        val loopCheck = CheckBox("Loop").apply { isSelected = true }
+        val playPauseBtn = Button("▶ Play").apply { isDisable = track.uri == null }
+        val stopBtn = Button("⏹ Stop").apply { isDisable = track.uri == null }
+        val loopCheck = CheckBox("Loop").apply { isSelected = track.loop }
+        track.playPauseBtn = playPauseBtn
 
-        // Store reference so "Stop All" can reset this button's label.
-        playPauseBtns[index] = playPauseBtn
+        val grabHandle = GrabHandle()
+        val headerRow = HBox(6.0, grabHandle, trackNumberLabel).apply {
+            padding = Insets(2.0, 0.0, 0.0, 0.0)
+        }
 
         val progressBar = ProgressBar(0.0).apply {
             maxWidth = Double.MAX_VALUE
             prefHeight = 12.0
-            isDisable = true
+            isDisable = track.uri == null
         }
         val timeLabel = Label("$TIME_UNKNOWN / $TIME_UNKNOWN").apply {
             style = "-fx-font-size: 10;"
             tooltip = Tooltip("Elapsed / remaining")
         }
 
-        val volumeSlider = Slider(0.0, 1.0, 1.0).apply {
+        val volumeSlider = Slider(0.0, 1.0, track.volume).apply {
             tooltip = Tooltip("Volume for Track ${index + 1}")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
-                trackVolumes[index] = newValue.toDouble()
-                players[index]?.volume = masterVolume * trackVolumes[index]
+                track.volume = newValue.toDouble()
+                track.player?.volume = masterVolume * track.volume
+                saveSettings()
             }
         }
 
@@ -178,18 +196,20 @@ class MusicPlugin : DmPlugin {
                 val owner = (evt.source as? Button)?.scene?.window
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
+                    track.uri = file.toURI().toString()
                     pathLabel.text = file.name
                     pathLabel.tooltip = Tooltip(file.absolutePath)
                     loadTrack(
-                        index, file.toURI().toString(), loopCheck.isSelected,
+                        track = track,
                         playPauseBtn, stopBtn, progressBar, timeLabel,
                     )
+                    saveSettings()
                 }
             }
         }
 
         playPauseBtn.setOnAction {
-            val player = players[index] ?: return@setOnAction
+            val player = track.player ?: return@setOnAction
             when (player.status) {
                 MediaPlayer.Status.PLAYING -> {
                     player.pause()
@@ -203,12 +223,14 @@ class MusicPlugin : DmPlugin {
         }
 
         stopBtn.setOnAction {
-            players[index]?.stop()
+            track.player?.stop()
             playPauseBtn.text = "▶ Play"
         }
 
         loopCheck.setOnAction {
-            players[index]?.cycleCount = if (loopCheck.isSelected) MediaPlayer.INDEFINITE else 1
+            track.loop = loopCheck.isSelected
+            track.player?.cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
+            saveSettings()
         }
 
         val fileRow = HBox(4.0, browseBtn, pathLabel).apply {
@@ -222,9 +244,35 @@ class MusicPlugin : DmPlugin {
             HBox.setHgrow(volumeSlider, Priority.ALWAYS)
         }
 
-        return VBox(4.0, fileRow, controlRow, progressRow, volRow).apply {
-            padding = Insets(4.0, 2.0, 4.0, 2.0)
+        val card = VBox(4.0, headerRow, fileRow, controlRow, progressRow, volRow).apply {
+            padding = Insets(6.0)
+            style = "-fx-border-color: -tc-border; -fx-border-radius: 6; -fx-background-radius: 6;"
         }
+
+        val contextMenu = ContextMenuRenderer.build(
+            actions = listOf(
+                MenuAction(
+                    id = "music.remove-track",
+                    label = "Remove Track",
+                    icon = "🗑",
+                    section = MenuSection.DANGER_ZONE,
+                    isEnabled = tracks.size > 1,
+                    requiresConfirmation = true,
+                    confirmationMessage = "Remove this music track?",
+                    onAction = { removeTrack(index) },
+                ),
+            ),
+        )
+        card.setOnContextMenuRequested { event ->
+            contextMenu.show(card, event.screenX, event.screenY)
+            event.consume()
+        }
+
+        if (track.uri != null) {
+            loadTrack(track, playPauseBtn, stopBtn, progressBar, timeLabel)
+        }
+
+        return card
     }
 
     // -------------------------------------------------------------------------
@@ -240,16 +288,15 @@ class MusicPlugin : DmPlugin {
      * [MediaPlayer.currentTimeProperty].
      */
     private fun loadTrack(
-        trackIndex: Int,
-        uri: String,
-        loop: Boolean,
+        track: TrackState,
         playPauseBtn: Button,
         stopBtn: Button,
         progressBar: ProgressBar,
         timeLabel: Label,
     ) {
-        players[trackIndex]?.dispose()
-        players[trackIndex] = null
+        val uri = track.uri ?: return
+        track.player?.dispose()
+        track.player = null
 
         // Disable controls while the new media loads.
         playPauseBtn.isDisable = true
@@ -266,8 +313,8 @@ class MusicPlugin : DmPlugin {
         }
 
         val player = MediaPlayer(media).apply {
-            volume = masterVolume * trackVolumes[trackIndex]
-            cycleCount = if (loop) MediaPlayer.INDEFINITE else 1
+            volume = masterVolume * track.volume
+            cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
 
             setOnReady {
                 Platform.runLater {
@@ -304,7 +351,60 @@ class MusicPlugin : DmPlugin {
             }
         }
 
-        players[trackIndex] = player
+        track.player = player
+    }
+
+    private fun rebuildTrackCards() {
+        tracks.forEach { it.playPauseBtn = null }
+        tracksContainer.children.clear()
+        tracksContainer.children.add(dropIndicator)
+
+        val dragContext = DragDropContext(
+            dataFormat = "tabletopcontrol/music-track-card",
+            onReorder = { from, to -> reorderTracks(from, to) },
+        )
+
+        tracks.forEachIndexed { index, track ->
+            val card = buildTrackCard(index, track)
+            DragDropSupport.installDragSource(card, index, dragContext)
+            DragDropSupport.installDropTarget(card, index, dragContext, dropIndicator)
+            tracksContainer.children.add(card)
+        }
+
+        addTrackButton.isDisable = tracks.size >= MAX_TRACK_COUNT
+    }
+
+    private fun addTrack() {
+        if (tracks.size >= MAX_TRACK_COUNT) return
+        tracks += TrackState()
+        rebuildTrackCards()
+        saveSettings()
+    }
+
+    private fun removeTrack(index: Int) {
+        if (tracks.size <= 1 || index !in tracks.indices) return
+        tracks.removeAt(index).player?.dispose()
+        rebuildTrackCards()
+        saveSettings()
+    }
+
+    private fun reorderTracks(fromIndex: Int, toIndex: Int) {
+        if (fromIndex !in tracks.indices || toIndex !in tracks.indices || fromIndex == toIndex) return
+        val moved = tracks.removeAt(fromIndex)
+        tracks.add(toIndex, moved)
+        rebuildTrackCards()
+        saveSettings()
+    }
+
+    private fun saveSettings() {
+        MusicSettingsSerializer.save(
+            MusicSettings(
+                masterVolume = masterVolume,
+                tracks = tracks.map { track ->
+                    PersistedMusicTrack(uri = track.uri, volume = track.volume, loop = track.loop)
+                },
+            ),
+        )
     }
 
     /** Formats a [Duration] as `M:SS`, or [TIME_UNKNOWN] for unknown/indefinite durations. */
@@ -315,4 +415,18 @@ class MusicPlugin : DmPlugin {
         val secs = totalSecs % 60
         return "$mins:${secs.toString().padStart(2, '0')}"
     }
+
+    private fun fileNameFromUri(uri: String): String = try {
+        File(URI(uri)).name.ifBlank { "Loaded track" }
+    } catch (_: Exception) {
+        uri.substringAfterLast('/').ifBlank { "Loaded track" }
+    }
+
+    private data class TrackState(
+        var uri: String? = null,
+        var volume: Double = 1.0,
+        var loop: Boolean = true,
+        var player: MediaPlayer? = null,
+        var playPauseBtn: Button? = null,
+    )
 }
