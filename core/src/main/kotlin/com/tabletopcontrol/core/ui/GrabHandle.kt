@@ -6,9 +6,9 @@ import javafx.scene.control.Label
  * A small visual grab handle that signals to users they can drag a list item.
  *
  * The handle displays the [HANDLE_GLYPH] (⠿) and applies an `open-hand` cursor.
- * Add it to the left edge of a draggable card or row, then wire its
- * `setOnDragDetected` event to call `startDragAndDrop` on the parent node, or use
- * [DragDropSupport.installDragSource] which accepts any node.
+ * Add it to the left edge of a draggable card or row as an optional visual
+ * affordance. Install drag handling on the draggable node itself (for example,
+ * the row or card) using [DragDropSupport.installDragSource].
  *
  * Appearance is controlled by the `.tc-grab-handle` CSS class (if an external
  * stylesheet is loaded) and by the inline style fallback applied in [init].
