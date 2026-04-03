@@ -564,7 +564,18 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun removeSlot(slot: SlotState) {
-        slot.player?.dispose()
+        slot.player?.let { player ->
+            runCatching { player.stop() }
+            player.onEndOfMedia = null
+            player.onReady = null
+            player.onPlaying = null
+            player.onPaused = null
+            player.onStopped = null
+            player.onError = null
+            player.dispose()
+        }
+        slot.player = null
+        slot.button = null
         slots.remove(slot)
         renderButtons()
         saveConfig()
