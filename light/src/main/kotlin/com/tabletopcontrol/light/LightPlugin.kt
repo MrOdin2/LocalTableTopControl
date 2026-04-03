@@ -22,6 +22,7 @@ import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
+import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.StackPane
@@ -33,7 +34,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import java.util.LinkedHashMap
 import kotlin.math.roundToInt
+
+private enum class ColorInputSource { HEX, RGB, HSV }
 
 /**
  * DM-panel plugin for controlling physical ambient lighting via WLED.
@@ -65,7 +69,6 @@ import kotlin.math.roundToInt
  * the most-recent state is sent once the background thread becomes free.
  */
 class LightPlugin : DmPlugin {
-
     override val displayName: String = "Lights"
 
     /** Pure-Kotlin state controller; no JavaFX dependencies. */
@@ -347,7 +350,8 @@ class LightPlugin : DmPlugin {
             strokeWidth = 2.0
             isMouseTransparent = true
         }
-        val wheelPane = StackPane(wheel, marker).apply {
+        // Use Pane (not StackPane) so marker coordinates can be positioned absolutely over the wheel.
+        val wheelPane = Pane(wheel, marker).apply {
             prefWidth = wheelSize
             prefHeight = wheelSize
             minWidth = wheelSize
@@ -439,7 +443,11 @@ class LightPlugin : DmPlugin {
         }
 
         var isUpdatingInputs = false
-        val wheelImageCache = mutableMapOf<Int, WritableImage>()
+        var pendingInputSource: ColorInputSource? = null
+        val wheelImageCache = object : LinkedHashMap<Int, WritableImage>(WHEEL_CACHE_MAX_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, WritableImage>?): Boolean =
+                size > WHEEL_CACHE_MAX_SIZE
+        }
         fun wheelImageFor(valuePercent: Int): WritableImage = wheelImageCache.getOrPut(valuePercent) {
             val image = WritableImage(wheelSize.toInt(), wheelSize.toInt())
             val pixels = image.pixelWriter
@@ -541,16 +549,62 @@ class LightPlugin : DmPlugin {
             val value = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
             applyDraftColor(Color.hsb(hue, saturation / 100.0, value / 100.0))
         }
+        fun readPendingColorEdit(): Color? = when (pendingInputSource) {
+            ColorInputSource.HEX -> runCatching { Color.web(hexField.text.trim()) }.getOrNull()
+            ColorInputSource.RGB -> {
+                val red = parseIntField(rField, 0, 255)
+                val green = parseIntField(gField, 0, 255)
+                val blue = parseIntField(bField, 0, 255)
+                if (red != null && green != null && blue != null) Color.rgb(red, green, blue) else null
+            }
+            ColorInputSource.HSV -> {
+                val hue = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, MAX_HUE_BELOW_360)
+                val saturation = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0)
+                val value = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0)
+                if (hue != null && saturation != null && value != null) {
+                    Color.hsb(hue, saturation / 100.0, value / 100.0)
+                } else {
+                    null
+                }
+            }
+            null -> null
+        }
 
         hexField.setOnAction {
             val text = hexField.text.trim()
             runCatching { Color.web(text) }.getOrNull()?.let { applyDraftColor(it) }
+            pendingInputSource = null
         }
-        listOf(rField, gField, bField).forEach { it.setOnAction { applyFromRgbFields() } }
-        listOf(hField, sField, vField).forEach { it.setOnAction { applyFromHsvFields() } }
+        listOf(rField, gField, bField).forEach {
+            it.setOnAction {
+                applyFromRgbFields()
+                pendingInputSource = null
+            }
+        }
+        listOf(hField, sField, vField).forEach {
+            it.setOnAction {
+                applyFromHsvFields()
+                pendingInputSource = null
+            }
+        }
+        hexField.textProperty().addListener { _, _, _ ->
+            if (!isUpdatingInputs) pendingInputSource = ColorInputSource.HEX
+        }
+        listOf(rField, gField, bField).forEach { field ->
+            field.textProperty().addListener { _, _, _ ->
+                if (!isUpdatingInputs) pendingInputSource = ColorInputSource.RGB
+            }
+        }
+        listOf(hField, sField, vField).forEach { field ->
+            field.textProperty().addListener { _, _, _ ->
+                if (!isUpdatingInputs) pendingInputSource = ColorInputSource.HSV
+            }
+        }
 
         val saveBtn = Button("Save").apply {
             setOnAction {
+                readPendingColorEdit()?.let { applyDraftColor(it) }
+                pendingInputSource = null
                 appliedColor = draftColor
                 controller.setColor(colorToHex(appliedColor))
                 refreshButtonLabel(appliedColor)
@@ -1063,6 +1117,7 @@ class LightPlugin : DmPlugin {
     private companion object {
         private val SERIAL_ERROR_LOG_THROTTLE_NANOS: Long = TimeUnit.SECONDS.toNanos(2)
         private const val WHEEL_NOT_DRAWN: Int = -1
+        private const val WHEEL_CACHE_MAX_SIZE: Int = 16
         private const val MAX_RECENT_COLORS: Int = 10
         private const val MARKER_WHITE_STROKE_BRIGHTNESS_THRESHOLD: Double = 0.45
         private const val SWATCH_STYLE_BASE: String =
