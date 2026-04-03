@@ -140,7 +140,7 @@ class SoundboardPlugin : DmPlugin {
         }
     }
 
-    private data class SlotState(
+    private class SlotState(
         var customLabel: String? = null,
         var uri: String? = null,
         var colorHex: String? = null,
@@ -564,7 +564,9 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun removeSlot(slot: SlotState) {
-        slot.player?.let { player ->
+        val slotIndex = indexOfSlot(slot) ?: return
+        val removed = slots.removeAt(slotIndex)
+        removed.player?.let { player ->
             runCatching { player.stop() }
             player.onEndOfMedia = null
             player.onReady = null
@@ -574,9 +576,8 @@ class SoundboardPlugin : DmPlugin {
             player.onError = null
             player.dispose()
         }
-        slot.player = null
-        slot.button = null
-        slots.remove(slot)
+        removed.player = null
+        removed.button = null
         renderButtons()
         saveConfig()
     }
