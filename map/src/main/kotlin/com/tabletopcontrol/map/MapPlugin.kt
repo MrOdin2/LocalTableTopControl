@@ -65,11 +65,6 @@ class MapPlugin : DmPlugin {
     override val displayName: String = "Map"
     override val iconPath: String? = null
 
-    private companion object {
-        private const val DEFAULT_CONE_ANGLE_DEGREES = 60.0
-        private const val DEFAULT_CONE_ANGLE_TEXT = "60°"
-    }
-
     /** The most recently confirmed map calibration; used to restore on dialog cancel. */
     private var lastMapCalibration: MapCalibration
 
@@ -345,7 +340,7 @@ class MapPlugin : DmPlugin {
         var measurementTool: MeasurementTool = MeasurementTool.NONE
         var defaultMirrorToTable = false
         var measurementUnits = "ft"
-        var coneAngleDegrees = DEFAULT_CONE_ANGLE_DEGREES
+        var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
         val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
         var measurementStartCell: Pair<Int, Int>? = null
@@ -355,16 +350,8 @@ class MapPlugin : DmPlugin {
             if (isUpdate) EventBus.publish(MeasurementUpdatedEvent(overlay)) else EventBus.publish(MeasurementAddedEvent(overlay))
         }
 
-        fun deactivateMeasureButtons(
-            lineBtn: ToggleButton,
-            coneBtn: ToggleButton,
-            rectBtn: ToggleButton,
-            circleBtn: ToggleButton,
-        ) {
-            lineBtn.isSelected = false
-            coneBtn.isSelected = false
-            rectBtn.isSelected = false
-            circleBtn.isSelected = false
+        fun deactivateMeasureButtons(vararg buttons: ToggleButton) {
+            buttons.forEach { it.isSelected = false }
         }
 
         fun findMeasurementAt(cell: Pair<Int, Int>): MeasurementOverlay? =
@@ -652,6 +639,8 @@ class MapPlugin : DmPlugin {
             setOnAction { defaultMirrorToTable = isSelected }
         }
         val unitsBox = ComboBox<String>().apply {
+            // Keep the unit selector intentionally narrow for now: these two options
+            // are reflected directly in measurement dimension labels.
             items.addAll("ft", "m")
             selectionModel.select(measurementUnits)
             tooltip = Tooltip("Units for measurement labels")
@@ -660,17 +649,24 @@ class MapPlugin : DmPlugin {
             }
         }
         val coneAngleBox = ComboBox<String>().apply {
+            // Common tabletop cone templates (15°–120°) offered as quick presets.
             items.addAll("15°", "30°", "45°", "60°", "90°", "120°")
+            val defaultConeAngleText = "${MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES.toInt()}°"
             val angleText = "${coneAngleDegrees.toInt()}°"
-            selectionModel.select(if (items.contains(angleText)) angleText else DEFAULT_CONE_ANGLE_TEXT)
+            if (!items.contains(angleText)) {
+                items.add(angleText)
+            }
+            selectionModel.select(angleText)
             tooltip = Tooltip("Cone angle for cone measurements")
             setOnAction {
-                coneAngleDegrees =
-                    (value ?: DEFAULT_CONE_ANGLE_TEXT).removeSuffix("°").toDoubleOrNull() ?: DEFAULT_CONE_ANGLE_DEGREES
+                val parsed = (value ?: defaultConeAngleText).removeSuffix("°").toDoubleOrNull()
+                if (parsed != null) {
+                    coneAngleDegrees = parsed
+                }
             }
         }
 
-        fun clearMeasureTool() {
+        fun deactivateMeasurementTool() {
             measurementTool = MeasurementTool.NONE
             deactivateMeasureButtons(lineMeasureBtn, coneMeasureBtn, rectMeasureBtn, circleMeasureBtn)
         }
@@ -680,17 +676,17 @@ class MapPlugin : DmPlugin {
                 drawFogBtn.isSelected = false
                 eraseFogBtn.isSelected = false
                 fogTool = FogTool.NONE
-                clearMeasureTool()
+                deactivateMeasurementTool()
                 button.isSelected = true
                 measurementTool = tool
             } else {
-                clearMeasureTool()
+                deactivateMeasurementTool()
             }
         }
 
         drawFogBtn.setOnAction {
             if (drawFogBtn.isSelected) {
-                clearMeasureTool()
+                deactivateMeasurementTool()
                 eraseFogBtn.isSelected = false
                 fogTool = FogTool.DRAW
                 ensureFogInitialized()
@@ -700,7 +696,7 @@ class MapPlugin : DmPlugin {
         }
         eraseFogBtn.setOnAction {
             if (eraseFogBtn.isSelected) {
-                clearMeasureTool()
+                deactivateMeasurementTool()
                 drawFogBtn.isSelected = false
                 fogTool = FogTool.ERASE
                 ensureFogInitialized()

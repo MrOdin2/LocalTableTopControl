@@ -21,7 +21,7 @@ data class MeasurementOverlay(
     val startRow: Int,
     val endCol: Int,
     val endRow: Int,
-    val coneAngleDegrees: Double = DEFAULT_CONE_ANGLE_DEGREES,
+    val coneAngleDegrees: Double = DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES,
     val mirroredToTable: Boolean = false,
     val unitLabel: String = "",
     val unitsSuffix: String = "ft",
@@ -32,13 +32,13 @@ data class MeasurementOverlay(
     }
 
     /** Euclidean distance between start and end in grid cells. */
-    fun distanceCells(): Double = hypot((endCol - startCol).toDouble(), (endRow - startRow).toDouble())
+    fun distanceInCells(): Double = hypot((endCol - startCol).toDouble(), (endRow - startRow).toDouble())
 
     /** Rectangle width in grid cells, inclusive of both boundary cells. */
-    fun rectangleWidthCells(): Int = abs(endCol - startCol) + 1
+    fun rectangleWidthInCells(): Int = abs(endCol - startCol) + 1
 
     /** Rectangle height in grid cells, inclusive of both boundary cells. */
-    fun rectangleHeightCells(): Int = abs(endRow - startRow) + 1
+    fun rectangleHeightInCells(): Int = abs(endRow - startRow) + 1
 
     /**
      * Human-readable dimension text in map units.
@@ -49,13 +49,13 @@ data class MeasurementOverlay(
         val units = unitsSuffix.trim()
         val suffix = if (units.isBlank()) "" else " $units"
         return when (type) {
-            MeasurementType.LINE -> "${formatMeasure(distanceCells() * cellSizeInUnits)}$suffix"
-            MeasurementType.CIRCLE -> "r ${formatMeasure(distanceCells() * cellSizeInUnits)}$suffix"
+            MeasurementType.LINE -> "${formatMeasure(distanceInCells() * cellSizeInUnits)}$suffix"
+            MeasurementType.CIRCLE -> "r ${formatMeasure(distanceInCells() * cellSizeInUnits)}$suffix"
             MeasurementType.CONE ->
-                "${formatMeasure(coneAngleDegrees)}° / ${formatMeasure(distanceCells() * cellSizeInUnits)}$suffix"
+                "${formatMeasure(coneAngleDegrees)}° / ${formatMeasure(distanceInCells() * cellSizeInUnits)}$suffix"
             MeasurementType.RECTANGLE -> {
-                val w = rectangleWidthCells() * cellSizeInUnits
-                val h = rectangleHeightCells() * cellSizeInUnits
+                val w = rectangleWidthInCells() * cellSizeInUnits
+                val h = rectangleHeightInCells() * cellSizeInUnits
                 "${formatMeasure(w)} × ${formatMeasure(h)}$suffix"
             }
         }
@@ -82,11 +82,11 @@ data class MeasurementOverlay(
                 val maxY = maxOf(y1, y2) + toleranceCells
                 px in minX..maxX && py in minY..maxY
             }
-            MeasurementType.CIRCLE -> abs(hypot(px - x1, py - y1) - distanceCells()) <= toleranceCells
+            MeasurementType.CIRCLE -> abs(hypot(px - x1, py - y1) - distanceInCells()) <= toleranceCells
             MeasurementType.CONE -> {
                 val dx = px - x1
                 val dy = py - y1
-                val radius = distanceCells()
+                val radius = distanceInCells()
                 val distance = hypot(dx, dy)
                 if (distance > radius + toleranceCells) return false
                 if (distance <= toleranceCells) return true
@@ -98,7 +98,7 @@ data class MeasurementOverlay(
     }
 
     companion object {
-        private const val DEFAULT_CONE_ANGLE_DEGREES = 60.0
+        internal const val DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES = 60.0
         private const val CONE_SELECTION_TOLERANCE_DEGREES = 6.0
         private val DEFAULT_MEASUREMENT_COLOR = Color.color(0.98, 0.86, 0.12, 0.95)
     }

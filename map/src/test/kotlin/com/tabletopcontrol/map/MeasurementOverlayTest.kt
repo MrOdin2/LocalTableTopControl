@@ -65,4 +65,44 @@ class MeasurementOverlayTest {
         assertTrue(line.isNearCell(2, 0))
         assertTrue(line.isNearCell(2, 1, toleranceCells = 1.1))
     }
+
+    @Test
+    fun `isNearCell supports rectangle selection`() {
+        val rect = MeasurementOverlay(
+            id = "r1",
+            type = MeasurementType.RECTANGLE,
+            startCol = 1,
+            startRow = 1,
+            endCol = 3,
+            endRow = 3,
+        )
+        assertTrue(rect.isNearCell(2, 2))
+    }
+
+    @Test
+    fun `isNearCell supports circle edge selection`() {
+        val circle = MeasurementOverlay(
+            id = "c1",
+            type = MeasurementType.CIRCLE,
+            startCol = 0,
+            startRow = 0,
+            endCol = 0,
+            endRow = 3,
+        )
+        assertTrue(circle.isNearCell(0, 3))
+    }
+
+    @Test
+    fun `isNearCell supports cone selection`() {
+        val cone = MeasurementOverlay(
+            id = "k1",
+            type = MeasurementType.CONE,
+            startCol = 0,
+            startRow = 0,
+            endCol = 3,
+            endRow = 0,
+            coneAngleDegrees = 90.0,
+        )
+        assertTrue(cone.isNearCell(2, 1))
+    }
 }

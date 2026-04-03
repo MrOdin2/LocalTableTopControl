@@ -17,8 +17,10 @@ import java.net.URI
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * Renders the tabletop map onto a JavaFX [Canvas].
@@ -783,12 +785,12 @@ class MapRenderer(private val canvas: Canvas) {
                     val end = dir + half
                     gc.beginPath()
                     gc.moveTo(sx, sy)
-                    gc.lineTo(sx + r * kotlin.math.cos(start), sy + r * kotlin.math.sin(start))
+                    gc.lineTo(sx + r * cos(start), sy + r * sin(start))
                     gc.arc(sx, sy, r, r, Math.toDegrees(start), Math.toDegrees(end - start))
                     gc.closePath()
                     gc.fill()
-                    gc.strokeLine(sx, sy, sx + r * kotlin.math.cos(start), sy + r * kotlin.math.sin(start))
-                    gc.strokeLine(sx, sy, sx + r * kotlin.math.cos(end), sy + r * kotlin.math.sin(end))
+                    gc.strokeLine(sx, sy, sx + r * cos(start), sy + r * sin(start))
+                    gc.strokeLine(sx, sy, sx + r * cos(end), sy + r * sin(end))
                     val arcStart = -Math.toDegrees(end)
                     gc.strokeArc(sx - r, sy - r, r * 2.0, r * 2.0, arcStart, measurement.coneAngleDegrees, javafx.scene.shape.ArcType.OPEN)
                 }
