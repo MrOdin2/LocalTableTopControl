@@ -29,6 +29,12 @@ class WledSerialSenderTest {
         assertFalse(sender.isConnected)
     }
 
+    @Test
+    fun `sender default speed and intensity stay in sync with controller defaults`() {
+        assertEquals(LightController.DEFAULT_EFFECT_SPEED, WledSerialSender.DEFAULT_EFFECT_SPEED)
+        assertEquals(LightController.DEFAULT_EFFECT_INTENSITY, WledSerialSender.DEFAULT_EFFECT_INTENSITY)
+    }
+
     // ── buildJson — basic structure ───────────────────────────────────────────
 
     @Test
