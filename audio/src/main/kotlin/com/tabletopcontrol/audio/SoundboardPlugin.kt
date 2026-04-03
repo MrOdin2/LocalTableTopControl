@@ -443,7 +443,7 @@ class SoundboardPlugin : DmPlugin {
                     val distance = kotlin.math.sqrt(dx * dx + dy * dy)
                     val pixelColor = if (distance <= radius) {
                         val saturation = (distance / radius).coerceIn(0.0, 1.0)
-                        val hue = ((kotlin.math.atan2(dy, dx) * 180 / Math.PI) + 360.0) % 360.0
+                        val hue = ((kotlin.math.atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
                         Color.hsb(hue, saturation, brightness)
                     } else {
                         Color.TRANSPARENT
@@ -460,7 +460,7 @@ class SoundboardPlugin : DmPlugin {
             val dy = y - center
             val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtMost(radius)
             val saturation = (distance / radius).coerceIn(0.0, 1.0)
-            val hue = ((kotlin.math.atan2(dy, dx) * 180 / Math.PI) + 360.0) % 360.0
+            val hue = ((kotlin.math.atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
             selectedColor = Color.hsb(hue, saturation, brightnessSlider.value)
             preview.fill = selectedColor
         }
