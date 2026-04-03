@@ -140,6 +140,7 @@
           </ul>
         </li>
         <li><a href="#tokens">Tokens</a></li>
+        <li><a href="#measurement">Measurement Tools</a></li>
         <li><a href="#rotation">Map Rotation</a></li>
         <li><a href="#background">Background Colour</a></li>
       </ul>
@@ -172,6 +173,7 @@
         <li>Overlay a customisable grid aligned to the map's coordinate system.</li>
         <li>Paint fog of war to hide unexplored areas from the players.</li>
         <li>Place and move tokens representing combatants on the map.</li>
+        <li>Create measurement overlays (Line, Cone, Rectangle, Circle) with optional table mirroring.</li>
         <li>Rotate the map in 90° increments.</li>
       </ul>
     </section>
@@ -300,6 +302,34 @@
         directly on the minimap. See <a href="../docs/cross-plugin.html">Cross-Plugin Features</a>
         for the full details of how the tracker and map work together.
       </p>
+    </section>
+
+    <section id="measurement">
+      <h2>Measurement Tools</h2>
+      <p>
+        Use the minimap <strong>Measure</strong> tool buttons to place tactical overlays that snap
+        to grid cells. Supported shapes are <strong>Line</strong>, <strong>Cone</strong>,
+        <strong>Rect</strong>, and <strong>Circle</strong>.
+      </p>
+      <ul>
+        <li>Select a shape button, then <strong>left-click and drag</strong> on the minimap.</li>
+        <li>Measurements are labeled automatically with size in the selected <strong>Units</strong> (ft or m).</li>
+        <li>Use the <strong>Cone</strong> angle selector for cone templates (15° to 120°).</li>
+        <li>Enable <strong>Mirror</strong> to show new measurements on the table screen; leave off for DM-only overlays.</li>
+      </ul>
+      <h3>Right-click actions (DM minimap)</h3>
+      <table>
+        <tr><th>Action</th><th>Effect</th></tr>
+        <tr><td>Units: feet / meters</td><td>Changes units used by future measurement labels.</td></tr>
+        <tr><td>Mirror to Table / Hide from Table</td><td>Toggles visibility on the player table for the selected measurement.</td></tr>
+        <tr><td>Set Label…</td><td>Adds or edits a custom label prefix for the selected measurement.</td></tr>
+        <tr><td>Remove Measurement</td><td>Deletes the selected measurement.</td></tr>
+        <tr><td>Clear All Measurements</td><td>Removes all active measurements.</td></tr>
+      </table>
+      <div class="tip">
+        <strong>Tip:</strong> Keep <em>Mirror</em> off for private planning, then toggle individual
+        templates to mirrored when you want players to see intent/area.
+      </div>
     </section>
 
     <section id="rotation">

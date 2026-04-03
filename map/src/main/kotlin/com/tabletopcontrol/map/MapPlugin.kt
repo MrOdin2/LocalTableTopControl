@@ -3,6 +3,9 @@ package com.tabletopcontrol.map
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenMovedEvent
+import com.tabletopcontrol.core.ui.ContextMenuRenderer
+import com.tabletopcontrol.core.ui.MenuAction
+import com.tabletopcontrol.core.ui.MenuSection
 import javafx.event.ActionEvent
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -12,10 +15,12 @@ import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
 import javafx.scene.control.CheckBox
 import javafx.scene.control.ColorPicker
+import javafx.scene.control.ComboBox
 import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
+import javafx.scene.control.TextInputDialog
 import javafx.scene.control.ToggleButton
 import javafx.scene.control.Tooltip
 import javafx.scene.input.MouseButton
@@ -28,9 +33,13 @@ import javafx.scene.paint.Color
 import javafx.stage.FileChooser
 import javafx.stage.Window
 import kotlin.math.floor
+import java.util.UUID
 
 /** Active fog-of-war painting tool for the DM minimap canvas. */
 private enum class FogTool { NONE, DRAW, ERASE }
+
+/** Active measurement placement tool for the DM minimap canvas. */
+private enum class MeasurementTool { NONE, LINE, CONE, RECTANGLE, CIRCLE }
 
 /**
  * DM-panel plugin that exposes map-viewer controls and a live minimap preview.
@@ -150,6 +159,7 @@ class MapPlugin : DmPlugin {
         val canvas = Canvas()
         val renderer = MapRenderer(canvas)
         renderer.hideTokensInFog = true
+        renderer.showDmOnlyMeasurements = false
         // Restore persisted calibration so the table view reflects the saved settings.
         publishCurrentSettings()
         // Release EventBus subscriptions when the canvas is removed from the scene.
@@ -327,6 +337,33 @@ class MapPlugin : DmPlugin {
         // Fog paint tool state
         // ------------------------------------------------------------------
         var fogTool: FogTool = FogTool.NONE
+        var measurementTool: MeasurementTool = MeasurementTool.NONE
+        var defaultMirrorToTable = false
+        var measurementUnits = "ft"
+        var coneAngleDegrees = 60.0
+        val measurements = linkedMapOf<String, MeasurementOverlay>()
+        var activeMeasurementId: String? = null
+        var measurementStartCell: Pair<Int, Int>? = null
+
+        fun publishMeasurement(overlay: MeasurementOverlay, isUpdate: Boolean) {
+            measurements[overlay.id] = overlay
+            if (isUpdate) EventBus.publish(MeasurementUpdatedEvent(overlay)) else EventBus.publish(MeasurementAddedEvent(overlay))
+        }
+
+        fun deactivateMeasureButtons(
+            lineBtn: ToggleButton,
+            coneBtn: ToggleButton,
+            rectBtn: ToggleButton,
+            circleBtn: ToggleButton,
+        ) {
+            lineBtn.isSelected = false
+            coneBtn.isSelected = false
+            rectBtn.isSelected = false
+            circleBtn.isSelected = false
+        }
+
+        fun findMeasurementAt(cell: Pair<Int, Int>): MeasurementOverlay? =
+            measurements.values.lastOrNull { it.isNearCell(cell.first, cell.second) }
 
         // ------------------------------------------------------------------
         // Mouse drag to pan / fog paint / token drag
@@ -342,7 +379,30 @@ class MapPlugin : DmPlugin {
 
         minimapCanvas.setOnMousePressed { e ->
             if (e.button == MouseButton.PRIMARY) {
-                if (fogTool != FogTool.NONE) {
+                if (measurementTool != MeasurementTool.NONE) {
+                    val cell = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
+                    val type = when (measurementTool) {
+                        MeasurementTool.LINE -> MeasurementType.LINE
+                        MeasurementTool.CONE -> MeasurementType.CONE
+                        MeasurementTool.RECTANGLE -> MeasurementType.RECTANGLE
+                        MeasurementTool.CIRCLE -> MeasurementType.CIRCLE
+                        MeasurementTool.NONE -> return@setOnMousePressed
+                    }
+                    val overlay = MeasurementOverlay(
+                        id = UUID.randomUUID().toString(),
+                        type = type,
+                        startCol = cell.first,
+                        startRow = cell.second,
+                        endCol = cell.first,
+                        endRow = cell.second,
+                        coneAngleDegrees = coneAngleDegrees,
+                        mirroredToTable = defaultMirrorToTable,
+                        unitsSuffix = measurementUnits,
+                    )
+                    measurementStartCell = cell
+                    activeMeasurementId = overlay.id
+                    publishMeasurement(overlay, isUpdate = false)
+                } else if (fogTool != FogTool.NONE) {
                     // Fog painting: determine the clicked cell and publish an event.
                     val cell = minimapRenderer.canvasCoordsToFogCell(e.x, e.y)
                     if (cell != null) {
@@ -363,11 +423,96 @@ class MapPlugin : DmPlugin {
                         dragStartOffY = minimapRenderer.viewportOffsetY
                     }
                 }
+            } else if (e.button == MouseButton.SECONDARY) {
+                val clickedCell = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
+                val selected = findMeasurementAt(clickedCell)
+                val actions = mutableListOf(
+                    MenuAction(
+                        id = "map.measure.units-ft",
+                        label = "Units: feet (ft)",
+                        section = MenuSection.BASIC,
+                        isEnabled = true,
+                        isVisible = measurementUnits != "ft",
+                        onAction = { measurementUnits = "ft" },
+                    ),
+                    MenuAction(
+                        id = "map.measure.units-m",
+                        label = "Units: meters (m)",
+                        section = MenuSection.BASIC,
+                        isEnabled = true,
+                        isVisible = measurementUnits != "m",
+                        onAction = { measurementUnits = "m" },
+                    ),
+                    MenuAction(
+                        id = "map.measure.clear-all",
+                        label = "Clear All Measurements",
+                        icon = "🗑",
+                        section = MenuSection.DANGER_ZONE,
+                        isEnabled = measurements.isNotEmpty(),
+                        requiresConfirmation = true,
+                        confirmationMessage = "Remove all measurements?",
+                        onAction = {
+                            measurements.clear()
+                            EventBus.publish(MeasurementsClearedEvent)
+                        },
+                    ),
+                )
+                if (selected != null) {
+                    actions += MenuAction(
+                        id = "map.measure.toggle-mirror",
+                        label = if (selected.mirroredToTable) "Hide from Table" else "Mirror to Table",
+                        section = MenuSection.APPEARANCE,
+                        onAction = {
+                            val updated = selected.copy(mirroredToTable = !selected.mirroredToTable)
+                            publishMeasurement(updated, isUpdate = true)
+                        },
+                    )
+                    actions += MenuAction(
+                        id = "map.measure.label",
+                        label = "Set Label…",
+                        icon = "✏️",
+                        section = MenuSection.APPEARANCE,
+                        onAction = {
+                            val dialog = TextInputDialog(selected.unitLabel).apply {
+                                title = "Measurement Label"
+                                headerText = "Set optional measurement label"
+                                contentText = "Label:"
+                            }
+                            val entered = dialog.showAndWait().orElse(selected.unitLabel)
+                            publishMeasurement(selected.copy(unitLabel = entered.trim()), isUpdate = true)
+                        },
+                    )
+                    actions += MenuAction(
+                        id = "map.measure.remove",
+                        label = "Remove Measurement",
+                        icon = "❌",
+                        section = MenuSection.DANGER_ZONE,
+                        requiresConfirmation = true,
+                        confirmationMessage = "Remove selected measurement?",
+                        onAction = {
+                            measurements.remove(selected.id)
+                            EventBus.publish(MeasurementRemovedEvent(selected.id))
+                        },
+                    )
+                }
+                ContextMenuRenderer.build(actions).show(minimapCanvas, e.screenX, e.screenY)
             }
         }
         minimapCanvas.setOnMouseDragged { e ->
             if (e.isPrimaryButtonDown) {
-                if (fogTool != FogTool.NONE) {
+                if (measurementTool != MeasurementTool.NONE && activeMeasurementId != null && measurementStartCell != null) {
+                    val cell = minimapRenderer.canvasCoordsToGridCell(e.x, e.y)
+                    val id = activeMeasurementId ?: return@setOnMouseDragged
+                    val current = measurements[id] ?: return@setOnMouseDragged
+                    publishMeasurement(
+                        current.copy(
+                            endCol = cell.first,
+                            endRow = cell.second,
+                            coneAngleDegrees = coneAngleDegrees,
+                        ),
+                        isUpdate = true,
+                    )
+                } else if (fogTool != FogTool.NONE) {
                     // Fog painting: paint every cell the mouse passes over.
                     val cell = minimapRenderer.canvasCoordsToFogCell(e.x, e.y)
                     if (cell != null) {
@@ -395,6 +540,8 @@ class MapPlugin : DmPlugin {
             if (e.button == MouseButton.PRIMARY) {
                 draggingToken = null
                 lastDragCell = null
+                activeMeasurementId = null
+                measurementStartCell = null
             }
         }
 
@@ -479,8 +626,61 @@ class MapPlugin : DmPlugin {
         val eraseFogBtn = ToggleButton("Erase Fog").apply {
             tooltip = Tooltip("Erase fog: click/drag on map to reveal cells")
         }
+        val lineMeasureBtn = ToggleButton("Line").apply {
+            tooltip = Tooltip("Measurement tool: line")
+        }
+        val coneMeasureBtn = ToggleButton("Cone").apply {
+            tooltip = Tooltip("Measurement tool: cone")
+        }
+        val rectMeasureBtn = ToggleButton("Rect").apply {
+            tooltip = Tooltip("Measurement tool: rectangle")
+        }
+        val circleMeasureBtn = ToggleButton("Circle").apply {
+            tooltip = Tooltip("Measurement tool: circle")
+        }
+        val mirrorCheck = CheckBox("Mirror").apply {
+            isSelected = defaultMirrorToTable
+            tooltip = Tooltip("When enabled, newly created measurements are also shown on the table screen")
+            setOnAction { defaultMirrorToTable = isSelected }
+        }
+        val unitsBox = ComboBox<String>().apply {
+            items.addAll("ft", "m")
+            selectionModel.select(measurementUnits)
+            tooltip = Tooltip("Units for measurement labels")
+            setOnAction {
+                measurementUnits = value ?: "ft"
+            }
+        }
+        val coneAngleBox = ComboBox<String>().apply {
+            items.addAll("15°", "30°", "45°", "60°", "90°", "120°")
+            selectionModel.select("60°")
+            tooltip = Tooltip("Cone angle for cone measurements")
+            setOnAction {
+                coneAngleDegrees = (value ?: "60°").removeSuffix("°").toDoubleOrNull() ?: 60.0
+            }
+        }
+
+        fun clearMeasureTool() {
+            measurementTool = MeasurementTool.NONE
+            deactivateMeasureButtons(lineMeasureBtn, coneMeasureBtn, rectMeasureBtn, circleMeasureBtn)
+        }
+
+        fun activateMeasureTool(tool: MeasurementTool, button: ToggleButton) {
+            if (button.isSelected) {
+                drawFogBtn.isSelected = false
+                eraseFogBtn.isSelected = false
+                fogTool = FogTool.NONE
+                clearMeasureTool()
+                button.isSelected = true
+                measurementTool = tool
+            } else {
+                clearMeasureTool()
+            }
+        }
+
         drawFogBtn.setOnAction {
             if (drawFogBtn.isSelected) {
+                clearMeasureTool()
                 eraseFogBtn.isSelected = false
                 fogTool = FogTool.DRAW
                 ensureFogInitialized()
@@ -490,6 +690,7 @@ class MapPlugin : DmPlugin {
         }
         eraseFogBtn.setOnAction {
             if (eraseFogBtn.isSelected) {
+                clearMeasureTool()
                 drawFogBtn.isSelected = false
                 fogTool = FogTool.ERASE
                 ensureFogInitialized()
@@ -497,6 +698,10 @@ class MapPlugin : DmPlugin {
                 fogTool = FogTool.NONE
             }
         }
+        lineMeasureBtn.setOnAction { activateMeasureTool(MeasurementTool.LINE, lineMeasureBtn) }
+        coneMeasureBtn.setOnAction { activateMeasureTool(MeasurementTool.CONE, coneMeasureBtn) }
+        rectMeasureBtn.setOnAction { activateMeasureTool(MeasurementTool.RECTANGLE, rectMeasureBtn) }
+        circleMeasureBtn.setOnAction { activateMeasureTool(MeasurementTool.CIRCLE, circleMeasureBtn) }
 
         val controlsRow = HBox(
             4.0,
@@ -505,6 +710,12 @@ class MapPlugin : DmPlugin {
             panLeft, panUp, panDown, panRight,
             Label("  "),
             drawFogBtn, eraseFogBtn,
+            Label("  "),
+            Label("Measure:"),
+            lineMeasureBtn, coneMeasureBtn, rectMeasureBtn, circleMeasureBtn,
+            Label("Units:"), unitsBox,
+            Label("Cone:"), coneAngleBox,
+            mirrorCheck,
         )
 
         val section = VBox(4.0, canvasPane, controlsRow)
