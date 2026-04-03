@@ -32,6 +32,8 @@ class DropIndicator : Region() {
         style = "-fx-background-color: -tc-accent; -fx-background-radius: 2;"
         isVisible = false
         isManaged = false
+        isMouseTransparent = true
+        isPickOnBounds = false
     }
 
     /** Shows the indicator without affecting layout flow. */
