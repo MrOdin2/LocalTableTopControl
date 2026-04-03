@@ -421,6 +421,8 @@ class LightPlugin : DmPlugin {
                 val btn = Button("", recentSwatch).apply {
                     contentDisplay = ContentDisplay.GRAPHIC_ONLY
                     tooltip = Tooltip(hex)
+                    accessibleText = "Recent color $hex"
+                    accessibleHelp = "Applies this recent color"
                     setOnAction { applyDraftColorCallback(color) }
                     prefWidth = 34.0
                 }
