@@ -136,6 +136,27 @@ class SoundboardPluginTest {
     }
 
     @Test
+    fun `parseConfig returns null when version header is missing`() {
+        val noVersion = """
+            count=1
+            slot=QmVsbA|ZmlsZTovLy90bXAvYmVsbC5tcDM|IzEyM0FCQw
+        """.trimIndent()
+
+        assertNull(SoundboardPlugin.parseConfig(noVersion))
+    }
+
+    @Test
+    fun `parseConfig returns null for unsupported version`() {
+        val unsupportedVersion = """
+            version=999
+            count=1
+            slot=QmVsbA|ZmlsZTovLy90bXAvYmVsbC5tcDM|IzEyM0FCQw
+        """.trimIndent()
+
+        assertNull(SoundboardPlugin.parseConfig(unsupportedVersion))
+    }
+
+    @Test
     fun `color web parsing supports output hex format`() {
         val parsed = Color.web("#A1B2C3")
         assertEquals(0xA1 / 255.0, parsed.red, 0.0001)

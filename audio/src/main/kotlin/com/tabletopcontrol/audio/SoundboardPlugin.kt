@@ -102,6 +102,11 @@ class SoundboardPlugin : DmPlugin {
         internal fun parseConfig(text: String): List<SlotConfig>? {
             val lines = text.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
             if (lines.isEmpty()) return null
+            val version = lines.firstOrNull { it.startsWith("version=") }
+                ?.substringAfter('=')
+                ?.toIntOrNull()
+                ?: return null
+            if (version != CONFIG_VERSION) return null
 
             val decoder = Base64.getUrlDecoder()
             fun dec(v: String): String? = if (v == "-") {
@@ -207,6 +212,11 @@ class SoundboardPlugin : DmPlugin {
     override fun onShutdown() {
         slots.forEach { it.player?.dispose() }
     }
+
+    private fun indexOfSlot(slot: SlotState): Int? = slots.indexOf(slot).takeIf { it >= 0 }
+
+    private fun displayLabelFor(slot: SlotState): String =
+        indexOfSlot(slot)?.let { slot.displayLabel(it) } ?: (slot.customLabel ?: "Slot")
 
     private fun renderButtons() {
         tilePane.children.clear()
@@ -315,7 +325,7 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun showFileChooser(slot: SlotState, btn: Button) {
-        val slotIndex = slots.indexOf(slot).takeIf { it >= 0 } ?: 0
+        val slotIndex = indexOfSlot(slot) ?: return
         val chooser = FileChooser().apply {
             title = "Load sound for Slot ${slotIndex + 1}"
             extensionFilters.addAll(
@@ -376,10 +386,10 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun playSlot(slot: SlotState) {
-        val slotIndex = slots.indexOf(slot).takeIf { it >= 0 } ?: 0
+        val label = displayLabelFor(slot)
         slot.player?.play()
         slot.button?.let {
-            it.text = "⏹ ${slot.displayLabel(slotIndex)}"
+            it.text = "⏹ $label"
             setPlayingStyle(slot)
         }
     }
@@ -395,9 +405,8 @@ class SoundboardPlugin : DmPlugin {
         slot.uri = null
         slot.customLabel = null
 
-        val slotIndex = slots.indexOf(slot).takeIf { it >= 0 } ?: 0
         slot.button?.let {
-            it.text = slot.displayLabel(slotIndex)
+            it.text = displayLabelFor(slot)
             it.tooltip = Tooltip("Right-click to load a sound file")
             setIdleStyle(slot)
         }
@@ -405,9 +414,8 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun resetButtonToIdle(slot: SlotState) {
-        val slotIndex = slots.indexOf(slot).takeIf { it >= 0 } ?: 0
         slot.button?.let {
-            it.text = slot.displayLabel(slotIndex)
+            it.text = displayLabelFor(slot)
             setIdleStyle(slot)
         }
     }
