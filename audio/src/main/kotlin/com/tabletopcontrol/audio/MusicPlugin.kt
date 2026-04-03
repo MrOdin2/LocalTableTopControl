@@ -146,7 +146,7 @@ class MusicPlugin : DmPlugin {
 
     /** Builds the control content for a single track. */
     private fun buildTrackCard(index: Int, track: TrackState): VBox {
-        val trackNumberLabel = Label("Track ${index + 1}")
+        val trackNumberLabel = Label("${index + 1}")
         val pathLabel = Label(track.uri?.let(::fileNameFromUri) ?: "No file loaded").apply {
             maxWidth = Double.MAX_VALUE
             tooltip = Tooltip(track.uri ?: "No file loaded")
@@ -173,7 +173,7 @@ class MusicPlugin : DmPlugin {
         }
 
         val volumeSlider = Slider(0.0, 1.0, track.volume).apply {
-            tooltip = Tooltip("Volume for Track ${index + 1}")
+            tooltip = Tooltip("Volume for ${index + 1}")
             maxWidth = Double.MAX_VALUE
             valueProperty().addListener { _, _, newValue ->
                 track.volume = newValue.toDouble()
@@ -185,7 +185,7 @@ class MusicPlugin : DmPlugin {
         val browseBtn = Button("Browse…").apply {
             setOnAction { evt ->
                 val chooser = FileChooser().apply {
-                    title = "Select audio file for Track ${index + 1}"
+                    title = "Select audio file for ${index + 1}"
                     extensionFilters.addAll(
                         FileChooser.ExtensionFilter("MP3 files", "*.mp3"),
                         FileChooser.ExtensionFilter(
