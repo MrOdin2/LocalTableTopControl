@@ -1,0 +1,50 @@
+package com.tabletopcontrol.core.ui
+
+import javafx.scene.layout.Region
+
+/**
+ * A thin horizontal bar rendered as a visual drop indicator during drag-and-drop
+ * reordering operations.
+ *
+ * Place this node in the same layout container as the draggable items (e.g. a [javafx.scene.layout.VBox]).
+ * [DragDropSupport] calls [show] and [hide] as the user drags over candidate positions.
+ *
+ * The bar respects the application theme: it uses the `-tc-accent` CSS variable when
+ * the node is inside a themed scene.  The CSS class `tc-drop-indicator` may also be
+ * used to style it from an external stylesheet.
+ *
+ * **Usage:**
+ * ```kotlin
+ * val indicator = DropIndicator()
+ * listContainer.children.add(indicator)
+ * DragDropSupport.installDropTarget(card, index, context, indicator)
+ * ```
+ */
+class DropIndicator : Region() {
+
+    init {
+        styleClass.add("tc-drop-indicator")
+        prefHeight = HEIGHT
+        maxWidth = Double.MAX_VALUE
+        style = "-fx-background-color: -tc-accent; -fx-background-radius: 2;"
+        isVisible = false
+        isManaged = false
+    }
+
+    /** Shows the indicator and re-participates in layout flow. */
+    fun show() {
+        isManaged = true
+        isVisible = true
+    }
+
+    /** Hides the indicator and removes it from layout flow. */
+    fun hide() {
+        isVisible = false
+        isManaged = false
+    }
+
+    companion object {
+        /** Height of the indicator bar in pixels. */
+        const val HEIGHT = 3.0
+    }
+}
