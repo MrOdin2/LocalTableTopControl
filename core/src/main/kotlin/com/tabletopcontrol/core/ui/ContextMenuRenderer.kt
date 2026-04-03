@@ -67,19 +67,40 @@ object ContextMenuRenderer {
     /**
      * Merges [base] actions with contributions from [contributors].
      *
-     * Contributor actions override base actions that share the same [MenuAction.id].
-     * The result preserves the relative order of base actions (minus overridden ones),
-     * followed by any new actions introduced by contributors.
+     * Contributor actions override base actions that share the same [MenuAction.id]
+     * by replacing them in-place so the original base ordering is preserved.
+     * When multiple contributors supply the same [MenuAction.id], the last contributor's
+     * action wins (last-write semantics). Contributed actions whose ids do not exist in
+     * [base] are appended after the base actions in last-write order.
      */
     internal fun mergeActions(
         base: List<MenuAction>,
         contributors: List<MenuContributor>,
         context: Any?,
     ): List<MenuAction> {
-        val contributed = contributors.flatMap { it.contributeActions(context) }
-        val overrideIds = contributed.map { it.id }.toSet()
-        val remaining = base.filter { it.id !in overrideIds }
-        return remaining + contributed
+        // Build a map of id → action from all contributors; later entries overwrite earlier
+        // ones for the same id.  LinkedHashMap preserves last-write insertion order for the
+        // new-action append step below.
+        val contributedById = linkedMapOf<String, MenuAction>()
+        contributors
+            .asSequence()
+            .flatMap { it.contributeActions(context).asSequence() }
+            .forEach { action ->
+                // Remove first to update insertion position so last-write order is preserved
+                contributedById.remove(action.id)
+                contributedById[action.id] = action
+            }
+
+        val baseIds = base.map { it.id }.toSet()
+        // Replace matching base actions in-place; non-overridden base actions are kept as-is.
+        val merged = base.map { action -> contributedById[action.id] ?: action }.toMutableList()
+        // Append contributed actions whose ids are not present in base, in last-write order.
+        contributedById
+            .filterKeys { it !in baseIds }
+            .values
+            .forEach { merged.add(it) }
+
+        return merged
     }
 
     private fun buildLabel(action: MenuAction): String =

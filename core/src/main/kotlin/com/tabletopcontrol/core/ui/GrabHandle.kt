@@ -24,7 +24,7 @@ class GrabHandle : Label(HANDLE_GLYPH) {
 
     init {
         styleClass.add("tc-grab-handle")
-        style = "-fx-cursor: open-hand; -fx-text-fill: -tc-fg-muted; " +
+        style = "-fx-cursor: open-hand; -fx-text-fill: -tc-text-muted; " +
             "-fx-font-size: 14px; -fx-padding: 0 6 0 4;"
         isPickOnBounds = true
     }

@@ -92,7 +92,10 @@ object DragDropSupport {
                 val sourceData = board.getContent(format) as? String ?: ""
                 if (context.canAcceptDrop(sourceData)) {
                     e.acceptTransferModes(TransferMode.MOVE)
-                    dropIndicator?.show()
+                    if (dropIndicator != null) {
+                        repositionIndicatorBefore(dropIndicator, node)
+                        dropIndicator.show()
+                    }
                     autoScroll(context.autoScrollPane, e.sceneY)
                 }
             }
@@ -118,6 +121,24 @@ object DragDropSupport {
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Moves [indicator] to the position immediately before [sibling] in their shared
+     * [javafx.scene.layout.Pane] parent, so the drop indicator visually marks the
+     * candidate drop position.  Does nothing if [sibling] has no [javafx.scene.layout.Pane]
+     * parent or is not a sibling of [indicator].
+     */
+    private fun repositionIndicatorBefore(indicator: DropIndicator, sibling: Node) {
+        val parent = sibling.parent as? javafx.scene.layout.Pane ?: return
+        val children = parent.children
+        val targetIdx = children.indexOf(sibling)
+        if (targetIdx < 0) return
+        // Already in the correct position — indicator is the node directly before sibling.
+        if (children.getOrNull(targetIdx - 1) === indicator) return
+        children.remove(indicator)
+        val insertAt = children.indexOf(sibling).coerceAtLeast(0)
+        children.add(insertAt, indicator)
+    }
 
     /**
      * Returns the [DataFormat] for [mimeType], reusing an existing registration if one

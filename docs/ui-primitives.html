@@ -246,7 +246,7 @@
       </p>
       <table>
         <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
-        <tr><td><code>id</code></td><td><code>String</code></td><td>—</td><td>Stable, unique identifier (e.g. <code>"tracker.rename"</code>). Used for contributor override/deduplication.</td></tr>
+        <tr><td><code>id</code></td><td><code>String</code></td><td>—</td><td>Stable, unique identifier (e.g. <code>"tracker.rename"</code>). Used for contributor override/merge: contributor actions replace base actions with the same id in-place; last contributor wins for the same id.</td></tr>
         <tr><td><code>label</code></td><td><code>String</code></td><td>—</td><td>Human-readable text shown in the menu item.</td></tr>
         <tr><td><code>icon</code></td><td><code>String?</code></td><td><code>null</code></td><td>Optional Unicode glyph or emoji prepended to the label (e.g. <code>"🗑️"</code>).</td></tr>
         <tr><td><code>section</code></td><td><code>MenuSection</code></td><td><code>BASIC</code></td><td>Which standard section this action belongs to.</td></tr>
@@ -285,7 +285,9 @@
       <ul>
         <li><code>actions</code> — the base list of actions provided by the menu host.</li>
         <li><code>contributors</code> — optional list of <a href="#menu-contributor"><code>MenuContributor</code></a>
-          instances; their contributions are merged by <code>id</code> before rendering.</li>
+          instances; contributor actions with a matching <code>id</code> replace the corresponding
+          base action in-place (preserving base ordering). When multiple contributors supply the
+          same <code>id</code>, the last contributor's action wins.</li>
         <li><code>context</code> — forwarded verbatim to every contributor's
           <code>contributeActions(context)</code>.</li>
       </ul>
@@ -320,9 +322,11 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
 }</code></pre>
       <p>
         <strong>Override semantics:</strong> if a contributor returns an action with the same
-        <code>id</code> as an action in the base list, the contributor's version replaces it.
-        Multiple contributors may be passed; contributions from all of them are appended after
-        surviving base actions.
+        <code>id</code> as an action in the base list, the contributor's version replaces it
+        in-place, preserving the original base ordering. When multiple contributors supply the
+        same <code>id</code>, the last contributor's action wins (last-write semantics). New
+        actions (ids not present in the base list) are appended after the base actions in
+        last-write order.
       </p>
       <div class="tip">
         <strong>Principle:</strong> contributors extend, not replace, the whole menu. They can

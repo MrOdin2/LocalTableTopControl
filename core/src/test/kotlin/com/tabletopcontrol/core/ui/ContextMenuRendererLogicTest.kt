@@ -37,17 +37,23 @@ class ContextMenuRendererLogicTest {
     }
 
     @Test
+    fun `override preserves base order`() {
+        val base = listOf(action("a"), action("b"), action("c"))
+        val override = contributor(action("b").copy(label = "OVERRIDDEN"))
+        val merged = ContextMenuRenderer.mergeActions(base, listOf(override), null)
+        // "b" is replaced in-place; "a" stays first, "c" stays last
+        assertEquals(listOf("a", "b", "c"), merged.map { it.id })
+        assertEquals("OVERRIDDEN", merged[1].label)
+    }
+
+    @Test
     fun `contributor overrides base action with same id`() {
         val base = listOf(action("a"), action("b"))
         val override = contributor(action("a").copy(label = "OVERRIDDEN"))
         val merged = ContextMenuRenderer.mergeActions(base, listOf(override), null)
-        // "a" from base is replaced; result contains contributor's version plus "b"
-        assertEquals(2, merged.size)
-        val ids = merged.map { it.id }
-        assertTrue("a" in ids)
-        assertTrue("b" in ids)
-        val overriddenA = merged.first { it.id == "a" }
-        assertEquals("OVERRIDDEN", overriddenA.label)
+        // "a" is replaced in-place; ordering is preserved: a first, then b.
+        assertEquals(listOf("a", "b"), merged.map { it.id })
+        assertEquals("OVERRIDDEN", merged.first { it.id == "a" }.label)
     }
 
     @Test
@@ -64,15 +70,10 @@ class ContextMenuRendererLogicTest {
         val c1 = contributor(action("x").copy(label = "from c1"))
         val c2 = contributor(action("x").copy(label = "from c2"))
         val merged = ContextMenuRenderer.mergeActions(emptyList(), listOf(c1, c2), null)
-        // Both c1 and c2 provide "x"; flatMap puts c1 first, c2 second.
-        // overrideIds is built from ALL contributed ids, so base "x" (if any) is excluded.
-        // The remaining list is remaining(base \ overrideIds) + contributed.
-        // contributed = [c1.x, c2.x] — both survive since no dedup between contributors.
-        assertEquals(2, merged.size)
+        // Both contributors supply "x"; last-write wins → only the c2 version survives.
+        assertEquals(1, merged.size)
         assertEquals("x", merged[0].id)
-        assertEquals("from c1", merged[0].label)
-        assertEquals("x", merged[1].id)
-        assertEquals("from c2", merged[1].label)
+        assertEquals("from c2", merged[0].label)
     }
 
     @Test
