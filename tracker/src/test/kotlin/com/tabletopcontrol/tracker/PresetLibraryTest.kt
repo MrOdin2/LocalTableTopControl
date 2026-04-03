@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -12,6 +13,7 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Base64
@@ -438,7 +440,7 @@ class PresetLibraryTest {
         val uri = PresetLibrary.base64ToTempUri(base64)
         assertNotNull(uri, "Exactly 5 MiB payload should be accepted")
 
-        val tempFile = File(uri!!)
+        val tempFile = File(URI(uri!!))
         try {
             assertTrue(tempFile.exists(), "Temp file should exist")
             assertEquals(5L * 1024 * 1024, tempFile.length(), "Temp file should contain exactly 5 MiB of decoded data")
@@ -459,9 +461,9 @@ class PresetLibraryTest {
             try {
                 Files.createSymbolicLink(link, outside)
             } catch (_: UnsupportedOperationException) {
-                return // Symlinks not supported on this platform — skip test.
+                Assumptions.abort<Unit>("Symlinks not supported on this platform — skip test.")
             } catch (_: IOException) {
-                return // Permission denied or other OS restriction — skip test.
+                Assumptions.abort<Unit>("Permission denied or other OS restriction — skip test.")
             }
             // loadAll() must not expose files found through the symlinked directory.
             val presets = PresetLibrary.loadAll()
