@@ -275,7 +275,13 @@ class SoundboardPlugin : DmPlugin {
         }
         slot.button = btn
 
-        if (slot.uri != null && slot.player == null) loadSlot(slot)
+        if (slot.uri != null && slot.player == null && !loadSlot(slot)) {
+            slot.uri = null
+            slot.customLabel = null
+            btn.text = slot.displayLabel(index)
+            btn.tooltip = Tooltip("Right-click to load a sound file")
+            saveConfig()
+        }
         setIdleStyle(slot)
 
         btn.setOnAction {
