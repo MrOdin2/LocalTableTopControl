@@ -12,11 +12,13 @@ import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
-import javafx.scene.control.ColorPicker
 import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
+import javafx.scene.control.Slider
 import javafx.scene.control.Tooltip
+import javafx.scene.image.PixelWriter
+import javafx.scene.image.WritableImage
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.TilePane
@@ -24,6 +26,7 @@ import javafx.scene.layout.VBox
 import javafx.scene.media.Media
 import javafx.scene.media.MediaPlayer
 import javafx.scene.paint.Color
+import javafx.scene.shape.Circle
 import javafx.stage.FileChooser
 import java.io.File
 import java.util.Base64
@@ -67,6 +70,13 @@ class SoundboardPlugin : DmPlugin {
         fun columnsForWidth(width: Double): Int = if (width >= WIDE_THRESHOLD) 8 else 2
 
         internal fun clampButtonCount(requested: Int): Int = requested.coerceIn(0, MAX_BUTTON_COUNT)
+
+        internal fun shouldShowInlineAddButton(slotCount: Int, columns: Int): Boolean {
+            val safeColumns = columns.coerceAtLeast(1)
+            if (slotCount >= MAX_BUTTON_COUNT) return false
+            if (slotCount <= 0) return true
+            return slotCount % safeColumns != 0
+        }
 
         internal fun serializeConfig(slots: List<SlotConfig>): String {
             val b64 = Base64.getUrlEncoder().withoutPadding()
@@ -159,7 +169,10 @@ class SoundboardPlugin : DmPlugin {
             style = "-fx-padding: 4;"
             widthProperty().addListener { _, _, newWidth ->
                 val cols = columnsForWidth(newWidth.toDouble())
-                if (prefColumns != cols) prefColumns = cols
+                if (prefColumns != cols) {
+                    prefColumns = cols
+                    renderButtons()
+                }
             }
         }
 
@@ -208,6 +221,18 @@ class SoundboardPlugin : DmPlugin {
             DragDropSupport.installDragSource(btn, index, dragContext)
             DragDropSupport.installDropTarget(btn, index, dragContext, indicator)
             tilePane.children.add(btn)
+        }
+
+        if (shouldShowInlineAddButton(slots.size, tilePane.prefColumns)) {
+            tilePane.children.add(
+                Button("+").apply {
+                    prefWidth = 90.0
+                    prefHeight = 48.0
+                    maxWidth = Double.MAX_VALUE
+                    tooltip = Tooltip("Add a soundboard button (up to $MAX_BUTTON_COUNT)")
+                    setOnAction { addSlot() }
+                },
+            )
         }
         tilePane.children.add(indicator)
 
@@ -397,15 +422,72 @@ class SoundboardPlugin : DmPlugin {
     private fun showColorPicker(slot: SlotState, btn: Button) {
         val initial = runCatching { slot.colorHex?.let { Color.web(it) } ?: Color.GRAY }
             .getOrDefault(Color.GRAY)
-        val picker = ColorPicker(initial)
+        val wheelSize = 220
+        val wheelImage = WritableImage(wheelSize, wheelSize)
+        val wheelPreview = javafx.scene.image.ImageView(wheelImage)
+        val preview = Circle(14.0, initial)
+        val brightnessSlider = Slider(0.0, 1.0, initial.brightness).apply {
+            tooltip = Tooltip("Brightness")
+        }
+        var selectedColor = initial
+
+        fun drawWheel() {
+            val writer: PixelWriter = wheelImage.pixelWriter
+            val center = wheelSize / 2.0
+            val radius = center - 2.0
+            val brightness = brightnessSlider.value
+            for (y in 0 until wheelSize) {
+                for (x in 0 until wheelSize) {
+                    val dx = x - center
+                    val dy = y - center
+                    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                    val pixelColor = if (distance <= radius) {
+                        val saturation = (distance / radius).coerceIn(0.0, 1.0)
+                        val hue = ((kotlin.math.atan2(dy, dx) * 180 / Math.PI) + 360.0) % 360.0
+                        Color.hsb(hue, saturation, brightness)
+                    } else {
+                        Color.TRANSPARENT
+                    }
+                    writer.setColor(x, y, pixelColor)
+                }
+            }
+        }
+
+        fun updateSelectionFrom(x: Double, y: Double) {
+            val center = wheelSize / 2.0
+            val radius = center - 2.0
+            val dx = x - center
+            val dy = y - center
+            val distance = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtMost(radius)
+            val saturation = (distance / radius).coerceIn(0.0, 1.0)
+            val hue = ((kotlin.math.atan2(dy, dx) * 180 / Math.PI) + 360.0) % 360.0
+            selectedColor = Color.hsb(hue, saturation, brightnessSlider.value)
+            preview.fill = selectedColor
+        }
+
+        drawWheel()
+        wheelPreview.setOnMousePressed { updateSelectionFrom(it.x, it.y) }
+        wheelPreview.setOnMouseDragged { updateSelectionFrom(it.x, it.y) }
+        brightnessSlider.valueProperty().addListener { _, _, _ ->
+            drawWheel()
+            preview.fill = Color.hsb(selectedColor.hue, selectedColor.saturation, brightnessSlider.value)
+            selectedColor = preview.fill as Color
+        }
+
         val dialog = Dialog<Color>().apply {
             title = "Set Button Color"
-            dialogPane.content = VBox(8.0, Label("Choose a color for this button"), picker).apply {
+            dialogPane.content = VBox(
+                8.0,
+                Label("Choose a color for this button"),
+                wheelPreview,
+                HBox(8.0, Label("Brightness"), brightnessSlider),
+                HBox(8.0, Label("Preview"), preview),
+            ).apply {
                 padding = Insets(8.0)
             }
             dialogPane.buttonTypes.addAll(ButtonType.OK, ButtonType.CANCEL)
             initOwner(btn.scene?.window)
-            setResultConverter { buttonType -> if (buttonType == ButtonType.OK) picker.value else null }
+            setResultConverter { buttonType -> if (buttonType == ButtonType.OK) selectedColor else null }
         }
 
         dialog.showAndWait().ifPresent { selected ->

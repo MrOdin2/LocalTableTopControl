@@ -44,6 +44,27 @@ class SoundboardPluginTest {
     }
 
     @Test
+    fun `shouldShowInlineAddButton true for non-rectangular fill`() {
+        assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 3, columns = 2))
+    }
+
+    @Test
+    fun `shouldShowInlineAddButton false for perfect rectangle`() {
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 4, columns = 2))
+    }
+
+    @Test
+    fun `shouldShowInlineAddButton false at max`() {
+        assertEquals(
+            false,
+            SoundboardPlugin.shouldShowInlineAddButton(
+                slotCount = SoundboardPlugin.MAX_BUTTON_COUNT,
+                columns = 8,
+            ),
+        )
+    }
+
+    @Test
     fun `serialize and parse config round trip`() {
         val input = listOf(
             SoundboardPlugin.SlotConfig(label = "Door Slam", uri = "file:///tmp/door.mp3", colorHex = "#FF0000"),
