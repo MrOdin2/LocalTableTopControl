@@ -847,6 +847,13 @@ class TrackerPlugin : DmPlugin {
         // generation value and only applies results when no newer call has started.
         val rebuildGeneration = AtomicInteger(0)
 
+        // Single-thread executor caps concurrent disk reads to one task at a time,
+        // regardless of how many times rebuildList() is called (e.g. once per delete).
+        // The daemon thread keeps the JVM from blocking on shutdown.
+        val rebuildExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "preset-rebuild").apply { isDaemon = true }
+        }
+
         fun rebuildList() {
             // Show a "Loading" placeholder immediately so the user sees feedback.
             listBox.children.setAll(Label("Loading…").apply { padding = Insets(8.0) })
@@ -854,9 +861,10 @@ class TrackerPlugin : DmPlugin {
             // a subsequent rebuildList() call has already incremented past it.
             val generation = rebuildGeneration.incrementAndGet()
             // loadAll() reads every .preset file — potentially several MB of Base64 on
-            // large libraries — so run it on a daemon thread to keep the UI responsive
-            // on slow disks and low-power devices such as Raspberry Pi.
-            Thread {
+            // large libraries — so run it via rebuildExecutor (a single-thread daemon
+            // executor) to keep the UI responsive on slow disks and low-power devices
+            // such as Raspberry Pi, while bounding concurrency to one task at a time.
+            rebuildExecutor.submit {
                 val presets = PresetLibrary.loadAll()
                 Platform.runLater {
                     // Only apply results from the most recent load to prevent stale
@@ -1041,7 +1049,7 @@ class TrackerPlugin : DmPlugin {
                         }
                     }
                 }
-            }.also { it.isDaemon = true }.start()
+            }
         }
 
         rebuildList()
@@ -1074,5 +1082,8 @@ class TrackerPlugin : DmPlugin {
         )
 
         dialog.showAndWait()
+        // Shut down the executor after the dialog closes so in-flight or queued
+        // tasks are cancelled and the daemon thread can be reclaimed promptly.
+        rebuildExecutor.shutdownNow()
     }
 }

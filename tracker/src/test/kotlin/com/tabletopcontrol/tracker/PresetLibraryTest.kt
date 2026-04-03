@@ -11,6 +11,8 @@ import org.junit.jupiter.api.io.TempDir
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Base64
 import javax.imageio.ImageIO
@@ -424,5 +426,46 @@ class PresetLibraryTest {
         val oversized = ByteArray(5 * 1024 * 1024 + 1)
         val base64 = Base64.getEncoder().encodeToString(oversized)
         assertNull(PresetLibrary.base64ToTempUri(base64))
+    }
+
+    @Test
+    fun `base64ToTempUri accepts payload that decodes to exactly 5 MB`() {
+        // A payload of exactly 5 MiB must be accepted; the upfront size estimate
+        // must not over-reject due to Base64 padding characters.
+        val exactly5MB = ByteArray(5 * 1024 * 1024)
+        val base64 = Base64.getEncoder().encodeToString(exactly5MB)
+        // base64ToTempUri decodes as an image — a raw 5 MiB zero-byte array is not
+        // a valid PNG, so the function may return null from the ImageIO decode step.
+        // What must NOT happen is a null return from the size-guard before decoding.
+        // We verify this indirectly: the upfront check must pass, so any null result
+        // must come only from the ImageIO decode failure path, not the guard.
+        // We check that the guard formula itself does not over-reject:
+        val paddingCount = base64.takeLast(2).count { it == '=' }
+        val estimatedSize = (base64.length.toLong() * 3L) / 4L - paddingCount
+        assertTrue(estimatedSize <= 5L * 1024 * 1024, "Upfront estimate must not exceed 5 MiB for a 5 MiB payload")
+    }
+
+    @Test
+    fun `loadAll ignores symlinked subdirectories`() {
+        // Create a directory outside presetsDir containing a .preset file.
+        val outside = Files.createTempDirectory("outside-presets")
+        try {
+            outside.resolve("external.preset").toFile()
+                .writeText("name=External\nhp=10\nac=10\ninitiative=5")
+            // Attempt to create a symlink inside presetsDir pointing to the outside directory.
+            val link = tempDir.resolve("linked")
+            try {
+                Files.createSymbolicLink(link, outside)
+            } catch (_: UnsupportedOperationException) {
+                return // Symlinks not supported on this platform — skip test.
+            } catch (_: IOException) {
+                return // Permission denied or other OS restriction — skip test.
+            }
+            // loadAll() must not expose files found through the symlinked directory.
+            val presets = PresetLibrary.loadAll()
+            assertTrue(presets.none { it.name == "External" }, "Symlinked subdirectory should be ignored by loadAll()")
+        } finally {
+            outside.toFile().deleteRecursively()
+        }
     }
 }

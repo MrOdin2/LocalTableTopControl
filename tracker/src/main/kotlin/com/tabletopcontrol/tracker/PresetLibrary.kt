@@ -501,10 +501,11 @@ object PresetLibrary {
      *         file cannot be written.
      */
     internal fun base64ToTempUri(base64: String): String? {
-        // Cheap upfront estimate: Base64 encodes ~3 decoded bytes per 4 chars.
-        // This never under-estimates, so it safely rejects large strings before
-        // any memory allocation for the actual decode.
-        if ((base64.length.toLong() * 3L) / 4L > MAX_BASE64_DECODED_BYTES) return null
+        // Exact decoded-byte count: subtract '=' padding chars so the estimate
+        // does not over-shoot at the boundary (e.g. a 5 MiB payload that produces
+        // one or two '=' padding chars would otherwise be incorrectly rejected).
+        val paddingCount = base64.takeLast(2).count { it == '=' }
+        if ((base64.length.toLong() * 3L) / 4L - paddingCount > MAX_BASE64_DECODED_BYTES) return null
 
         // Return a cached temp file if we already decoded this payload this session.
         val key = base64ContentKey(base64)
