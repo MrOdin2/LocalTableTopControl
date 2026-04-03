@@ -194,7 +194,7 @@ class LightController {
         changeListeners.toList().forEach { it() }
     }
 
-    private companion object {
+    internal companion object {
         /** Matches `#RGB` and `#RRGGBB` (case-insensitive). */
         val HEX_COLOR_REGEX = Regex("^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$")
 
