@@ -142,6 +142,7 @@
         <li><a href="#soundboard">Soundboard</a>
           <ul>
             <li><a href="#soundboard-load">Loading Sounds</a></li>
+            <li><a href="#soundboard-customize">Customizing Buttons</a></li>
             <li><a href="#soundboard-play">Playing Sounds</a></li>
             <li><a href="#soundboard-layout">Responsive Layout</a></li>
           </ul>
@@ -175,8 +176,8 @@
           playing at once).
         </li>
         <li>
-          <strong>Soundboard</strong> — 16 quick-fire buttons for instant sound effects (combat
-          hits, door creaks, tavern noise, etc.).
+          <strong>Soundboard</strong> — customizable quick-fire buttons (up to 32) for instant sound
+          effects (combat hits, door creaks, tavern noise, etc.).
         </li>
       </ul>
       <p>
@@ -238,9 +239,10 @@
     <section id="soundboard">
       <h2>Soundboard</h2>
       <p>
-        The Soundboard gives you <strong>16 instant-play buttons</strong> arranged in a grid. Each
-        button can be loaded with a sound effect that plays immediately when clicked — perfect for
-        combat sounds, door slams, thunder claps, and anything else that needs to happen right now.
+        The Soundboard gives you a <strong>customizable set of instant-play buttons</strong> arranged
+        in a grid (default: 16, maximum: 32). Each button can be loaded with a sound effect that
+        plays immediately when clicked — perfect for combat sounds, door slams, thunder claps, and
+        anything else that needs to happen right now.
       </p>
 
       <h3 id="soundboard-load">Loading Sounds</h3>
@@ -250,6 +252,19 @@
       </p>
       <p>
         You can right-click a button that already has a sound to replace it with a different file.
+      </p>
+
+      <h3 id="soundboard-customize">Customizing Buttons</h3>
+      <table>
+        <tr><th>Action</th><th>Description</th></tr>
+        <tr><td>+ Add Button</td><td>Adds a new empty soundboard button until the maximum (32) is reached.</td></tr>
+        <tr><td>remove button</td><td>Right-click a button and choose <strong>remove button</strong> to delete that slot.</td></tr>
+        <tr><td>Drag &amp; Drop</td><td>Drag one button onto another to reorder slots with immediate visual feedback.</td></tr>
+        <tr><td>Set Color</td><td>Right-click a button and choose <strong>Set Color</strong> to open a color picker and apply a custom button color.</td></tr>
+      </table>
+      <p>
+        Soundboard layout and button settings (loaded sound, order, and color) are persisted between
+        sessions.
       </p>
 
       <h3 id="soundboard-play">Playing Sounds</h3>
@@ -276,7 +291,7 @@
         <li><strong>Narrow panel</strong> — 2 buttons per column (8 rows of 2).</li>
       </ul>
       <p>
-        The layout switches automatically as you resize the DM panel. All 16 buttons are always
+        The layout switches automatically as you resize the DM panel. All configured buttons remain
         accessible regardless of the panel size.
       </p>
     </section>
