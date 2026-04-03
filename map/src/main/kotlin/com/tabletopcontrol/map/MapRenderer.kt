@@ -783,15 +783,18 @@ class MapRenderer(private val canvas: Canvas) {
                     val half = Math.toRadians(measurement.coneAngleDegrees / 2.0)
                     val start = dir - half
                     val end = dir + half
-                    gc.beginPath()
-                    gc.moveTo(sx, sy)
-                    gc.lineTo(sx + r * cos(start), sy + r * sin(start))
-                    gc.arc(sx, sy, r, r, Math.toDegrees(start), Math.toDegrees(end - start))
-                    gc.closePath()
-                    gc.fill()
+                    val arcStart = -Math.toDegrees(end)
+                    gc.fillArc(
+                        sx - r,
+                        sy - r,
+                        r * 2.0,
+                        r * 2.0,
+                        arcStart,
+                        measurement.coneAngleDegrees,
+                        javafx.scene.shape.ArcType.ROUND,
+                    )
                     gc.strokeLine(sx, sy, sx + r * cos(start), sy + r * sin(start))
                     gc.strokeLine(sx, sy, sx + r * cos(end), sy + r * sin(end))
-                    val arcStart = -Math.toDegrees(end)
                     gc.strokeArc(sx - r, sy - r, r * 2.0, r * 2.0, arcStart, measurement.coneAngleDegrees, javafx.scene.shape.ArcType.OPEN)
                 }
             }
