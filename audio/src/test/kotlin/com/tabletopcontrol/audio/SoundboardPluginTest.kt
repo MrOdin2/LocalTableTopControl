@@ -65,6 +65,11 @@ class SoundboardPluginTest {
     }
 
     @Test
+    fun `shouldShowInlineAddButton true when empty`() {
+        assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 0, columns = 2))
+    }
+
+    @Test
     fun `shouldShowInlineAddButton covers pane-size rectangle combinations`() {
         // Perfect rectangles for varying pane-driven column counts (2..8): hide inline add.
         assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 8, columns = 2)) // 2x4

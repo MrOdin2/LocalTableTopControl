@@ -79,7 +79,7 @@ class SoundboardPlugin : DmPlugin {
         internal fun shouldShowInlineAddButton(slotCount: Int, columns: Int): Boolean {
             val safeColumns = columns.coerceAtLeast(1)
             if (slotCount >= MAX_BUTTON_COUNT) return false
-            if (slotCount <= 0) return false
+            if (slotCount <= 0) return true
             return slotCount % safeColumns != 0
         }
 
