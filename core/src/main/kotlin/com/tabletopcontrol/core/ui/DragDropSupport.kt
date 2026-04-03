@@ -93,7 +93,7 @@ object DragDropSupport {
                 if (context.canAcceptDrop(sourceData)) {
                     e.acceptTransferModes(TransferMode.MOVE)
                     if (dropIndicator != null) {
-                        repositionIndicatorBefore(dropIndicator, node)
+                        repositionIndicator(dropIndicator, node)
                         dropIndicator.show()
                     }
                     autoScroll(context.autoScrollPane, e.sceneY)
@@ -123,21 +123,22 @@ object DragDropSupport {
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     /**
-     * Moves [indicator] to the position immediately before [sibling] in their shared
-     * [javafx.scene.layout.Pane] parent, so the drop indicator visually marks the
-     * candidate drop position.  Does nothing if [sibling] has no [javafx.scene.layout.Pane]
-     * parent or is not a sibling of [indicator].
+     * Positions [indicator] as an absolutely-placed overlay at the top edge of [sibling]
+     * within their shared [javafx.scene.layout.Pane] parent.
+     *
+     * The indicator is permanently kept out of the layout flow (`isManaged = false`) so it
+     * never displaces [sibling] or any other child.  Its `layoutY` is set to the top of
+     * [sibling] minus half the indicator height so it straddles the boundary between the
+     * item above and [sibling], and its width is stretched to fill the parent.
+     *
+     * Does nothing if [sibling] has no [javafx.scene.layout.Pane] parent.
      */
-    private fun repositionIndicatorBefore(indicator: DropIndicator, sibling: Node) {
+    private fun repositionIndicator(indicator: DropIndicator, sibling: Node) {
         val parent = sibling.parent as? javafx.scene.layout.Pane ?: return
-        val children = parent.children
-        val targetIdx = children.indexOf(sibling)
-        if (targetIdx < 0) return
-        // Already in the correct position — indicator is the node directly before sibling.
-        if (children.getOrNull(targetIdx - 1) === indicator) return
-        children.remove(indicator)
-        val insertAt = children.indexOf(sibling).coerceAtLeast(0)
-        children.add(insertAt, indicator)
+        indicator.layoutX = 0.0
+        indicator.prefWidth = parent.width
+        // Centre the bar on the top edge of the hovered node so it appears between items.
+        indicator.layoutY = sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2
     }
 
     /**
