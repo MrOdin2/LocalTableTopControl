@@ -131,6 +131,19 @@ class InitiativeTracker {
     }
 
     /**
+     * Sets the active combatant to [index], clamping to the valid range.
+     *
+     * This is used to restore the logical active combatant after [add] re-sorts
+     * the list.  Does nothing when the tracker is empty.
+     *
+     * @param index the desired zero-based active index
+     */
+    fun jumpTo(index: Int) {
+        if (_entries.isEmpty()) return
+        currentIndex = index.coerceIn(0, _entries.size - 1)
+    }
+
+    /**
      * Resets the tracker to its initial empty state.
      *
      * Clears all entries, sets [currentIndex] to `-1`, and resets [round] to `1`.
