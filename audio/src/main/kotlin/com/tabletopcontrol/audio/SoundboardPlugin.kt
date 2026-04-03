@@ -606,9 +606,11 @@ class SoundboardPlugin : DmPlugin {
         }
     }
 
-    private fun loadConfig(): List<SlotConfig>? =
-        runCatching {
-            if (!configFile.exists()) return null
+    private fun loadConfig(): List<SlotConfig>? {
+        if (!configFile.exists()) return null
+
+        return runCatching {
             parseConfig(configFile.readText())
         }.getOrNull()
+    }
 }
