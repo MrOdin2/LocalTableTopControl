@@ -113,6 +113,12 @@ object ContextMenuRenderer {
             val alert = Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO)
             alert.title = "Confirm"
             alert.headerText = null
+            // Make "No" the default button so pressing Enter does not accidentally confirm
+            // a destructive action; the user must explicitly click "Yes".
+            (alert.dialogPane.lookupButton(ButtonType.YES) as? javafx.scene.control.Button)
+                ?.isDefaultButton = false
+            (alert.dialogPane.lookupButton(ButtonType.NO) as? javafx.scene.control.Button)
+                ?.isDefaultButton = true
             val result = alert.showAndWait()
             if (result.orElse(ButtonType.NO) == ButtonType.YES) {
                 action.onAction()
