@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Core UI Primitives – TabletopControl Developer Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside { width: 230px; flex-shrink: 0; }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    aside .toc ul ul { margin-left: 0.8rem; margin-top: 0.25rem; }
+    aside .other-docs { margin-top: 1rem; }
+    aside .other-docs h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .other-docs ul { list-style: none; }
+    aside .other-docs ul li { margin-bottom: 0.35rem; }
+    aside .other-docs ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .other-docs ul li a:hover { text-decoration: underline; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; color: #333; }
+    h4 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: #555; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    code {
+      background: #eef2f7;
+      border: 1px solid #d0d8e4;
+      border-radius: 3px;
+      padding: 0.1em 0.4em;
+      font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.88em;
+    }
+    pre {
+      background: #1e1e2e;
+      color: #cdd6f4;
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      overflow-x: auto;
+      margin: 0.75rem 0 1rem;
+      font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.87rem;
+      line-height: 1.6;
+    }
+    pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
+    .kw  { color: #cba6f7; }  /* keyword */
+    .ty  { color: #89b4fa; }  /* type / class */
+    .fn  { color: #94e2d5; }  /* function */
+    .st  { color: #a6e3a1; }  /* string */
+    .cm  { color: #6c7086; font-style: italic; } /* comment */
+    .nu  { color: #fab387; }  /* number */
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+    }
+    .warn {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 3px;
+      padding: 0.1em 0.5em;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      margin-right: 0.3rem;
+      vertical-align: middle;
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🧩 Core UI Primitives</h1>
+  <p>Developer Guide — Context Menus &amp; Drag-and-Drop</p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Home</a> › Developer Docs › Core UI Primitives
+</nav>
+
+<div class="layout">
+
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#context-menus">Context Menus</a>
+          <ul>
+            <li><a href="#menu-action">MenuAction</a></li>
+            <li><a href="#menu-section">MenuSection</a></li>
+            <li><a href="#context-menu-renderer">ContextMenuRenderer</a></li>
+            <li><a href="#menu-contributor">MenuContributor</a></li>
+          </ul>
+        </li>
+        <li><a href="#drag-drop">Drag &amp; Drop</a>
+          <ul>
+            <li><a href="#drag-drop-context">DragDropContext</a></li>
+            <li><a href="#drag-drop-support">DragDropSupport</a></li>
+            <li><a href="#drop-indicator">DropIndicator</a></li>
+            <li><a href="#grab-handle">GrabHandle</a></li>
+          </ul>
+        </li>
+        <li><a href="#examples">Full Examples</a>
+          <ul>
+            <li><a href="#example-basic-menu">Basic Context Menu</a></li>
+            <li><a href="#example-contributor">Menu Contributor</a></li>
+            <li><a href="#example-dnd">Reorderable List</a></li>
+          </ul>
+        </li>
+        <li><a href="#extension-points">Extension Points</a></li>
+        <li><a href="#api-reference">API Reference</a></li>
+      </ul>
+    </div>
+    <div class="other-docs">
+      <h2>See also</h2>
+      <ul>
+        <li><a href="index.html">User Documentation</a></li>
+        <li><a href="cross-plugin.html">Cross-Plugin Guide</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- ── Overview ──────────────────────────────────────────────────── -->
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        The <strong>Core UI Primitives</strong> package (<code>com.tabletopcontrol.core.ui</code>)
+        provides a consistent, plugin-agnostic foundation for two common UI patterns:
+      </p>
+      <ul>
+        <li>
+          <strong>Context menus</strong> — a structured model of actions that are rendered into a
+          JavaFX <code>ContextMenu</code> with canonical section ordering, automatic separators,
+          greyed-out disabled items, and optional confirmation dialogs.
+        </li>
+        <li>
+          <strong>Drag-and-drop reordering</strong> — a centralised helper that attaches consistent
+          drag-source and drop-target behaviour to any node in an item list, including ghost
+          previews, visual drop indicators, and auto-scroll.
+        </li>
+      </ul>
+      <p>
+        Plugins use these primitives instead of hand-rolling their own <code>ContextMenu</code> or
+        <code>setOnDragDetected</code> wiring, which ensures visual and behavioural consistency
+        across the entire application.
+      </p>
+      <div class="tip">
+        <strong>Package:</strong> <code>com.tabletopcontrol.core.ui</code> — all classes listed
+        in this guide live in this package.
+      </div>
+    </section>
+
+    <!-- ── Context Menus ─────────────────────────────────────────────── -->
+    <section id="context-menus">
+      <h2>Context Menus</h2>
+      <p>
+        Context menus are built from a list of <a href="#menu-action"><code>MenuAction</code></a>
+        objects and rendered by <a href="#context-menu-renderer"><code>ContextMenuRenderer</code></a>.
+        Actions are grouped into <a href="#menu-section">standard sections</a> and separated
+        automatically.
+      </p>
+
+      <!-- MenuAction -->
+      <h3 id="menu-action">MenuAction</h3>
+      <p>
+        <code>MenuAction</code> is a plain Kotlin data class describing a single menu item.
+        It carries no JavaFX state, making it easy to construct, copy, and test in isolation.
+      </p>
+      <table>
+        <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td><code>id</code></td><td><code>String</code></td><td>—</td><td>Stable, unique identifier (e.g. <code>"tracker.rename"</code>). Used for contributor override/merge: contributor actions replace base actions with the same id in-place; last contributor wins for the same id.</td></tr>
+        <tr><td><code>label</code></td><td><code>String</code></td><td>—</td><td>Human-readable text shown in the menu item.</td></tr>
+        <tr><td><code>icon</code></td><td><code>String?</code></td><td><code>null</code></td><td>Optional Unicode glyph or emoji prepended to the label (e.g. <code>"🗑️"</code>).</td></tr>
+        <tr><td><code>section</code></td><td><code>MenuSection</code></td><td><code>BASIC</code></td><td>Which standard section this action belongs to.</td></tr>
+        <tr><td><code>isEnabled</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>When <code>false</code>, the item is shown greyed-out and cannot be triggered.</td></tr>
+        <tr><td><code>isVisible</code></td><td><code>Boolean</code></td><td><code>true</code></td><td>When <code>false</code>, the item is excluded from the menu entirely.</td></tr>
+        <tr><td><code>requiresConfirmation</code></td><td><code>Boolean</code></td><td><code>false</code></td><td>When <code>true</code>, a confirmation dialog is shown before invoking <code>onAction</code>.</td></tr>
+        <tr><td><code>confirmationMessage</code></td><td><code>String?</code></td><td><code>null</code></td><td>Text shown in the confirmation dialog (falls back to a generic phrase when <code>null</code>).</td></tr>
+        <tr><td><code>onAction</code></td><td><code>() -&gt; Unit</code></td><td>—</td><td>Callback invoked when the user selects the item (after any confirmation).</td></tr>
+      </table>
+
+      <!-- MenuSection -->
+      <h3 id="menu-section">MenuSection</h3>
+      <p>
+        Actions are grouped into one of four standard sections. Sections are always rendered in
+        the order listed below, with <code>SeparatorMenuItem</code>s between populated sections.
+        Sections containing no visible actions are silently omitted.
+      </p>
+      <table>
+        <tr><th>Section</th><th>Order</th><th>Typical actions</th></tr>
+        <tr><td><code>BASIC</code></td><td>1st</td><td>Open, rename, view details, refresh — the most-used everyday operations.</td></tr>
+        <tr><td><code>APPEARANCE</code></td><td>2nd</td><td>Change colour, icon, or label — visual customisation that doesn't alter structure.</td></tr>
+        <tr><td><code>ARRANGE</code></td><td>3rd</td><td>Move up/down, move to group, pin — structural or ordering changes.</td></tr>
+        <tr><td><code>DANGER_ZONE</code></td><td>4th (last)</td><td>Delete, reset, clear — destructive operations, always placed last and typically paired with <code>requiresConfirmation = true</code>.</td></tr>
+      </table>
+
+      <!-- ContextMenuRenderer -->
+      <h3 id="context-menu-renderer">ContextMenuRenderer</h3>
+      <p>
+        <code>ContextMenuRenderer</code> is a singleton object with a single public method:
+      </p>
+<pre><code><span class="kw">fun</span> <span class="fn">build</span>(
+    actions: <span class="ty">List</span>&lt;<span class="ty">MenuAction</span>&gt;,
+    contributors: <span class="ty">List</span>&lt;<span class="ty">MenuContributor</span>&gt; = emptyList(),
+    context: <span class="ty">Any</span>? = <span class="kw">null</span>,
+): <span class="ty">ContextMenu</span></code></pre>
+      <ul>
+        <li><code>actions</code> — the base list of actions provided by the menu host.</li>
+        <li><code>contributors</code> — optional list of <a href="#menu-contributor"><code>MenuContributor</code></a>
+          instances; contributor actions with a matching <code>id</code> replace the corresponding
+          base action in-place (preserving base ordering). When multiple contributors supply the
+          same <code>id</code>, the last contributor's action wins.</li>
+        <li><code>context</code> — forwarded verbatim to every contributor's
+          <code>contributeActions(context)</code>.</li>
+      </ul>
+      <p>
+        The returned <code>ContextMenu</code> is ready to be shown immediately. Attach it to a
+        node with <code>setOnContextMenuRequested</code>:
+      </p>
+<pre><code><span class="kw">val</span> menu = <span class="ty">ContextMenuRenderer</span>.<span class="fn">build</span>(
+    actions = listOf(
+        <span class="ty">MenuAction</span>(
+            id      = <span class="st">"entry.view"</span>,
+            label   = <span class="st">"View Details"</span>,
+            icon    = <span class="st">"📄"</span>,
+            onAction = { openDetails(item) },
+        ),
+    ),
+)
+node.<span class="fn">setOnContextMenuRequested</span> { e ->
+    menu.<span class="fn">show</span>(node, e.screenX, e.screenY)
+    e.<span class="fn">consume</span>()
+}</code></pre>
+
+      <!-- MenuContributor -->
+      <h3 id="menu-contributor">MenuContributor</h3>
+      <p>
+        <code>MenuContributor</code> is an interface that any class (including a plugin) can
+        implement to contribute additional actions to a shared context menu, or to override
+        existing actions by matching their <code>id</code>.
+      </p>
+<pre><code><span class="kw">interface</span> <span class="ty">MenuContributor</span> {
+    <span class="kw">fun</span> <span class="fn">contributeActions</span>(context: <span class="ty">Any</span>?): <span class="ty">List</span>&lt;<span class="ty">MenuAction</span>&gt;
+}</code></pre>
+      <p>
+        <strong>Override semantics:</strong> if a contributor returns an action with the same
+        <code>id</code> as an action in the base list, the contributor's version replaces it
+        in-place, preserving the original base ordering. When multiple contributors supply the
+        same <code>id</code>, the last contributor's action wins (last-write semantics). New
+        actions (ids not present in the base list) are appended after the base actions in
+        last-write order.
+      </p>
+      <div class="tip">
+        <strong>Principle:</strong> contributors extend, not replace, the whole menu. They can
+        add new actions to any section or override specific base actions — but they cannot remove
+        an action that has no matching <code>id</code>. Use <code>isVisible = false</code> in an
+        overridden action to effectively hide a base action.
+      </div>
+    </section>
+
+    <!-- ── Drag & Drop ───────────────────────────────────────────────── -->
+    <section id="drag-drop">
+      <h2>Drag &amp; Drop</h2>
+      <p>
+        The drag-and-drop primitives centralise all visual interactions for item reordering:
+        ghost preview, drop indicator, and auto-scroll. Plugin code only provides a
+        <a href="#drag-drop-context"><code>DragDropContext</code></a> with the format identifier
+        and a reorder callback.
+      </p>
+
+      <!-- DragDropContext -->
+      <h3 id="drag-drop-context">DragDropContext</h3>
+      <p>
+        A plain data class that bundles the configuration for one drag-and-drop list.
+        Create a single instance per list/container and reuse it for every item node.
+      </p>
+      <table>
+        <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td><code>dataFormat</code></td><td><code>String</code></td><td>—</td><td>Unique MIME-type-like key (e.g. <code>"tabletopcontrol/tracker-item"</code>). Ensures drops are accepted only from the same list type.</td></tr>
+        <tr><td><code>ghostFactory</code></td><td><code>((Node) -&gt; Node)?</code></td><td><code>null</code></td><td>Optional factory for a custom ghost-preview node. When <code>null</code>, a snapshot of the drag source is used.</td></tr>
+        <tr><td><code>onReorder</code></td><td><code>(Int, Int) -&gt; Unit</code></td><td>—</td><td>Called with <code>(fromIndex, toIndex)</code> on a successful drop. Update your data model and refresh the UI here.</td></tr>
+        <tr><td><code>canAcceptDrop</code></td><td><code>(String) -&gt; Boolean</code></td><td><code>{ true }</code></td><td>Optional predicate to veto a drag-over event based on the raw source-data string.</td></tr>
+        <tr><td><code>autoScrollPane</code></td><td><code>ScrollPane?</code></td><td><code>null</code></td><td>If set, the scroll position is adjusted automatically when the cursor approaches the pane's edges during a drag.</td></tr>
+      </table>
+
+      <!-- DragDropSupport -->
+      <h3 id="drag-drop-support">DragDropSupport</h3>
+      <p>
+        A singleton object with two installation methods:
+      </p>
+      <h4>installDragSource</h4>
+<pre><code><span class="kw">fun</span> <span class="fn">installDragSource</span>(
+    node: <span class="ty">Node</span>,
+    index: <span class="ty">Int</span>,
+    context: <span class="ty">DragDropContext</span>,
+)</code></pre>
+      <p>
+        Attaches <code>setOnDragDetected</code> to <code>node</code>. When the user starts a
+        drag, the item's <code>index</code> is written to the dragboard. The ghost image is
+        produced by <code>DragDropContext.ghostFactory</code> (or a transparent snapshot of
+        <code>node</code> if no factory is set).
+      </p>
+      <h4>installDropTarget</h4>
+<pre><code><span class="kw">fun</span> <span class="fn">installDropTarget</span>(
+    node: <span class="ty">Node</span>,
+    index: <span class="ty">Int</span>,
+    context: <span class="ty">DragDropContext</span>,
+    dropIndicator: <span class="ty">DropIndicator</span>? = <span class="kw">null</span>,
+)</code></pre>
+      <p>
+        Attaches drag-over, drag-exited, and drag-dropped handlers to <code>node</code>.
+        On a valid hover, the optional <code>dropIndicator</code> is shown and auto-scroll
+        is triggered. On drop, <code>DragDropContext.onReorder</code> is called.
+      </p>
+
+      <!-- DropIndicator -->
+      <h3 id="drop-indicator">DropIndicator</h3>
+      <p>
+        A thin (<code>3 px</code>) horizontal bar that signals a valid drop position.
+        Create one instance for your list container and pass it to
+        <code>DragDropSupport.installDropTarget</code>. It manages its own
+        <code>isVisible</code> state automatically, while <code>isManaged</code> remains
+        <code>false</code> so showing the indicator does not affect layout or cause flicker.
+        If you later rebuild the container with <code>children.setAll(...)</code> (or any
+        other operation that replaces the child list), include the indicator in the new
+        children or re-add it afterwards, because replacing the child list removes it.
+      </p>
+<pre><code><span class="kw">val</span> indicator = <span class="ty">DropIndicator</span>()
+listContainer.children.<span class="fn">add</span>(indicator)   <span class="cm">// initial setup</span>
+
+<span class="cm">// later refreshes that replace children must preserve the indicator</span>
+listContainer.children.<span class="fn">setAll</span>(items + indicator)</code></pre>
+      <p>
+        The bar uses the application's <code>-tc-accent</code> CSS variable for its colour,
+        so it automatically matches the user's selected theme. You may also style it via the
+        <code>tc-drop-indicator</code> CSS class.
+      </p>
+
+      <!-- GrabHandle -->
+      <h3 id="grab-handle">GrabHandle</h3>
+      <p>
+        A <code>Label</code> subclass displaying the braille-dots glyph <strong>⠿</strong>
+        (U+28BF) as a visual drag handle. Add it to the left edge of any draggable row.
+      </p>
+<pre><code><span class="kw">val</span> handle = <span class="ty">GrabHandle</span>()
+<span class="kw">val</span> card   = <span class="ty">HBox</span>(handle, nameLabel, spacer, removeButton)</code></pre>
+      <p>
+        The handle applies an <code>open-hand</code> cursor and the
+        <code>tc-grab-handle</code> CSS class. Its presence is purely cosmetic — the drag
+        is initiated by <code>DragDropSupport.installDragSource</code> on the parent card
+        node itself, so a drag gesture on the card (including the handle area) begins the
+        drag.
+      </p>
+    </section>
+
+    <!-- ── Full Examples ─────────────────────────────────────────────── -->
+    <section id="examples">
+      <h2>Full Examples</h2>
+
+      <!-- Basic context menu -->
+      <h3 id="example-basic-menu">Basic Context Menu</h3>
+      <p>
+        A right-click menu on a soundboard button with a DANGER_ZONE "Clear" action that
+        requires confirmation:
+      </p>
+<pre><code><span class="kw">val</span> actions = listOf(
+    <span class="ty">MenuAction</span>(
+        id      = <span class="st">"sound.load"</span>,
+        label   = <span class="st">"Load Sound…"</span>,
+        icon    = <span class="st">"📂"</span>,
+        section = <span class="ty">MenuSection</span>.BASIC,
+        onAction = { <span class="fn">openFileChooser</span>(slot) },
+    ),
+    <span class="ty">MenuAction</span>(
+        id                   = <span class="st">"sound.clear"</span>,
+        label                = <span class="st">"Clear"</span>,
+        icon                 = <span class="st">"🗑️"</span>,
+        section              = <span class="ty">MenuSection</span>.DANGER_ZONE,
+        isEnabled            = slot.isLoaded,
+        requiresConfirmation = <span class="kw">true</span>,
+        confirmationMessage  = <span class="st">"Remove the loaded sound from this slot?"</span>,
+        onAction             = { <span class="fn">clearSlot</span>(slot) },
+    ),
+)
+
+button.<span class="fn">setOnContextMenuRequested</span> { e ->
+    <span class="ty">ContextMenuRenderer</span>.<span class="fn">build</span>(actions).<span class="fn">show</span>(button, e.screenX, e.screenY)
+    e.<span class="fn">consume</span>()
+}</code></pre>
+
+      <!-- MenuContributor -->
+      <h3 id="example-contributor">Extending a Menu via MenuContributor</h3>
+      <p>
+        A plugin adds an "Export to CSV" action to a tracker item's context menu without
+        modifying the host plugin's action list:
+      </p>
+<pre><code><span class="cm">// In MyPlugin.kt</span>
+<span class="kw">class</span> <span class="ty">MyPlugin</span> : <span class="ty">DmPlugin</span>, <span class="ty">MenuContributor</span> {
+
+    <span class="kw">override val</span> displayName = <span class="st">"My Plugin"</span>
+    <span class="kw">override fun</span> <span class="fn">createView</span>(): <span class="ty">Node</span> = <span class="fn">buildUi</span>()
+
+    <span class="kw">override fun</span> <span class="fn">contributeActions</span>(context: <span class="ty">Any</span>?): <span class="ty">List</span>&lt;<span class="ty">MenuAction</span>&gt; {
+        <span class="cm">// context is whatever the menu host passes (e.g. a TrackerEntry)</span>
+        <span class="kw">val</span> entry = context <span class="kw">as</span>? <span class="ty">TrackerEntry</span> ?: <span class="kw">return</span> emptyList()
+        <span class="kw">return</span> listOf(
+            <span class="ty">MenuAction</span>(
+                id      = <span class="st">"myplugin.export"</span>,
+                label   = <span class="st">"Export to CSV"</span>,
+                icon    = <span class="st">"📤"</span>,
+                section = <span class="ty">MenuSection</span>.ARRANGE,
+                onAction = { <span class="fn">exportEntry</span>(entry) },
+            ),
+        )
+    }
+}
+
+<span class="cm">// In the host plugin, when building the menu:</span>
+<span class="ty">ContextMenuRenderer</span>.<span class="fn">build</span>(
+    actions      = baseActions,
+    contributors = listOf(myPluginInstance),
+    context      = clickedEntry,
+)</code></pre>
+
+      <!-- Reorderable list -->
+      <h3 id="example-dnd">Reorderable List with Grab Handles</h3>
+      <p>
+        A complete minimal example of a vertically reorderable list using all four
+        drag-and-drop primitives together:
+      </p>
+<pre><code><span class="kw">class</span> <span class="ty">MyListView</span> {
+
+    <span class="kw">private val</span> items = mutableListOf(<span class="st">"Alpha"</span>, <span class="st">"Beta"</span>, <span class="st">"Gamma"</span>)
+    <span class="kw">private val</span> container = <span class="ty">VBox</span>(<span class="nu">4.0</span>)
+    <span class="kw">private val</span> scrollPane = <span class="ty">ScrollPane</span>(container)
+    <span class="kw">private val</span> indicator  = <span class="ty">DropIndicator</span>()
+
+    <span class="cm">// One DragDropContext shared across all item nodes in this list.</span>
+    <span class="kw">private val</span> dndCtx = <span class="ty">DragDropContext</span>(
+        dataFormat      = <span class="st">"tabletopcontrol/my-list-item"</span>,
+        autoScrollPane  = scrollPane,
+        onReorder       = { from, to ->
+            <span class="kw">val</span> moved = items.<span class="fn">removeAt</span>(from)
+            items.<span class="fn">add</span>(to, moved)
+            <span class="fn">refresh</span>()
+        },
+    )
+
+    <span class="kw">fun</span> <span class="fn">build</span>(): <span class="ty">Node</span> {
+        <span class="fn">refresh</span>()
+        <span class="kw">return</span> scrollPane
+    }
+
+    <span class="kw">private fun</span> <span class="fn">refresh</span>() {
+        container.children.<span class="fn">setAll</span>(
+            items.<span class="fn">mapIndexed</span> { index, name -> <span class="fn">makeCard</span>(index, name) }
+        )
+        container.children.<span class="fn">add</span>(indicator)
+    }
+
+    <span class="kw">private fun</span> <span class="fn">makeCard</span>(index: <span class="ty">Int</span>, name: <span class="ty">String</span>): <span class="ty">Node</span> {
+        <span class="kw">val</span> handle = <span class="ty">GrabHandle</span>()
+        <span class="kw">val</span> label  = <span class="ty">Label</span>(name)
+        <span class="ty">HBox</span>.setHgrow(label, <span class="ty">Priority</span>.ALWAYS)
+        <span class="kw">val</span> card = <span class="ty">HBox</span>(<span class="nu">6.0</span>, handle, label)
+
+        <span class="ty">DragDropSupport</span>.<span class="fn">installDragSource</span>(card, index, dndCtx)
+        <span class="ty">DragDropSupport</span>.<span class="fn">installDropTarget</span>(card, index, dndCtx, indicator)
+
+        <span class="kw">return</span> card
+    }
+}</code></pre>
+    </section>
+
+    <!-- ── Extension Points ──────────────────────────────────────────── -->
+    <section id="extension-points">
+      <h2>Extension Points</h2>
+      <p>
+        The primitives are designed for extension through composition, not subclassing:
+      </p>
+      <ul>
+        <li>
+          <strong>Contribute menu actions</strong> — implement <code>MenuContributor</code> and
+          pass the instance to <code>ContextMenuRenderer.build(contributors = ...)</code>.
+          Plugins must never call <code>ContextMenu</code> directly when the host uses
+          <code>ContextMenuRenderer</code>.
+        </li>
+        <li>
+          <strong>Override a base action</strong> — return a <code>MenuAction</code> with the
+          same <code>id</code> from your contributor. The base action is replaced by yours
+          before rendering.
+        </li>
+        <li>
+          <strong>Custom ghost preview</strong> — supply a <code>ghostFactory</code> in
+          <code>DragDropContext</code>. The factory receives the dragged <code>Node</code>
+          and should return a new node (e.g. a styled clone or a simplified thumbnail).
+        </li>
+        <li>
+          <strong>Conditional drop acceptance</strong> — supply <code>canAcceptDrop</code> in
+          <code>DragDropContext</code> to veto drops based on the raw source-data string
+          (e.g. accept only items from the same category).
+        </li>
+      </ul>
+      <div class="warn">
+        <strong>Do not</strong> extend <code>ContextMenuRenderer</code> or
+        <code>DragDropSupport</code> by subclassing — both are <code>object</code> singletons.
+        All customisation goes through the data classes (<code>MenuAction</code>,
+        <code>DragDropContext</code>) and the <code>MenuContributor</code> interface.
+      </div>
+    </section>
+
+    <!-- ── API Reference ─────────────────────────────────────────────── -->
+    <section id="api-reference">
+      <h2>API Reference</h2>
+      <table>
+        <tr><th>Class / Object</th><th>Kind</th><th>Purpose</th></tr>
+        <tr>
+          <td><code>MenuSection</code></td>
+          <td><span class="badge">enum</span></td>
+          <td>Canonical section ordering: <code>BASIC</code>, <code>APPEARANCE</code>, <code>ARRANGE</code>, <code>DANGER_ZONE</code>.</td>
+        </tr>
+        <tr>
+          <td><code>MenuAction</code></td>
+          <td><span class="badge">data class</span></td>
+          <td>Plugin-agnostic descriptor for a single context-menu item.</td>
+        </tr>
+        <tr>
+          <td><code>MenuContributor</code></td>
+          <td><span class="badge">interface</span></td>
+          <td>Extension point: implement to add or override actions in shared menus.</td>
+        </tr>
+        <tr>
+          <td><code>ContextMenuRenderer</code></td>
+          <td><span class="badge">object</span></td>
+          <td>Assembles a <code>ContextMenu</code> from <code>MenuAction</code> lists with section ordering, separators, and confirmation dialogs.</td>
+        </tr>
+        <tr>
+          <td><code>DragDropContext</code></td>
+          <td><span class="badge">data class</span></td>
+          <td>Configuration for one drag-and-drop list: format, ghost factory, reorder callback, veto predicate, auto-scroll pane.</td>
+        </tr>
+        <tr>
+          <td><code>DragDropSupport</code></td>
+          <td><span class="badge">object</span></td>
+          <td>Installs drag-source and drop-target behaviour on item nodes; manages ghost, indicator, and auto-scroll.</td>
+        </tr>
+        <tr>
+          <td><code>DropIndicator</code></td>
+          <td><span class="badge">class</span></td>
+          <td>A 3 px accent-coloured bar shown at the drop position; toggled by <code>DragDropSupport</code>.</td>
+        </tr>
+        <tr>
+          <td><code>GrabHandle</code></td>
+          <td><span class="badge">class</span></td>
+          <td>A Label subclass showing the ⠿ drag-handle glyph with an open-hand cursor.</td>
+        </tr>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  TabletopControl Developer Documentation &mdash; <a href="index.html">User Docs</a>
+</footer>
+
+</body>
+</html>
