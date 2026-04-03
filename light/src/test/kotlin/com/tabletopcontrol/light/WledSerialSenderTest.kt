@@ -30,9 +30,26 @@ class WledSerialSenderTest {
     }
 
     @Test
-    fun `sender default speed and intensity stay in sync with controller defaults`() {
+    fun `sender default speed and intensity stay in sync with controller defaults and are used by buildJson`() {
         assertEquals(LightController.DEFAULT_EFFECT_SPEED, WledSerialSender.DEFAULT_EFFECT_SPEED)
         assertEquals(LightController.DEFAULT_EFFECT_INTENSITY, WledSerialSender.DEFAULT_EFFECT_INTENSITY)
+
+        val json = sender.buildJson(
+            on = true,
+            color = "#FFFFFF",
+            effect = LightEffect.NONE,
+            brightness = 1.0,
+            colorCycling = false,
+        )
+
+        assertTrue(
+            json.contains("\"sx\":${WledSerialSender.DEFAULT_EFFECT_SPEED}"),
+            "Expected default sx:${WledSerialSender.DEFAULT_EFFECT_SPEED} in $json",
+        )
+        assertTrue(
+            json.contains("\"ix\":${WledSerialSender.DEFAULT_EFFECT_INTENSITY}"),
+            "Expected default ix:${WledSerialSender.DEFAULT_EFFECT_INTENSITY} in $json",
+        )
     }
 
     // ── buildJson — basic structure ───────────────────────────────────────────
