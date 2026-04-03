@@ -141,7 +141,7 @@ object DragDropSupport {
         // very early layout passes.  If both are 0 the indicator will be invisible on that
         // single frame — acceptable since a drag-over can only fire once the scene is shown.
         val indicatorWidth = parent.width.takeIf { it > 0.0 } ?: parent.layoutBounds.width
-        val indicatorY = sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2
+        val indicatorY = (sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2).coerceAtLeast(0.0)
         // resizeRelocate explicitly sizes the unmanaged node and sets its layout position.
         indicator.resizeRelocate(0.0, indicatorY, indicatorWidth, DropIndicator.HEIGHT)
         indicator.toFront()
