@@ -43,7 +43,6 @@ object MusicSettingsSerializer {
 
     private const val CONFIG_NAME = "music.conf"
     private const val CURRENT_VERSION = 2
-    private const val MAX_TRACKS = 16
 
     private val configFile: File
         get() {
@@ -60,7 +59,7 @@ object MusicSettingsSerializer {
     fun save(settings: MusicSettings) {
         val master = settings.masterVolume.coerceIn(0.0, 1.0)
         val tracks = settings.tracks
-            .take(MAX_TRACKS)
+            .take(MAX_MUSIC_TRACKS)
             .ifEmpty { listOf(PersistedMusicTrack()) }
             .map { track ->
                 PersistedMusicTrack(
@@ -107,7 +106,7 @@ object MusicSettingsSerializer {
         val tracks = loadCurrentFormat(props)
             .ifEmpty { loadLegacyFormat(props) }
             .ifEmpty { listOf(PersistedMusicTrack()) }
-            .take(MAX_TRACKS)
+            .take(MAX_MUSIC_TRACKS)
 
         return MusicSettings(masterVolume = master, tracks = tracks)
     }
@@ -115,7 +114,7 @@ object MusicSettingsSerializer {
     private fun loadCurrentFormat(props: Properties): List<PersistedMusicTrack> {
         val count = props.getProperty("track.count")?.toIntOrNull() ?: return emptyList()
         if (count <= 0) return emptyList()
-        return (0 until count.coerceIn(1, MAX_TRACKS)).map { index ->
+        return (0 until count.coerceIn(1, MAX_MUSIC_TRACKS)).map { index ->
             parseTrack(
                 uri = props.getProperty("track.$index.uri"),
                 volumeRaw = props.getProperty("track.$index.volume"),
@@ -131,7 +130,7 @@ object MusicSettingsSerializer {
             .distinct()
             .sorted()
         if (discovered.isNotEmpty()) {
-            return discovered.take(MAX_TRACKS).map { index ->
+            return discovered.take(MAX_MUSIC_TRACKS).map { index ->
                 parseTrack(
                     uri = props.getProperty("track.$index.uri"),
                     volumeRaw = props.getProperty("track.$index.volume"),
@@ -141,7 +140,7 @@ object MusicSettingsSerializer {
         }
 
         val oneBasedTracks = mutableListOf<PersistedMusicTrack>()
-        for (index in 1..MAX_TRACKS) {
+        for (index in 1..MAX_MUSIC_TRACKS) {
             val uri = props.getProperty("track$index.uri")
             val volume = props.getProperty("track$index.volume")
             val loop = props.getProperty("track$index.loop")

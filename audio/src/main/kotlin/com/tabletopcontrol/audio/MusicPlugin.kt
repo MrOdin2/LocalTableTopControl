@@ -22,6 +22,7 @@ import javafx.scene.control.Slider
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.media.Media
 import javafx.scene.media.MediaPlayer
@@ -50,7 +51,7 @@ class MusicPlugin : DmPlugin {
 
     companion object {
         /** Maximum number of simultaneous music tracks. */
-        const val MAX_TRACK_COUNT = 16
+        const val MAX_TRACK_COUNT = MAX_MUSIC_TRACKS
 
         private const val TIME_UNKNOWN = "--:--"
     }
@@ -206,14 +207,20 @@ class MusicPlugin : DmPlugin {
                 val owner = (evt.source as? Button)?.scene?.window
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
-                    track.uri = file.toURI().toString()
-                    pathLabel.text = file.name
-                    pathLabel.tooltip = Tooltip(file.absolutePath)
-                    loadTrack(
+                    val selectedUri = file.toURI().toString()
+                    val loaded = loadTrack(
                         track = track,
-                        playPauseBtn, stopBtn, progressBar, timeLabel,
+                        uri = selectedUri,
+                        playPauseBtn = playPauseBtn,
+                        stopBtn = stopBtn,
+                        progressBar = progressBar,
+                        timeLabel = timeLabel,
                     )
-                    saveSettings()
+                    if (loaded) {
+                        pathLabel.text = file.name
+                        pathLabel.tooltip = Tooltip(file.absolutePath)
+                        saveSettings()
+                    }
                 }
             }
         }
@@ -281,7 +288,20 @@ class MusicPlugin : DmPlugin {
 
         if (track.uri != null) {
             if (track.player == null) {
-                loadTrack(track, playPauseBtn, stopBtn, progressBar, timeLabel)
+                val existingUri = track.uri!!
+                val loaded = loadTrack(
+                    track = track,
+                    uri = existingUri,
+                    playPauseBtn = playPauseBtn,
+                    stopBtn = stopBtn,
+                    progressBar = progressBar,
+                    timeLabel = timeLabel,
+                )
+                if (!loaded) {
+                    track.uri = null
+                    pathLabel.text = "No file loaded"
+                    pathLabel.tooltip = Tooltip("No file loaded")
+                }
             } else {
                 bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
             }
@@ -304,13 +324,20 @@ class MusicPlugin : DmPlugin {
      */
     private fun loadTrack(
         track: TrackState,
+        uri: String,
         playPauseBtn: Button,
         stopBtn: Button,
         progressBar: ProgressBar,
         timeLabel: Label,
-    ) {
-        val uri = track.uri ?: return
+    ): Boolean {
+        val media = try {
+            Media(uri)
+        } catch (_: Exception) {
+            return false
+        }
+
         disposeTrackPlayer(track)
+        track.uri = uri
 
         // Disable controls while the new media loads.
         playPauseBtn.isDisable = true
@@ -320,12 +347,6 @@ class MusicPlugin : DmPlugin {
         progressBar.isDisable = true
         timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
 
-        val media = try {
-            Media(uri)
-        } catch (e: Exception) {
-            return
-        }
-
         val player = MediaPlayer(media).apply {
             volume = masterVolume * track.volume
             cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
@@ -333,6 +354,7 @@ class MusicPlugin : DmPlugin {
 
         track.player = player
         bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
+        return true
     }
 
     private fun bindPlayerToControls(
@@ -412,6 +434,14 @@ class MusicPlugin : DmPlugin {
             DragDropSupport.installDropTarget(cardNodes.card, index, dragContext, dropIndicator)
             tracksContainer.children.add(cardNodes.card)
         }
+        val endDropTarget = Region().apply {
+            minHeight = 18.0
+            prefHeight = 18.0
+            maxWidth = Double.MAX_VALUE
+            isPickOnBounds = true
+        }
+        DragDropSupport.installDropTarget(endDropTarget, tracks.size, dragContext, dropIndicator)
+        tracksContainer.children.add(endDropTarget)
 
         addTrackButton.isDisable = tracks.size >= MAX_TRACK_COUNT
     }
@@ -431,7 +461,7 @@ class MusicPlugin : DmPlugin {
     }
 
     private fun reorderTracks(fromIndex: Int, toIndex: Int) {
-        if (fromIndex !in tracks.indices || toIndex !in tracks.indices || fromIndex == toIndex) return
+        if (fromIndex !in tracks.indices || toIndex !in 0..tracks.size || fromIndex == toIndex) return
         val moved = tracks.removeAt(fromIndex)
         val adjustedToIndex = if (fromIndex < toIndex) toIndex - 1 else toIndex
         tracks.add(adjustedToIndex, moved)
