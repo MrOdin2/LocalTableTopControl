@@ -62,7 +62,7 @@ class ContextMenuRendererLogicTest {
         val c1 = contributor(action("b"))
         val c2 = contributor(action("c"))
         val merged = ContextMenuRenderer.mergeActions(base, listOf(c1, c2), null)
-        assertEquals(setOf("a", "b", "c"), merged.map { it.id }.toSet())
+        assertEquals(listOf("a", "b", "c"), merged.map { it.id })
     }
 
     @Test
