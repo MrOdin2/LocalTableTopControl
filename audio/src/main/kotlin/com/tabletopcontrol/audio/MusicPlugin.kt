@@ -146,7 +146,6 @@ class MusicPlugin : DmPlugin {
 
     /** Builds the control content for a single track. */
     private fun buildTrackCard(index: Int, track: TrackState): VBox {
-        val trackNumberLabel = Label("${index + 1}")
         val pathLabel = Label(track.uri?.let(::fileNameFromUri) ?: "No file loaded").apply {
             maxWidth = Double.MAX_VALUE
             tooltip = Tooltip(track.uri ?: "No file loaded")
@@ -156,11 +155,6 @@ class MusicPlugin : DmPlugin {
         val stopBtn = Button("⏹ Stop").apply { isDisable = track.uri == null }
         val loopCheck = CheckBox("Loop").apply { isSelected = track.loop }
         track.playPauseBtn = playPauseBtn
-
-        val grabHandle = GrabHandle()
-        val headerRow = HBox(6.0, grabHandle, trackNumberLabel).apply {
-            padding = Insets(2.0, 0.0, 0.0, 0.0)
-        }
 
         val progressBar = ProgressBar(0.0).apply {
             maxWidth = Double.MAX_VALUE
@@ -234,7 +228,8 @@ class MusicPlugin : DmPlugin {
             saveSettings()
         }
 
-        val fileRow = HBox(4.0, browseBtn, pathLabel).apply {
+        val grabHandle = GrabHandle()
+        val fileRow = HBox(4.0, grabHandle, browseBtn, pathLabel).apply {
             HBox.setHgrow(pathLabel, Priority.ALWAYS)
         }
         val controlRow = HBox(4.0, playPauseBtn, stopBtn, loopCheck)
@@ -245,7 +240,7 @@ class MusicPlugin : DmPlugin {
             HBox.setHgrow(volumeSlider, Priority.ALWAYS)
         }
 
-        val card = VBox(4.0, headerRow, fileRow, controlRow, progressRow, volRow).apply {
+        val card = VBox(4.0, fileRow, controlRow, progressRow, volRow).apply {
             padding = Insets(6.0)
             style = "-fx-border-color: -tc-border; -fx-border-radius: 6; -fx-background-radius: 6;"
         }
