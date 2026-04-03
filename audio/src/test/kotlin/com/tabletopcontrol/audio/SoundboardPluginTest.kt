@@ -14,13 +14,13 @@ class SoundboardPluginTest {
     }
 
     @Test
-    fun `columnsForWidth returns 2 for width just below threshold`() {
-        assertEquals(2, SoundboardPlugin.columnsForWidth(SoundboardPlugin.WIDE_THRESHOLD - 1.0))
+    fun `columnsForWidth returns 2 for narrow width`() {
+        assertEquals(2, SoundboardPlugin.columnsForWidth(180.0))
     }
 
     @Test
-    fun `columnsForWidth returns 8 at the threshold`() {
-        assertEquals(8, SoundboardPlugin.columnsForWidth(SoundboardPlugin.WIDE_THRESHOLD))
+    fun `columnsForWidth scales to 4 for medium width`() {
+        assertEquals(4, SoundboardPlugin.columnsForWidth(380.0))
     }
 
     @Test
@@ -62,6 +62,21 @@ class SoundboardPluginTest {
                 columns = 8,
             ),
         )
+    }
+
+    @Test
+    fun `shouldShowInlineAddButton covers pane-size rectangle combinations`() {
+        // Perfect rectangles for varying pane-driven column counts (2..8): hide inline add.
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 8, columns = 2)) // 2x4
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 12, columns = 3)) // 3x4
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 20, columns = 4)) // 4x5
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 18, columns = 6)) // 6x3
+        assertEquals(false, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 16, columns = 8)) // 8x2
+
+        // Same slot counts under different pane widths (different columns) may be imperfect: show inline add.
+        assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 18, columns = 4)) // 4x5 imperfect
+        assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 20, columns = 6)) // 6x4 imperfect
+        assertEquals(true, SoundboardPlugin.shouldShowInlineAddButton(slotCount = 10, columns = 3)) // 3x4 imperfect
     }
 
     @Test

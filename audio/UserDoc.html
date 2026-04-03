@@ -285,11 +285,12 @@
 
       <h3 id="soundboard-layout">Responsive Layout</h3>
       <p>
-        The soundboard adapts to the available panel width:
+        The soundboard adapts to the available panel width and computes how many button columns fit.
+        The same button count can therefore be rectangular in one pane size and non-rectangular in another.
       </p>
       <ul>
-        <li><strong>Wide panel</strong> — 8 buttons per row (2 rows of 8).</li>
-        <li><strong>Narrow panel</strong> — 2 buttons per column (8 rows of 2).</li>
+        <li><strong>Narrower pane</strong> — fewer columns (minimum 2).</li>
+        <li><strong>Wider pane</strong> — more columns (maximum 8).</li>
       </ul>
       <p>
         The layout switches automatically as you resize the DM panel. All configured buttons remain

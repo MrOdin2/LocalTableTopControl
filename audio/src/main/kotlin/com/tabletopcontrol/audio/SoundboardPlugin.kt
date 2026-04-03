@@ -60,21 +60,26 @@ class SoundboardPlugin : DmPlugin {
         const val BUTTON_COUNT = 16
         const val DEFAULT_BUTTON_COUNT = BUTTON_COUNT
         const val MAX_BUTTON_COUNT = 32
+        private const val MIN_COLUMN_COUNT = 2
+        private const val MAX_COLUMN_COUNT = 8
+        private const val TILE_WIDTH = 90.0
+        private const val TILE_GAP = 4.0
 
-        /** Pixel width at or above which 8 columns are used; below it 2 columns are used. */
-        const val WIDE_THRESHOLD = 550.0
         private const val CONFIG_VERSION = 1
         private const val DRAG_FORMAT = "tabletopcontrol/soundboard-slot"
 
         /** Returns the preferred column count for a given available [width]. */
-        fun columnsForWidth(width: Double): Int = if (width >= WIDE_THRESHOLD) 8 else 2
+        fun columnsForWidth(width: Double): Int {
+            val columns = ((width + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).toInt()
+            return columns.coerceIn(MIN_COLUMN_COUNT, MAX_COLUMN_COUNT)
+        }
 
         internal fun clampButtonCount(requested: Int): Int = requested.coerceIn(0, MAX_BUTTON_COUNT)
 
         internal fun shouldShowInlineAddButton(slotCount: Int, columns: Int): Boolean {
             val safeColumns = columns.coerceAtLeast(1)
             if (slotCount >= MAX_BUTTON_COUNT) return false
-            if (slotCount <= 0) return true
+            if (slotCount <= 0) return false
             return slotCount % safeColumns != 0
         }
 
