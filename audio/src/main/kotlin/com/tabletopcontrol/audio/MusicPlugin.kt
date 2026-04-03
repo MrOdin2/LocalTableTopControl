@@ -423,7 +423,8 @@ class MusicPlugin : DmPlugin {
     private fun reorderTracks(fromIndex: Int, toIndex: Int) {
         if (fromIndex !in tracks.indices || toIndex !in tracks.indices || fromIndex == toIndex) return
         val moved = tracks.removeAt(fromIndex)
-        tracks.add(toIndex, moved)
+        val adjustedToIndex = if (fromIndex < toIndex) toIndex - 1 else toIndex
+        tracks.add(adjustedToIndex, moved)
         rebuildTrackCards()
         saveSettings()
     }
