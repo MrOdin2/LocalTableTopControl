@@ -536,6 +536,11 @@ class MapPlugin : DmPlugin {
                 measurementStartCell = null
             }
         }
+        // Prevent the parent DM pane context menu from opening after a minimap
+        // right-click; the minimap provides its own context menu actions.
+        minimapCanvas.setOnContextMenuRequested { event ->
+            event.consume()
+        }
 
         // ------------------------------------------------------------------
         // Scroll wheel to zoom from the canvas centre
