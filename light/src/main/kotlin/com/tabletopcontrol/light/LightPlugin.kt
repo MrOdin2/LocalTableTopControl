@@ -1052,7 +1052,7 @@ class LightPlugin : DmPlugin {
     private fun brightnessLabel(value: Double): String = "${(value * 100).toInt()} %"
 
     private fun normalizedHueDegrees(color: Color): Double =
-        color.hue.takeUnless { it.isNaN() || it.isInfinite() }?.coerceIn(0.0, 359.999) ?: 0.0
+        color.hue.takeUnless { it.isNaN() || it.isInfinite() }?.coerceIn(0.0, MAX_HUE_BELOW_360) ?: 0.0
 
     private fun normalizedValuePercent(color: Color): Double =
         (color.brightness * 100.0).takeUnless { it.isNaN() || it.isInfinite() }?.coerceIn(0.0, 100.0) ?: 0.0
