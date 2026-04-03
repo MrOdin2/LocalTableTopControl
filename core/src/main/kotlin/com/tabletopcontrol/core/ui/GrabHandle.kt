@@ -7,7 +7,7 @@ import javafx.scene.control.Label
  *
  * The handle displays the [HANDLE_GLYPH] (⠿) and applies an `open-hand` cursor.
  * Add it to the left edge of a draggable card or row, then wire its
- * `setOnMousePressed` event to `startDragAndDrop` on the parent node, or use
+ * `setOnDragDetected` event to call `startDragAndDrop` on the parent node, or use
  * [DragDropSupport.installDragSource] which accepts any node.
  *
  * Appearance is controlled by the `.tc-grab-handle` CSS class (if an external
