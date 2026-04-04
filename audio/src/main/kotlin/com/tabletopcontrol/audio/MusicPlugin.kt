@@ -325,6 +325,11 @@ class MusicPlugin : DmPlugin {
 
     /**
      * Loads media for [track] through the shared [MediaTrackController].
+     *
+     * Any existing player for this track is disposed first.
+     * While loading, controls are disabled and progress/time are reset.
+     * On success, lifecycle handlers are (re)bound so status/progress/error/end
+     * updates continue to drive [playPauseBtn], [stopBtn], [progressBar], and [timeLabel].
      */
     private fun loadTrack(
         track: TrackState,
@@ -409,7 +414,6 @@ class MusicPlugin : DmPlugin {
             onError = {
                 playPauseBtn.isDisable = true
                 stopBtn.isDisable = true
-                progressBar.isDisable = true
                 playPauseBtn.text = "▶ Play"
             },
             onEndOfMedia = {

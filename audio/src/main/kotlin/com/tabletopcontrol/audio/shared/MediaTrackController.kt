@@ -1,6 +1,5 @@
 package com.tabletopcontrol.audio.shared
 
-import javafx.application.Platform
 import javafx.beans.value.ChangeListener
 import javafx.scene.media.Media
 import javafx.scene.media.MediaPlayer
@@ -13,7 +12,6 @@ import javafx.util.Duration
  * registration, and safe disposal in one place.
  */
 internal class MediaTrackController(
-    private val runOnFx: ((() -> Unit) -> Unit) = { task -> Platform.runLater { task() } },
     private val playerLoader: (String) -> ManagedMediaPlayer? = ::createJavaFxManagedPlayer,
 ) {
     private var player: ManagedMediaPlayer? = null
@@ -24,6 +22,13 @@ internal class MediaTrackController(
     var onError: (() -> Unit)? = null
     var onEndOfMedia: (() -> Unit)? = null
 
+    /**
+     * Updates lifecycle/progress callbacks for the current and future player instance.
+     *
+     * Parameters default to the currently registered callback so callers can update
+     * only selected hooks. When a player is already loaded, handlers are re-attached
+     * immediately so updates take effect without reloading media.
+     */
     fun bindCallbacks(
         onReady: (() -> Unit)? = this.onReady,
         onProgress: ((current: Duration, total: Duration) -> Unit)? = this.onProgress,
@@ -37,6 +42,12 @@ internal class MediaTrackController(
         player?.let(::attachHandlers)
     }
 
+    /**
+     * Loads [uri] into a new player instance after disposing any existing player.
+     *
+     * Returns `true` when creation succeeds, otherwise `false`.
+     * On success, applies [volume], [cycleCount], and currently registered callbacks.
+     */
     fun load(uri: String, volume: Double, cycleCount: Int): Boolean {
         dispose()
         val loaded = playerLoader(uri) ?: return false
@@ -49,8 +60,14 @@ internal class MediaTrackController(
 
     fun hasPlayer(): Boolean = player != null
 
-    fun status(): MediaTrackStatus? = player?.status
+    fun status(): MediaTrackStatus? = player?.currentStatus
 
+    /**
+     * Returns whether the current player status can be used for regular playback controls.
+     *
+     * A player is considered unusable when no player exists or when status is
+     * [MediaTrackStatus.UNKNOWN], [MediaTrackStatus.HALTED], or [MediaTrackStatus.DISPOSED].
+     */
     fun isUsable(): Boolean {
         val currentStatus = status() ?: return false
         return currentStatus != MediaTrackStatus.UNKNOWN &&
@@ -98,28 +115,28 @@ internal class MediaTrackController(
         timeListener?.let(currentPlayer::removeCurrentTimeListener)
         timeListener = null
 
-        currentPlayer.setOnReady {
-            runOnFx { onReady?.invoke() }
-        }
-        currentPlayer.setOnEndOfMedia {
-            runOnFx { onEndOfMedia?.invoke() }
-        }
-        currentPlayer.setOnError {
-            runOnFx { onError?.invoke() }
-        }
+        currentPlayer.setOnReady { onReady?.invoke() }
+        currentPlayer.setOnEndOfMedia { onEndOfMedia?.invoke() }
+        currentPlayer.setOnError { onError?.invoke() }
 
         val listener = ChangeListener<Duration> { _, _, current ->
             val total = currentPlayer.duration
             if (total.isUnknown || total.isIndefinite) return@ChangeListener
             val totalSeconds = total.toSeconds()
             if (totalSeconds <= 0.0) return@ChangeListener
-            runOnFx { onProgress?.invoke(current, total) }
+            onProgress?.invoke(current, total)
         }
         timeListener = listener
         currentPlayer.addCurrentTimeListener(listener)
     }
 }
 
+/**
+ * Playback status abstraction used by [MediaTrackController].
+ *
+ * Mirrors JavaFX [MediaPlayer.Status] values so plugin code can depend on
+ * a small shared contract instead of direct JavaFX lifecycle wiring.
+ */
 internal enum class MediaTrackStatus {
     UNKNOWN,
     READY,
@@ -131,11 +148,18 @@ internal enum class MediaTrackStatus {
     DISPOSED,
 }
 
+/**
+ * Minimal media-player contract used by [MediaTrackController].
+ *
+ * This wraps JavaFX [MediaPlayer] interactions to keep lifecycle logic
+ * testable without constructing real JavaFX media players in unit tests.
+ */
 internal interface ManagedMediaPlayer {
     var volume: Double
     var cycleCount: Int
 
-    val status: MediaTrackStatus
+    /** Real-time status derived from the underlying player state. */
+    val currentStatus: MediaTrackStatus
     val currentTime: Duration
     val duration: Duration
 
@@ -168,7 +192,7 @@ private class JavaFxManagedMediaPlayer(
             player.cycleCount = value
         }
 
-    override val status: MediaTrackStatus
+    override val currentStatus: MediaTrackStatus
         get() = when (player.status) {
             MediaPlayer.Status.UNKNOWN -> MediaTrackStatus.UNKNOWN
             MediaPlayer.Status.READY -> MediaTrackStatus.READY

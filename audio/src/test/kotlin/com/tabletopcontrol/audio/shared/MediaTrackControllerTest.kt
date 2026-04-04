@@ -13,7 +13,6 @@ class MediaTrackControllerTest {
     @Test
     fun `load returns false when loader fails`() {
         val controller = MediaTrackController(
-            runOnFx = { it() },
             playerLoader = { null },
         )
 
@@ -28,7 +27,6 @@ class MediaTrackControllerTest {
     fun `load applies volume and cycle count`() {
         val player = FakeManagedMediaPlayer()
         val controller = MediaTrackController(
-            runOnFx = { it() },
             playerLoader = { player },
         )
 
@@ -50,7 +48,6 @@ class MediaTrackControllerTest {
         var progressCurrent = Duration.ZERO
         var progressTotal = Duration.ZERO
         val controller = MediaTrackController(
-            runOnFx = { it() },
             playerLoader = { player },
         )
         controller.bindCallbacks(
@@ -77,10 +74,27 @@ class MediaTrackControllerTest {
     }
 
     @Test
+    fun `setVolume updates managed player volume and clamps to bounds`() {
+        val player = FakeManagedMediaPlayer()
+        val controller = MediaTrackController(
+            playerLoader = { player },
+        )
+        controller.load("file:///track.mp3", volume = 0.2, cycleCount = 1)
+
+        controller.setVolume(0.7)
+        assertEquals(0.7, player.volume, 0.0001)
+
+        controller.setVolume(2.0)
+        assertEquals(1.0, player.volume, 0.0001)
+
+        controller.setVolume(-1.0)
+        assertEquals(0.0, player.volume, 0.0001)
+    }
+
+    @Test
     fun `dispose clears handlers and disposes player`() {
         val player = FakeManagedMediaPlayer()
         val controller = MediaTrackController(
-            runOnFx = { it() },
             playerLoader = { player },
         )
         controller.load("file:///track.mp3", volume = 1.0, cycleCount = 1)
@@ -96,10 +110,25 @@ class MediaTrackControllerTest {
         assertFalse(controller.hasPlayer())
     }
 
+    @Test
+    fun `play and pause delegate to managed player`() {
+        val player = FakeManagedMediaPlayer()
+        val controller = MediaTrackController(
+            playerLoader = { player },
+        )
+        controller.load("file:///track.mp3", volume = 1.0, cycleCount = 1)
+
+        controller.play()
+        assertEquals(MediaTrackStatus.PLAYING, player.currentStatus)
+
+        controller.pause()
+        assertEquals(MediaTrackStatus.PAUSED, player.currentStatus)
+    }
+
     private class FakeManagedMediaPlayer : ManagedMediaPlayer {
         override var volume: Double = 1.0
         override var cycleCount: Int = 1
-        override var status: MediaTrackStatus = MediaTrackStatus.READY
+        override var currentStatus: MediaTrackStatus = MediaTrackStatus.UNKNOWN
         override var currentTime: Duration = Duration.ZERO
         override var duration: Duration = Duration.seconds(10.0)
 
@@ -132,21 +161,21 @@ class MediaTrackControllerTest {
         }
 
         override fun play() {
-            status = MediaTrackStatus.PLAYING
+            currentStatus = MediaTrackStatus.PLAYING
         }
 
         override fun pause() {
-            status = MediaTrackStatus.PAUSED
+            currentStatus = MediaTrackStatus.PAUSED
         }
 
         override fun stop() {
             stopCalled = true
-            status = MediaTrackStatus.STOPPED
+            currentStatus = MediaTrackStatus.STOPPED
         }
 
         override fun dispose() {
             disposeCalled = true
-            status = MediaTrackStatus.DISPOSED
+            currentStatus = MediaTrackStatus.DISPOSED
         }
 
         fun listenerCount(): Int = listeners.size
