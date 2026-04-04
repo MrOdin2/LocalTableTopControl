@@ -401,15 +401,10 @@ class MusicPlugin : DmPlugin {
             },
             onProgress = { current, total ->
                 val totalSeconds = total.toSeconds()
-                if (totalSeconds <= 0.0) {
-                    progressBar.progress = 0.0
-                    timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
-                } else {
-                    val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
-                    val remaining = total.subtract(current)
-                    progressBar.progress = frac
-                    timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
-                }
+                val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
+                val remaining = total.subtract(current)
+                progressBar.progress = frac
+                timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
             },
             onError = {
                 playPauseBtn.isDisable = true
