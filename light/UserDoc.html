@@ -252,8 +252,18 @@
     <section id="color">
       <h2>Colour</h2>
       <p>
-        Click the <strong>Colour</strong> picker to open the JavaFX colour chooser. Select any
-        colour and confirm — the LED strip updates immediately (within a fraction of a second).
+        Click the <strong>Colour</strong> dropdown to open the colour selector. The popup includes
+        a colour wheel for hue/saturation selection plus direct input fields for
+        <strong>Hex</strong>, <strong>RGB</strong>, and <strong>HSV</strong> values (matching the
+        controls from JavaFX’s custom-colour editor).
+      </p>
+      <p>
+        Changes in the dropdown are staged. Use <strong>Save</strong> to apply the new colour to the
+        LED strip, or <strong>Cancel</strong> to discard edits and keep the current colour.
+      </p>
+      <p>
+        The right panel shows a <strong>Current / New</strong> comparison and recent colour swatches
+        for quick re-selection.
       </p>
       <p>
         The chosen colour is used as the base colour for all static effects (such as
