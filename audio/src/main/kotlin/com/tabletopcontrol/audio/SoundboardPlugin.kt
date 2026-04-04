@@ -9,12 +9,12 @@ import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Slider
@@ -644,9 +644,10 @@ class SoundboardPlugin : DmPlugin {
             }
         }
 
-        val dialog = Dialog<Color>().apply {
-            title = "Set Button Color"
-            dialogPane.content = VBox(
+        val selected = DialogFlows.showResultDialog(
+            owner = btn.scene?.window,
+            title = "Set Button Color",
+            content = VBox(
                 8.0,
                 Label("Choose a color for this button"),
                 wheelContainer,
@@ -654,13 +655,13 @@ class SoundboardPlugin : DmPlugin {
                 HBox(8.0, Label("Preview"), preview),
             ).apply {
                 padding = Insets(8.0)
-            }
-            dialogPane.buttonTypes.addAll(ButtonType.OK, ButtonType.CANCEL)
-            initOwner(btn.scene?.window)
-            setResultConverter { buttonType -> if (buttonType == ButtonType.OK) selectedColor else null }
+            },
+            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
+        ) { buttonType ->
+            DialogFlows.resultForButton(buttonType) { selectedColor }
         }
 
-        dialog.showAndWait().ifPresent { selected ->
+        if (selected != null) {
             slot.colorHex = colorToHex(selected)
             applyCurrentStyle(slot)
             saveConfig()
