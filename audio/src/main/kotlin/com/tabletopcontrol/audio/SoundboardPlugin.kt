@@ -425,6 +425,7 @@ class SoundboardPlugin : DmPlugin {
             slot.uri = null
             btn.text = "⚠ Load Error"
             btn.tooltip = Tooltip("Failed to load: ${file.absolutePath}")
+            setIdleStyle(slot)
             saveConfig()
             return
         }
