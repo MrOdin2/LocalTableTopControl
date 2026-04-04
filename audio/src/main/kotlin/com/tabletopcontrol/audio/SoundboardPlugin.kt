@@ -654,11 +654,18 @@ class SoundboardPlugin : DmPlugin {
 
         dialog.showAndWait().ifPresent { selected ->
             slot.colorHex = colorToHex(selected)
-            setIdleStyle(slot)
+            applyCurrentStyle(slot)
             saveConfig()
         }
     }
 
+    private fun applyCurrentStyle(slot: SlotState) {
+        if (slot.player?.status == MediaPlayer.Status.PLAYING) {
+            setPlayingStyle(slot)
+        } else {
+            setIdleStyle(slot)
+        }
+    }
     private fun addSlot() {
         if (slots.size >= MAX_BUTTON_COUNT) return
         slots.add(SlotState())
