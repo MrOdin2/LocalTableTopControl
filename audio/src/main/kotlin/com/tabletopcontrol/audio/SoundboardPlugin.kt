@@ -270,8 +270,20 @@ class SoundboardPlugin : DmPlugin {
             tilePane.children.add(btn)
         }
 
-        DragDropSupport.installDropTarget(endDropTarget, slots.size, dragContext, indicator)
+        val endDropIndicator = DropIndicator()
+        (endDropTarget.parent as? VBox)?.let { parent ->
+            val existingIndicator = endDropTarget.properties["soundboardEndDropIndicator"] as? DropIndicator
+            if (existingIndicator != null) {
+                parent.children.remove(existingIndicator)
+            }
 
+            val endDropTargetIndex = parent.children.indexOf(endDropTarget)
+            if (endDropTargetIndex >= 0) {
+                parent.children.add(endDropTargetIndex, endDropIndicator)
+            }
+            endDropTarget.properties["soundboardEndDropIndicator"] = endDropIndicator
+        }
+        DragDropSupport.installDropTarget(endDropTarget, slots.size, dragContext, endDropIndicator)
         if (shouldShowInlineAddButton(slots.size, tilePane.prefColumns)) {
             tilePane.children.add(
                 Button("+").apply {
