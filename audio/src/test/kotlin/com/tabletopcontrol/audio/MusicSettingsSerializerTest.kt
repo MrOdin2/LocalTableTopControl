@@ -67,7 +67,7 @@ class MusicSettingsSerializerTest {
     @Test
     fun `load migrates legacy one-based three-track keys`() {
         val configDir = File(tempDir, ".tabletopcontrol").also { it.mkdirs() }
-        File(configDir, "music.conf").writeText(
+        File(configDir, MusicSettingsSerializer.CONFIG_NAME).writeText(
             """
             masterVolume=0.7
             track1.uri=file:///legacy/one.mp3

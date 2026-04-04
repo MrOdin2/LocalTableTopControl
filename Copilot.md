@@ -147,6 +147,17 @@ Example — layout `H(H(V(Tracker, Lights), Map), Soundboard)` (case 1b):
 
 ---
 
+## Core Persistence Helpers
+
+Shared config/path handling lives in `core.persistence`:
+
+- `AppConfigPaths` resolves `~/.tabletopcontrol` and per-feature files/subdirectories.
+- `SafeConfigIO` provides non-fatal wrappers for config reads/writes.
+
+Use these helpers for plugin/config persistence instead of module-local `user.home` + `File` boilerplate.
+
+---
+
 ## Theme System
 
 TabletopControl supports **light and dark modes** plus user-selectable colours for the four concrete UI roles: accent/buttons, background, surfaces/panels, and borders.  The theme system is built on JavaFX CSS and is self-contained within the `core` module.

@@ -1,5 +1,7 @@
 package com.tabletopcontrol.tracker
 
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -132,11 +134,7 @@ object PresetLibrary {
     internal var presetsDirForTest: File? = null
 
     private val presetsDir: File
-        get() = presetsDirForTest ?: run {
-            val dir = File(File(System.getProperty("user.home"), ".tabletopcontrol"), "presets")
-            dir.mkdirs()
-            dir
-        }
+        get() = presetsDirForTest ?: AppConfigPaths.configSubDir("presets")
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -174,7 +172,7 @@ object PresetLibrary {
             // non-fatal — proceed without persistence; best-effort cleanup of any
             // orphaned temp file (on a successful move the file no longer exists at
             // tmp's path, so delete() returns false without effect).
-            runCatching { tmp?.delete() }
+            SafeConfigIO.run { tmp?.delete() }
         }
     }
 
@@ -191,7 +189,7 @@ object PresetLibrary {
      *         absent or contains no parseable `.preset` files.
      */
     fun loadAll(): List<Preset> =
-        try {
+        SafeConfigIO.readOrElse(emptyList()) {
             val baseDir = presetsDir.canonicalFile
             val results = mutableListOf<Preset>()
             // Root-level .preset files — folder = "".
@@ -218,8 +216,6 @@ object PresetLibrary {
                         ?.let { results.addAll(it) }
                 }
             results.sortedWith(compareBy({ it.folder }, { it.name }))
-        } catch (_: Exception) {
-            emptyList()
         }
 
     /**
@@ -229,7 +225,7 @@ object PresetLibrary {
      * Does nothing when no such preset exists.
      */
     fun delete(name: String) {
-        try {
+        SafeConfigIO.run {
             val baseDir = presetsDir.canonicalFile
             // Remove from root. Symlinked .preset files are skipped so a crafted
             // symlink cannot cause reads or deletes outside presetsDir.
@@ -253,8 +249,6 @@ object PresetLibrary {
                             if (readNameFromFile(f) == name) f.delete()
                         }
                 }
-        } catch (_: Exception) {
-            // non-fatal
         }
     }
 

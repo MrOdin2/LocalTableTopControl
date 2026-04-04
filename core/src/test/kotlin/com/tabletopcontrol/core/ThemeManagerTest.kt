@@ -120,7 +120,7 @@ class ThemeManagerTest {
     @Test
     fun `load returns LIGHT defaults when file has unknown mode value`() {
         val dir = File(tempDir, ".tabletopcontrol").also { it.mkdirs() }
-        File(dir, "theme.conf").writeText("mode=NONSENSE\n")
+        File(dir, ThemeManager.CONFIG_NAME).writeText("mode=NONSENSE\n")
         val loaded = ThemeManager.load()
         assertEquals(ThemeMode.LIGHT, loaded.mode)
     }
@@ -128,7 +128,7 @@ class ThemeManagerTest {
     @Test
     fun `load uses theme-specific defaults for missing colour keys`() {
         val dir = File(tempDir, ".tabletopcontrol").also { it.mkdirs() }
-        File(dir, "theme.conf").writeText("mode=DARK\n")
+        File(dir, ThemeManager.CONFIG_NAME).writeText("mode=DARK\n")
         val loaded = ThemeManager.load()
         assertEquals(ThemeMode.DARK, loaded.mode)
         assertEquals(ThemeConfig.DARK_DEFAULTS.accentColor, loaded.accentColor)
@@ -140,7 +140,7 @@ class ThemeManagerTest {
     @Test
     fun `load falls back to mode default for invalid hex colour`() {
         val dir = File(tempDir, ".tabletopcontrol").also { it.mkdirs() }
-        File(dir, "theme.conf").writeText(
+        File(dir, ThemeManager.CONFIG_NAME).writeText(
             "mode=LIGHT\naccentColor=not-a-color\nbgColor=#f4f4f4\nsurfaceColor=#ffffff\nborderColor=#c8c8c8\n"
         )
         val loaded = ThemeManager.load()
@@ -162,7 +162,7 @@ class ThemeManagerTest {
         )
         val url = ThemeManager.writeCustomCss(config)
         assertNotNull(url)
-        val cssFile = File(tempDir, ".tabletopcontrol/theme-custom.css")
+        val cssFile = File(tempDir, ".tabletopcontrol/${ThemeManager.CUSTOM_CSS_NAME}")
         assertTrue(cssFile.exists(), "Custom CSS file should exist after writeCustomCss")
         val content = cssFile.readText()
         assertTrue(content.contains("#aabbcc"), "Custom CSS should include accent colour")
