@@ -285,6 +285,7 @@ class MusicPlugin : DmPlugin {
                     track.uri = null
                     pathLabel.text = "No file loaded"
                     pathLabel.tooltip = Tooltip("No file loaded")
+                    saveSettings()
                 }
             } else {
                 bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
