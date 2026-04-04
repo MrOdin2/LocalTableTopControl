@@ -427,7 +427,7 @@ class MusicPlugin : DmPlugin {
 
         tracks.forEachIndexed { index, track ->
             val cardNodes = buildTrackCard(index, track)
-            DragDropSupport.installDragSource(cardNodes.dragHandle, index, dragContext)
+            DragDropSupport.installDragSource(cardNodes.card, index, dragContext)
             DragDropSupport.installDropTarget(cardNodes.card, index, dragContext, dropIndicator)
             tracksContainer.children.add(cardNodes.card)
         }
