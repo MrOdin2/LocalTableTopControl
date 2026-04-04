@@ -340,7 +340,6 @@ class MusicPlugin : DmPlugin {
         timeLabel: Label,
     ): Boolean {
         val controller = track.controller ?: MediaTrackController().also { track.controller = it }
-        controller.dispose()
         track.uri = uri
 
         // Disable controls while the new media loads.
