@@ -12,10 +12,12 @@ import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
+import javafx.scene.control.ButtonType
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Tooltip
