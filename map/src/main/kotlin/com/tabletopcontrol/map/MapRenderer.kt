@@ -14,7 +14,12 @@ import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import java.net.URI
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.hypot
+import kotlin.math.sin
 
 /**
  * Renders the tabletop map onto a JavaFX [Canvas].
@@ -147,6 +152,9 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var showTokenNames: Boolean = false
 
+    /** Whether DM-only measurement overlays should be rendered on this renderer instance. */
+    var showDmOnlyMeasurements: Boolean = true
+
     /** Current list of tokens to draw on the map. */
     private val tokens = mutableListOf<Token>()
 
@@ -169,6 +177,9 @@ class MapRenderer(private val canvas: Canvas) {
      * is removed and a new one is added.
      */
     private var nextTokenCol: Int = 0
+
+    /** Active measurement overlays keyed by their stable IDs. */
+    private val measurements = linkedMapOf<String, MeasurementOverlay>()
 
     /**
      * All active [EventBus.Subscription] handles for this renderer.
@@ -320,6 +331,22 @@ class MapRenderer(private val canvas: Canvas) {
             showTokenNames = event.show
             redraw()
         }
+        subscriptions += EventBus.subscribe<MeasurementAddedEvent> { event ->
+            measurements[event.overlay.id] = event.overlay
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<MeasurementUpdatedEvent> { event ->
+            measurements[event.overlay.id] = event.overlay
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<MeasurementRemovedEvent> { event ->
+            measurements.remove(event.id)
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<MeasurementsClearedEvent> {
+            measurements.clear()
+            redraw()
+        }
     }
 
     /**
@@ -389,6 +416,7 @@ class MapRenderer(private val canvas: Canvas) {
         drawGrid()
         drawFogOfWar()
         drawTokens()
+        drawMeasurements()
         drawGridCornerDots()
         drawGridCalibrationOverlay()
         drawMapCalibrationOverlay()
@@ -703,6 +731,84 @@ class MapRenderer(private val canvas: Canvas) {
         }
     }
 
+    /** Draws measurement overlays (line, cone, rectangle, circle) above tokens. */
+    private fun drawMeasurements() {
+        if (measurements.isEmpty()) return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0) return
+
+        val originX = canvas.width / 2.0 + gridCalibration.offsetX
+        val originY = canvas.height / 2.0 + gridCalibration.offsetY
+        gc.textAlign = TextAlignment.LEFT
+        gc.font = Font.font((cellPx * 0.25).coerceAtLeast(11.0))
+
+        for (measurement in measurements.values) {
+            if (!measurement.mirroredToTable && !showDmOnlyMeasurements) continue
+
+            val sx = originX + (measurement.startCol + 0.5) * cellPx
+            val sy = originY + (measurement.startRow + 0.5) * cellPx
+            val ex = originX + (measurement.endCol + 0.5) * cellPx
+            val ey = originY + (measurement.endRow + 0.5) * cellPx
+            val lineWidth = (cellPx * 0.07).coerceIn(2.0, 5.0)
+            gc.stroke = measurement.color
+            gc.fill = Color.color(
+                measurement.color.red,
+                measurement.color.green,
+                measurement.color.blue,
+                MEASUREMENT_FILL_OPACITY,
+            )
+            gc.lineWidth = lineWidth
+
+            when (measurement.type) {
+                MeasurementType.LINE -> {
+                    gc.strokeLine(sx, sy, ex, ey)
+                }
+                MeasurementType.RECTANGLE -> {
+                    val minX = minOf(sx, ex) - cellPx / 2.0
+                    val minY = minOf(sy, ey) - cellPx / 2.0
+                    val w = (abs(ex - sx) + cellPx).coerceAtLeast(cellPx)
+                    val h = (abs(ey - sy) + cellPx).coerceAtLeast(cellPx)
+                    gc.fillRect(minX, minY, w, h)
+                    gc.strokeRect(minX, minY, w, h)
+                }
+                MeasurementType.CIRCLE -> {
+                    val r = hypot(ex - sx, ey - sy).coerceAtLeast(cellPx * 0.25)
+                    gc.fillOval(sx - r, sy - r, r * 2.0, r * 2.0)
+                    gc.strokeOval(sx - r, sy - r, r * 2.0, r * 2.0)
+                }
+                MeasurementType.CONE -> {
+                    val r = hypot(ex - sx, ey - sy).coerceAtLeast(cellPx * 0.25)
+                    val dir = atan2(ey - sy, ex - sx)
+                    val half = Math.toRadians(measurement.coneAngleDegrees / 2.0)
+                    val start = dir - half
+                    val end = dir + half
+                    val arcStart = -Math.toDegrees(end)
+                    gc.fillArc(
+                        sx - r,
+                        sy - r,
+                        r * 2.0,
+                        r * 2.0,
+                        arcStart,
+                        measurement.coneAngleDegrees,
+                        javafx.scene.shape.ArcType.ROUND,
+                    )
+                    gc.strokeLine(sx, sy, sx + r * cos(start), sy + r * sin(start))
+                    gc.strokeLine(sx, sy, sx + r * cos(end), sy + r * sin(end))
+                    gc.strokeArc(sx - r, sy - r, r * 2.0, r * 2.0, arcStart, measurement.coneAngleDegrees, javafx.scene.shape.ArcType.OPEN)
+                }
+            }
+
+            val unitsLabel = measurement.dimensionText(DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS)
+            val fullLabel = if (measurement.unitLabel.isBlank()) unitsLabel else "${measurement.unitLabel}: $unitsLabel"
+            val lx = (sx + ex) / 2.0 + 8.0
+            val ly = (sy + ey) / 2.0 - 8.0
+            gc.fill = Color.BLACK
+            gc.fillText(fullLabel, lx + 1.0, ly + 1.0)
+            gc.fill = Color.WHITE
+            gc.fillText(fullLabel, lx, ly)
+        }
+    }
+
     /**
      * Draws a yellow crosshair through the canvas centre when grid calibration
      * mode is active.  The intersection marks the scale origin for the grid, so
@@ -808,5 +914,7 @@ class MapRenderer(private val canvas: Canvas) {
          * proportionally with [viewportScale] on the minimap.
          */
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
+        private const val MEASUREMENT_FILL_OPACITY = 0.18
+        private const val DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS = 5.0
     }
 }

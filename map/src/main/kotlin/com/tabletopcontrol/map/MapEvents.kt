@@ -119,3 +119,27 @@ data class MapRotationEvent(val degrees: Int)
  * @property show `true` to draw token names; `false` to hide them.
  */
 data class ShowTokenNamesEvent(val show: Boolean)
+
+/**
+ * Event fired when a new measurement overlay is created on the DM map.
+ *
+ * @property overlay newly created measurement.
+ */
+data class MeasurementAddedEvent(val overlay: MeasurementOverlay)
+
+/**
+ * Event fired when an existing measurement overlay is updated (resize/move/label/mirror).
+ *
+ * @property overlay updated measurement.
+ */
+data class MeasurementUpdatedEvent(val overlay: MeasurementOverlay)
+
+/**
+ * Event fired to remove a single measurement overlay by [id].
+ */
+data class MeasurementRemovedEvent(val id: String)
+
+/**
+ * Event fired to clear all active measurement overlays.
+ */
+data object MeasurementsClearedEvent

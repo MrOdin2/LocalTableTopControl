@@ -63,8 +63,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * can see at a glance whose turn it is.
  *
  * The card list adapts its orientation to the available space:
- * - Wider than tall → cards arranged **horizontally** (left-to-right order).
- * - Taller than wide → cards arranged **vertically** (top-to-bottom order).
+ * - More than twice as wide as tall → cards arranged **horizontally** (left-to-right order).
+ * - Otherwise → cards arranged **vertically** (top-to-bottom order).
  *
  * Cards can be **dragged and dropped** to reorder the initiative list.
  */
@@ -190,8 +190,7 @@ class TrackerPlugin : DmPlugin {
 
         // Re-evaluate orientation whenever the viewport is resized.
         scroll.viewportBoundsProperty().addListener { _, _, bounds ->
-            val newOri = if (bounds.width > bounds.height && bounds.height > 0)
-                Orientation.HORIZONTAL else Orientation.VERTICAL
+            val newOri = preferredOrientationForBounds(bounds.width, bounds.height)
             if (newOri != orientation) {
                 orientation = newOri
                 refresh()
@@ -201,6 +200,13 @@ class TrackerPlugin : DmPlugin {
         refresh()
         return root
     }
+
+    internal fun preferredOrientationForBounds(width: Double, height: Double): Orientation =
+        if (height > 0.0 && width > height * HORIZONTAL_LAYOUT_RATIO_THRESHOLD) {
+            Orientation.HORIZONTAL
+        } else {
+            Orientation.VERTICAL
+        }
 
     // ── UI builders ──────────────────────────────────────────────────────────
 
@@ -484,6 +490,7 @@ class TrackerPlugin : DmPlugin {
     // ── Constants ─────────────────────────────────────────────────────────────
 
     private companion object {
+        private const val HORIZONTAL_LAYOUT_RATIO_THRESHOLD = 2.0
         private const val SLIDER_VALUE_EPSILON = 1e-9
 
         private const val CARD_STYLE_NORMAL =
@@ -530,6 +537,7 @@ class TrackerPlugin : DmPlugin {
                 (color.green * 255).toInt(),
                 (color.blue * 255).toInt(),
             )
+
     }
 
     private fun normalizeSupportedTokenImageUri(uri: String): String? {

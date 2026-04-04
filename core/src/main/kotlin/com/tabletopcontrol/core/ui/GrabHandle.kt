@@ -1,6 +1,7 @@
 package com.tabletopcontrol.core.ui
 
 import javafx.scene.control.Label
+import javafx.scene.control.Tooltip
 
 /**
  * A small visual grab handle that signals to users they can drag a list item.
@@ -27,6 +28,7 @@ class GrabHandle : Label(HANDLE_GLYPH) {
         style = "-fx-cursor: open-hand; -fx-text-fill: -tc-text-muted; " +
             "-fx-font-size: 14px; -fx-padding: 0 6 0 4;"
         isPickOnBounds = true
+        tooltip = Tooltip("Drag to reorder")
     }
 
     companion object {
