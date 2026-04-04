@@ -32,6 +32,7 @@ import javafx.scene.paint.Color
 import javafx.scene.shape.Circle
 import javafx.stage.FileChooser
 import java.io.File
+import java.net.URI
 import java.util.Base64
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -158,6 +159,25 @@ class SoundboardPlugin : DmPlugin {
             while (parsed.size < count) parsed.add(SlotConfig())
             return parsed.take(count)
         }
+
+        internal const val EMPTY_SLOT_TOOLTIP = "Right-click to load a sound file"
+
+        internal fun tooltipTextForUri(uri: String?): String {
+            if (uri.isNullOrBlank()) return EMPTY_SLOT_TOOLTIP
+            return runCatching { File(URI(uri)).absolutePath }.getOrDefault(uri)
+        }
+
+        internal data class ButtonVisualState(
+            val text: String,
+            val isPlaying: Boolean,
+        )
+
+        internal fun buttonVisualState(isPlaying: Boolean, label: String): ButtonVisualState =
+            if (isPlaying) {
+                ButtonVisualState(text = "⏹ $label", isPlaying = true)
+            } else {
+                ButtonVisualState(text = label, isPlaying = false)
+            }
     }
 
     private class SlotState(
@@ -310,9 +330,9 @@ class SoundboardPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
             isWrapText = true
             tooltip = if (slot.uri != null) {
-                Tooltip(slot.uri)
+                Tooltip(tooltipTextForUri(slot.uri))
             } else {
-                Tooltip("Right-click to load a sound file")
+                Tooltip(EMPTY_SLOT_TOOLTIP)
             }
         }
         slot.button = btn
@@ -321,15 +341,17 @@ class SoundboardPlugin : DmPlugin {
             slot.uri = null
             slot.customLabel = null
             btn.text = slot.displayLabel(index)
-            btn.tooltip = Tooltip("Right-click to load a sound file")
+            btn.tooltip = Tooltip(EMPTY_SLOT_TOOLTIP)
             saveConfig()
         }
-        val isPlaying = slot.player?.status == MediaPlayer.Status.PLAYING
-        if (isPlaying) {
-            btn.text = "⏹ ${slot.displayLabel(index)}"
+        val visualState = buttonVisualState(
+            isPlaying = slot.player?.status == MediaPlayer.Status.PLAYING,
+            label = slot.displayLabel(index),
+        )
+        btn.text = visualState.text
+        if (visualState.isPlaying) {
             setPlayingStyle(slot)
         } else {
-            btn.text = slot.displayLabel(index)
             setIdleStyle(slot)
         }
 
@@ -408,7 +430,7 @@ class SoundboardPlugin : DmPlugin {
         }
 
         btn.text = slot.customLabel
-        btn.tooltip = Tooltip(file.absolutePath)
+        btn.tooltip = Tooltip(tooltipTextForUri(slot.uri))
         setIdleStyle(slot)
         saveConfig()
     }
@@ -451,7 +473,7 @@ class SoundboardPlugin : DmPlugin {
         val label = displayLabelFor(slot)
         slot.player?.play()
         slot.button?.let {
-            it.text = "⏹ $label"
+            it.text = buttonVisualState(isPlaying = true, label = label).text
             setPlayingStyle(slot)
         }
     }
@@ -469,7 +491,7 @@ class SoundboardPlugin : DmPlugin {
 
         slot.button?.let {
             it.text = displayLabelFor(slot)
-            it.tooltip = Tooltip("Right-click to load a sound file")
+            it.tooltip = Tooltip(EMPTY_SLOT_TOOLTIP)
             setIdleStyle(slot)
         }
         saveConfig()
