@@ -349,7 +349,8 @@ class SoundboardPlugin : DmPlugin {
                 id = "soundboard.remove",
                 label = "Remove Button",
                 icon = "➖",
-                section = MenuSection.ARRANGE,
+                section = MenuSection.DANGER_ZONE,
+                requiresConfirmation = true,
                 onAction = { removeSlot(slot) },
             ),
         )
