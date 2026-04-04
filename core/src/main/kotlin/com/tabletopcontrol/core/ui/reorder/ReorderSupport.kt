@@ -5,7 +5,8 @@ package com.tabletopcontrol.core.ui.reorder
  *
  * Use [planDropReorder] to validate source/target indices and convert a drop-target
  * index (which may be an append target at `listSize`) into the post-removal insertion
- * index expected by list mutation APIs.
+ * index expected by list mutation APIs. For APIs that already accept final direct target
+ * indices (for example `move(from, to)`), use [planDirectReorder].
  *
  * Example:
  * ```kotlin
@@ -38,6 +39,17 @@ object ReorderSupport {
         if (fromIndex !in 0 until listSize || dropTargetIndex !in 0..listSize) return null
         val adjustedToIndex = if (fromIndex < dropTargetIndex) dropTargetIndex - 1 else dropTargetIndex
         return if (adjustedToIndex == fromIndex) null else Plan(fromIndex, adjustedToIndex)
+    }
+
+    /**
+     * Validates and plans a direct index move where [targetIndex] is already the final
+     * post-move index (for APIs like `move(from, to)`).
+     *
+     * Returns `null` when indices are out of range or the operation is a no-op.
+     */
+    fun planDirectReorder(listSize: Int, fromIndex: Int, targetIndex: Int): Plan? {
+        if (fromIndex !in 0 until listSize || targetIndex !in 0 until listSize) return null
+        return if (targetIndex == fromIndex) null else Plan(fromIndex, targetIndex)
     }
 
     /**

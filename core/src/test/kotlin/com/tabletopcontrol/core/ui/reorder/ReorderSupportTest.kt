@@ -33,6 +33,19 @@ class ReorderSupportTest {
     }
 
     @Test
+    fun `planDirectReorder keeps direct target semantics`() {
+        assertEquals(ReorderSupport.Plan(fromIndex = 0, toIndex = 2), ReorderSupport.planDirectReorder(3, 0, 2))
+        assertEquals(ReorderSupport.Plan(fromIndex = 2, toIndex = 0), ReorderSupport.planDirectReorder(3, 2, 0))
+    }
+
+    @Test
+    fun `planDirectReorder returns null for invalid indexes and no-op`() {
+        assertNull(ReorderSupport.planDirectReorder(3, -1, 1))
+        assertNull(ReorderSupport.planDirectReorder(3, 1, 3))
+        assertNull(ReorderSupport.planDirectReorder(3, 1, 1))
+    }
+
+    @Test
     fun `reorderMutableList applies plan`() {
         val items = mutableListOf("A", "B", "C", "D")
         ReorderSupport.reorderMutableList(items, ReorderSupport.Plan(fromIndex = 1, toIndex = 3))

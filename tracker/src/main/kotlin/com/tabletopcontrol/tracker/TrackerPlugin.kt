@@ -484,7 +484,7 @@ class TrackerPlugin : DmPlugin {
         card.setOnDragDropped { e ->
             val fromIdx = e.dragboard.getString().toIntOrNull()
             if (fromIdx != null && fromIdx != index) {
-                val plan = ReorderSupport.planDropReorder(tracker.entries.size, fromIdx, index) ?: run {
+                val plan = ReorderSupport.planDirectReorder(tracker.entries.size, fromIdx, index) ?: run {
                     e.isDropCompleted = false
                     e.consume()
                     return@setOnDragDropped
