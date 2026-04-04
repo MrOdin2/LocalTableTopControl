@@ -174,6 +174,7 @@ class SoundboardPlugin : DmPlugin {
     private var initialized = false
 
     private lateinit var tilePane: TilePane
+    private lateinit var endDropTarget: Label
     private lateinit var addButton: Button
     private lateinit var countLabel: Label
     private lateinit var scrollPane: ScrollPane
@@ -208,6 +209,14 @@ class SoundboardPlugin : DmPlugin {
                 }
             }
         }
+        endDropTarget = Label("⇣ Drag here to move to end").apply {
+            prefWidth = TILE_WIDTH
+            minHeight = 48.0
+            maxWidth = Double.MAX_VALUE
+            opacity = END_DROP_TARGET_OPACITY
+            alignment = Pos.CENTER
+            tooltip = Tooltip("Drop a dragged soundboard button here to move it to the end")
+        }
 
         addButton = Button().apply {
             tooltip = Tooltip("Add a soundboard button (up to $MAX_BUTTON_COUNT)")
@@ -219,7 +228,7 @@ class SoundboardPlugin : DmPlugin {
             HBox.setHgrow(countLabel, Priority.ALWAYS)
         }
 
-        val content = VBox(8.0, controls, tilePane).apply { padding = Insets(8.0) }
+        val content = VBox(8.0, controls, tilePane, endDropTarget).apply { padding = Insets(8.0) }
         scrollPane = ScrollPane(content).apply {
             isFitToWidth = true
             hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
@@ -261,17 +270,7 @@ class SoundboardPlugin : DmPlugin {
             tilePane.children.add(btn)
         }
 
-        // Dedicated drop zone that allows appending a dragged button to the final slot.
-        val endDropTarget = Label("⇣ Drag here to move to end").apply {
-            prefWidth = TILE_WIDTH
-            minHeight = 48.0
-            maxWidth = Double.MAX_VALUE
-            opacity = END_DROP_TARGET_OPACITY
-            alignment = Pos.CENTER
-            tooltip = Tooltip("Drop a dragged soundboard button here to move it to the end")
-        }
         DragDropSupport.installDropTarget(endDropTarget, slots.size, dragContext, indicator)
-        tilePane.children.add(endDropTarget)
 
         if (shouldShowInlineAddButton(slots.size, tilePane.prefColumns)) {
             tilePane.children.add(
