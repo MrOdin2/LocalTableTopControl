@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import javafx.scene.paint.Color
+import java.io.File
+import java.net.URI
 
 class SoundboardPluginTest {
 
@@ -190,8 +192,9 @@ class SoundboardPluginTest {
 
     @Test
     fun `tooltipTextForUri uses absolute path for file uri`() {
-        val tooltip = SoundboardPlugin.tooltipTextForUri("file:///tmp/soundboard-test.mp3")
-        assertEquals("/tmp/soundboard-test.mp3", tooltip)
+        val uri = "file:///tmp/soundboard-test.mp3"
+        val tooltip = SoundboardPlugin.tooltipTextForUri(uri)
+        assertEquals(File(URI(uri)).absolutePath, tooltip)
     }
 
     @Test
