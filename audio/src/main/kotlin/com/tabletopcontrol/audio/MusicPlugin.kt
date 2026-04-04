@@ -386,7 +386,12 @@ class MusicPlugin : DmPlugin {
                 playPauseBtn.isDisable = false
                 stopBtn.isDisable = false
                 progressBar.isDisable = false
-                timeLabel.text = "0:00 / -${formatDuration(media.duration)}"
+                val total = media.duration
+                timeLabel.text = if (!total.isUnknown && !total.isIndefinite && total.toSeconds() > 0.0) {
+                    "0:00 / -${formatDuration(total)}"
+                } else {
+                    "0:00 / $TIME_UNKNOWN"
+                }
             }
         }
 
