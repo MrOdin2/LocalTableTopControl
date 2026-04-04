@@ -153,8 +153,8 @@ object DialogFlows {
      * [onAlways] always runs when the dialog is hidden.
      * Preserves and invokes the [Dialog.onHidden] handler that existed at the time this
      * function is called, before these callbacks.
-     * Subsequent [Dialog.onHidden] replacements (including additional calls to this
-     * function) replace the current handler as usual for [Dialog.setOnHidden].
+     * Repeated calls to this helper chain wrappers by capturing the previously installed
+     * handler each time. Prefer installing this flow once per dialog.
      *
      * @param dialog target dialog.
      * @param tracker confirmation state tracker.
