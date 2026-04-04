@@ -4,6 +4,7 @@ import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
+/** Tests for [ColorContrast]. */
 class ColorContrastTest {
     @Test
     fun `textColorHexForBackground picks black for bright color`() {

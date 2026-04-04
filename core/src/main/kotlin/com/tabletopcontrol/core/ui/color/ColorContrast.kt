@@ -11,7 +11,11 @@ object ColorContrast {
     const val WHITE_HEX: String = "#FFFFFF"
 
     /**
-     * Returns a black/white text color hex for [backgroundHex].
+     * Returns a readable black/white foreground hex for [backgroundHex].
+     *
+     * @param backgroundHex background color hex string.
+     * @param threshold luminance threshold used to switch between black/white.
+     * @return [BLACK_HEX] or [WHITE_HEX].
      */
     fun textColorHexForBackgroundHex(backgroundHex: String, threshold: Double = DEFAULT_THRESHOLD): String {
         val background = ColorHexCodec.parseOrDefault(backgroundHex, Color.GRAY)
@@ -19,7 +23,11 @@ object ColorContrast {
     }
 
     /**
-     * Returns a black/white text color hex for [background].
+     * Returns a readable black/white foreground hex for [background].
+     *
+     * @param background background color.
+     * @param threshold luminance threshold used to switch between black/white.
+     * @return [BLACK_HEX] or [WHITE_HEX].
      */
     fun textColorHexForBackground(background: Color, threshold: Double = DEFAULT_THRESHOLD): String {
         val luminance = 0.299 * background.red + 0.587 * background.green + 0.114 * background.blue

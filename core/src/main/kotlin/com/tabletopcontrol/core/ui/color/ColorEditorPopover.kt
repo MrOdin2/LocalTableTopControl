@@ -29,10 +29,21 @@ import kotlin.math.sqrt
  * Reusable wheel-based color editor used by plugins.
  */
 object ColorEditorPopover {
+    /** Practical hue upper bound kept below 360 because 360 maps to 0 in HSB. */
     private const val MAX_HUE_BELOW_360 = 359.999
+    private const val WHEEL_IMAGE_CACHE_MAX_SIZE = 16
+    private const val MARKER_CONTRAST_BRIGHTNESS_THRESHOLD = 0.45
+    private const val KEYBOARD_HUE_STEP_DEGREES = 3.0
+    private const val KEYBOARD_SATURATION_STEP = 0.02
 
     /**
      * Shows a modal color editor and returns the chosen color when confirmed.
+     *
+     * @param owner owner window for modality.
+     * @param title dialog title.
+     * @param prompt explanatory text shown above controls.
+     * @param initialColor initially selected color.
+     * @return selected color when confirmed, otherwise `null`.
      */
     fun showDialog(
         owner: Window?,
@@ -60,6 +71,7 @@ object ColorEditorPopover {
             maxHeight = wheelSize
             isFocusTraversable = true
             accessibleText = "Color wheel. Use arrow keys to adjust hue and saturation."
+            accessibleHelp = "Press arrow keys to adjust: Left/Right for hue, Up/Down for saturation."
         }
 
         val brightnessSlider = Slider(0.0, 100.0, valuePercent(draftColor)).apply {
@@ -80,32 +92,32 @@ object ColorEditorPopover {
         }
         val rField = TextField((draftColor.red * 255.0).roundToInt().toString()).apply {
             prefColumnCount = 4
-            tooltip = Tooltip("Red (0-255)")
+            tooltip = Tooltip("Red (0–255)")
         }
         val gField = TextField((draftColor.green * 255.0).roundToInt().toString()).apply {
             prefColumnCount = 4
-            tooltip = Tooltip("Green (0-255)")
+            tooltip = Tooltip("Green (0–255)")
         }
         val bField = TextField((draftColor.blue * 255.0).roundToInt().toString()).apply {
             prefColumnCount = 4
-            tooltip = Tooltip("Blue (0-255)")
+            tooltip = Tooltip("Blue (0–255)")
         }
         val hField = TextField(normalizedHueDegrees(draftColor).roundToInt().toString()).apply {
             prefColumnCount = 4
-            tooltip = Tooltip("Hue (0-359)")
+            tooltip = Tooltip("Hue (0–359)")
         }
         val sField = TextField((draftColor.saturation * 100.0).roundToInt().toString()).apply {
             prefColumnCount = 4
-            tooltip = Tooltip("Saturation (0-100%)")
+            tooltip = Tooltip("Saturation (0–100%)")
         }
         val vField = TextField((draftColor.brightness * 100.0).roundToInt().toString()).apply {
             prefColumnCount = 4
-            tooltip = Tooltip("Value (0-100%)")
+            tooltip = Tooltip("Value (0–100%)")
         }
 
-        val wheelImageCache = object : LinkedHashMap<Int, javafx.scene.image.WritableImage>(16, 0.75f, true) {
+        val wheelImageCache = object : LinkedHashMap<Int, javafx.scene.image.WritableImage>(WHEEL_IMAGE_CACHE_MAX_SIZE, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, javafx.scene.image.WritableImage>?): Boolean =
-                size > 16
+                size > WHEEL_IMAGE_CACHE_MAX_SIZE
         }
         fun wheelImageFor(valuePercent: Int): javafx.scene.image.WritableImage = wheelImageCache.getOrPut(valuePercent) {
             val image = javafx.scene.image.WritableImage(wheelSize.toInt(), wheelSize.toInt())
@@ -136,7 +148,7 @@ object ColorEditorPopover {
             val radius = color.saturation * wheelRadius
             marker.centerX = wheelRadius + cos(hueRad) * radius
             marker.centerY = wheelRadius + sin(hueRad) * radius
-            marker.stroke = if (color.brightness < 0.45) Color.WHITE else Color.BLACK
+            marker.stroke = if (color.brightness < MARKER_CONTRAST_BRIGHTNESS_THRESHOLD) Color.WHITE else Color.BLACK
         }
 
         fun redrawWheelIfNeeded(value: Double) {
@@ -198,13 +210,11 @@ object ColorEditorPopover {
         wheelPane.setOnMousePressed { updateFromWheel(it.x, it.y) }
         wheelPane.setOnMouseDragged { updateFromWheel(it.x, it.y) }
         wheelPane.setOnKeyPressed { event ->
-            val hueStep = 3.0
-            val saturationStep = 0.02
             val next = when (event.code) {
-                KeyCode.LEFT -> Color.hsb((draftColor.hue - hueStep + 360.0) % 360.0, draftColor.saturation, draftColor.brightness)
-                KeyCode.RIGHT -> Color.hsb((draftColor.hue + hueStep) % 360.0, draftColor.saturation, draftColor.brightness)
-                KeyCode.UP -> Color.hsb(draftColor.hue, (draftColor.saturation + saturationStep).coerceIn(0.0, 1.0), draftColor.brightness)
-                KeyCode.DOWN -> Color.hsb(draftColor.hue, (draftColor.saturation - saturationStep).coerceIn(0.0, 1.0), draftColor.brightness)
+                KeyCode.LEFT -> Color.hsb((draftColor.hue - KEYBOARD_HUE_STEP_DEGREES + 360.0) % 360.0, draftColor.saturation, draftColor.brightness)
+                KeyCode.RIGHT -> Color.hsb((draftColor.hue + KEYBOARD_HUE_STEP_DEGREES) % 360.0, draftColor.saturation, draftColor.brightness)
+                KeyCode.UP -> Color.hsb(draftColor.hue, (draftColor.saturation + KEYBOARD_SATURATION_STEP).coerceIn(0.0, 1.0), draftColor.brightness)
+                KeyCode.DOWN -> Color.hsb(draftColor.hue, (draftColor.saturation - KEYBOARD_SATURATION_STEP).coerceIn(0.0, 1.0), draftColor.brightness)
                 else -> null
             }
             if (next != null) {

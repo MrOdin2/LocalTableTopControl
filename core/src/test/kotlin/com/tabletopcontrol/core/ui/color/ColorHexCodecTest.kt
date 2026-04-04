@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
+/** Tests for [ColorHexCodec]. */
 class ColorHexCodecTest {
     @Test
     fun `colorToHex uses uppercase RGB format`() {
