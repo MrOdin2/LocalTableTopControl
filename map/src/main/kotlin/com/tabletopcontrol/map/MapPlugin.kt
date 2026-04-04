@@ -86,6 +86,24 @@ class MapPlugin : DmPlugin {
      */
     private var lastShowTokenNames: Boolean = false
 
+    /** Active measurement overlays keyed by their stable IDs; authoritative plugin-level state. */
+    private val measurements = linkedMapOf<String, MeasurementOverlay>()
+
+    /** Current measurement unit suffix applied to new overlays ('ft' or 'm'). */
+    private var measurementUnits = "ft"
+
+    /** Current cone angle in degrees for cone measurement overlays. */
+    private var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
+
+    /** Whether newly created measurements are mirrored to the table view by default. */
+    private var defaultMirrorToTable = false
+
+    /**
+     * The measurement-units [ComboBox] on the active DM view; kept in sync by
+     * [setMeasurementUnits] so the picker always reflects the current unit.
+     */
+    private var measurementUnitsComboBox: ComboBox<String>? = null
+
     init {
         val saved = MapSettingsSerializer.load()
         lastGridCalibration = saved.gridCalibration ?: GridCalibration()
@@ -139,8 +157,9 @@ class MapPlugin : DmPlugin {
 
     /**
      * Publishes [MapCalibrationEvent], [GridCalibrationEvent], [MapBackgroundEvent],
-     * [MapRotationEvent], and [ShowTokenNamesEvent] for the current persisted settings
-     * so that any newly created renderer can initialise with the saved values.
+     * [MapRotationEvent], [ShowTokenNamesEvent], and replays all active [measurements]
+     * for the current persisted settings so that any newly created renderer can
+     * initialise with the saved values.
      */
     private fun publishCurrentSettings() {
         EventBus.publish(MapCalibrationEvent(lastMapCalibration))
@@ -148,7 +167,45 @@ class MapPlugin : DmPlugin {
         EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
         EventBus.publish(MapRotationEvent(lastMapRotation))
         EventBus.publish(ShowTokenNamesEvent(lastShowTokenNames))
+        // Re-publish all active measurements so newly attached renderers are in sync.
+        measurements.values.forEach { EventBus.publish(MeasurementAddedEvent(it)) }
     }
+
+    /**
+     * Normalizes and applies the active measurement units.
+     *
+     * Input is trimmed/lowercased; invalid values fall back to `ft`, and the
+     * minimap toolbar units [ComboBox] is kept synchronised with the applied value.
+     */
+    private fun setMeasurementUnits(units: String) {
+        val normalized = units.trim().lowercase().takeIf { it in supportedMeasurementUnits } ?: "ft"
+        measurementUnits = normalized
+        val combo = measurementUnitsComboBox
+        if (combo != null && combo.selectionModel.selectedItem != normalized) {
+            combo.selectionModel.select(normalized)
+        }
+    }
+
+    /**
+     * Stores [overlay] in [measurements] and publishes an add or update event.
+     *
+     * @param overlay  the overlay to store.
+     * @param isUpdate `true` to publish [MeasurementUpdatedEvent]; `false` for [MeasurementAddedEvent].
+     */
+    private fun publishMeasurement(overlay: MeasurementOverlay, isUpdate: Boolean) {
+        measurements[overlay.id] = overlay
+        if (isUpdate) {
+            EventBus.publish(MeasurementUpdatedEvent(overlay))
+        } else {
+            EventBus.publish(MeasurementAddedEvent(overlay))
+        }
+    }
+
+    /**
+     * Returns the last measurement whose anchor is near [cell], or `null` if none.
+     */
+    private fun findMeasurementAt(cell: Pair<Int, Int>): MeasurementOverlay? =
+        measurements.values.lastOrNull { it.isNearCell(cell.first, cell.second) }
 
     /**
      * Creates the table-screen [Node] — a [Canvas] backed by a [MapRenderer] that
@@ -337,43 +394,15 @@ class MapPlugin : DmPlugin {
         }
 
         // ------------------------------------------------------------------
-        // Fog paint tool state
+        // Fog paint tool state (UI-only; resets on view rebuild intentionally)
         // ------------------------------------------------------------------
         var fogTool: FogTool = FogTool.NONE
         var measurementTool: MeasurementTool = MeasurementTool.NONE
-        var defaultMirrorToTable = false
-        var measurementUnits = "ft"
-        var coneAngleDegrees = MeasurementOverlay.DEFAULT_MEASUREMENT_CONE_ANGLE_DEGREES
-        val measurements = linkedMapOf<String, MeasurementOverlay>()
         var activeMeasurementId: String? = null
-        var measurementUnitsComboBox: ComboBox<String>? = null
-
-        /**
-         * Normalizes and applies the active measurement units.
-         *
-         * Input is trimmed/lowercased, invalid values fall back to `ft`, and the
-         * minimap toolbar units ComboBox is kept synchronized with the applied value.
-         */
-        fun setMeasurementUnits(units: String) {
-            val normalized = units.trim().lowercase().takeIf { it in supportedMeasurementUnits } ?: "ft"
-            measurementUnits = normalized
-            val combo = measurementUnitsComboBox
-            if (combo != null && combo.selectionModel.selectedItem != normalized) {
-                combo.selectionModel.select(normalized)
-            }
-        }
-
-        fun publishMeasurement(overlay: MeasurementOverlay, isUpdate: Boolean) {
-            measurements[overlay.id] = overlay
-            if (isUpdate) EventBus.publish(MeasurementUpdatedEvent(overlay)) else EventBus.publish(MeasurementAddedEvent(overlay))
-        }
 
         fun deactivateMeasureButtons(vararg buttons: ToggleButton) {
             buttons.forEach { it.isSelected = false }
         }
-
-        fun findMeasurementAt(cell: Pair<Int, Int>): MeasurementOverlay? =
-            measurements.values.lastOrNull { it.isNearCell(cell.first, cell.second) }
 
         // ------------------------------------------------------------------
         // Mouse drag to pan / fog paint / token drag
