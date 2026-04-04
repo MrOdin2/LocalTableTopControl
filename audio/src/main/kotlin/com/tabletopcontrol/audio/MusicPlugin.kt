@@ -351,12 +351,15 @@ class MusicPlugin : DmPlugin {
     ) {
         val player = track.player ?: return
         val media = player.media ?: return
-        val isReady = player.status == MediaPlayer.Status.READY
-        playPauseBtn.isDisable = !isReady
-        stopBtn.isDisable = !isReady
-        progressBar.isDisable = !isReady
+        val status = player.status
+        val isUsable = status != MediaPlayer.Status.UNKNOWN &&
+            status != MediaPlayer.Status.HALTED &&
+            status != MediaPlayer.Status.DISPOSED
+        playPauseBtn.isDisable = !isUsable
+        stopBtn.isDisable = !isUsable
+        progressBar.isDisable = !isUsable
         playPauseBtn.text = if (player.status == MediaPlayer.Status.PLAYING) "⏸ Pause" else "▶ Play"
-        if (isReady && !media.duration.isUnknown && !media.duration.isIndefinite) {
+        if (isUsable && !media.duration.isUnknown && !media.duration.isIndefinite) {
             val current = player.currentTime
             val totalSeconds = media.duration.toSeconds()
             if (totalSeconds > 0.0) {
