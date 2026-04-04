@@ -250,8 +250,10 @@ class App : Application() {
         }
 
         // Helper: parse a hex color string safely, falling back to [fallback] on error.
-        fun parseColor(hex: String, fallback: String): Color =
-            ColorHexCodec.parseOrDefault(hex, ColorHexCodec.hexToColor(fallback))
+        fun parseColor(hex: String, fallback: String): Color {
+            val safeFallback = ColorHexCodec.parseOrDefault(fallback, Color.GRAY)
+            return ColorHexCodec.parseOrDefault(hex, safeFallback)
+        }
 
         val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
 
