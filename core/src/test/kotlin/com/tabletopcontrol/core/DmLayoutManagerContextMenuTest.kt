@@ -4,11 +4,34 @@ import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.verify
 import javafx.scene.layout.Pane
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
 
 class DmLayoutManagerContextMenuTest {
+    @TempDir
+    lateinit var tempDir: File
+
+    private var originalUserHome: String? = null
+
+    @BeforeEach
+    fun setUp() {
+        originalUserHome = System.getProperty("user.home")
+        System.setProperty("user.home", tempDir.absolutePath)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        originalUserHome?.let {
+            System.setProperty("user.home", it)
+        } ?: run {
+            System.clearProperty("user.home")
+        }
+    }
 
     private fun managerWithPlugin(): DmLayoutManager =
         DmLayoutManager(
