@@ -151,6 +151,7 @@ object DialogFlows {
     /**
      * Invokes [onCancel] only when the dialog was dismissed without confirmation.
      * [onAlways] always runs when the dialog is hidden.
+     * Preserves and invokes any existing [Dialog.onHidden] handler before these callbacks.
      *
      * @param dialog target dialog.
      * @param tracker confirmation state tracker.
