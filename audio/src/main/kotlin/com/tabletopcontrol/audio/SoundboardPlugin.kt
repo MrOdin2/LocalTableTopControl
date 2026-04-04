@@ -626,14 +626,14 @@ class SoundboardPlugin : DmPlugin {
             selectedColor = Color.hsb(selectedColor.hue, selectedColor.saturation, newValue.toDouble())
             preview.fill = selectedColor
             updateMarkerPosition(selectedColor)
+            if (!brightnessSlider.isValueChanging) {
+                drawWheel()
+            }
         }
         brightnessSlider.valueChangingProperty().addListener { _, _, isChanging ->
             if (!isChanging) {
                 drawWheel()
             }
-        }
-        brightnessSlider.setOnMouseReleased {
-            drawWheel()
         }
 
         val dialog = Dialog<Color>().apply {
