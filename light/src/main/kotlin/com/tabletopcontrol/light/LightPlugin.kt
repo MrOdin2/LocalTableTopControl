@@ -11,7 +11,6 @@ import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
-import javafx.scene.control.MenuButton
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Separator
 import javafx.scene.control.Slider
@@ -315,9 +314,10 @@ class LightPlugin : DmPlugin {
      */
     private fun buildColorRow(): HBox {
         var appliedColor = ColorHexCodec.parseOrDefault(controller.color, Color.WHITE)
-        val menu = MenuButton().apply {
+        val menu = Button().apply {
             tooltip = Tooltip("Select the ambient light color")
             maxWidth = Double.MAX_VALUE
+            alignment = Pos.CENTER_LEFT
         }
 
         val swatch = Region().apply {
