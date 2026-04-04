@@ -44,6 +44,14 @@ import java.net.URISyntaxException
  * A master row contains a volume slider and a "Stop All" button that halts
  * every track simultaneously. Track cards can be added, reordered via drag/drop,
  * and removed from a right-click context menu.
+ *
+ * GODCLASS audit note:
+ * - `MusicPlugin` shows mixed responsibilities and is a near-god-class candidate.
+ * - Features that can be moved to helpers/shared components:
+ *   - Track persistence and settings serialization orchestration (`saveSettings`, load in `createView`).
+ *   - Media player lifecycle/binding (`loadTrack`, `bindPlayerToControls`, dispose helpers).
+ *   - Reorder/add/remove orchestration for tracks and drag-drop setup.
+ *   - Reusable track-card UI construction and section composition.
  */
 class MusicPlugin : DmPlugin {
 

@@ -59,6 +59,15 @@ private enum class MeasurementTool { NONE, LINE, CONE, RECTANGLE, CIRCLE }
  *   scale, and centre offset; publishes [GridCalibrationEvent] on every field change
  *   for live feedback and restores the original calibration if the dialog is cancelled.
  * - **Fog of war** — reveal-all / hide-all buttons, publishing [FogOfWarResetEvent].
+ *
+ * GODCLASS audit note:
+ * - `MapPlugin` is a GODCLASS with broad mixed responsibilities.
+ * - Features that can be moved to helpers/shared components:
+ *   - DM control-panel section builders (minimap, compact controls, dialog-specific form builders).
+ *   - Map/grid calibration dialog state, validation, and live-preview logic.
+ *   - Fog-of-war setup/update orchestration and measurement tool command handling.
+ *   - Settings persistence coordination (map/grid/background/rotation/token-name state).
+ *   - EventBus publish/subscribe coordination for map render, tokens, and measurement overlays.
  */
 class MapPlugin : DmPlugin {
 

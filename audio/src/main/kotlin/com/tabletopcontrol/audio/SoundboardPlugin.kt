@@ -53,6 +53,15 @@ import kotlin.math.sqrt
  * - **Left-click** a loaded button to toggle playback on/off.
  * - Buttons can be reordered via drag-and-drop.
  * - When a sound finishes naturally, the button resets to its idle state.
+ *
+ * GODCLASS audit note:
+ * - `SoundboardPlugin` is currently a GODCLASS.
+ * - Features that can be moved to helpers/shared components:
+ *   - Slot config persistence (`serializeConfig`, `parseConfig`, `saveConfig`, `loadConfig`).
+ *   - Media/player lifecycle handling (`loadSlot`, `playSlot`, `stopSlot`, disposal/reset).
+ *   - Context-menu and color-picker UI flows.
+ *   - Button styling/state transitions (`setPlayingStyle`, `setIdleStyle`, `applyCurrentStyle`).
+ *   - Soundboard grid rendering/reorder orchestration (`renderButtons`, drag/drop wiring).
  */
 class SoundboardPlugin : DmPlugin {
 

@@ -67,6 +67,15 @@ import java.util.concurrent.atomic.AtomicInteger
  * - Otherwise → cards arranged **vertically** (top-to-bottom order).
  *
  * Cards can be **dragged and dropped** to reorder the initiative list.
+ *
+ * GODCLASS audit note:
+ * - `TrackerPlugin` is a GODCLASS with UI, domain coordination, and token sync mixed together.
+ * - Features that can be moved to helpers/shared components:
+ *   - Card/toolbar UI construction and orientation-specific layout strategy.
+ *   - Token image upload/edit dialog flow and image normalization/validation.
+ *   - EventBus sync adapters for token add/remove/reset/active-change/image-change events.
+ *   - Preset dialog/state management and tracker-entry mutation orchestration.
+ *   - Drag/drop reorder and style/highlight rendering logic.
  */
 class TrackerPlugin : DmPlugin {
 

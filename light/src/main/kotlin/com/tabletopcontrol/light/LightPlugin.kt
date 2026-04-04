@@ -66,6 +66,15 @@ private enum class ColorInputSource { HEX, RGB, HSV }
  * Application Thread is never blocked by I/O or serial timeouts.  Rapid bursts
  * of state changes (e.g. dragging the brightness slider) are coalesced: only
  * the most-recent state is sent once the background thread becomes free.
+ *
+ * GODCLASS audit note:
+ * - `LightPlugin` is a GODCLASS with extensive UI, coordination, and transport flow in one class.
+ * - Features that can be moved to helpers/shared components:
+ *   - Section-specific UI builders (serial/power/color/effects/preset/debug) into focused view components.
+ *   - Color conversion/parsing/recent-color management utilities.
+ *   - Serial update scheduling/coalescing and retry/error-throttle policy.
+ *   - Debug-console formatting and append/log policy.
+ *   - Controller-to-sender adapter that transforms controller snapshots into WLED commands.
  */
 class LightPlugin : DmPlugin {
     override val displayName: String = "Lights"
