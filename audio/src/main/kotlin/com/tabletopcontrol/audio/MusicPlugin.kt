@@ -297,7 +297,7 @@ class MusicPlugin : DmPlugin {
             }
         }
 
-        return TrackCardNodes(card = card)
+        return TrackCardNodes(card = card, grabHandle = grabHandle)
     }
 
     // -------------------------------------------------------------------------
@@ -435,7 +435,7 @@ class MusicPlugin : DmPlugin {
 
         tracks.forEachIndexed { index, track ->
             val cardNodes = buildTrackCard(index, track)
-            DragDropSupport.installDragSource(cardNodes.card, index, dragContext)
+            DragDropSupport.installDragSource(cardNodes.grabHandle, index, dragContext)
             DragDropSupport.installDropTarget(cardNodes.card, index, dragContext, dropIndicator)
             tracksContainer.children.add(cardNodes.card)
         }
@@ -558,5 +558,6 @@ class MusicPlugin : DmPlugin {
 
     private data class TrackCardNodes(
         val card: VBox,
+        val grabHandle: GrabHandle,
     )
 }
