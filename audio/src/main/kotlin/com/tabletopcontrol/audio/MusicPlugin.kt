@@ -287,9 +287,15 @@ class MusicPlugin : DmPlugin {
                     timeLabel = timeLabel,
                 )
                 if (!loaded) {
+                    track.player = null
                     track.uri = null
                     pathLabel.text = "No file loaded"
                     pathLabel.tooltip = Tooltip("No file loaded")
+                    playPauseBtn.isDisable = true
+                    stopBtn.isDisable = true
+                    progressBar.progress = 0.0
+                    progressBar.isDisable = true
+                    timeLabel.text = ""
                     saveSettings()
                 }
             } else {
