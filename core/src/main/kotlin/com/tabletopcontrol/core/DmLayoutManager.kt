@@ -45,6 +45,14 @@ import javafx.scene.layout.StackPane
  *   without affecting any other panels; only shown when such an expansion is possible.
  */
 class DmLayoutManager(private val plugins: List<DmPlugin>) {
+    /**
+     * SAM wrapper around the single menu lifecycle operation this manager needs: [hide].
+     *
+     * Using this narrow abstraction keeps lifecycle tracking decoupled from the full
+     * JavaFX [ContextMenu] API while still allowing tests to validate replacement logic.
+     * This exists because the manager must reliably hide any previously open menu before
+     * showing a new one so only one context menu is visible at a time.
+     */
     internal fun interface ManagedMenu {
         fun hide()
     }
@@ -143,17 +151,29 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         return wrapper
     }
 
+    /**
+     * Hides the currently tracked menu (if any), then stores and returns [menu] as active.
+     *
+     * Call this immediately before showing a newly built context menu.
+     */
     internal fun registerAndPrepareMenu(menu: ManagedMenu): ManagedMenu {
         activeContextMenu?.hide()
         activeContextMenu = menu
         return menu
     }
 
+    /**
+     * Clears active menu tracking only when [menu] is still the tracked instance.
+     *
+     * This is intended for `onHidden` callbacks so stale events from older menus do not
+     * clear a newer active menu.
+     */
     internal fun clearActiveMenuIf(menu: ManagedMenu) {
         if (activeContextMenu === menu) activeContextMenu = null
     }
 
-    internal fun activeContextMenuForTesting(): ManagedMenu? = activeContextMenu
+    /** Exposes the currently tracked active menu for focused unit tests. */
+    internal fun activeMenuForTesting(): ManagedMenu? = activeContextMenu
 
     private fun buildSplitView(split: PaneNode.Split): Node {
         val splitPane = SplitPane()

@@ -32,7 +32,7 @@ class DmLayoutManagerContextMenuTest {
         manager.registerAndPrepareMenu(second)
 
         verify(exactly = 1) { first.hide() }
-        assertSame(second, manager.activeContextMenuForTesting())
+        assertSame(second, manager.activeMenuForTesting())
     }
 
     @Test
@@ -43,9 +43,9 @@ class DmLayoutManagerContextMenuTest {
 
         manager.registerAndPrepareMenu(active)
         manager.clearActiveMenuIf(other)
-        assertSame(active, manager.activeContextMenuForTesting())
+        assertSame(active, manager.activeMenuForTesting())
 
         manager.clearActiveMenuIf(active)
-        assertNull(manager.activeContextMenuForTesting())
+        assertNull(manager.activeMenuForTesting())
     }
 }
