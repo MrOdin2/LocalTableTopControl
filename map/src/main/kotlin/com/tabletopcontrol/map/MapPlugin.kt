@@ -1540,10 +1540,10 @@ class MapPlugin : DmPlugin {
             tracker = confirmation,
             confirmButton = ButtonType.APPLY,
         ) {
-                lastMapCalibration = working
-                EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
-                true
+            lastMapCalibration = working
+            EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+            MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
+            true
         }
 
         DialogFlows.onHiddenWithCancelRestore(

@@ -4,7 +4,9 @@ import javafx.event.ActionEvent
 import javafx.scene.Node
 import javafx.scene.control.ButtonType
 import javafx.scene.control.Dialog
+import javafx.scene.control.DialogEvent
 import javafx.stage.Window
+import javafx.event.EventHandler
 
 /**
  * Shared dialog helpers for common owner/result/validation/cancel flows.
@@ -161,7 +163,9 @@ object DialogFlows {
         onCancel: () -> Unit,
         onAlways: () -> Unit = {},
     ) {
-        dialog.setOnHidden {
+        val previousOnHidden: EventHandler<DialogEvent>? = dialog.onHidden
+        dialog.setOnHidden { event ->
+            previousOnHidden?.handle(event)
             onAlways()
             if (!tracker.confirmed) {
                 onCancel()
