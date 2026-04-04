@@ -136,12 +136,14 @@ object DialogFlows {
         confirmButton: ButtonType = ButtonType.OK,
         onConfirmAttempt: () -> Boolean,
     ) {
-        dialog.dialogPane.lookupButton(confirmButton)
-            .addEventFilter(ActionEvent.ACTION) { evt ->
-                if (!tracker.attemptConfirm(onConfirmAttempt)) {
-                    evt.consume()
-                }
+        val confirmNode = requireNotNull(dialog.dialogPane.lookupButton(confirmButton)) {
+            "confirmButton must be registered in dialog.buttonTypes before installing validation: $confirmButton"
+        }
+        confirmNode.addEventFilter(ActionEvent.ACTION) { evt ->
+            if (!tracker.attemptConfirm(onConfirmAttempt)) {
+                evt.consume()
             }
+        }
     }
 
     /**
