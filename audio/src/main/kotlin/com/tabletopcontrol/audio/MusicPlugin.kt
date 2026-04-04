@@ -297,7 +297,7 @@ class MusicPlugin : DmPlugin {
             }
         }
 
-        return TrackCardNodes(card = card, dragHandle = grabHandle)
+        return TrackCardNodes(card = card)
     }
 
     // -------------------------------------------------------------------------
