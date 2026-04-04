@@ -24,7 +24,7 @@ No flashy animations, no heavy 3D models; just the tools you actually need at th
 - **Music Control** — dynamic, reorderable music track cards (1–16):
   - Music tracks
   - Ambient loops and soundscapes
-  - Sound effects via the separate 16-button soundboard
+  - Sound effects via a customizable soundboard (up to 32 buttons)
 - **Initiative Tracker** — manage turn order for players and enemies.
 - **Monster HP Tracker** — track hit points for encounters.
 - **Split-Pane Layout** — display multiple plugin panels simultaneously without switching tabs.

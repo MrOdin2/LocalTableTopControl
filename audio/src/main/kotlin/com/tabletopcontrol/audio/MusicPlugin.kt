@@ -71,15 +71,20 @@ class MusicPlugin : DmPlugin {
     /** Shared drop indicator for drag/drop reordering visuals. */
     private lateinit var dropIndicator: DropIndicator
 
+    /** Guard flag: state is loaded from disk and players are created only on the first [createView] call. */
+    private var initialized = false
+
     override fun createView(): Node {
-        tracks.forEach(::disposeTrackPlayer)
-        val loaded = MusicSettingsSerializer.load()
-        masterVolume = loaded.masterVolume
-        tracks.clear()
-        tracks += loaded.tracks
-            .take(MAX_TRACK_COUNT)
-            .ifEmpty { listOf(PersistedMusicTrack()) }
-            .map { TrackState(uri = it.uri, volume = it.volume, loop = it.loop) }
+        if (!initialized) {
+            val loaded = MusicSettingsSerializer.load()
+            masterVolume = loaded.masterVolume
+            tracks.clear()
+            tracks += loaded.tracks
+                .take(MAX_TRACK_COUNT)
+                .ifEmpty { listOf(PersistedMusicTrack()) }
+                .map { TrackState(uri = it.uri, volume = it.volume, loop = it.loop) }
+            initialized = true
+        }
 
         val root = VBox(6.0).apply { padding = Insets(8.0) }
         tracksContainer = VBox(6.0)
