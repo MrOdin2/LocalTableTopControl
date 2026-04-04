@@ -25,7 +25,7 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
-import kotlin.math.roundToInt
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -251,7 +251,7 @@ class App : Application() {
 
         // Helper: parse a hex color string safely, falling back to [fallback] on error.
         fun parseColor(hex: String, fallback: String): Color =
-            runCatching { Color.web(hex) }.getOrElse { Color.web(fallback) }
+            ColorHexCodec.parse(hex).getOrElse { ColorHexCodec.parse(fallback).getOrDefault(Color.WHITE) }
 
         val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
 
@@ -333,10 +333,10 @@ class App : Application() {
                 val mode = if (darkBtn.isSelected) ThemeMode.DARK else ThemeMode.LIGHT
                 ThemeConfig(
                     mode = mode,
-                    accentColor = colorToHex(accentPicker.value),
-                    bgColor = colorToHex(bgPicker.value),
-                    surfaceColor = colorToHex(surfacePicker.value),
-                    borderColor = colorToHex(borderPicker.value),
+                    accentColor = ColorHexCodec.toHex(accentPicker.value, uppercase = false),
+                    bgColor = ColorHexCodec.toHex(bgPicker.value, uppercase = false),
+                    surfaceColor = ColorHexCodec.toHex(surfacePicker.value, uppercase = false),
+                    borderColor = ColorHexCodec.toHex(borderPicker.value, uppercase = false),
                 )
             } else null
         }
@@ -346,16 +346,6 @@ class App : Application() {
         }
     }
 
-    /**
-     * Converts a JavaFX [Color] to a CSS hex string such as `"#1565c0"`.
-     *
-     * Uses [kotlin.math.roundToInt] with a 0–255 clamp to avoid off-by-one
-     * errors from floating-point truncation.
-     */
-    private fun colorToHex(color: Color): String {
-        fun channel(v: Double) = (v * 255).roundToInt().coerceIn(0, 255)
-        return "#%02x%02x%02x".format(channel(color.red), channel(color.green), channel(color.blue))
-    }
 }
 
 /** JVM entry point — delegates to the JavaFX application launcher. */

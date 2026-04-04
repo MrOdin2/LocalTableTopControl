@@ -1,6 +1,7 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -36,7 +37,6 @@ import java.net.URI
 import java.util.Base64
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -160,7 +160,7 @@ class SoundboardPlugin : DmPlugin {
                     SlotConfig(
                         label = dec(parts[0]),
                         uri = dec(parts[1]),
-                        colorHex = dec(parts[2])?.takeIf { runCatching { Color.web(it) }.isSuccess },
+                        colorHex = dec(parts[2])?.takeIf { ColorHexCodec.parse(it).isSuccess },
                     )
                 }
                 .toMutableList()
@@ -531,7 +531,7 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun showColorPicker(slot: SlotState, btn: Button) {
-        val initial = runCatching { slot.colorHex?.let { Color.web(it) } ?: Color.GRAY }
+        val initial = runCatching { slot.colorHex?.let { ColorHexCodec.parse(it).getOrThrow() } ?: Color.GRAY }
             .getOrDefault(Color.GRAY)
         val wheelSize = 220
         val wheelImage = WritableImage(wheelSize, wheelSize)
@@ -663,7 +663,7 @@ class SoundboardPlugin : DmPlugin {
         }
 
         dialog.showAndWait().ifPresent { selected ->
-            slot.colorHex = colorToHex(selected)
+            slot.colorHex = ColorHexCodec.toHex(selected)
             applyCurrentStyle(slot)
             saveConfig()
         }
@@ -708,16 +708,9 @@ class SoundboardPlugin : DmPlugin {
      * labels readable across the brighter custom colours users commonly pick.
      */
     private fun textColorFor(hex: String): String {
-        val color = runCatching { Color.web(hex) }.getOrDefault(Color.GRAY)
+        val color = ColorHexCodec.parse(hex).getOrDefault(Color.GRAY)
         val luminance = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
         return if (luminance > 0.55) "#000000" else "#FFFFFF"
-    }
-
-    private fun colorToHex(color: Color): String {
-        val r = (color.red * 255).roundToInt().coerceIn(0, 255)
-        val g = (color.green * 255).roundToInt().coerceIn(0, 255)
-        val b = (color.blue * 255).roundToInt().coerceIn(0, 255)
-        return "#%02X%02X%02X".format(r, g, b)
     }
 
     private fun saveConfig() {

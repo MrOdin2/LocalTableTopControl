@@ -1,6 +1,7 @@
 package com.tabletopcontrol.light
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Pos
@@ -341,7 +342,7 @@ class LightPlugin : DmPlugin {
         }
         val valueLabel = Label()
         fun refreshButtonLabel(color: Color) {
-            val hex = colorToHex(color)
+            val hex = ColorHexCodec.toHex(color)
             swatch.style = "-fx-background-color: $hex; $SWATCH_STYLE_BASE"
             valueLabel.text = hex
         }
@@ -377,7 +378,7 @@ class LightPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
             tooltip = Tooltip("Value (brightness)")
         }
-        val hexField = TextField(colorToHex(draftColor)).apply {
+        val hexField = TextField(ColorHexCodec.toHex(draftColor)).apply {
             prefColumnCount = 8
             promptText = "#RRGGBB"
             tooltip = Tooltip("Hex color")
@@ -412,7 +413,7 @@ class LightPlugin : DmPlugin {
             minHeight = size
             prefWidth = size
             prefHeight = size
-            style = color?.let { "-fx-background-color: ${colorToHex(it)}; $SWATCH_STYLE_BASE" } ?: SWATCH_STYLE_BASE
+            style = color?.let { "-fx-background-color: ${ColorHexCodec.toHex(it)}; $SWATCH_STYLE_BASE" } ?: SWATCH_STYLE_BASE
         }
         val currentSwatch = createSwatch(28.0)
         val newSwatch = createSwatch(28.0)
@@ -422,13 +423,13 @@ class LightPlugin : DmPlugin {
         var applyDraftColorCallback: (Color) -> Unit = {}
         /** Updates a swatch's fill color while keeping border/radius styling intact. */
         fun styleSwatch(region: Region, color: Color) {
-            region.style = "-fx-background-color: ${colorToHex(color)}; $SWATCH_STYLE_BASE"
+            region.style = "-fx-background-color: ${ColorHexCodec.toHex(color)}; $SWATCH_STYLE_BASE"
         }
         /** Rebuilds the recent-color swatch buttons shown in the right-side panel. */
         fun renderRecentColors() {
             recentBox.children.clear()
             recentColors.forEach { hex ->
-                val color = Color.web(hex)
+                val color = ColorHexCodec.parse(hex).getOrThrow()
                 val recentSwatch = createSwatch(24.0, color)
                 val btn = Button("", recentSwatch).apply {
                     contentDisplay = ContentDisplay.GRAPHIC_ONLY
@@ -443,7 +444,7 @@ class LightPlugin : DmPlugin {
         }
         /** Pushes [color] into recents, de-duplicating and enforcing max size. */
         fun rememberRecentColor(color: Color) {
-            val hex = colorToHex(color)
+            val hex = ColorHexCodec.toHex(color)
             recentColors.remove(hex)
             recentColors.addFirst(hex)
             while (recentColors.size > MAX_RECENT_COLORS) recentColors.removeLast()
@@ -499,8 +500,8 @@ class LightPlugin : DmPlugin {
         fun refreshComparisonPanel() {
             styleSwatch(currentSwatch, appliedColor)
             styleSwatch(newSwatch, draftColor)
-            currentHex.text = colorToHex(appliedColor)
-            newHex.text = colorToHex(draftColor)
+            currentHex.text = ColorHexCodec.toHex(appliedColor)
+            newHex.text = ColorHexCodec.toHex(draftColor)
         }
         /** Updates the draft color state and editor UI without committing to controller/serial. */
         fun applyDraftColor(color: Color) {
@@ -510,7 +511,7 @@ class LightPlugin : DmPlugin {
             try {
                 valueSlider.value = normalizedValuePercent(clamped)
                 valuePercentLabel.text = "${normalizedValuePercent(clamped).toInt()}%"
-                hexField.text = colorToHex(clamped)
+                hexField.text = ColorHexCodec.toHex(clamped)
                 rField.text = (clamped.red * 255).toInt().toString()
                 gField.text = (clamped.green * 255).toInt().toString()
                 bField.text = (clamped.blue * 255).toInt().toString()
@@ -558,7 +559,7 @@ class LightPlugin : DmPlugin {
             applyDraftColor(Color.hsb(hue, saturation / 100.0, value / 100.0))
         }
         fun readPendingColorEdit(): Color? = when (pendingInputSource) {
-            ColorInputSource.HEX -> runCatching { Color.web(hexField.text.trim()) }.getOrNull()
+            ColorInputSource.HEX -> ColorHexCodec.parse(hexField.text.trim()).getOrNull()
             ColorInputSource.RGB -> {
                 val red = parseIntField(rField, 0, 255)
                 val green = parseIntField(gField, 0, 255)
@@ -580,7 +581,7 @@ class LightPlugin : DmPlugin {
 
         hexField.setOnAction {
             val text = hexField.text.trim()
-            runCatching { Color.web(text) }.getOrNull()?.let { applyDraftColor(it) }
+            ColorHexCodec.parse(text).getOrNull()?.let { applyDraftColor(it) }
             pendingInputSource = null
         }
         listOf(rField, gField, bField).forEach {
@@ -614,7 +615,7 @@ class LightPlugin : DmPlugin {
                 readPendingColorEdit()?.let { applyDraftColor(it) }
                 pendingInputSource = null
                 appliedColor = draftColor
-                controller.setColor(colorToHex(appliedColor))
+                controller.setColor(ColorHexCodec.toHex(appliedColor))
                 refreshButtonLabel(appliedColor)
                 rememberRecentColor(appliedColor)
                 refreshComparisonPanel()
@@ -1101,16 +1102,8 @@ class LightPlugin : DmPlugin {
     private fun currentLogTimestamp(): java.time.LocalTime =
         java.time.LocalTime.now().withNano(0)
 
-    /** Converts a JavaFX [Color] to an uppercase `#RRGGBB` hex string. */
-    private fun colorToHex(color: Color): String {
-        val r = (color.red * 255).toInt()
-        val g = (color.green * 255).toInt()
-        val b = (color.blue * 255).toInt()
-        return "#%02X%02X%02X".format(r, g, b)
-    }
-
     /** Parses a `#RRGGBB` or `#RGB` hex string into a JavaFX [Color]. */
-    private fun hexToColor(hex: String): Color = Color.web(hex)
+    private fun hexToColor(hex: String): Color = ColorHexCodec.parse(hex).getOrDefault(Color.WHITE)
 
     /** Formats a normalised brightness value as a percentage label. */
     private fun brightnessLabel(value: Double): String = "${(value * 100).toInt()} %"
