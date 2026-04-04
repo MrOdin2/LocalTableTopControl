@@ -204,6 +204,11 @@ class MusicPlugin : DmPlugin {
                         pathLabel.text = file.name
                         pathLabel.tooltip = Tooltip(file.absolutePath)
                         saveSettings()
+                    } else {
+                        pathLabel.text = "${file.name} (load failed)"
+                        pathLabel.tooltip = Tooltip(
+                            "Failed to load audio file:\n${file.absolutePath}",
+                        )
                     }
                 }
             }
