@@ -133,6 +133,7 @@
         <li><a href="#overview">Overview</a></li>
         <li><a href="#music">Music Player</a>
           <ul>
+            <li><a href="#music-tracks">Track Cards &amp; Ordering</a></li>
             <li><a href="#music-loading">Loading Tracks</a></li>
             <li><a href="#music-controls">Playback Controls</a></li>
             <li><a href="#music-volume">Volume &amp; Loop</a></li>
@@ -170,9 +171,8 @@
       </p>
       <ul>
         <li>
-          <strong>Music Player</strong> — three independent audio tracks for layered ambient
-          soundscapes (e.g. background music, atmospheric sounds, and environmental loops all
-          playing at once).
+          <strong>Music Player</strong> — dynamic, reorderable music track cards (1–16) for
+          layered ambient soundscapes.
         </li>
         <li>
           <strong>Soundboard</strong> — 16 quick-fire buttons for instant sound effects (combat
@@ -188,16 +188,31 @@
     <section id="music">
       <h2>Music Player</h2>
       <p>
-        The Music Player provides <strong>three independent tracks</strong> that play simultaneously,
-        each with its own file, playback controls, and volume slider. Use them to layer a
-        background music track, a wind or rain loop, and a subtle tavern ambience all at once.
+        The Music Player starts with <strong>one track card</strong> and lets you add more as needed
+        (up to 16 total). Every track has its own file, playback controls, and volume slider.
+      </p>
+
+      <h3 id="music-tracks">Track Cards &amp; Ordering</h3>
+      <ul>
+        <li>Click <strong>+ Add Track</strong> to create another track card (maximum: 16).</li>
+        <li>Drag cards by their handle to reorder them.</li>
+        <li>Right-click a card and choose <strong>Remove Track</strong> to delete it.</li>
+        <li>At least one track card is always kept.</li>
+      </ul>
+      <p>
+        Track order and settings are saved and restored automatically between sessions.
       </p>
 
       <h3 id="music-loading">Loading Tracks</h3>
       <p>
-        Each of the three track rows has a <strong>Browse</strong> (or file picker) button. Click it
+        Each track card has a <strong>Browse</strong> (file picker) button. Click it
         and select an audio file from your computer. Supported formats include MP3 and other formats
         supported by your Java runtime.
+      </p>
+      <p>
+        When you select a file, the app attempts to open it with the Java media runtime. If the
+        runtime cannot play that file, loading or playback may still fail after selection depending
+        on when the media error is reported.
       </p>
       <p>
         The file name is shown next to the button once a track is loaded. You can change the file at
@@ -219,19 +234,19 @@
         <tr><td>Loop checkbox</td><td>When ticked, the track restarts automatically when it reaches the end. Ideal for ambient loops.</td></tr>
       </table>
       <div class="tip">
-        <strong>Tip:</strong> Enable looping on all three tracks and set them to different lengths
+        <strong>Tip:</strong> Enable looping on multiple tracks and set them to different lengths
         so they fall in and out of sync, creating a naturally evolving soundscape.
       </div>
 
       <h3 id="music-master">Master Controls</h3>
       <p>
         At the bottom (or top) of the Music Player panel you will find master controls that affect
-        all three tracks together:
+        all active tracks together:
       </p>
       <table>
         <tr><th>Control</th><th>Description</th></tr>
         <tr><td>Master Volume</td><td>A global volume multiplier applied on top of each track's individual volume.</td></tr>
-        <tr><td>Stop All</td><td>Immediately stops all three tracks and resets their positions to the beginning.</td></tr>
+        <tr><td>Stop All</td><td>Immediately stops all tracks and resets their positions to the beginning.</td></tr>
       </table>
     </section>
 
