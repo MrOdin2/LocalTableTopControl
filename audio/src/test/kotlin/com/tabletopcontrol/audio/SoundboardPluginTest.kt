@@ -163,4 +163,28 @@ class SoundboardPluginTest {
         assertEquals(0xB2 / 255.0, parsed.green, 0.0001)
         assertEquals(0xC3 / 255.0, parsed.blue, 0.0001)
     }
+
+    @Test
+    fun `adjustedDropInsertIndex supports append target`() {
+        assertEquals(4, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 5))
+        assertEquals(4, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 0, toIndex = 5))
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 4, toIndex = 5))
+    }
+
+    @Test
+    fun `adjustedDropInsertIndex adjusts downward moves`() {
+        assertEquals(2, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 3))
+    }
+
+    @Test
+    fun `adjustedDropInsertIndex keeps upward moves as target index`() {
+        assertEquals(1, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 3, toIndex = 1))
+    }
+
+    @Test
+    fun `adjustedDropInsertIndex returns null for invalid indexes`() {
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = -1, toIndex = 2))
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 6))
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 2, toIndex = 2))
+    }
 }

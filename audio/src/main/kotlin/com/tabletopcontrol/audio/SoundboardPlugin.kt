@@ -20,6 +20,7 @@ import javafx.scene.control.Tooltip
 import javafx.scene.image.PixelWriter
 import javafx.scene.image.WritableImage
 import javafx.scene.input.KeyCode
+import javafx.geometry.Pos
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.StackPane
@@ -72,6 +73,7 @@ class SoundboardPlugin : DmPlugin {
         private const val TILE_WIDTH = 90.0
         private const val TILE_GAP = 4.0
         private const val TILE_PANE_PADDING = 4.0
+        private const val END_DROP_TARGET_OPACITY = 0.7
 
         private const val CONFIG_VERSION = 1
         private const val DRAG_FORMAT = "tabletopcontrol/soundboard-slot"
@@ -90,6 +92,18 @@ class SoundboardPlugin : DmPlugin {
             if (slotCount >= MAX_BUTTON_COUNT) return false
             if (slotCount <= 0) return true
             return slotCount % safeColumns != 0
+        }
+
+        /**
+         * Computes the post-removal insertion index for a reorder operation.
+         *
+         * Returns `null` when indices are out of range or when the reorder would be a no-op.
+         * Supports append targets by accepting `toIndex == listSize`.
+         */
+        internal fun adjustedDropInsertIndex(listSize: Int, fromIndex: Int, toIndex: Int): Int? {
+            if (fromIndex !in 0 until listSize || toIndex !in 0..listSize) return null
+            val adjusted = if (fromIndex < toIndex) toIndex - 1 else toIndex
+            return adjusted.takeUnless { it == fromIndex }
         }
 
         internal fun serializeConfig(slots: List<SlotConfig>): String {
@@ -232,9 +246,8 @@ class SoundboardPlugin : DmPlugin {
             dataFormat = DRAG_FORMAT,
             autoScrollPane = scrollPane,
             onReorder = { fromIndex, toIndex ->
-                if (fromIndex !in slots.indices || toIndex !in slots.indices) return@DragDropContext
+                val adjustedToIndex = adjustedDropInsertIndex(slots.size, fromIndex, toIndex) ?: return@DragDropContext
                 val moved = slots.removeAt(fromIndex)
-                val adjustedToIndex = if (fromIndex < toIndex) toIndex - 1 else toIndex
                 slots.add(adjustedToIndex, moved)
                 renderButtons()
                 saveConfig()
@@ -247,6 +260,18 @@ class SoundboardPlugin : DmPlugin {
             DragDropSupport.installDropTarget(btn, index, dragContext, indicator)
             tilePane.children.add(btn)
         }
+
+        // Dedicated drop zone that allows appending a dragged button to the final slot.
+        val endDropTarget = Label("⇣ Drag here to move to end").apply {
+            prefWidth = TILE_WIDTH
+            minHeight = 48.0
+            maxWidth = Double.MAX_VALUE
+            opacity = END_DROP_TARGET_OPACITY
+            alignment = Pos.CENTER
+            tooltip = Tooltip("Drop a dragged soundboard button here to move it to the end")
+        }
+        DragDropSupport.installDropTarget(endDropTarget, slots.size, dragContext, indicator)
+        tilePane.children.add(endDropTarget)
 
         if (shouldShowInlineAddButton(slots.size, tilePane.prefColumns)) {
             tilePane.children.add(
