@@ -324,7 +324,14 @@ class SoundboardPlugin : DmPlugin {
             btn.tooltip = Tooltip("Right-click to load a sound file")
             saveConfig()
         }
-        setIdleStyle(slot)
+        val isPlaying = slot.player?.status == MediaPlayer.Status.PLAYING
+        if (isPlaying) {
+            btn.text = "⏹ ${slot.displayLabel(index)}"
+            setPlayingStyle(slot)
+        } else {
+            btn.text = slot.displayLabel(index)
+            setIdleStyle(slot)
+        }
 
         btn.setOnAction {
             val player = slot.player ?: return@setOnAction
