@@ -1,6 +1,8 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -209,11 +211,7 @@ class SoundboardPlugin : DmPlugin {
     private lateinit var scrollPane: ScrollPane
 
     private val configFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, "soundboard.conf")
-        }
+        get() = AppConfigPaths.configFile("soundboard.conf")
 
     override fun createView(): Node {
         if (!initialized) {
@@ -722,16 +720,14 @@ class SoundboardPlugin : DmPlugin {
 
     private fun saveConfig() {
         val payload = slots.map { SlotConfig(it.customLabel, it.uri, it.colorHex) }
-        runCatching {
-            configFile.writeText(serializeConfig(payload))
-        }
+        SafeConfigIO.writeText(configFile, serializeConfig(payload))
     }
 
     private fun loadConfig(): List<SlotConfig>? {
         if (!configFile.exists()) return null
 
-        return runCatching {
+        return SafeConfigIO.readOrElse(null) {
             parseConfig(configFile.readText())
-        }.getOrNull()
+        }
     }
 }
