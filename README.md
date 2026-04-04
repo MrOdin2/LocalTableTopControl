@@ -22,9 +22,9 @@ No flashy animations, no heavy 3D models; just the tools you actually need at th
 - Map selection and map-view control (pan, zoom, etc.).
 - Placement of visual obstructions (fog of war / line-of-sight blockers).
 - **Music Control** — dynamic, reorderable music track cards (1–16):
-  - Background music
-  - Ambient sounds
-  - Sound effects
+  - Music tracks
+  - Ambient loops and soundscapes
+  - Sound effects via the separate 16-button soundboard
 - **Initiative Tracker** — manage turn order for players and enemies.
 - **Monster HP Tracker** — track hit points for encounters.
 - **Split-Pane Layout** — display multiple plugin panels simultaneously without switching tabs.
