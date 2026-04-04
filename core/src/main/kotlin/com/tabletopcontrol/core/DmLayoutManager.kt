@@ -45,12 +45,16 @@ import javafx.scene.layout.StackPane
  *   without affecting any other panels; only shown when such an expansion is possible.
  */
 class DmLayoutManager(private val plugins: List<DmPlugin>) {
+    internal fun interface ManagedMenu {
+        fun hide()
+    }
 
     /** Lookup map from display name to plugin instance. */
     private val pluginMap: Map<String, DmPlugin> = plugins.associateBy { it.displayName }
 
     /** Current layout tree (immutable; replaced on every structural change). */
     private var layoutRoot: PaneNode = LayoutSerializer.load() ?: defaultLayout()
+    private var activeContextMenu: ManagedMenu? = null
 
     /**
      * The top-level [BorderPane] that hosts the split-pane layout.
@@ -96,6 +100,8 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
      * inside [container].
      */
     private fun rebuild(newRoot: PaneNode) {
+        activeContextMenu?.hide()
+        activeContextMenu = null
         layoutRoot = newRoot
         container.center = buildView(layoutRoot)
     }
@@ -122,11 +128,32 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
         }
         val wrapper = StackPane(content)
         wrapper.setOnContextMenuRequested { event ->
-            buildContextMenu(leaf).show(wrapper, event.screenX, event.screenY)
+            val menu = buildContextMenu(leaf)
+            val managedMenu = registerAndPrepareMenu(
+                ManagedMenu {
+                    menu.hide()
+                },
+            )
+            menu.setOnHidden {
+                clearActiveMenuIf(managedMenu)
+            }
+            menu.show(wrapper, event.screenX, event.screenY)
             event.consume()
         }
         return wrapper
     }
+
+    internal fun registerAndPrepareMenu(menu: ManagedMenu): ManagedMenu {
+        activeContextMenu?.hide()
+        activeContextMenu = menu
+        return menu
+    }
+
+    internal fun clearActiveMenuIf(menu: ManagedMenu) {
+        if (activeContextMenu === menu) activeContextMenu = null
+    }
+
+    internal fun activeContextMenuForTesting(): ManagedMenu? = activeContextMenu
 
     private fun buildSplitView(split: PaneNode.Split): Node {
         val splitPane = SplitPane()
