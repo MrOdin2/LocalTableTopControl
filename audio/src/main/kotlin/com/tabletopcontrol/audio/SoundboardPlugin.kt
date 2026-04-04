@@ -43,9 +43,9 @@ import kotlin.math.sqrt
 /**
  * DM-panel plugin for a simple soundboard.
  *
- * Provides configurable soundboard buttons arranged in a responsive grid that adapts
- * between 8 columns (wide layout) and 2 columns (narrow layout) based on
- * the available width.
+ * Provides configurable soundboard buttons arranged in a responsive grid that fits
+ * the number of columns to the available width, using between 2 and 8 columns
+ * inclusive as space allows.
  *
  * - **Right-click** a button to load an MP3 (or other supported audio) file.
  * - **Right-click** a button to set a custom colour.
