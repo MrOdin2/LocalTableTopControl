@@ -1,5 +1,7 @@
 package com.tabletopcontrol.audio
 
+import com.tabletopcontrol.audio.shared.MediaTrackController
+import com.tabletopcontrol.audio.shared.MediaTrackStatus
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
@@ -8,8 +10,6 @@ import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
-import javafx.beans.value.ChangeListener
-import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
@@ -24,7 +24,6 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
-import javafx.scene.media.Media
 import javafx.scene.media.MediaPlayer
 import javafx.stage.FileChooser
 import javafx.util.Duration
@@ -139,7 +138,7 @@ class MusicPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
             configureSliderDeferredSave(this) { newValue ->
                 masterVolume = newValue.toDouble()
-                tracks.forEach { track -> track.player?.volume = masterVolume * track.volume }
+                tracks.forEach { track -> track.controller?.setVolume(masterVolume * track.volume) }
             }
         }
 
@@ -147,7 +146,7 @@ class MusicPlugin : DmPlugin {
             tooltip = Tooltip("Stop all currently playing tracks")
             setOnAction {
                 tracks.forEach { track ->
-                    track.player?.stop()
+                    track.controller?.stop()
                     track.playPauseBtn?.text = "▶ Play"
                 }
             }
@@ -185,7 +184,7 @@ class MusicPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
             configureSliderDeferredSave(this) { newValue ->
                 track.volume = newValue.toDouble()
-                track.player?.volume = masterVolume * track.volume
+                track.controller?.setVolume(masterVolume * track.volume)
             }
         }
 
@@ -228,27 +227,27 @@ class MusicPlugin : DmPlugin {
         }
 
         playPauseBtn.setOnAction {
-            val player = track.player ?: return@setOnAction
-            when (player.status) {
-                MediaPlayer.Status.PLAYING -> {
-                    player.pause()
+            val controller = track.controller ?: return@setOnAction
+            when (controller.status()) {
+                MediaTrackStatus.PLAYING -> {
+                    controller.pause()
                     playPauseBtn.text = "▶ Play"
                 }
                 else -> {
-                    player.play()
+                    controller.play()
                     playPauseBtn.text = "⏸ Pause"
                 }
             }
         }
 
         stopBtn.setOnAction {
-            track.player?.stop()
+            track.controller?.stop()
             playPauseBtn.text = "▶ Play"
         }
 
         loopCheck.setOnAction {
             track.loop = loopCheck.isSelected
-            track.player?.cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
+            track.controller?.setCycleCount(if (track.loop) MediaPlayer.INDEFINITE else 1)
             saveSettings()
         }
 
@@ -289,7 +288,7 @@ class MusicPlugin : DmPlugin {
         }
 
         if (track.uri != null) {
-            if (track.player == null) {
+            if (track.controller?.hasPlayer() != true) {
                 val existingUri = track.uri!!
                 val loaded = loadTrack(
                     track = track,
@@ -300,7 +299,8 @@ class MusicPlugin : DmPlugin {
                     timeLabel = timeLabel,
                 )
                 if (!loaded) {
-                    track.player = null
+                    track.controller?.dispose()
+                    track.controller = null
                     track.uri = null
                     pathLabel.text = "No file loaded"
                     pathLabel.tooltip = Tooltip("No file loaded")
@@ -324,12 +324,7 @@ class MusicPlugin : DmPlugin {
     // -------------------------------------------------------------------------
 
     /**
-     * Loads a new [MediaPlayer] for [track] from its configured URI.
-     *
-     * Any existing player for this track is stopped and disposed first.
-     * Controls are re-enabled once the media reports [MediaPlayer.Status.READY].
-     * The [progressBar] and [timeLabel] are updated in real time via
-     * [MediaPlayer.currentTimeProperty].
+     * Loads media for [track] through the shared [MediaTrackController].
      */
     private fun loadTrack(
         track: TrackState,
@@ -339,13 +334,8 @@ class MusicPlugin : DmPlugin {
         progressBar: ProgressBar,
         timeLabel: Label,
     ): Boolean {
-        val media = try {
-            Media(uri)
-        } catch (_: Exception) {
-            return false
-        }
-
-        disposeTrackPlayer(track)
+        val controller = track.controller ?: MediaTrackController().also { track.controller = it }
+        controller.dispose()
         track.uri = uri
 
         // Disable controls while the new media loads.
@@ -356,12 +346,14 @@ class MusicPlugin : DmPlugin {
         progressBar.isDisable = true
         timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
 
-        val player = MediaPlayer(media).apply {
-            volume = masterVolume * track.volume
-            cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
+        val loaded = controller.load(
+            uri = uri,
+            volume = masterVolume * track.volume,
+            cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1,
+        )
+        if (!loaded) {
+            return false
         }
-
-        track.player = player
         bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
         return true
     }
@@ -373,73 +365,59 @@ class MusicPlugin : DmPlugin {
         progressBar: ProgressBar,
         timeLabel: Label,
     ) {
-        val player = track.player ?: return
-        val media = player.media ?: return
-        val status = player.status
-        val isUsable = status != MediaPlayer.Status.UNKNOWN &&
-            status != MediaPlayer.Status.HALTED &&
-            status != MediaPlayer.Status.DISPOSED
+        val controller = track.controller ?: return
+        val isUsable = controller.isUsable()
         playPauseBtn.isDisable = !isUsable
         stopBtn.isDisable = !isUsable
         progressBar.isDisable = !isUsable
-        playPauseBtn.text = if (player.status == MediaPlayer.Status.PLAYING) "⏸ Pause" else "▶ Play"
-        if (isUsable && !media.duration.isUnknown && !media.duration.isIndefinite) {
-            val current = player.currentTime
-            val totalSeconds = media.duration.toSeconds()
+        playPauseBtn.text = if (controller.status() == MediaTrackStatus.PLAYING) "⏸ Pause" else "▶ Play"
+        val totalDuration = controller.duration()
+        if (isUsable && totalDuration != null && !totalDuration.isUnknown && !totalDuration.isIndefinite) {
+            val current = controller.currentTime() ?: Duration.ZERO
+            val totalSeconds = totalDuration.toSeconds()
             if (totalSeconds > 0.0) {
                 progressBar.progress = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
             }
-            val remaining = media.duration.subtract(current)
+            val remaining = totalDuration.subtract(current)
             timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
         }
 
-        player.setOnReady {
-            Platform.runLater {
+        controller.bindCallbacks(
+            onReady = {
                 playPauseBtn.isDisable = false
                 stopBtn.isDisable = false
                 progressBar.isDisable = false
-                val total = media.duration
-                timeLabel.text = if (!total.isUnknown && !total.isIndefinite && total.toSeconds() > 0.0) {
+                val total = controller.duration()
+                timeLabel.text = if (total != null && !total.isUnknown && !total.isIndefinite && total.toSeconds() > 0.0) {
                     "0:00 / -${formatDuration(total)}"
                 } else {
                     "0:00 / $TIME_UNKNOWN"
                 }
-            }
-        }
-
-        // currentTimeProperty fires on the FX thread; no Platform.runLater needed.
-        // Early firings (before media is READY) return immediately via the isUnknown guard.
-        track.timeListener?.let(player.currentTimeProperty()::removeListener)
-        val timeListener = ChangeListener<Duration> { _, _, current ->
-            val total = media.duration
-            if (total.isUnknown || total.isIndefinite) return@ChangeListener
-            val totalSeconds = total.toSeconds()
-            if (totalSeconds <= 0.0) {
-                progressBar.progress = 0.0
-                timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
-                return@ChangeListener
-            }
-            val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
-            val remaining = total.subtract(current)
-            progressBar.progress = frac
-            timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
-        }
-        track.timeListener = timeListener
-        player.currentTimeProperty().addListener(timeListener)
-
-        player.setOnError {
-            Platform.runLater {
+            },
+            onProgress = { current, total ->
+                val totalSeconds = total.toSeconds()
+                if (totalSeconds <= 0.0) {
+                    progressBar.progress = 0.0
+                    timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
+                } else {
+                    val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
+                    val remaining = total.subtract(current)
+                    progressBar.progress = frac
+                    timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
+                }
+            },
+            onError = {
                 playPauseBtn.isDisable = true
                 stopBtn.isDisable = true
+                progressBar.isDisable = true
                 playPauseBtn.text = "▶ Play"
-            }
-        }
-
-        player.setOnEndOfMedia {
-            if (player.cycleCount != MediaPlayer.INDEFINITE) {
-                Platform.runLater { playPauseBtn.text = "▶ Play" }
-            }
-        }
+            },
+            onEndOfMedia = {
+                if (!track.loop) {
+                    playPauseBtn.text = "▶ Play"
+                }
+            },
+        )
     }
 
     private fun rebuildTrackCards() {
@@ -542,11 +520,8 @@ class MusicPlugin : DmPlugin {
     }
 
     private fun disposeTrackPlayer(track: TrackState) {
-        val player = track.player ?: return
-        track.timeListener?.let(player.currentTimeProperty()::removeListener)
-        track.timeListener = null
-        player.dispose()
-        track.player = null
+        track.controller?.dispose()
+        track.controller = null
     }
 
     /** Formats a [Duration] as `M:SS`, or [TIME_UNKNOWN] for unknown/indefinite durations. */
@@ -570,9 +545,8 @@ class MusicPlugin : DmPlugin {
         var uri: String? = null,
         var volume: Double = 1.0,
         var loop: Boolean = true,
-        var player: MediaPlayer? = null,
+        var controller: MediaTrackController? = null,
         var playPauseBtn: Button? = null,
-        var timeListener: ChangeListener<Duration>? = null,
     )
 
     private data class TrackCardNodes(

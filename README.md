@@ -72,6 +72,11 @@ The DM Panel uses a recursive **split-pane layout** inspired by modern IDEs (VS 
 3. **Best-practice OOP** — Clean separation of concerns, meaningful abstractions, no god classes.
 4. **Readable code** — Well-structured packages, descriptive names, and comments wherever the intent is not immediately obvious.
 
+### Shared Media Lifecycle Utility
+
+Audio plugins use a shared JavaFX media lifecycle controller
+(`audio.shared.MediaTrackController`) to centralize MediaPlayer load/play/stop/progress/error/dispose handling.
+
 ---
 
 ## Planned REST / Webhook Integration
