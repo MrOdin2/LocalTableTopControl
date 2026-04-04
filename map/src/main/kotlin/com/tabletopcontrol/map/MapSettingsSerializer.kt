@@ -1,6 +1,7 @@
 package com.tabletopcontrol.map
 
-import java.io.File
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import java.util.Properties
 import javafx.scene.paint.Color
 
@@ -51,12 +52,10 @@ data class MapSavedSettings(
  */
 object MapSettingsSerializer {
 
-    private val configFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, "map-settings.conf")
-        }
+    internal const val CONFIG_NAME = "map-settings.conf"
+
+    private val configFile
+        get() = AppConfigPaths.configFile(CONFIG_NAME)
 
     // ── Color helpers ────────────────────────────────────────────────────────
 
@@ -258,11 +257,7 @@ object MapSettingsSerializer {
         backgroundColor: Color = Color.BLACK,
         mapRotation: Int = 0,
     ) {
-        try {
-            configFile.writeText(serialize(gridCalibration, mapCalibration, gridColor, backgroundColor, mapRotation))
-        } catch (_: Exception) {
-            // non-fatal — proceed without persistence
-        }
+        SafeConfigIO.writeText(configFile, serialize(gridCalibration, mapCalibration, gridColor, backgroundColor, mapRotation))
     }
 
     /**
@@ -272,11 +267,11 @@ object MapSettingsSerializer {
      *         that is absent or unparseable.
      */
     fun load(): MapSavedSettings {
-        return try {
+        return SafeConfigIO.readOrElse(
+            MapSavedSettings(null, null, null, null, null),
+        ) {
             val text = configFile.readText()
             deserializeAll(text)
-        } catch (_: Exception) {
-            MapSavedSettings(null, null, null, null, null)
         }
     }
 }

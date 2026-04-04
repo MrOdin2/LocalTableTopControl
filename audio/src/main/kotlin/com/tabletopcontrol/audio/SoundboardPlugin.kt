@@ -3,17 +3,19 @@ package com.tabletopcontrol.audio
 import com.tabletopcontrol.audio.shared.MediaTrackController
 import com.tabletopcontrol.audio.shared.MediaTrackStatus
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Slider
@@ -208,11 +210,7 @@ class SoundboardPlugin : DmPlugin {
     private lateinit var scrollPane: ScrollPane
 
     private val configFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, "soundboard.conf")
-        }
+        get() = AppConfigPaths.configFile("soundboard.conf")
 
     override fun createView(): Node {
         if (!initialized) {
@@ -634,9 +632,10 @@ class SoundboardPlugin : DmPlugin {
             }
         }
 
-        val dialog = Dialog<Color>().apply {
-            title = "Set Button Color"
-            dialogPane.content = VBox(
+        val selected = DialogFlows.showResultDialog(
+            owner = btn.scene?.window,
+            title = "Set Button Color",
+            content = VBox(
                 8.0,
                 Label("Choose a color for this button"),
                 wheelContainer,
@@ -644,13 +643,13 @@ class SoundboardPlugin : DmPlugin {
                 HBox(8.0, Label("Preview"), preview),
             ).apply {
                 padding = Insets(8.0)
-            }
-            dialogPane.buttonTypes.addAll(ButtonType.OK, ButtonType.CANCEL)
-            initOwner(btn.scene?.window)
-            setResultConverter { buttonType -> if (buttonType == ButtonType.OK) selectedColor else null }
+            },
+            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
+        ) { buttonType ->
+            DialogFlows.resultForButton(buttonType) { selectedColor }
         }
 
-        dialog.showAndWait().ifPresent { selected ->
+        if (selected != null) {
             slot.colorHex = colorToHex(selected)
             applyCurrentStyle(slot)
             saveConfig()
@@ -701,16 +700,14 @@ class SoundboardPlugin : DmPlugin {
 
     private fun saveConfig() {
         val payload = slots.map { SlotConfig(it.customLabel, it.uri, it.colorHex) }
-        runCatching {
-            configFile.writeText(serializeConfig(payload))
-        }
+        SafeConfigIO.writeText(configFile, serializeConfig(payload))
     }
 
     private fun loadConfig(): List<SlotConfig>? {
         if (!configFile.exists()) return null
 
-        return runCatching {
+        return SafeConfigIO.readOrElse(null) {
             parseConfig(configFile.readText())
-        }.getOrNull()
+        }
     }
 }
