@@ -1,5 +1,6 @@
 package com.tabletopcontrol.core
 
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.geometry.Insets
@@ -25,7 +26,6 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
-import kotlin.math.roundToInt
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -251,7 +251,7 @@ class App : Application() {
 
         // Helper: parse a hex color string safely, falling back to [fallback] on error.
         fun parseColor(hex: String, fallback: String): Color =
-            runCatching { Color.web(hex) }.getOrElse { Color.web(fallback) }
+            ColorHexCodec.parseOrDefault(hex, ColorHexCodec.hexToColor(fallback))
 
         val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
 
@@ -274,10 +274,10 @@ class App : Application() {
         // Helper: reset pickers to defaults for the currently selected mode.
         fun resetDefaults() {
             val defaults = if (darkBtn.isSelected) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
-            accentPicker.value = Color.web(defaults.accentColor)
-            bgPicker.value = Color.web(defaults.bgColor)
-            surfacePicker.value = Color.web(defaults.surfaceColor)
-            borderPicker.value = Color.web(defaults.borderColor)
+            accentPicker.value = ColorHexCodec.hexToColor(defaults.accentColor)
+            bgPicker.value = ColorHexCodec.hexToColor(defaults.bgColor)
+            surfacePicker.value = ColorHexCodec.hexToColor(defaults.surfaceColor)
+            borderPicker.value = ColorHexCodec.hexToColor(defaults.borderColor)
         }
 
         // Update pickers to mode defaults whenever the mode radio changes.
@@ -333,10 +333,10 @@ class App : Application() {
                 val mode = if (darkBtn.isSelected) ThemeMode.DARK else ThemeMode.LIGHT
                 ThemeConfig(
                     mode = mode,
-                    accentColor = colorToHex(accentPicker.value),
-                    bgColor = colorToHex(bgPicker.value),
-                    surfaceColor = colorToHex(surfacePicker.value),
-                    borderColor = colorToHex(borderPicker.value),
+                    accentColor = ColorHexCodec.colorToHex(accentPicker.value),
+                    bgColor = ColorHexCodec.colorToHex(bgPicker.value),
+                    surfaceColor = ColorHexCodec.colorToHex(surfacePicker.value),
+                    borderColor = ColorHexCodec.colorToHex(borderPicker.value),
                 )
             } else null
         }
@@ -344,17 +344,6 @@ class App : Application() {
         dialog.showAndWait().ifPresent { newTheme ->
             ThemeManager.setTheme(newTheme)
         }
-    }
-
-    /**
-     * Converts a JavaFX [Color] to a CSS hex string such as `"#1565c0"`.
-     *
-     * Uses [kotlin.math.roundToInt] with a 0–255 clamp to avoid off-by-one
-     * errors from floating-point truncation.
-     */
-    private fun colorToHex(color: Color): String {
-        fun channel(v: Double) = (v * 255).roundToInt().coerceIn(0, 255)
-        return "#%02x%02x%02x".format(channel(color.red), channel(color.green), channel(color.blue))
     }
 }
 

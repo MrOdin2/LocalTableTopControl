@@ -72,6 +72,14 @@ The DM Panel uses a recursive **split-pane layout** inspired by modern IDEs (VS 
 3. **Best-practice OOP** — Clean separation of concerns, meaningful abstractions, no god classes.
 4. **Readable code** — Well-structured packages, descriptive names, and comments wherever the intent is not immediately obvious.
 
+### Shared Core UI Utilities
+
+Common JavaFX UI/color helpers that are reused across plugins live in `core` under:
+
+- `com.tabletopcontrol.core.ui.color.ColorHexCodec` — hex ↔ `Color` conversion and safe parsing
+- `com.tabletopcontrol.core.ui.color.ColorContrast` — readable foreground color for colored backgrounds
+- `com.tabletopcontrol.core.ui.color.ColorEditorPopover` — reusable wheel-based color editor dialog
+
 ---
 
 ## Planned REST / Webhook Integration

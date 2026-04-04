@@ -1,6 +1,9 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.ui.color.ColorContrast
+import com.tabletopcontrol.core.ui.color.ColorEditorPopover
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -11,34 +14,21 @@ import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
-import javafx.scene.control.ButtonType
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
-import javafx.scene.control.Slider
 import javafx.scene.control.Tooltip
-import javafx.scene.image.PixelWriter
-import javafx.scene.image.WritableImage
-import javafx.scene.input.KeyCode
 import javafx.geometry.Pos
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
-import javafx.scene.layout.StackPane
 import javafx.scene.layout.TilePane
 import javafx.scene.layout.VBox
 import javafx.scene.media.Media
 import javafx.scene.media.MediaPlayer
 import javafx.scene.paint.Color
-import javafx.scene.shape.Circle
 import javafx.stage.FileChooser
 import java.io.File
 import java.net.URI
 import java.util.Base64
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * DM-panel plugin for a simple soundboard.
@@ -160,7 +150,7 @@ class SoundboardPlugin : DmPlugin {
                     SlotConfig(
                         label = dec(parts[0]),
                         uri = dec(parts[1]),
-                        colorHex = dec(parts[2])?.takeIf { runCatching { Color.web(it) }.isSuccess },
+                        colorHex = dec(parts[2])?.takeIf { ColorHexCodec.parseOrNull(it) != null },
                     )
                 }
                 .toMutableList()
@@ -520,150 +510,26 @@ class SoundboardPlugin : DmPlugin {
         btn.style = if (color == null) {
             "-fx-base: -tc-accent; -fx-text-fill: -tc-on-accent;"
         } else {
-            "-fx-background-color: $color; -fx-text-fill: ${textColorFor(color)}; -fx-border-color: -tc-accent; -fx-border-width: 2;"
+            "-fx-background-color: $color; -fx-text-fill: ${ColorContrast.textColorHexForBackgroundHex(color)}; -fx-border-color: -tc-accent; -fx-border-width: 2;"
         }
     }
 
     private fun setIdleStyle(slot: SlotState) {
         val btn = slot.button ?: return
         val color = slot.colorHex
-        btn.style = if (color == null) "" else "-fx-background-color: $color; -fx-text-fill: ${textColorFor(color)};"
+        btn.style = if (color == null) "" else "-fx-background-color: $color; -fx-text-fill: ${ColorContrast.textColorHexForBackgroundHex(color)};"
     }
 
     private fun showColorPicker(slot: SlotState, btn: Button) {
-        val initial = runCatching { slot.colorHex?.let { Color.web(it) } ?: Color.GRAY }
-            .getOrDefault(Color.GRAY)
-        val wheelSize = 220
-        val wheelImage = WritableImage(wheelSize, wheelSize)
-        val wheelPreview = javafx.scene.image.ImageView(wheelImage)
-        val markerOuter = Circle(7.0).apply {
-            fill = Color.TRANSPARENT
-            stroke = Color.BLACK
-            strokeWidth = 2.0
-            isMouseTransparent = true
-        }
-        val markerInner = Circle(5.0).apply {
-            fill = Color.TRANSPARENT
-            stroke = Color.WHITE
-            strokeWidth = 2.0
-            isMouseTransparent = true
-        }
-        val wheelContainer = StackPane(wheelPreview, markerOuter, markerInner)
-        val preview = Circle(14.0, initial)
-        val brightnessSlider = Slider(0.0, 1.0, initial.brightness).apply {
-            tooltip = Tooltip("Brightness")
-        }
-        val center = wheelSize / 2.0
-        val radius = center - 2.0
-        val hueMap = Array(wheelSize) { DoubleArray(wheelSize) }
-        val saturationMap = Array(wheelSize) { DoubleArray(wheelSize) }
-        val inWheel = Array(wheelSize) { BooleanArray(wheelSize) }
-        var selectedColor = initial
-
-        for (y in 0 until wheelSize) {
-            for (x in 0 until wheelSize) {
-                val dx = x - center
-                val dy = y - center
-                val distance = sqrt(dx * dx + dy * dy)
-                if (distance <= radius) {
-                    inWheel[y][x] = true
-                    saturationMap[y][x] = (distance / radius).coerceIn(0.0, 1.0)
-                    hueMap[y][x] = ((atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
-                }
-            }
-        }
-
-        fun drawWheel() {
-            val writer: PixelWriter = wheelImage.pixelWriter
-            val brightness = brightnessSlider.value
-            for (y in 0 until wheelSize) {
-                for (x in 0 until wheelSize) {
-                    val pixelColor = if (inWheel[y][x]) {
-                        Color.hsb(hueMap[y][x], saturationMap[y][x], brightness)
-                    } else {
-                        Color.TRANSPARENT
-                    }
-                    writer.setColor(x, y, pixelColor)
-                }
-            }
-        }
-
-        fun updateMarkerPosition(color: Color) {
-            val angle = Math.toRadians(color.hue)
-            val distance = color.saturation * radius
-            val markerX = center + cos(angle) * distance
-            val markerY = center + sin(angle) * distance
-            markerOuter.translateX = markerX - center
-            markerOuter.translateY = markerY - center
-            markerInner.translateX = markerX - center
-            markerInner.translateY = markerY - center
-        }
-
-        fun updateSelectionFrom(x: Double, y: Double) {
-            val dx = x - center
-            val dy = y - center
-            val distance = sqrt(dx * dx + dy * dy).coerceAtMost(radius)
-            val saturation = (distance / radius).coerceIn(0.0, 1.0)
-            val hue = ((atan2(dy, dx) * 180 / kotlin.math.PI) + 360.0) % 360.0
-            selectedColor = Color.hsb(hue, saturation, brightnessSlider.value)
-            preview.fill = selectedColor
-            updateMarkerPosition(selectedColor)
-        }
-
-        drawWheel()
-        updateMarkerPosition(selectedColor)
-        wheelContainer.setOnMousePressed { updateSelectionFrom(it.x, it.y) }
-        wheelContainer.setOnMouseDragged { updateSelectionFrom(it.x, it.y) }
-        wheelContainer.isFocusTraversable = true
-        wheelContainer.accessibleText = "Color wheel. Use arrow keys to adjust hue and saturation."
-        wheelContainer.setOnKeyPressed { event ->
-            val hueStep = 3.0
-            val saturationStep = 0.02
-            selectedColor = when (event.code) {
-                KeyCode.LEFT -> Color.hsb((selectedColor.hue - hueStep + 360.0) % 360.0, selectedColor.saturation, brightnessSlider.value)
-                KeyCode.RIGHT -> Color.hsb((selectedColor.hue + hueStep) % 360.0, selectedColor.saturation, brightnessSlider.value)
-                KeyCode.UP -> Color.hsb(selectedColor.hue, (selectedColor.saturation + saturationStep).coerceIn(0.0, 1.0), brightnessSlider.value)
-                KeyCode.DOWN -> Color.hsb(selectedColor.hue, (selectedColor.saturation - saturationStep).coerceIn(0.0, 1.0), brightnessSlider.value)
-                else -> selectedColor
-            }
-            if (event.code in setOf(KeyCode.LEFT, KeyCode.RIGHT, KeyCode.UP, KeyCode.DOWN)) {
-                preview.fill = selectedColor
-                updateMarkerPosition(selectedColor)
-                event.consume()
-            }
-        }
-        brightnessSlider.valueProperty().addListener { _, _, newValue ->
-            selectedColor = Color.hsb(selectedColor.hue, selectedColor.saturation, newValue.toDouble())
-            preview.fill = selectedColor
-            updateMarkerPosition(selectedColor)
-            if (!brightnessSlider.isValueChanging) {
-                drawWheel()
-            }
-        }
-        brightnessSlider.valueChangingProperty().addListener { _, _, isChanging ->
-            if (!isChanging) {
-                drawWheel()
-            }
-        }
-
-        val dialog = Dialog<Color>().apply {
-            title = "Set Button Color"
-            dialogPane.content = VBox(
-                8.0,
-                Label("Choose a color for this button"),
-                wheelContainer,
-                HBox(8.0, Label("Brightness"), brightnessSlider),
-                HBox(8.0, Label("Preview"), preview),
-            ).apply {
-                padding = Insets(8.0)
-            }
-            dialogPane.buttonTypes.addAll(ButtonType.OK, ButtonType.CANCEL)
-            initOwner(btn.scene?.window)
-            setResultConverter { buttonType -> if (buttonType == ButtonType.OK) selectedColor else null }
-        }
-
-        dialog.showAndWait().ifPresent { selected ->
-            slot.colorHex = colorToHex(selected)
+        val initial = ColorHexCodec.parseOrDefault(slot.colorHex, Color.GRAY)
+        val selected = ColorEditorPopover.showDialog(
+            owner = btn.scene?.window,
+            title = "Set Button Color",
+            prompt = "Choose a color for this button",
+            initialColor = initial,
+        )
+        if (selected != null) {
+            slot.colorHex = ColorHexCodec.colorToHex(selected)
             applyCurrentStyle(slot)
             saveConfig()
         }
@@ -700,24 +566,6 @@ class SoundboardPlugin : DmPlugin {
         removed.button = null
         renderButtons()
         saveConfig()
-    }
-
-    /**
-     * Chooses black or white text for [hex] button backgrounds using the ITU-R BT.601
-     * luma approximation (`0.299R + 0.587G + 0.114B`). A threshold of `0.55` keeps
-     * labels readable across the brighter custom colours users commonly pick.
-     */
-    private fun textColorFor(hex: String): String {
-        val color = runCatching { Color.web(hex) }.getOrDefault(Color.GRAY)
-        val luminance = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
-        return if (luminance > 0.55) "#000000" else "#FFFFFF"
-    }
-
-    private fun colorToHex(color: Color): String {
-        val r = (color.red * 255).roundToInt().coerceIn(0, 255)
-        val g = (color.green * 255).roundToInt().coerceIn(0, 255)
-        val b = (color.blue * 255).roundToInt().coerceIn(0, 255)
-        return "#%02X%02X%02X".format(r, g, b)
     }
 
     private fun saveConfig() {
