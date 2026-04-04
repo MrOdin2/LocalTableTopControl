@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
@@ -102,18 +103,6 @@ class SoundboardPlugin : DmPlugin {
             if (slotCount >= MAX_BUTTON_COUNT) return false
             if (slotCount <= 0) return true
             return slotCount % safeColumns != 0
-        }
-
-        /**
-         * Computes the post-removal insertion index for a reorder operation.
-         *
-         * Returns `null` when indices are out of range or when the reorder would be a no-op.
-         * Supports append targets by accepting `toIndex == listSize`.
-         */
-        internal fun adjustedDropInsertIndex(listSize: Int, fromIndex: Int, toIndex: Int): Int? {
-            if (fromIndex !in 0 until listSize || toIndex !in 0..listSize) return null
-            val adjusted = if (fromIndex < toIndex) toIndex - 1 else toIndex
-            return adjusted.takeUnless { it == fromIndex }
         }
 
         internal fun serializeConfig(slots: List<SlotConfig>): String {
@@ -284,9 +273,7 @@ class SoundboardPlugin : DmPlugin {
             dataFormat = DRAG_FORMAT,
             autoScrollPane = scrollPane,
             onReorder = { fromIndex, toIndex ->
-                val adjustedToIndex = adjustedDropInsertIndex(slots.size, fromIndex, toIndex) ?: return@DragDropContext
-                val moved = slots.removeAt(fromIndex)
-                slots.add(adjustedToIndex, moved)
+                if (!ReorderSupport.reorderMutableListFromDrop(slots, fromIndex, toIndex)) return@DragDropContext
                 renderButtons()
                 saveConfig()
             },

@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -483,10 +484,14 @@ class TrackerPlugin : DmPlugin {
         card.setOnDragDropped { e ->
             val fromIdx = e.dragboard.getString().toIntOrNull()
             if (fromIdx != null && fromIdx != index) {
-                tracker.move(fromIdx, index)
+                val plan = ReorderSupport.planDropReorder(tracker.entries.size, fromIdx, index) ?: run {
+                    e.isDropCompleted = false
+                    e.consume()
+                    return@setOnDragDropped
+                }
+                tracker.move(plan.fromIndex, plan.toIndex)
                 // Keep the id list in sync with the reordered entries.
-                val movedId = tokenIds.removeAt(fromIdx)
-                tokenIds.add(index, movedId)
+                ReorderSupport.reorderMutableList(tokenIds, plan)
                 refresh()
             }
             e.isDropCompleted = true

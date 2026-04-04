@@ -20,7 +20,9 @@ import javafx.scene.control.ScrollPane
  * @property onReorder      Callback invoked when a drop is accepted, receiving the
  *                          `fromIndex` of the dragged item and the `toIndex` of the drop
  *                          target.  Implementations should move the item in their backing
- *                          data model and refresh the UI.
+ *                          data model and refresh the UI. For shared index validation and
+ *                          drop-target adjustment, use
+ *                          [com.tabletopcontrol.core.ui.reorder.ReorderSupport].
  * @property canAcceptDrop  Optional predicate that can veto a drag-over event.  Receives
  *                          the raw source-data string from the dragboard.  Return `false`
  *                          to reject the drop silently.  Default: always accept.
