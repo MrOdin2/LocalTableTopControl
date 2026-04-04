@@ -1,7 +1,8 @@
 package com.tabletopcontrol.core
 
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import javafx.scene.Scene
-import java.io.File
 
 /**
  * Central singleton managing the application's visual theme.
@@ -60,24 +61,19 @@ import java.io.File
  */
 object ThemeManager {
 
-    private val configFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, "theme.conf")
-        }
+    internal const val CONFIG_NAME = "theme.conf"
+    internal const val CUSTOM_CSS_NAME = "theme-custom.css"
+
+    private val configFile
+        get() = AppConfigPaths.configFile(CONFIG_NAME)
 
     /**
      * A small CSS file written to disk that overrides the four user-configurable
      * colour variables.  Using a file URL (rather than a `data:` URI) ensures
      * compatibility across all JavaFX versions.
      */
-    private val customCssFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, "theme-custom.css")
-        }
+    private val customCssFile
+        get() = AppConfigPaths.configFile(CUSTOM_CSS_NAME)
 
     /** Currently active theme configuration. */
     var currentTheme: ThemeConfig = load()
@@ -122,7 +118,7 @@ object ThemeManager {
      * directory never crashes the application.
      */
     fun save(theme: ThemeConfig) {
-        try {
+        SafeConfigIO.run {
             val text = buildString {
                 appendLine("mode=${theme.mode.name}")
                 appendLine("accentColor=${theme.accentColor}")
@@ -131,8 +127,6 @@ object ThemeManager {
                 appendLine("borderColor=${theme.borderColor}")
             }
             configFile.writeText(text)
-        } catch (_: Exception) {
-            // non-fatal — proceed without persistence
         }
     }
 
@@ -147,7 +141,7 @@ object ThemeManager {
      *         absent, unreadable, or fully invalid.
      */
     fun load(): ThemeConfig {
-        return try {
+        return SafeConfigIO.readOrElse(ThemeConfig()) {
             val props = configFile.readLines()
                 .filter { it.contains('=') }
                 .associate { line ->
@@ -170,8 +164,6 @@ object ThemeManager {
                 surfaceColor = validColor("surfaceColor", defaults.surfaceColor),
                 borderColor = validColor("borderColor", defaults.borderColor),
             )
-        } catch (_: Exception) {
-            ThemeConfig()
         }
     }
 
@@ -215,11 +207,9 @@ object ThemeManager {
                 -tc-border:  ${theme.borderColor};
             }
         """.trimIndent()
-        return try {
+        return SafeConfigIO.readOrElse(null) {
             customCssFile.writeText(css)
             customCssFile.toURI().toURL().toExternalForm()
-        } catch (_: Exception) {
-            null
         }
     }
 
