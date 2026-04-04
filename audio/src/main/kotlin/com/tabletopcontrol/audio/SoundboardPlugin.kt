@@ -453,6 +453,8 @@ class SoundboardPlugin : DmPlugin {
             cycleCount = 1,
         )
         if (!loaded) {
+            controller.dispose()
+            slot.controller = null
             return false
         }
         controller.bindCallbacks(
