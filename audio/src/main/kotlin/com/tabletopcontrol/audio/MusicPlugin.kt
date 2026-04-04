@@ -553,6 +553,5 @@ class MusicPlugin : DmPlugin {
 
     private data class TrackCardNodes(
         val card: VBox,
-        val dragHandle: Node,
     )
 }
