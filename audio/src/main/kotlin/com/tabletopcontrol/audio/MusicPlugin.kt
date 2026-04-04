@@ -124,17 +124,9 @@ class MusicPlugin : DmPlugin {
             isShowTickMarks = false
             tooltip = Tooltip("Master volume – scales all tracks proportionally")
             maxWidth = Double.MAX_VALUE
-            valueProperty().addListener { _, _, newValue ->
+            configureSliderDeferredSave(this) { newValue ->
                 masterVolume = newValue.toDouble()
                 tracks.forEach { track -> track.player?.volume = masterVolume * track.volume }
-                if (!isValueChanging) {
-                    saveSettings()
-                }
-            }
-            valueChangingProperty().addListener { _, wasChanging, isChanging ->
-                if (wasChanging && !isChanging) {
-                    saveSettings()
-                }
             }
         }
 
@@ -178,17 +170,9 @@ class MusicPlugin : DmPlugin {
         val volumeSlider = Slider(0.0, 1.0, track.volume).apply {
             tooltip = Tooltip("Volume for ${index + 1}")
             maxWidth = Double.MAX_VALUE
-            valueProperty().addListener { _, _, newValue ->
+            configureSliderDeferredSave(this) { newValue ->
                 track.volume = newValue.toDouble()
                 track.player?.volume = masterVolume * track.volume
-                if (!isValueChanging) {
-                    saveSettings()
-                }
-            }
-            valueChangingProperty().addListener { _, wasChanging, isChanging ->
-                if (wasChanging && !isChanging) {
-                    saveSettings()
-                }
             }
         }
 
@@ -479,6 +463,43 @@ class MusicPlugin : DmPlugin {
         tracks.add(adjustedToIndex, moved)
         rebuildTrackCards()
         saveSettings()
+    }
+
+    /**
+     * Configures deferred settings persistence for a volume [slider].
+     *
+     * [onValueChanged] receives the new slider value as [Number] and is invoked
+     * immediately for runtime updates on every value change. [saveSettings] is
+     * deferred and committed once interaction ends (drag release or focus loss)
+     * to avoid frequent disk writes.
+     */
+    private fun configureSliderDeferredSave(slider: Slider, onValueChanged: (Number) -> Unit) {
+        // Tracks whether the slider value changed during interaction so settings
+        // are persisted once after interaction completes instead of every step.
+        var pendingSave = false
+
+        // Persists only when there is a pending change from slider interaction.
+        fun persistIfChanged() {
+            if (pendingSave) {
+                pendingSave = false
+                saveSettings()
+            }
+        }
+
+        slider.valueProperty().addListener { _, _, newValue ->
+            onValueChanged(newValue)
+            pendingSave = true
+        }
+        slider.valueChangingProperty().addListener { _, wasChanging, isChanging ->
+            if (wasChanging && !isChanging) {
+                persistIfChanged()
+            }
+        }
+        slider.focusedProperty().addListener { _, wasFocused, isFocused ->
+            if (wasFocused && !isFocused) {
+                persistIfChanged()
+            }
+        }
     }
 
     private fun saveSettings() {
