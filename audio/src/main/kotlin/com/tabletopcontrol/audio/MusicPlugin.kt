@@ -399,7 +399,7 @@ class MusicPlugin : DmPlugin {
             val totalSeconds = total.toSeconds()
             if (totalSeconds <= 0.0) {
                 progressBar.progress = 0.0
-                timeLabel.text = "${formatDuration(current)} / -${formatDuration(total)}"
+                timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
                 return@ChangeListener
             }
             val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
