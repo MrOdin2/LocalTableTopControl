@@ -75,7 +75,7 @@ The DM Panel uses a recursive **split-pane layout** inspired by modern IDEs (VS 
 ### Shared Media Lifecycle Utility
 
 Audio plugins use a shared JavaFX media lifecycle controller
-(`audio.shared.MediaTrackController`) to centralize MediaPlayer load/play/stop/progress/error/dispose handling.
+(`com.tabletopcontrol.audio.shared.MediaTrackController`) to centralize MediaPlayer load/play/stop/progress/error/dispose handling.
 
 ---
 
