@@ -1,6 +1,7 @@
 package com.tabletopcontrol.core
 
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.geometry.Insets
@@ -9,7 +10,6 @@ import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
 import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.RadioButton
 import javafx.scene.control.Separator
@@ -26,6 +26,7 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
+import kotlin.math.roundToInt
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -321,17 +322,14 @@ class App : Application() {
         }
         grid.add(resetDefBtn, 1, row)
 
-        val dialog = Dialog<ThemeConfig>().apply {
-            title = "Theme Settings"
-            headerText = "Choose a color mode and customize colors."
-            initOwner(owner)
-            dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
-            dialogPane.content = grid
-            isResizable = false
-        }
-
-        dialog.setResultConverter { btn ->
-            if (btn == ButtonType.OK) {
+        val newTheme = DialogFlows.showResultDialog(
+            owner = owner,
+            title = "Theme Settings",
+            headerText = "Choose a color mode and customize colors.",
+            content = grid,
+            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
+        ) { btn ->
+            DialogFlows.resultForButton(btn) {
                 val mode = if (darkBtn.isSelected) ThemeMode.DARK else ThemeMode.LIGHT
                 ThemeConfig(
                     mode = mode,
@@ -340,10 +338,10 @@ class App : Application() {
                     surfaceColor = ColorHexCodec.colorToHex(surfacePicker.value),
                     borderColor = ColorHexCodec.colorToHex(borderPicker.value),
                 )
-            } else null
+            }
         }
 
-        dialog.showAndWait().ifPresent { newTheme ->
+        if (newTheme != null) {
             ThemeManager.setTheme(newTheme)
         }
     }
