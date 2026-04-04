@@ -163,4 +163,59 @@ class SoundboardPluginTest {
         assertEquals(0xB2 / 255.0, parsed.green, 0.0001)
         assertEquals(0xC3 / 255.0, parsed.blue, 0.0001)
     }
+
+    @Test
+    fun `adjustedDropInsertIndex supports append target`() {
+        assertEquals(4, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 5))
+        assertEquals(4, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 0, toIndex = 5))
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 4, toIndex = 5))
+    }
+
+    @Test
+    fun `adjustedDropInsertIndex adjusts downward moves`() {
+        assertEquals(2, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 3))
+    }
+
+    @Test
+    fun `adjustedDropInsertIndex keeps upward moves as target index`() {
+        assertEquals(1, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 3, toIndex = 1))
+    }
+
+    @Test
+    fun `adjustedDropInsertIndex returns null for invalid indexes`() {
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = -1, toIndex = 2))
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 6))
+        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 2, toIndex = 2))
+    }
+
+    @Test
+    fun `tooltipTextForUri uses absolute path for file uri`() {
+        val tooltip = SoundboardPlugin.tooltipTextForUri("file:///tmp/soundboard-test.mp3")
+        assertEquals("/tmp/soundboard-test.mp3", tooltip)
+    }
+
+    @Test
+    fun `tooltipTextForUri falls back to uri when not file uri`() {
+        val uri = "http://example.com/audio.mp3"
+        assertEquals(uri, SoundboardPlugin.tooltipTextForUri(uri))
+    }
+
+    @Test
+    fun `tooltipTextForUri returns empty slot text for null`() {
+        assertEquals(SoundboardPlugin.EMPTY_SLOT_TOOLTIP, SoundboardPlugin.tooltipTextForUri(null))
+    }
+
+    @Test
+    fun `buttonVisualState uses stop label when playing`() {
+        val state = SoundboardPlugin.buttonVisualState(isPlaying = true, label = "Slot 2")
+        assertEquals("⏹ Slot 2", state.text)
+        assertEquals(true, state.isPlaying)
+    }
+
+    @Test
+    fun `buttonVisualState uses idle label when not playing`() {
+        val state = SoundboardPlugin.buttonVisualState(isPlaying = false, label = "Slot 2")
+        assertEquals("Slot 2", state.text)
+        assertEquals(false, state.isPlaying)
+    }
 }
