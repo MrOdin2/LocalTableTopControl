@@ -447,7 +447,6 @@ class SoundboardPlugin : DmPlugin {
     private fun loadSlot(slot: SlotState): Boolean {
         val uri = slot.uri ?: return false
         val controller = slot.controller ?: MediaTrackController().also { slot.controller = it }
-        controller.dispose()
         val loaded = controller.load(
             uri = uri,
             volume = 1.0,
