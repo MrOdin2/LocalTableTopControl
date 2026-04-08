@@ -218,8 +218,9 @@
       </p>
       <p>
         When you select a file, the app attempts to open it with the Java media runtime. If the
-        runtime cannot play that file, loading or playback may still fail after selection depending
-        on when the media error is reported.
+        runtime cannot play that file, loading or playback can still fail after selection. Control
+        callbacks are registered before each load, so ready/error states are applied immediately
+        when the media runtime reports them.
       </p>
       <p>
         The file name is shown next to the button once a track is loaded. You can change the file at
