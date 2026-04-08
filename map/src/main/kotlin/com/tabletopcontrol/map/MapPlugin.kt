@@ -6,7 +6,7 @@ import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
-import javafx.event.ActionEvent
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.scene.Node
@@ -16,7 +16,6 @@ import javafx.scene.control.ButtonType
 import javafx.scene.control.CheckBox
 import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
@@ -993,13 +992,14 @@ class MapPlugin : DmPlugin {
     private fun showMapCalibrationDialog(owner: Window?) {
         val saved = lastMapCalibration
 
-        val dialog = Dialog<ButtonType>().apply {
-            title = "Calibrate Map"
+        val dialog = DialogFlows.createDialog<ButtonType>(
+            owner = owner,
+            title = "Calibrate Map",
             headerText = "Adjust the map image scale and position.\n" +
                 "A red dot marks the canvas centre — align it with a known reference point on the map.\n" +
-                "Changes are previewed live; Cancel restores the previous calibration."
-            initOwner(owner)
-        }
+                "Changes are previewed live; Cancel restores the previous calibration.",
+            buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
+        )
 
         EventBus.publish(MapCalibrationModeEvent(active = true))
 
@@ -1038,49 +1038,50 @@ class MapPlugin : DmPlugin {
             Label("Offset Y (px from centre):"), buildStepRow(offsetYField, 5.0) { tryPublishLive() },
             errorLabel,
         )
-        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+        val confirmation = DialogFlows.ConfirmationTracker()
+        DialogFlows.installValidatedConfirm(
+            dialog = dialog,
+            tracker = confirmation,
+            confirmButton = ButtonType.APPLY,
+        ) {
+            val scale = scaleField.text.toDoubleOrNull()
+            val ox = offsetXField.text.toDoubleOrNull()
+            val oy = offsetYField.text.toDoubleOrNull()
 
-        var confirmed = false
+            clearAllFieldErrors(scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
 
-        // Validate on Apply — consume the event to keep the dialog open on error.
-        dialog.dialogPane.lookupButton(ButtonType.APPLY)
-            .addEventFilter(ActionEvent.ACTION) { evt ->
-                val scale = scaleField.text.toDoubleOrNull()
-                val ox = offsetXField.text.toDoubleOrNull()
-                val oy = offsetYField.text.toDoubleOrNull()
-
-                clearAllFieldErrors(scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
-
-                when {
-                    scale == null || scale <= 0 -> {
-                        showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
-                        evt.consume()
-                    }
-                    ox == null -> {
-                        showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
-                        evt.consume()
-                    }
-                    oy == null -> {
-                        showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
-                        evt.consume()
-                    }
-                    else -> {
-                        lastMapCalibration = MapCalibration(scale, ox, oy)
-                        EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
-                        confirmed = true
-                    }
+            when {
+                scale == null || scale <= 0 -> {
+                    showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
+                    false
+                }
+                ox == null -> {
+                    showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
+                    false
+                }
+                oy == null -> {
+                    showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
+                    false
+                }
+                else -> {
+                    lastMapCalibration = MapCalibration(scale, ox, oy)
+                    EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+                    MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
+                    true
                 }
             }
-
-        dialog.setOnHidden {
-            EventBus.publish(MapCalibrationModeEvent(active = false))
-            // Restore the saved calibration when the dialog is dismissed without Apply.
-            if (!confirmed) {
+        }
+        DialogFlows.onHiddenWithCancelRestore(
+            dialog = dialog,
+            tracker = confirmation,
+            onCancel = {
                 lastMapCalibration = saved
                 EventBus.publish(MapCalibrationEvent(saved))
-            }
-        }
+            },
+            onAlways = {
+                EventBus.publish(MapCalibrationModeEvent(active = false))
+            },
+        )
 
         dialog.showAndWait()
     }
@@ -1102,13 +1103,14 @@ class MapPlugin : DmPlugin {
     private fun showGridCalibrationDialog(owner: Window?) {
         val saved = lastGridCalibration
 
-        val dialog = Dialog<ButtonType>().apply {
-            title = "Calibrate Grid"
+        val dialog = DialogFlows.createDialog<ButtonType>(
+            owner = owner,
+            title = "Calibrate Grid",
             headerText = "Adjust the grid cell size and position.\n" +
                 "A yellow crosshair marks the canvas centre — this is the origin for all scale operations.\n" +
-                "Changes are previewed live; Cancel restores the previous calibration."
-            initOwner(owner)
-        }
+                "Changes are previewed live; Cancel restores the previous calibration.",
+            buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
+        )
 
         EventBus.publish(GridCalibrationModeEvent(active = true))
 
@@ -1154,54 +1156,56 @@ class MapPlugin : DmPlugin {
             Label("Offset Y (px from centre):"), buildStepRow(offsetYField, 1.0) { tryPublishLive() },
             errorLabel,
         )
-        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
+        val confirmation = DialogFlows.ConfirmationTracker()
+        DialogFlows.installValidatedConfirm(
+            dialog = dialog,
+            tracker = confirmation,
+            confirmButton = ButtonType.APPLY,
+        ) {
+            val cellSize = cellSizeField.text.toDoubleOrNull()
+            val scale = scaleField.text.toDoubleOrNull()
+            val ox = offsetXField.text.toDoubleOrNull()
+            val oy = offsetYField.text.toDoubleOrNull()
 
-        var confirmed = false
+            clearAllFieldErrors(cellSizeField, scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
 
-        // Validate on Apply — consume the event to keep the dialog open on error.
-        dialog.dialogPane.lookupButton(ButtonType.APPLY)
-            .addEventFilter(ActionEvent.ACTION) { evt ->
-                val cellSize = cellSizeField.text.toDoubleOrNull()
-                val scale = scaleField.text.toDoubleOrNull()
-                val ox = offsetXField.text.toDoubleOrNull()
-                val oy = offsetYField.text.toDoubleOrNull()
-
-                clearAllFieldErrors(cellSizeField, scaleField, offsetXField, offsetYField, errorLabel = errorLabel)
-
-                when {
-                    cellSize == null || cellSize <= 0 -> {
-                        showFieldError(cellSizeField, errorLabel, "Cell size must be a positive number.")
-                        evt.consume()
-                    }
-                    scale == null || scale <= 0 -> {
-                        showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
-                        evt.consume()
-                    }
-                    ox == null -> {
-                        showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
-                        evt.consume()
-                    }
-                    oy == null -> {
-                        showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
-                        evt.consume()
-                    }
-                    else -> {
-                        lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
-                        EventBus.publish(GridCalibrationEvent(lastGridCalibration))
-                        MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
-                        confirmed = true
-                    }
+            when {
+                cellSize == null || cellSize <= 0 -> {
+                    showFieldError(cellSizeField, errorLabel, "Cell size must be a positive number.")
+                    false
+                }
+                scale == null || scale <= 0 -> {
+                    showFieldError(scaleField, errorLabel, "Scale must be a positive number.")
+                    false
+                }
+                ox == null -> {
+                    showFieldError(offsetXField, errorLabel, "Offset X must be a number.")
+                    false
+                }
+                oy == null -> {
+                    showFieldError(offsetYField, errorLabel, "Offset Y must be a number.")
+                    false
+                }
+                else -> {
+                    lastGridCalibration = GridCalibration(cellSize, scale, ox, oy)
+                    EventBus.publish(GridCalibrationEvent(lastGridCalibration))
+                    MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
+                    true
                 }
             }
+        }
 
-        dialog.setOnHidden {
-            EventBus.publish(GridCalibrationModeEvent(active = false))
-            // Restore the saved calibration when the dialog is dismissed without Apply.
-            if (!confirmed) {
+        DialogFlows.onHiddenWithCancelRestore(
+            dialog = dialog,
+            tracker = confirmation,
+            onCancel = {
                 lastGridCalibration = saved
                 EventBus.publish(GridCalibrationEvent(saved))
-            }
-        }
+            },
+            onAlways = {
+                EventBus.publish(GridCalibrationModeEvent(active = false))
+            },
+        )
 
         dialog.showAndWait()
     }
@@ -1251,13 +1255,14 @@ class MapPlugin : DmPlugin {
         var working = saved
         var step1Cal: MapCalibration? = null
         var step = 1
-        var confirmed = false
+        val confirmation = DialogFlows.ConfirmationTracker()
 
-        val dialog = Dialog<ButtonType>().apply {
-            title = "Guided Map Calibration"
-            headerText = null
-            initOwner(owner)
-        }
+        val dialog = DialogFlows.createDialog<ButtonType>(
+            owner = owner,
+            title = "Guided Map Calibration",
+            headerText = null,
+            buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
+        )
 
         val stepLabel = Label("Step 1 of 2: Select the grid centre").apply {
             style = "-fx-font-weight: bold;"
@@ -1311,7 +1316,6 @@ class MapPlugin : DmPlugin {
         EventBus.publish(GridCalibrationModeEvent(active = true))
 
         // Register dialog buttons early so lookupButton() works before content is set.
-        dialog.dialogPane.buttonTypes.addAll(ButtonType.APPLY, ButtonType.CANCEL)
         dialog.dialogPane.prefWidth = 640.0
 
         // Apply is disabled until Step 2 is completed (or skipped).
@@ -1531,22 +1535,29 @@ class MapPlugin : DmPlugin {
 
         dialog.dialogPane.content = VBox(10.0, stepLabel, instructionLabel, navRow, canvasPane, viewControlsRow)
 
-        applyButton
-            .addEventFilter(ActionEvent.ACTION) {
-                lastMapCalibration = working
-                EventBus.publish(MapCalibrationEvent(lastMapCalibration))
-                MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
-                confirmed = true
-            }
+        DialogFlows.installValidatedConfirm(
+            dialog = dialog,
+            tracker = confirmation,
+            confirmButton = ButtonType.APPLY,
+        ) {
+            lastMapCalibration = working
+            EventBus.publish(MapCalibrationEvent(lastMapCalibration))
+            MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
+            true
+        }
 
-        dialog.setOnHidden {
-            EventBus.publish(MapCalibrationModeEvent(active = false))
-            EventBus.publish(GridCalibrationModeEvent(active = false))
-            if (!confirmed) {
+        DialogFlows.onHiddenWithCancelRestore(
+            dialog = dialog,
+            tracker = confirmation,
+            onCancel = {
                 lastMapCalibration = saved
                 EventBus.publish(MapCalibrationEvent(saved))
-            }
-        }
+            },
+            onAlways = {
+                EventBus.publish(MapCalibrationModeEvent(active = false))
+                EventBus.publish(GridCalibrationModeEvent(active = false))
+            },
+        )
 
         dialog.showAndWait()
     }

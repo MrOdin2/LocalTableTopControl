@@ -8,6 +8,7 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -15,7 +16,6 @@ import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
@@ -591,13 +591,6 @@ class TrackerPlugin : DmPlugin {
     // ── Token image dialog ─────────────────────────────────────────────────────
 
     private fun showTokenImageDialog(owner: javafx.stage.Window?, initial: TokenImageSettings): TokenImageSettings? {
-        val dialog = Dialog<TokenImageSettings>().apply {
-            title = "Token Image"
-            headerText = "Select a picture and adjust scale/position"
-            owner?.let { initOwner(it) }
-            dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
-        }
-
         var working = initial
 
         val previewSize = 160.0
@@ -829,12 +822,15 @@ class TrackerPlugin : DmPlugin {
             Label("Offset Y"), HBox(8.0, offsetYSlider, offsetYField).apply { HBox.setHgrow(offsetYSlider, Priority.ALWAYS) },
         ).apply { padding = Insets(10.0) }
 
-        dialog.dialogPane.content = content
-        dialog.setResultConverter { button ->
-            if (button == ButtonType.OK) working else null
+        return DialogFlows.showResultDialog(
+            owner = owner,
+            title = "Token Image",
+            headerText = "Select a picture and adjust scale/position",
+            content = content,
+            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
+        ) { button ->
+            DialogFlows.resultForButton(button) { working }
         }
-
-        return dialog.showAndWait().orElse(null)
     }
 
     // ── Preset library dialog ─────────────────────────────────────────────────
@@ -857,11 +853,11 @@ class TrackerPlugin : DmPlugin {
      *                is rebuilt to show the new combatant.
      */
     private fun showPresetsDialog(owner: javafx.stage.Window?, refresh: () -> Unit) {
-        val dialog = Dialog<Unit>().apply {
-            title = "Presets"
-            owner?.let { initOwner(it) }
-            dialogPane.buttonTypes.setAll(ButtonType.CLOSE)
-        }
+        val dialog = DialogFlows.createDialog<Unit>(
+            owner = owner,
+            title = "Presets",
+            buttonTypes = listOf(ButtonType.CLOSE),
+        )
 
         val listBox = VBox(4.0).apply { padding = Insets(4.0) }
 
