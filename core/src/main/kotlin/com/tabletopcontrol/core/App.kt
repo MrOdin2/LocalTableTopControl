@@ -26,8 +26,6 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
-import com.tabletopcontrol.core.ui.dialog.DialogFlows
-import kotlin.math.roundToInt
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
