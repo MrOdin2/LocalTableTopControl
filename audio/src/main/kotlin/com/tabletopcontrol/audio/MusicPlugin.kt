@@ -388,6 +388,9 @@ class MusicPlugin : DmPlugin {
         }
     }
 
+    /**
+     * Binds controller callbacks before loading so READY/ERROR events can't be missed.
+     */
     private fun bindTrackCallbacks(
         track: TrackState,
         controller: MediaTrackController,

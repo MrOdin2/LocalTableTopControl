@@ -274,6 +274,8 @@
       </p>
       <p>
         You can right-click a button that already has a sound to replace it with a different file.
+        Button callbacks are bound before each load, so load errors and end-of-playback resets are
+        applied immediately to the button state.
       </p>
 
       <h3 id="soundboard-customize">Customizing Buttons</h3>
