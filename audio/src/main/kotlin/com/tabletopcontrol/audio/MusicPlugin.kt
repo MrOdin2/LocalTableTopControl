@@ -350,6 +350,7 @@ class MusicPlugin : DmPlugin {
         progressBar.isDisable = true
         timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
 
+        bindTrackCallbacks(track, controller, playPauseBtn, stopBtn, progressBar, timeLabel)
         val loaded = controller.load(
             uri = uri,
             volume = masterVolume * track.volume,
@@ -385,7 +386,16 @@ class MusicPlugin : DmPlugin {
             val remaining = totalDuration.subtract(current)
             timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
         }
+    }
 
+    private fun bindTrackCallbacks(
+        track: TrackState,
+        controller: MediaTrackController,
+        playPauseBtn: Button,
+        stopBtn: Button,
+        progressBar: ProgressBar,
+        timeLabel: Label,
+    ) {
         controller.bindCallbacks(
             onReady = {
                 playPauseBtn.isDisable = false

@@ -446,6 +446,13 @@ class SoundboardPlugin : DmPlugin {
     private fun loadSlot(slot: SlotState): Boolean {
         val uri = slot.uri ?: return false
         val controller = slot.controller ?: MediaTrackController().also { slot.controller = it }
+        controller.bindCallbacks(
+            onError = { resetButtonToIdle(slot) },
+            onEndOfMedia = {
+                controller.stop()
+                resetButtonToIdle(slot)
+            },
+        )
         val loaded = controller.load(
             uri = uri,
             volume = 1.0,
@@ -456,13 +463,6 @@ class SoundboardPlugin : DmPlugin {
             slot.controller = null
             return false
         }
-        controller.bindCallbacks(
-            onError = { resetButtonToIdle(slot) },
-            onEndOfMedia = {
-                controller.stop()
-                resetButtonToIdle(slot)
-            },
-        )
         return true
     }
 
