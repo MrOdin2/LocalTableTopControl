@@ -123,6 +123,7 @@ object ColorEditorPopover {
         val recentButtonsPane = FlowPane().apply {
             hgap = 6.0
             vgap = 6.0
+            prefWrapLength = 220.0
         }
 
         val wheelImageCache = object : LinkedHashMap<Int, javafx.scene.image.WritableImage>(WHEEL_IMAGE_CACHE_MAX_SIZE, 0.75f, true) {
@@ -302,7 +303,6 @@ object ColorEditorPopover {
             inputs,
         ).apply {
             padding = Insets(10.0)
-            minWidth = 420.0
         }
 
         val dialog = Dialog<Color>().apply {
