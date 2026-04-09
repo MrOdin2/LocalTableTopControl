@@ -340,15 +340,10 @@ class MusicPlugin : DmPlugin {
         timeLabel: Label,
     ): Boolean {
         val previousUri = track.uri
-        val controller = track.controller ?: MediaTrackController().also { track.controller = it }
+        val controller = track.controller ?: MediaTrackController()
 
         // Disable controls while the new media loads.
-        playPauseBtn.isDisable = true
-        playPauseBtn.text = "▶ Play"
-        stopBtn.isDisable = true
-        progressBar.progress = 0.0
-        progressBar.isDisable = true
-        timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
+        resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
 
         bindTrackCallbacks(track, controller, playPauseBtn, stopBtn, progressBar, timeLabel)
         val loaded = controller.load(
@@ -360,17 +355,27 @@ class MusicPlugin : DmPlugin {
             controller.dispose()
             track.controller = null
             track.uri = previousUri
-            playPauseBtn.isDisable = true
-            playPauseBtn.text = "▶ Play"
-            stopBtn.isDisable = true
-            progressBar.progress = 0.0
-            progressBar.isDisable = true
-            timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
+            resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
             return false
         }
-        track.uri = uri
+        track.controller = controller
         bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
+        track.uri = uri
         return true
+    }
+
+    private fun resetTrackControls(
+        playPauseBtn: Button,
+        stopBtn: Button,
+        progressBar: ProgressBar,
+        timeLabel: Label,
+    ) {
+        playPauseBtn.isDisable = true
+        playPauseBtn.text = "▶ Play"
+        stopBtn.isDisable = true
+        progressBar.progress = 0.0
+        progressBar.isDisable = true
+        timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
     }
 
     private fun bindPlayerToControls(
