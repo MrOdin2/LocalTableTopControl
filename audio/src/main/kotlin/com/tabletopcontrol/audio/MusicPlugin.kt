@@ -339,8 +339,8 @@ class MusicPlugin : DmPlugin {
         progressBar: ProgressBar,
         timeLabel: Label,
     ): Boolean {
+        val previousUri = track.uri
         val controller = track.controller ?: MediaTrackController().also { track.controller = it }
-        track.uri = uri
 
         // Disable controls while the new media loads.
         playPauseBtn.isDisable = true
@@ -357,8 +357,18 @@ class MusicPlugin : DmPlugin {
             cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1,
         )
         if (!loaded) {
+            controller.dispose()
+            track.controller = null
+            track.uri = previousUri
+            playPauseBtn.isDisable = true
+            playPauseBtn.text = "▶ Play"
+            stopBtn.isDisable = true
+            progressBar.progress = 0.0
+            progressBar.isDisable = true
+            timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
             return false
         }
+        track.uri = uri
         bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
         return true
     }
