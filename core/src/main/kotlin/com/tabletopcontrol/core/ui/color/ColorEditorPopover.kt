@@ -5,11 +5,13 @@ import javafx.geometry.Pos
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.ButtonType
 import javafx.scene.control.Dialog
+import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
 import javafx.scene.input.KeyCode
+import javafx.scene.layout.FlowPane
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
@@ -36,6 +38,7 @@ object ColorEditorPopover {
     private const val MARKER_CONTRAST_BRIGHTNESS_THRESHOLD = 0.45
     private const val KEYBOARD_HUE_STEP_DEGREES = 3.0
     private const val KEYBOARD_SATURATION_STEP = 0.02
+    private const val RECENT_SWATCH_SIZE = 22.0
 
     /**
      * Shows a modal color editor and returns the chosen color when confirmed.
@@ -116,6 +119,12 @@ object ColorEditorPopover {
             tooltip = Tooltip("Value (0–100%)")
         }
 
+        val recentColors = RecentColorsStore.load().toMutableList()
+        val recentButtonsPane = FlowPane().apply {
+            hgap = 6.0
+            vgap = 6.0
+        }
+
         val wheelImageCache = object : LinkedHashMap<Int, javafx.scene.image.WritableImage>(WHEEL_IMAGE_CACHE_MAX_SIZE, 0.75f, true) {
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, javafx.scene.image.WritableImage>?): Boolean =
                 size > WHEEL_IMAGE_CACHE_MAX_SIZE
@@ -181,6 +190,30 @@ object ColorEditorPopover {
             redrawWheelIfNeeded(draftColor.brightness)
             markerFromColor(draftColor)
         }
+
+        fun createRecentSwatch(color: Color): Button {
+            val hex = ColorHexCodec.colorToHex(color)
+            return Button().apply {
+                prefWidth = RECENT_SWATCH_SIZE
+                prefHeight = RECENT_SWATCH_SIZE
+                minWidth = RECENT_SWATCH_SIZE
+                minHeight = RECENT_SWATCH_SIZE
+                maxWidth = RECENT_SWATCH_SIZE
+                maxHeight = RECENT_SWATCH_SIZE
+                text = ""
+                tooltip = Tooltip(hex)
+                style = "-fx-background-color: $hex; -fx-border-color: #555555; -fx-border-width: 1;"
+                setOnAction { applyDraftColor(color) }
+                accessibleText = "Recent color $hex"
+            }
+        }
+
+        fun refreshRecentButtons() {
+            recentButtonsPane.children.setAll(recentColors.map(::createRecentSwatch))
+            recentButtonsPane.isVisible = recentColors.isNotEmpty()
+            recentButtonsPane.isManaged = recentColors.isNotEmpty()
+        }
+        refreshRecentButtons()
 
         fun updateFromWheel(x: Double, y: Double) {
             val dx = x - wheelRadius
@@ -265,6 +298,7 @@ object ColorEditorPopover {
                 HBox.setHgrow(brightnessSlider, Priority.ALWAYS)
             },
             HBox(8.0, Label("Preview"), preview).apply { alignment = Pos.CENTER_LEFT },
+            VBox(4.0, Label("Recent"), recentButtonsPane),
             inputs,
         ).apply {
             padding = Insets(10.0)
@@ -280,7 +314,11 @@ object ColorEditorPopover {
         }
 
         applyDraftColor(draftColor)
-        return dialog.showAndWait().orElse(null)
+        val result = dialog.showAndWait().orElse(null)
+        if (result != null) {
+            RecentColorsStore.remember(result)
+        }
+        return result
     }
 
     private fun clampColor(color: Color): Color =
