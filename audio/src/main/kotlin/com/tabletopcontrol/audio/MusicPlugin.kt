@@ -312,7 +312,16 @@ class MusicPlugin : DmPlugin {
                     saveSettings()
                 }
             } else {
-                bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
+                track.controller?.let { existingController ->
+                    refreshTrackBindings(
+                        track = track,
+                        controller = existingController,
+                        playPauseBtn = playPauseBtn,
+                        stopBtn = stopBtn,
+                        progressBar = progressBar,
+                        timeLabel = timeLabel,
+                    )
+                }
             }
         }
 
@@ -340,7 +349,10 @@ class MusicPlugin : DmPlugin {
         timeLabel: Label,
     ): Boolean {
         val previousUri = track.uri
-        val controller = track.controller ?: MediaTrackController()
+        val previousController = track.controller
+        // Always load into a fresh controller so a failed load attempt can't dispose
+        // the currently active player.
+        val controller = MediaTrackController()
 
         // Disable controls while the new media loads.
         resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
@@ -353,15 +365,45 @@ class MusicPlugin : DmPlugin {
         )
         if (!loaded) {
             controller.dispose()
-            track.controller = null
             track.uri = previousUri
-            resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
+            if (previousController?.hasPlayer() == true) {
+                refreshTrackBindings(
+                    track = track,
+                    controller = previousController,
+                    playPauseBtn = playPauseBtn,
+                    stopBtn = stopBtn,
+                    progressBar = progressBar,
+                    timeLabel = timeLabel,
+                )
+            } else {
+                resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
+            }
             return false
         }
         track.controller = controller
-        bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
         track.uri = uri
+        previousController?.dispose()
+        refreshTrackBindings(
+            track = track,
+            controller = controller,
+            playPauseBtn = playPauseBtn,
+            stopBtn = stopBtn,
+            progressBar = progressBar,
+            timeLabel = timeLabel,
+        )
         return true
+    }
+
+    private fun refreshTrackBindings(
+        track: TrackState,
+        controller: MediaTrackController,
+        playPauseBtn: Button,
+        stopBtn: Button,
+        progressBar: ProgressBar,
+        timeLabel: Label,
+    ) {
+        bindTrackCallbacks(track, controller, playPauseBtn, stopBtn, progressBar, timeLabel)
+        bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
     }
 
     private fun resetTrackControls(
