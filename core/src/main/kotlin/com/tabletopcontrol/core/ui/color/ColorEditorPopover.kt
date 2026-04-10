@@ -10,6 +10,7 @@ import javafx.scene.control.Label
 import javafx.scene.control.Slider
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
+import javafx.event.ActionEvent
 import javafx.scene.input.KeyCode
 import javafx.scene.layout.FlowPane
 import javafx.scene.layout.GridPane
@@ -228,18 +229,40 @@ object ColorEditorPopover {
         fun parseIntField(field: TextField, min: Int, max: Int): Int? =
             field.text.trim().toIntOrNull()?.coerceIn(min, max)
 
-        fun applyRgbFieldValues() {
-            val red = parseIntField(rField, 0, 255) ?: return
-            val green = parseIntField(gField, 0, 255) ?: return
-            val blue = parseIntField(bField, 0, 255) ?: return
+        fun applyRgbFieldValues(): Boolean {
+            val red = parseIntField(rField, 0, 255) ?: return false
+            val green = parseIntField(gField, 0, 255) ?: return false
+            val blue = parseIntField(bField, 0, 255) ?: return false
             applyDraftColor(Color.rgb(red, green, blue))
+            return true
         }
 
-        fun applyHsvFieldValues() {
-            val hue = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, MAX_HUE_BELOW_360) ?: return
-            val saturation = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
-            val value = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return
+        fun applyHsvFieldValues(): Boolean {
+            val hue = hField.text.trim().toDoubleOrNull()?.coerceIn(0.0, MAX_HUE_BELOW_360) ?: return false
+            val saturation = sField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return false
+            val value = vField.text.trim().toDoubleOrNull()?.coerceIn(0.0, 100.0) ?: return false
             applyDraftColor(Color.hsb(hue, saturation / 100.0, value / 100.0))
+            return true
+        }
+
+        fun applyHexFieldValue(): Boolean =
+            ColorHexCodec.parseOrNull(hexField.text)?.let {
+                applyDraftColor(it)
+                true
+            } ?: false
+
+        fun commitVisibleFieldEdits() {
+            val hasHexFocus = hexField.isFocused
+            val hasRgbFocus = rField.isFocused || gField.isFocused || bField.isFocused
+            val hasHsvFocus = hField.isFocused || sField.isFocused || vField.isFocused
+            when {
+                hasHexFocus -> applyHexFieldValue()
+                hasRgbFocus -> applyRgbFieldValues()
+                hasHsvFocus -> applyHsvFieldValues()
+                else -> if (!applyHexFieldValue() && !applyRgbFieldValues()) {
+                    applyHsvFieldValues()
+                }
+            }
         }
 
         wheelPane.setOnMousePressed { updateFromWheel(it.x, it.y) }
@@ -261,14 +284,24 @@ object ColorEditorPopover {
             if (isUpdatingInputs) return@addListener
             applyDraftColor(Color.hsb(draftColor.hue, draftColor.saturation, newValue.toDouble() / 100.0))
         }
-        hexField.setOnAction {
-            ColorHexCodec.parseOrNull(hexField.text)?.let { applyDraftColor(it) }
+        hexField.setOnAction { applyHexFieldValue() }
+        hexField.textProperty().addListener { _, _, _ ->
+            if (isUpdatingInputs) return@addListener
+            applyHexFieldValue()
         }
         listOf(rField, gField, bField).forEach { field ->
             field.setOnAction { applyRgbFieldValues() }
+            field.textProperty().addListener { _, _, _ ->
+                if (isUpdatingInputs) return@addListener
+                applyRgbFieldValues()
+            }
         }
         listOf(hField, sField, vField).forEach { field ->
             field.setOnAction { applyHsvFieldValues() }
+            field.textProperty().addListener { _, _, _ ->
+                if (isUpdatingInputs) return@addListener
+                applyHsvFieldValues()
+            }
         }
 
         val inputs = GridPane().apply {
@@ -310,6 +343,9 @@ object ColorEditorPopover {
             dialogPane.content = content
             dialogPane.buttonTypes.addAll(ButtonType.OK, ButtonType.CANCEL)
             if (owner != null) initOwner(owner)
+            (dialogPane.lookupButton(ButtonType.OK) as Button).addEventFilter(ActionEvent.ACTION) {
+                commitVisibleFieldEdits()
+            }
             setResultConverter { button -> if (button == ButtonType.OK) draftColor else null }
         }
 
