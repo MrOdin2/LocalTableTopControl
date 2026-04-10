@@ -472,9 +472,7 @@ class MusicPlugin : DmPlugin {
                 timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
             },
             onError = {
-                playPauseBtn.isDisable = true
-                stopBtn.isDisable = true
-                playPauseBtn.text = "▶ Play"
+                resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
             },
             onEndOfMedia = {
                 if (!track.loop) {
