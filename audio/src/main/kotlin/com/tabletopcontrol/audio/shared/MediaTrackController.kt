@@ -219,15 +219,15 @@ private class JavaFxManagedMediaPlayer(
     }
 
     override fun setOnReady(handler: (() -> Unit)?) {
-        player.setOnReady(handler)
+        player.setOnReady(handler?.let { Runnable { it.invoke() } })
     }
 
     override fun setOnEndOfMedia(handler: (() -> Unit)?) {
-        player.setOnEndOfMedia(handler)
+        player.setOnEndOfMedia(handler?.let { Runnable { it.invoke() } })
     }
 
     override fun setOnError(handler: (() -> Unit)?) {
-        player.setOnError(handler)
+        player.setOnError(handler?.let { Runnable { it.invoke() } })
     }
 
     override fun play() {
