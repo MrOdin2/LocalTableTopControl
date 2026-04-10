@@ -314,7 +314,7 @@ class LightPlugin : DmPlugin {
      */
     private fun buildColorRow(): HBox {
         var appliedColor = ColorHexCodec.parseOrDefault(controller.color, Color.WHITE)
-        val menu = Button().apply {
+        val colorButton = Button().apply {
             tooltip = Tooltip("Select the ambient light color")
             maxWidth = Double.MAX_VALUE
             alignment = Pos.CENTER_LEFT
@@ -334,11 +334,11 @@ class LightPlugin : DmPlugin {
             valueLabel.text = hex
         }
         refreshButtonLabel(appliedColor)
-        menu.graphic = HBox(8.0, swatch, valueLabel).apply { alignment = Pos.CENTER_LEFT }
-        menu.text = ""
-        menu.setOnAction {
+        colorButton.graphic = HBox(8.0, swatch, valueLabel).apply { alignment = Pos.CENTER_LEFT }
+        colorButton.text = ""
+        colorButton.setOnAction {
             val selected = ColorEditorPopover.showDialog(
-                owner = menu.scene?.window,
+                owner = colorButton.scene?.window,
                 title = "Set Light Color",
                 prompt = "Select the ambient light color",
                 initialColor = appliedColor,
@@ -350,8 +350,8 @@ class LightPlugin : DmPlugin {
             }
         }
 
-        return HBox(8.0, Label("Color:"), menu).apply {
-            HBox.setHgrow(menu, Priority.ALWAYS)
+        return HBox(8.0, Label("Color:"), colorButton).apply {
+            HBox.setHgrow(colorButton, Priority.ALWAYS)
             alignment = Pos.CENTER_LEFT
         }
     }

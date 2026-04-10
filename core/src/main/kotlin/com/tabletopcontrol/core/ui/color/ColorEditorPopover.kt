@@ -203,7 +203,7 @@ object ColorEditorPopover {
                 maxHeight = RECENT_SWATCH_SIZE
                 text = ""
                 tooltip = Tooltip(hex)
-                style = "-fx-background-color: $hex; -fx-border-color: #555555; -fx-border-width: 1;"
+                style = "-fx-background-color: $hex; -fx-border-color: -tc-border; -fx-border-width: 1;"
                 setOnAction { applyDraftColor(color) }
                 accessibleText = "Recent color $hex"
             }
