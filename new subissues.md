@@ -4,7 +4,7 @@
 
 | Plugin | Class split status | Shared utility status | Error handling status | Needs new sub-issue |
 |---|---|---|---|---|
-| `map` (`MapPlugin.kt`, ~1591 lines) | ⚠️ still a god class (UI + calibration + token + FoW + minimap + measurement) | ⚠️ uses some shared utilities (`ColorEditorDialog`, `DialogFlows`) but still has large inline dialog/business flows | ⚠️ mostly imperative/inline validation | ✅ |
+| `map` (`MapPlugin.kt`, ~1591 lines) | ⚠️ still a god class (UI + calibration + token + Fog of War (FoW) + minimap + measurement) | ⚠️ uses some shared utilities (`ColorEditorDialog`, `DialogFlows`) but still has large inline dialog/business flows | ⚠️ mostly imperative/inline validation | ✅ |
 | `tracker` (`TrackerPlugin.kt`, ~1094 lines) | ⚠️ still a god class (UI + tracker flow + token image + preset orchestration) | ⚠️ uses `DialogFlows` and `ReorderSupport`, but still contains custom dialog/preset orchestration in plugin | ⚠️ mixed `runCatching` + inline `Alert` handling, no plugin result model | ✅ |
 | `audio/music` (`MusicPlugin.kt`, ~716 lines) | ⚠️ still mixes UI wiring with track lifecycle/business orchestration | ✅ already uses shared media utility (`MediaTrackController`) + shared reorder utility | ⚠️ no plugin-specific sealed `Result` domain for load/play failures | ✅ |
 | `audio/soundboard` (`SoundboardPlugin.kt`, ~547 lines) | ⚠️ still mixes UI wiring with slot lifecycle/persistence business logic | ✅ uses shared media/color/persistence/reorder utilities | ⚠️ mostly boolean/imperative error flow | ✅ |
