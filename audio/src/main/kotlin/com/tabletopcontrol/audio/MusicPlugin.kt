@@ -550,10 +550,15 @@ class MusicPlugin : DmPlugin {
             },
             onProgress = { current, total ->
                 val totalSeconds = total.toSeconds()
-                val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
-                val remaining = total.subtract(current)
-                progressBar.progress = frac
-                timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
+                if (total.isUnknown || total.isIndefinite || !totalSeconds.isFinite() || totalSeconds <= 0.0) {
+                    progressBar.progress = 0.0
+                    timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
+                } else {
+                    val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
+                    val remaining = total.subtract(current)
+                    progressBar.progress = frac
+                    timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
+                }
             },
             onError = {
                 resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
