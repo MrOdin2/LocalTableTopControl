@@ -8,7 +8,10 @@ import javafx.stage.Window
  */
 @Deprecated(
     message = "Renamed to ColorEditorDialog to match modal dialog behavior.",
-    replaceWith = ReplaceWith("ColorEditorDialog"),
+    replaceWith = ReplaceWith(
+        "ColorEditorDialog",
+        imports = ["com.tabletopcontrol.core.ui.color.ColorEditorDialog"],
+    ),
 )
 object ColorEditorPopover {
     /**
