@@ -1,5 +1,6 @@
 package com.tabletopcontrol.audio
 
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -159,7 +160,7 @@ class SoundboardPluginTest {
 
     @Test
     fun `color web parsing supports output hex format`() {
-        val parsed = Color.web("#A1B2C3")
+        val parsed = ColorHexCodec.hexToColor("#A1B2C3")
         assertEquals(0xA1 / 255.0, parsed.red, 0.0001)
         assertEquals(0xB2 / 255.0, parsed.green, 0.0001)
         assertEquals(0xC3 / 255.0, parsed.blue, 0.0001)

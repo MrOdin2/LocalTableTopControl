@@ -14,9 +14,11 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
 import javafx.scene.control.CheckBox
-import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
+import com.tabletopcontrol.core.ui.color.ColorEditorDialog
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.core.ui.color.ColorContrast
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.TextInputDialog
@@ -671,7 +673,7 @@ class MapPlugin : DmPlugin {
         // Fog paint tool buttons (inline with zoom/pan)
         // ------------------------------------------------------------------
         val drawFogBtn = ToggleButton("Draw Fog").apply {
-            tooltip = Tooltip("Draw fog: click/drag on map to cover cells with fog")
+            tooltip = Tooltip("Draw fog: click/drag on map to cover cells")
         }
         val eraseFogBtn = ToggleButton("Erase Fog").apply {
             tooltip = Tooltip("Erase fog: click/drag on map to reveal cells")
@@ -887,18 +889,32 @@ class MapPlugin : DmPlugin {
         }
 
         // Grid colour picker — pre-filled with the last saved colour.
-        val gridColorPicker = ColorPicker(lastGridColor).apply {
+        val gridColorPicker = Button().apply {
             prefWidth = 80.0
             tooltip = Tooltip(
                 "Grid line colour — applied when you click Apply Grid.\n" +
                     "Updated automatically to contrast with the background colour.",
             )
+            style = "-fx-background-color: ${ColorHexCodec.colorToHex(lastGridColor)}; -fx-text-fill: ${ColorContrast.textColorHexForBackground(lastGridColor)}; -fx-border-color: -tc-border;"
+            text = "Grid Color"
+        }
+
+        gridColorPicker.setOnAction {
+            val selected = ColorEditorDialog.showDialog(
+                owner = gridColorPicker.scene?.window,
+                title = "Set Grid Color",
+                prompt = "Choose a line color for the overlay grid",
+                initialColor = lastGridColor,
+            )
+            if (selected != null) {
+                lastGridColor = selected
+                gridColorPicker.style = "-fx-background-color: ${ColorHexCodec.colorToHex(lastGridColor)}; -fx-text-fill: ${ColorContrast.textColorHexForBackground(lastGridColor)}; -fx-border-color: -tc-border;"
+            }
         }
 
         val applyGridBtn = Button("Apply Grid").apply {
             tooltip = Tooltip("Publish the current grid visibility and colour settings")
             setOnAction {
-                lastGridColor = gridColorPicker.value
                 val config = if (!visibleCheck.isSelected) null else GridConfig(color = lastGridColor)
                 currentGridConfig = config
                 EventBus.publish(GridUpdateEvent(config))
@@ -940,22 +956,33 @@ class MapPlugin : DmPlugin {
 
         // Background colour picker — applies immediately and auto-suggests a
         // contrasting grid colour in gridColorPicker.
-        val bgColorPicker = ColorPicker(lastBackgroundColor).apply {
+        val bgColorPicker = Button().apply {
             prefWidth = 80.0
             tooltip = Tooltip(
                 "Plain-colour background — replaces the default black fill.\n" +
                     "When no map image is loaded this is the sole visible background.\n" +
                     "Changing this colour auto-suggests a contrasting grid line colour.",
             )
-            setOnAction {
-                lastBackgroundColor = value
+            style = "-fx-background-color: ${ColorHexCodec.colorToHex(lastBackgroundColor)}; -fx-text-fill: ${ColorContrast.textColorHexForBackground(lastBackgroundColor)}; -fx-border-color: -tc-border;"
+            text = "BG Color"
+        }
+
+        bgColorPicker.setOnAction {
+            val selected = ColorEditorDialog.showDialog(
+                owner = bgColorPicker.scene?.window,
+                title = "Set Background Color",
+                prompt = "Choose a plain-colour background",
+                initialColor = lastBackgroundColor,
+            )
+            if (selected != null) {
+                lastBackgroundColor = selected
+                bgColorPicker.style = "-fx-background-color: ${ColorHexCodec.colorToHex(lastBackgroundColor)}; -fx-text-fill: ${ColorContrast.textColorHexForBackground(lastBackgroundColor)}; -fx-border-color: -tc-border;"
+
                 // Auto-suggest a contrasting grid colour and persist the suggestion
-                // so that it is visible in the picker on the next application launch.
-                // The user can still override by selecting a different grid colour
-                // before clicking Apply Grid.
                 val suggestedGridColor = contrastingGridColor(lastBackgroundColor)
-                gridColorPicker.value = suggestedGridColor
                 lastGridColor = suggestedGridColor
+                gridColorPicker.style = "-fx-background-color: ${ColorHexCodec.colorToHex(lastGridColor)}; -fx-text-fill: ${ColorContrast.textColorHexForBackground(lastGridColor)}; -fx-border-color: -tc-border;"
+
                 EventBus.publish(MapBackgroundEvent(lastBackgroundColor))
                 MapSettingsSerializer.save(lastGridCalibration, lastMapCalibration, lastGridColor, lastBackgroundColor, lastMapRotation)
             }

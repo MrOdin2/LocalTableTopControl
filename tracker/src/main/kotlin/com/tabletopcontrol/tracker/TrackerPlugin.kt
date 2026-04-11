@@ -12,6 +12,7 @@ import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Platform
 import javafx.geometry.Insets
@@ -386,7 +387,7 @@ class TrackerPlugin : DmPlugin {
         val swatch = Region().apply {
             minWidth = 14.0; maxWidth = 14.0
             minHeight = 14.0; maxHeight = 14.0
-            val hex = swatchColor?.let { colorToHex(it) } ?: "#cccccc"
+            val hex = swatchColor?.let { ColorHexCodec.colorToHex(it) } ?: "#cccccc"
             style = "-fx-background-color: $hex; -fx-background-radius: 7;"
             Tooltip.install(this, Tooltip("Map token colour"))
         }
@@ -540,16 +541,6 @@ class TrackerPlugin : DmPlugin {
             )
             List(64) { i -> Color.hsb(hues[i % 16], variants[i / 16].first, variants[i / 16].second) }
         }
-
-        /**
-         * Converts a JavaFX [Color] to a CSS hex string (e.g. `"#ff8800"`).
-         */
-        fun colorToHex(color: Color): String =
-            "#%02x%02x%02x".format(
-                (color.red * 255).toInt(),
-                (color.green * 255).toInt(),
-                (color.blue * 255).toInt(),
-            )
 
     }
 
