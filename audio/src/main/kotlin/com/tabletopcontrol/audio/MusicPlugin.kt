@@ -347,6 +347,9 @@ class MusicPlugin : DmPlugin {
      * The currently active player is preserved until the new player reaches READY.
      * On activation, lifecycle handlers are (re)bound so status/progress/error/end
      * updates continue to drive [playPauseBtn], [stopBtn], [progressBar], and [timeLabel].
+     * [onActivated] runs only after the new controller reaches READY and is promoted
+     * to the active track controller. [onFailed] runs for immediate load failures and
+     * asynchronous media errors before activation, after previous-state restoration.
      */
     private fun loadTrack(
         track: TrackState,
@@ -367,11 +370,12 @@ class MusicPlugin : DmPlugin {
         // Disable controls while the new media loads.
         resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
 
-        var activated = false
+        var isNewTrackActivated = false
+        fun shouldIgnorePendingTransition(): Boolean = isNewTrackActivated
         controller.bindCallbacks(
             onReady = {
-                if (activated) return@bindCallbacks
-                activated = true
+                if (shouldIgnorePendingTransition()) return@bindCallbacks
+                isNewTrackActivated = true
                 track.controller = controller
                 track.uri = uri
                 previousController?.dispose()
@@ -385,7 +389,7 @@ class MusicPlugin : DmPlugin {
                 onActivated()
             },
             onError = {
-                if (activated) return@bindCallbacks
+                if (shouldIgnorePendingTransition()) return@bindCallbacks
                 controller.dispose()
                 if (previousController?.hasPlayer() == true) {
                     track.controller = previousController
