@@ -11,8 +11,6 @@ import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
-import javafx.beans.value.ChangeListener
-import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
