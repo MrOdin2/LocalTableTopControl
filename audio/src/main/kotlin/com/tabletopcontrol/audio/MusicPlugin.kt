@@ -352,6 +352,8 @@ class MusicPlugin : DmPlugin {
      * [onActivated] runs only after the new controller reaches READY and is promoted
      * to the active track controller. [onFailed] runs for immediate load failures and
      * asynchronous media errors before activation, after previous-state restoration.
+     * If multiple loads are triggered quickly, only the newest attempt may activate;
+     * any superseded pending controller is disposed.
      *
      * Returns `true` if media creation started successfully (final activation may still
      * fail asynchronously), otherwise `false`. Callers should use [onActivated] and
@@ -373,9 +375,12 @@ class MusicPlugin : DmPlugin {
     ): Boolean {
         val previousUri = track.uri
         val previousController = track.controller
+        val loadGeneration = ++track.loadGeneration
+        track.pendingController?.dispose()
         // Always load into a fresh controller so a failed load attempt can't dispose
         // the currently active player.
         val controller = MediaTrackController()
+        track.pendingController = controller
 
         // Preserve the currently active controller UI until the replacement track is
         // actually ready. Reset immediately only when there is no prior player.
@@ -395,6 +400,11 @@ class MusicPlugin : DmPlugin {
         controller.bindCallbacks(
             onReady = {
                 if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
+                if (loadGeneration != track.loadGeneration || track.pendingController !== controller) {
+                    controller.dispose()
+                    return@bindCallbacks
+                }
+                track.pendingController = null
                 track.controller = controller
                 track.uri = uri
                 previousController?.dispose()
@@ -409,6 +419,11 @@ class MusicPlugin : DmPlugin {
             },
             onError = {
                 if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
+                if (loadGeneration != track.loadGeneration || track.pendingController !== controller) {
+                    controller.dispose()
+                    return@bindCallbacks
+                }
+                track.pendingController = null
                 track.controller = previousController
                 track.uri = previousUri
                 controller.dispose()
@@ -434,6 +449,11 @@ class MusicPlugin : DmPlugin {
             cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1,
         )
         if (!loaded) {
+            if (loadGeneration != track.loadGeneration || track.pendingController !== controller) {
+                controller.dispose()
+                return false
+            }
+            track.pendingController = null
             track.controller = previousController
             track.uri = previousUri
             controller.dispose()
@@ -646,6 +666,8 @@ class MusicPlugin : DmPlugin {
     }
 
     private fun disposeTrackPlayer(track: TrackState) {
+        track.pendingController?.dispose()
+        track.pendingController = null
         track.controller?.dispose()
         track.controller = null
     }
@@ -672,6 +694,8 @@ class MusicPlugin : DmPlugin {
         var volume: Double = 1.0,
         var loop: Boolean = true,
         var controller: MediaTrackController? = null,
+        var pendingController: MediaTrackController? = null,
+        var loadGeneration: Long = 0,
         var playPauseBtn: Button? = null,
     )
 
