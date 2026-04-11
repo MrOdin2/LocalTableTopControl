@@ -184,6 +184,11 @@
         All audio is loaded from files on your computer. No internet connection is required for
         playback.
       </p>
+      <p>
+        Both audio plugins now use the same shared media lifecycle controller for loading,
+        playback state, progress updates, and safe disposal. This keeps behavior consistent
+        across Music Player and Soundboard when files fail to load or reach end-of-playback.
+      </p>
     </section>
 
     <section id="music">
@@ -213,8 +218,9 @@
       </p>
       <p>
         When you select a file, the app attempts to open it with the Java media runtime. If the
-        runtime cannot play that file, loading or playback may still fail after selection depending
-        on when the media error is reported.
+        runtime cannot play that file, loading or playback can still fail after selection. Control
+        callbacks are registered before each load, so ready/error states are applied immediately
+        when the media runtime reports them.
       </p>
       <p>
         The file name is shown next to the button once a track is loaded. You can change the file at
@@ -268,6 +274,8 @@
       </p>
       <p>
         You can right-click a button that already has a sound to replace it with a different file.
+        Button callbacks are bound before each load, so load errors and end-of-playback resets are
+        applied immediately to the button state.
       </p>
 
       <h3 id="soundboard-customize">Customizing Buttons</h3>
