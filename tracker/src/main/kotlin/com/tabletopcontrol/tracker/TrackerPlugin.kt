@@ -264,7 +264,8 @@ class TrackerPlugin : DmPlugin {
             container.children.add(buildCard(i, orientation, ddc, indicator, refresh))
         }
 
-        // "+" Add button at the end of the order.
+        // "+" Add button at the end of the order. It also acts as the explicit
+        // append drop target so drag-reorder can reach index == tracker.entries.size.
         val addBtn = Button("+").apply {
             tooltip = Tooltip("Add combatant")
             setOnAction {
@@ -291,6 +292,7 @@ class TrackerPlugin : DmPlugin {
                 refresh()
             }
         }
+        DragDropSupport.installDropTarget(addBtn, ddc, tracker.entries.size, orientation, indicator)
         container.children.add(addBtn)
 
         return container
