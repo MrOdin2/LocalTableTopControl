@@ -248,9 +248,18 @@ class TrackerPlugin : DmPlugin {
         val indicator = DropIndicator()
         container.children.add(indicator)
 
+        fun resolveGhostNode(dragSource: Node): Node {
+            var current: Node? = dragSource
+            while (current != null && current.parent != container) {
+                current = current.parent
+            }
+            return current ?: dragSource
+        }
+
         val ddc = DragDropContext(
             dataFormat = "tabletopcontrol/tracker-item",
             autoScrollPane = autoScrollPane,
+            ghostFactory = { dragSource -> resolveGhostNode(dragSource) },
             onReorder = { fromIdx, toIdx ->
                 val plan = ReorderSupport.planDropReorder(tracker.entries.size, fromIdx, toIdx) ?: return@DragDropContext
                 tracker.move(plan.fromIndex, plan.toIndex)
