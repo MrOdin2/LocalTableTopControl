@@ -119,15 +119,17 @@ internal class MediaTrackController(
         currentPlayer.setOnEndOfMedia { onEndOfMedia?.invoke() }
         currentPlayer.setOnError { onError?.invoke() }
 
-        val listener = ChangeListener<Duration> { _, _, current ->
-            val total = currentPlayer.duration
-            if (total.isUnknown || total.isIndefinite) return@ChangeListener
-            val totalSeconds = total.toSeconds()
-            if (totalSeconds <= 0.0) return@ChangeListener
-            onProgress?.invoke(current, total)
+        if (onProgress != null) {
+            val listener = ChangeListener<Duration> { _, _, current ->
+                val total = currentPlayer.duration
+                if (total.isUnknown || total.isIndefinite) return@ChangeListener
+                val totalSeconds = total.toSeconds()
+                if (totalSeconds <= 0.0) return@ChangeListener
+                onProgress?.invoke(current, total)
+            }
+            timeListener = listener
+            currentPlayer.addCurrentTimeListener(listener)
         }
-        timeListener = listener
-        currentPlayer.addCurrentTimeListener(listener)
     }
 }
 
