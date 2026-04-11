@@ -347,6 +347,12 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
         and a reorder callback.
       </p>
       <p>
+        <code>DropIndicator</code> is orientation-aware: vertical lists render the familiar
+        horizontal insertion bar, while horizontal lists render a vertical insertion bar.
+        Match the list layout when installing drop targets so indicator placement and hit
+        testing stay aligned.
+      </p>
+      <p>
         Use <code>com.tabletopcontrol.core.ui.reorder.ReorderSupport</code> inside
         <code>onReorder</code> to centralize index validation and drop-target adjustment
         (including append drops at <code>listSize</code>).
@@ -370,7 +376,13 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
       <!-- DragDropSupport -->
       <h3 id="drag-drop-support">DragDropSupport</h3>
       <p>
-        A singleton object with two installation methods:
+        A singleton object with two installation methods. Use
+        <code>installDragSource</code> on either the full item node or on a dedicated
+        <code>GrabHandle</code>; handle-only dragging is supported and is the preferred UX
+        when the rest of the card should remain interactive. Use
+        <code>installDropTarget</code> on reorder slots and pass its optional
+        <code>orientation</code> parameter when the list is horizontal so drop hit-testing and
+        <code>DropIndicator</code> rendering match the container layout.
       </p>
       <h4>installDragSource</h4>
 <pre><code><span class="kw">fun</span> <span class="fn">installDragSource</span>(
