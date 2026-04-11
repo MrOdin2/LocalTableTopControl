@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * - An editable **AC** (armour class) number field.
  * - An editable **HP** (hit points) number field.
  * - A **×** button to remove that combatant.
+ * - A **grab handle** glyph that shows where to click-and-drag when reordering cards.
  *
  * A **toolbar** above the card list contains:
  * - **−** — remove all combatants (with confirmation dialog).
@@ -69,7 +70,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * - More than twice as wide as tall → cards arranged **horizontally** (left-to-right order).
  * - Otherwise → cards arranged **vertically** (top-to-bottom order).
  *
- * Cards can be **dragged and dropped** to reorder the initiative list.
+ * Cards can be **dragged and dropped** to reorder the initiative list by using
+ * the grab handle. While dragging, a shared **drop indicator bar** shows the
+ * insertion position instead of recolouring the entire target card.
  *
  * GODCLASS audit note:
  * - `TrackerPlugin` is a GODCLASS with UI, domain coordination, and token sync mixed together.
