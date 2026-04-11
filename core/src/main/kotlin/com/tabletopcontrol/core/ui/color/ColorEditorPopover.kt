@@ -183,7 +183,7 @@ object ColorEditorPopover {
                 rField.text = (draftColor.red * 255.0).roundToInt().toString()
                 gField.text = (draftColor.green * 255.0).roundToInt().toString()
                 bField.text = (draftColor.blue * 255.0).roundToInt().toString()
-                hField.text = normalizedHueDegrees(draftColor).roundToInt().toString()
+                hField.text = normalizedHueDegrees(draftColor).toInt().coerceIn(0, 359).toString()
                 sField.text = (draftColor.saturation * 100.0).roundToInt().toString()
                 vField.text = (draftColor.brightness * 100.0).roundToInt().toString()
             } finally {
