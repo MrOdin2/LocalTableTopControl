@@ -226,7 +226,7 @@ class MusicPlugin : DmPlugin {
                         } else {
                             pathLabel.text = "No file loaded"
                             pathLabel.tooltip = Tooltip(
-                                "Failed to load audio file:\n${file.absolutePath}\n\nNo file loaded",
+                                "Failed to load audio file:\n${file.absolutePath}\n\nNo track currently loaded",
                             )
                         }
                     }
