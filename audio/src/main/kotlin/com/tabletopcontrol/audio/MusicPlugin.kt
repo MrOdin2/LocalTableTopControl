@@ -519,9 +519,16 @@ class MusicPlugin : DmPlugin {
             val totalSeconds = totalDuration.toSeconds()
             if (totalSeconds > 0.0) {
                 progressBar.progress = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
+                val remaining = totalDuration.subtract(current)
+                timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
+            } else {
+                progressBar.progress = 0.0
+                timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
             }
-            val remaining = totalDuration.subtract(current)
-            timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
+        } else if (isUsable) {
+            val current = controller.currentTime() ?: Duration.ZERO
+            progressBar.progress = 0.0
+            timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
         }
     }
 
