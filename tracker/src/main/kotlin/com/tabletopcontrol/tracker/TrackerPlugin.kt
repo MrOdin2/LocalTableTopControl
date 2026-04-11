@@ -7,6 +7,10 @@ import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.ui.DragDropContext
+import com.tabletopcontrol.core.ui.DragDropSupport
+import com.tabletopcontrol.core.ui.DropIndicator
+import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Platform
@@ -21,8 +25,6 @@ import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
-import javafx.scene.input.ClipboardContent
-import javafx.scene.input.TransferMode
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
@@ -138,7 +140,7 @@ class TrackerPlugin : DmPlugin {
 
         fun refresh() {
             roundLabel.text = roundText()
-            scroll.content = buildCardPane(orientation) { refresh() }
+            scroll.content = buildCardPane(orientation, scroll) { refresh() }
         }
 
         // "−" Remove-all button.
@@ -230,18 +232,33 @@ class TrackerPlugin : DmPlugin {
      * not duplicated here.
      *
      * @param orientation the current layout direction.
+     * @param autoScrollPane optional scroll pane for auto-scroll.
      * @param refresh     callback invoked after any structural model change.
      */
-    private fun buildCardPane(orientation: Orientation, refresh: () -> Unit): Pane {
+    private fun buildCardPane(orientation: Orientation, autoScrollPane: ScrollPane?, refresh: () -> Unit): Pane {
         val container: Pane = when (orientation) {
             Orientation.HORIZONTAL -> HBox(8.0)
             else -> VBox(8.0)
         }
         container.padding = Insets(8.0)
 
+        val indicator = DropIndicator()
+        container.children.add(indicator)
+
+        val ddc = DragDropContext(
+            dataFormat = "tabletopcontrol/tracker-item",
+            autoScrollPane = autoScrollPane,
+            onReorder = { fromIdx, toIdx ->
+                val plan = ReorderSupport.planDirectReorder(tracker.entries.size, fromIdx, toIdx) ?: return@DragDropContext
+                tracker.move(plan.fromIndex, plan.toIndex)
+                ReorderSupport.reorderMutableList(tokenIds, plan)
+                refresh()
+            }
+        )
+
         // One card per combatant.
         for (i in tracker.entries.indices) {
-            container.children.add(buildCard(i, orientation, refresh))
+            container.children.add(buildCard(i, orientation, ddc, indicator, refresh))
         }
 
         // "+" Add button at the end of the order.
@@ -291,9 +308,11 @@ class TrackerPlugin : DmPlugin {
      *
      * @param index       zero-based position in [tracker.entries].
      * @param orientation current list orientation (used for sizing hints).
+     * @param context     drag-drop context for standard behaviour.
+     * @param indicator   drop indicator instance attached to the parent pane.
      * @param refresh     callback invoked after any structural model change.
      */
-    private fun buildCard(index: Int, orientation: Orientation, refresh: () -> Unit): VBox {
+    private fun buildCard(index: Int, orientation: Orientation, context: DragDropContext, indicator: DropIndicator, refresh: () -> Unit): VBox {
         val entry = tracker.entries[index]
 
         // Name field — updates the model on every keystroke.
@@ -446,10 +465,14 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
-        val nameRow = HBox(4.0, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
+        val handle = GrabHandle()
+        val nameRow = HBox(4.0, handle, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
             HBox.setHgrow(nameField, Priority.ALWAYS)
+            it.alignment = javafx.geometry.Pos.CENTER_LEFT
         }
-        val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)
+        val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField).also {
+            it.alignment = javafx.geometry.Pos.CENTER_LEFT
+        }
 
         val card = VBox(4.0, nameRow, statsRow).apply {
             padding = Insets(6.0)
@@ -458,45 +481,8 @@ class TrackerPlugin : DmPlugin {
             if (orientation == Orientation.VERTICAL) maxWidth = Double.MAX_VALUE
         }
 
-        // ── Drag source ───────────────────────────────────────────────────────
-        card.setOnDragDetected { e ->
-            val db = card.startDragAndDrop(TransferMode.MOVE)
-            val content = ClipboardContent()
-            content.putString(index.toString())
-            db.setContent(content)
-            e.consume()
-        }
-
-        // ── Drag target ───────────────────────────────────────────────────────
-        card.setOnDragOver { e ->
-            if (e.gestureSource !== card && e.dragboard.hasString()) {
-                e.acceptTransferModes(TransferMode.MOVE)
-                card.style = CARD_STYLE_DRAG_OVER
-            }
-            e.consume()
-        }
-
-        card.setOnDragExited { e ->
-            card.style = cardStyle(index)
-            e.consume()
-        }
-
-        card.setOnDragDropped { e ->
-            val fromIdx = e.dragboard.getString().toIntOrNull()
-            if (fromIdx != null && fromIdx != index) {
-                val plan = ReorderSupport.planDirectReorder(tracker.entries.size, fromIdx, index) ?: run {
-                    e.isDropCompleted = false
-                    e.consume()
-                    return@setOnDragDropped
-                }
-                tracker.move(plan.fromIndex, plan.toIndex)
-                // Keep the id list in sync with the reordered entries.
-                ReorderSupport.reorderMutableList(tokenIds, plan)
-                refresh()
-            }
-            e.isDropCompleted = true
-            e.consume()
-        }
+        DragDropSupport.installDragSource(card, index, context)
+        DragDropSupport.installDropTarget(card, index, context, indicator)
 
         return card
     }
