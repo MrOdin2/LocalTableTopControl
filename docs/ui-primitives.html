@@ -526,9 +526,10 @@ button.<span class="fn">setOnContextMenuRequested</span> { e ->
         If you need to reorder multiple parallel lists, compute one shared plan and apply it to
         each list so they stay aligned:
       </p>
-<pre><code><span class="kw">val</span> plan = <span class="ty">ReorderSupport</span>.<span class="fn">planDropReorder</span>(entries.size, from, dropTarget) ?: <span class="kw">return</span>
-tracker.<span class="fn">move</span>(plan.fromIndex, plan.toIndex)
-<span class="ty">ReorderSupport</span>.<span class="fn">reorderMutableList</span>(tokenIds, plan)</code></pre>
+<pre><code><span class="ty">ReorderSupport</span>.<span class="fn">planDropReorder</span>(entries.size, from, dropTarget)?.let { plan -&gt;
+    tracker.<span class="fn">move</span>(plan.fromIndex, plan.toIndex)
+    <span class="ty">ReorderSupport</span>.<span class="fn">reorderMutableList</span>(tokenIds, plan)
+}</code></pre>
 
       <h3 id="example-dnd">Reorderable List with Grab Handles</h3>
       <p>
