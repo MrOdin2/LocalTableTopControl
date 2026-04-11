@@ -355,6 +355,10 @@ class MusicPlugin : DmPlugin {
      * Returns `true` if media creation started successfully (final activation may still
      * fail asynchronously), otherwise `false`. Callers should use [onActivated] and
      * [onFailed] as the final success/failure signals.
+     *
+     * @param onActivated Invoked once when the newly loaded controller reaches READY
+     * and is promoted to the active track.
+     * @param onFailed Invoked once when load fails immediately or errors before READY.
      */
     private fun loadTrack(
         track: TrackState,
@@ -378,7 +382,6 @@ class MusicPlugin : DmPlugin {
         val hasActivated = AtomicBoolean(false)
         controller.bindCallbacks(
             onReady = {
-                // Already activated or failed; callbacks fire exactly once.
                 if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
                 track.controller = controller
                 track.uri = uri
@@ -393,7 +396,6 @@ class MusicPlugin : DmPlugin {
                 onActivated()
             },
             onError = {
-                // Already activated or failed; callbacks fire exactly once.
                 if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
                 controller.dispose()
                 if (previousController?.hasPlayer() == true) {
