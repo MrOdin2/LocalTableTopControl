@@ -12,7 +12,6 @@ import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
-import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.application.Platform
 import javafx.geometry.Insets
