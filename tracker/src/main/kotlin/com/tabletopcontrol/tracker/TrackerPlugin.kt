@@ -312,7 +312,7 @@ class TrackerPlugin : DmPlugin {
      * Builds a single combatant card for the entry at [index].
      *
      * The card is a [VBox] with two rows:
-     * - **Name row**: `[grab handle] [color swatch] [Name field (grows)] [image button] [preset button] [×]`
+     * - **Name row**: `[grab handle] [color swatch] [Name field (grows in vertical layout)] [image button] [preset button] [×]`
      * - **Stats row**: `AC: [field]  HP: [field]`
      *
      * The color swatch is a small filled circle whose color matches the combatant's
