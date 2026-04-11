@@ -5,7 +5,7 @@ import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.color.ColorContrast
-import com.tabletopcontrol.core.ui.color.ColorEditorPopover
+import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -520,7 +520,7 @@ class SoundboardPlugin : DmPlugin {
 
     private fun showColorPicker(slot: SlotState, btn: Button) {
         val initial = ColorHexCodec.parseOrDefault(slot.colorHex, Color.GRAY)
-        val selected = ColorEditorPopover.showDialog(
+        val selected = ColorEditorDialog.showDialog(
             owner = btn.scene?.window,
             title = "Set Button Color",
             prompt = "Choose a color for this button",

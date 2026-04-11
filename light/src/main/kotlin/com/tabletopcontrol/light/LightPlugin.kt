@@ -1,7 +1,7 @@
 package com.tabletopcontrol.light
 
 import com.tabletopcontrol.core.DmPlugin
-import com.tabletopcontrol.core.ui.color.ColorEditorPopover
+import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import javafx.application.Platform
 import javafx.geometry.Insets
@@ -36,7 +36,7 @@ import kotlin.math.roundToInt
  * - **Serial connection** — port selector, baud-rate field, connect / disconnect button,
  *   and a live connection-status label.
  * - **Power** — a toggle to turn the LEDs on or off.
- * - **Color select** — a dropdown with a color wheel and direct color inputs.
+ * - **Color select** — a button that opens a color dialog with wheel and direct inputs.
  * - **Effect select** — a [ComboBox] to pick from the available [LightEffect]s.
  * - **Color cycling** — a [CheckBox] to enable automatic color cycling.
  * - **Brightness** — a [Slider] to set output brightness (0 – 100 %).
@@ -337,7 +337,7 @@ class LightPlugin : DmPlugin {
         colorButton.graphic = HBox(8.0, swatch, valueLabel).apply { alignment = Pos.CENTER_LEFT }
         colorButton.text = ""
         colorButton.setOnAction {
-            val selected = ColorEditorPopover.showDialog(
+            val selected = ColorEditorDialog.showDialog(
                 owner = colorButton.scene?.window,
                 title = "Set Light Color",
                 prompt = "Select the ambient light color",

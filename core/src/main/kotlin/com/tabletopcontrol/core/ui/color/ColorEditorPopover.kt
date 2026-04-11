@@ -32,7 +32,7 @@ import kotlin.math.sqrt
 /**
  * Reusable wheel-based color editor used by plugins.
  */
-object ColorEditorPopover {
+object ColorEditorDialog {
     /** Practical hue upper bound kept below 360 because 360 maps to 0 in HSB. */
     private const val MAX_HUE_BELOW_360 = 359.999
     private const val WHEEL_IMAGE_CACHE_MAX_SIZE = 16
@@ -370,4 +370,20 @@ object ColorEditorPopover {
 
     private fun valuePercent(color: Color): Double =
         (color.brightness * 100.0).takeUnless { it.isNaN() || it.isInfinite() }?.coerceIn(0.0, 100.0) ?: 0.0
+}
+
+/**
+ * Backwards-compatible alias for callers still using the previous name.
+ */
+@Deprecated(
+    message = "Renamed to ColorEditorDialog to match modal dialog behavior.",
+    replaceWith = ReplaceWith("ColorEditorDialog"),
+)
+object ColorEditorPopover {
+    fun showDialog(
+        owner: Window?,
+        title: String,
+        prompt: String,
+        initialColor: Color,
+    ): Color? = ColorEditorDialog.showDialog(owner, title, prompt, initialColor)
 }
