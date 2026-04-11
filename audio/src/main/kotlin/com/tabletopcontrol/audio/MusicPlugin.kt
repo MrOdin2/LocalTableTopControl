@@ -30,6 +30,7 @@ import javafx.util.Duration
 import java.io.File
 import java.net.URI
 import java.net.URISyntaxException
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * DM-panel plugin for layered music control.
@@ -350,6 +351,9 @@ class MusicPlugin : DmPlugin {
      * [onActivated] runs only after the new controller reaches READY and is promoted
      * to the active track controller. [onFailed] runs for immediate load failures and
      * asynchronous media errors before activation, after previous-state restoration.
+     *
+     * Returns `true` if media creation started successfully (final activation may still
+     * fail asynchronously), otherwise `false`.
      */
     private fun loadTrack(
         track: TrackState,
@@ -370,12 +374,10 @@ class MusicPlugin : DmPlugin {
         // Disable controls while the new media loads.
         resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
 
-        var isNewTrackActivated = false
-        fun shouldIgnorePendingTransition(): Boolean = isNewTrackActivated
+        val hasActivated = AtomicBoolean(false)
         controller.bindCallbacks(
             onReady = {
-                if (shouldIgnorePendingTransition()) return@bindCallbacks
-                isNewTrackActivated = true
+                if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
                 track.controller = controller
                 track.uri = uri
                 previousController?.dispose()
@@ -389,7 +391,7 @@ class MusicPlugin : DmPlugin {
                 onActivated()
             },
             onError = {
-                if (shouldIgnorePendingTransition()) return@bindCallbacks
+                if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
                 controller.dispose()
                 if (previousController?.hasPlayer() == true) {
                     track.controller = previousController
