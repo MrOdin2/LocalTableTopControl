@@ -486,7 +486,7 @@ class TrackerPlugin : DmPlugin {
             if (orientation == Orientation.VERTICAL) maxWidth = Double.MAX_VALUE
         }
 
-        DragDropSupport.installDragSource(card, index, context)
+        DragDropSupport.installDragSource(handle, index, context)
         DragDropSupport.installDropTarget(card, index, context, indicator)
 
         return card
