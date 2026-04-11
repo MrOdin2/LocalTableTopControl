@@ -28,8 +28,8 @@ class DropIndicator : Region() {
 
     init {
         styleClass.add("tc-drop-indicator")
-        prefWidth = HEIGHT
-        prefHeight = HEIGHT
+        prefWidth = THICKNESS
+        prefHeight = THICKNESS
         maxWidth = Double.MAX_VALUE
         maxHeight = Double.MAX_VALUE
         style = "-fx-background-color: -tc-accent; -fx-background-radius: 2;"
@@ -50,7 +50,7 @@ class DropIndicator : Region() {
     }
 
     companion object {
-        /** Height of the indicator bar in pixels. */
-        const val HEIGHT = 3.0
+        /** Thickness of the indicator bar in pixels. */
+        const val THICKNESS = 3.0
     }
 }
