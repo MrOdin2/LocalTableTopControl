@@ -292,7 +292,7 @@ class TrackerPlugin : DmPlugin {
                 refresh()
             }
         }
-        DragDropSupport.installDropTarget(addBtn, ddc, tracker.entries.size, orientation, indicator)
+        DragDropSupport.installDropTarget(addBtn, tracker.entries.size, ddc, indicator, orientation)
         container.children.add(addBtn)
 
         return container
@@ -487,7 +487,7 @@ class TrackerPlugin : DmPlugin {
         }
 
         DragDropSupport.installDragSource(handle, index, context)
-        DragDropSupport.installDropTarget(card, index, context, indicator)
+        DragDropSupport.installDropTarget(card, index, context, indicator, orientation)
 
         return card
     }
