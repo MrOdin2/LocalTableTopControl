@@ -74,6 +74,42 @@ class MediaTrackControllerTest {
     }
 
     @Test
+    fun `bindCallbacks avoids progress listener work when onProgress is unset`() {
+        val player = FakeManagedMediaPlayer()
+        val controller = MediaTrackController(
+            playerLoader = { player },
+        )
+
+        controller.bindCallbacks(
+            onReady = {},
+            onProgress = null,
+            onError = {},
+            onEndOfMedia = {},
+        )
+        controller.load("file:///track.mp3", volume = 1.0, cycleCount = 1)
+
+        assertEquals(0, player.listenerCount())
+
+        controller.bindCallbacks(
+            onReady = {},
+            onProgress = { _, _ -> },
+            onError = {},
+            onEndOfMedia = {},
+        )
+
+        assertEquals(1, player.listenerCount())
+
+        controller.bindCallbacks(
+            onReady = {},
+            onProgress = null,
+            onError = {},
+            onEndOfMedia = {},
+        )
+
+        assertEquals(0, player.listenerCount())
+    }
+
+    @Test
     fun `setVolume updates managed player volume and clamps to bounds`() {
         val player = FakeManagedMediaPlayer()
         val controller = MediaTrackController(
