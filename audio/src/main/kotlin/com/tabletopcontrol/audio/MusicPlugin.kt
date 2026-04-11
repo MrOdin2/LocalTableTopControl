@@ -204,32 +204,33 @@ class MusicPlugin : DmPlugin {
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
                     val selectedUri = file.toURI().toString()
-                    val loaded = loadTrack(
+                    loadTrack(
                         track = track,
                         uri = selectedUri,
                         playPauseBtn = playPauseBtn,
                         stopBtn = stopBtn,
                         progressBar = progressBar,
                         timeLabel = timeLabel,
+                        onActivated = {
+                            pathLabel.text = file.name
+                            pathLabel.tooltip = Tooltip(file.absolutePath)
+                            saveSettings()
+                        },
+                        onFailed = {
+                            val activeUri = track.uri
+                            if (activeUri != null) {
+                                pathLabel.text = fileNameFromUri(activeUri)
+                                pathLabel.tooltip = Tooltip(
+                                    "Failed to load audio file:\n${file.absolutePath}\n\nStill loaded:\n$activeUri",
+                                )
+                            } else {
+                                pathLabel.text = "No file loaded"
+                                pathLabel.tooltip = Tooltip(
+                                    "Failed to load audio file:\n${file.absolutePath}\n\nNo track currently loaded",
+                                )
+                            }
+                        },
                     )
-                    if (loaded) {
-                        pathLabel.text = file.name
-                        pathLabel.tooltip = Tooltip(file.absolutePath)
-                        saveSettings()
-                    } else {
-                        val activeUri = track.uri
-                        if (activeUri != null) {
-                            pathLabel.text = fileNameFromUri(activeUri)
-                            pathLabel.tooltip = Tooltip(
-                                "Failed to load audio file:\n${file.absolutePath}\n\nStill loaded:\n$activeUri",
-                            )
-                        } else {
-                            pathLabel.text = "No file loaded"
-                            pathLabel.tooltip = Tooltip(
-                                "Failed to load audio file:\n${file.absolutePath}\n\nNo track currently loaded",
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -298,23 +299,27 @@ class MusicPlugin : DmPlugin {
         if (track.uri != null) {
             if (track.controller?.hasPlayer() != true) {
                 val existingUri = track.uri!!
-                val loaded = loadTrack(
+                loadTrack(
                     track = track,
                     uri = existingUri,
                     playPauseBtn = playPauseBtn,
                     stopBtn = stopBtn,
                     progressBar = progressBar,
                     timeLabel = timeLabel,
+                    onActivated = {
+                        pathLabel.text = fileNameFromUri(existingUri)
+                        pathLabel.tooltip = Tooltip(existingUri)
+                    },
+                    onFailed = {
+                        track.controller?.dispose()
+                        track.controller = null
+                        track.uri = null
+                        pathLabel.text = "No file loaded"
+                        pathLabel.tooltip = Tooltip("No file loaded")
+                        resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
+                        saveSettings()
+                    },
                 )
-                if (!loaded) {
-                    track.controller?.dispose()
-                    track.controller = null
-                    track.uri = null
-                    pathLabel.text = "No file loaded"
-                    pathLabel.tooltip = Tooltip("No file loaded")
-                    resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
-                    saveSettings()
-                }
             } else {
                 track.controller?.let {
                     refreshTrackBindings(
@@ -338,9 +343,9 @@ class MusicPlugin : DmPlugin {
     /**
      * Loads media for [track] through the shared [MediaTrackController].
      *
-     * Any existing player for this track is disposed first.
      * While loading, controls are disabled and progress/time are reset.
-     * On success, lifecycle handlers are (re)bound so status/progress/error/end
+     * The currently active player is preserved until the new player reaches READY.
+     * On activation, lifecycle handlers are (re)bound so status/progress/error/end
      * updates continue to drive [playPauseBtn], [stopBtn], [progressBar], and [timeLabel].
      */
     private fun loadTrack(
@@ -350,6 +355,8 @@ class MusicPlugin : DmPlugin {
         stopBtn: Button,
         progressBar: ProgressBar,
         timeLabel: Label,
+        onActivated: () -> Unit = {},
+        onFailed: () -> Unit = {},
     ): Boolean {
         val previousUri = track.uri
         val previousController = track.controller
@@ -360,7 +367,44 @@ class MusicPlugin : DmPlugin {
         // Disable controls while the new media loads.
         resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
 
-        bindTrackCallbacks(track, controller, playPauseBtn, stopBtn, progressBar, timeLabel)
+        var activated = false
+        controller.bindCallbacks(
+            onReady = {
+                if (activated) return@bindCallbacks
+                activated = true
+                track.controller = controller
+                track.uri = uri
+                previousController?.dispose()
+                refreshTrackBindings(
+                    track = track,
+                    playPauseBtn = playPauseBtn,
+                    stopBtn = stopBtn,
+                    progressBar = progressBar,
+                    timeLabel = timeLabel,
+                )
+                onActivated()
+            },
+            onError = {
+                if (activated) return@bindCallbacks
+                controller.dispose()
+                if (previousController?.hasPlayer() == true) {
+                    track.controller = previousController
+                    track.uri = previousUri
+                    refreshTrackBindings(
+                        track = track,
+                        playPauseBtn = playPauseBtn,
+                        stopBtn = stopBtn,
+                        progressBar = progressBar,
+                        timeLabel = timeLabel,
+                    )
+                } else {
+                    track.controller = null
+                    track.uri = null
+                    resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
+                }
+                onFailed()
+            },
+        )
         val loaded = controller.load(
             uri = uri,
             volume = masterVolume * track.volume,
@@ -368,6 +412,7 @@ class MusicPlugin : DmPlugin {
         )
         if (!loaded) {
             controller.dispose()
+            track.controller = previousController
             track.uri = previousUri
             if (previousController?.hasPlayer() == true) {
                 refreshTrackBindings(
@@ -380,18 +425,9 @@ class MusicPlugin : DmPlugin {
             } else {
                 resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
             }
+            onFailed()
             return false
         }
-        track.controller = controller
-        track.uri = uri
-        previousController?.dispose()
-        refreshTrackBindings(
-            track = track,
-            playPauseBtn = playPauseBtn,
-            stopBtn = stopBtn,
-            progressBar = progressBar,
-            timeLabel = timeLabel,
-        )
         return true
     }
 
