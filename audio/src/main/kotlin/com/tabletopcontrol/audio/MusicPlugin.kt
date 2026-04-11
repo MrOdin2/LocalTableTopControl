@@ -344,8 +344,9 @@ class MusicPlugin : DmPlugin {
     /**
      * Loads media for [track] through the shared [MediaTrackController].
      *
-     * While loading, controls are disabled and progress/time are reset.
-     * The currently active player is preserved until the new player reaches READY.
+     * If there is no active controller, controls are disabled and progress/time are reset
+     * while the new media is loading. If a previous controller is already active, its
+     * bindings and controls remain active until the replacement controller reaches READY.
      * On activation, lifecycle handlers are (re)bound so status/progress/error/end
      * updates continue to drive [playPauseBtn], [stopBtn], [progressBar], and [timeLabel].
      * [onActivated] runs only after the new controller reaches READY and is promoted
