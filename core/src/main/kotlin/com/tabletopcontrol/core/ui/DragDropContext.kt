@@ -27,8 +27,13 @@ import javafx.scene.control.ScrollPane
  *                          the raw source-data string from the dragboard.  Return `false`
  *                          to reject the drop silently.  Default: always accept.
  * @property autoScrollPane Optional [ScrollPane] whose scroll position is adjusted
- *                          automatically when the cursor approaches its top or bottom edge
- *                          during a drag.  `null` disables auto-scroll.
+ *                          automatically when the cursor approaches the relevant edge
+ *                          during a drag. Vertical drop targets scroll near the top or
+ *                          bottom edge, and horizontal drop targets scroll near the left
+ *                          or right edge. The active axis is selected by the
+ *                          `orientation` argument passed to
+ *                          [DragDropSupport.installDropTarget]. `null` disables
+ *                          auto-scroll.
  */
 data class DragDropContext(
     val dataFormat: String,
