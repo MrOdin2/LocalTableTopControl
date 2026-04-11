@@ -1,15 +1,12 @@
 package com.tabletopcontrol.core
 
-import com.tabletopcontrol.core.ui.color.ColorHexCodec
-import com.tabletopcontrol.core.ui.color.ColorContrast
-import com.tabletopcontrol.core.ui.color.ColorEditorDialog
-import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
+import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
 import javafx.scene.control.RadioButton
@@ -27,6 +24,8 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
+import kotlin.math.roundToInt
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -251,83 +250,34 @@ class App : Application() {
         }
 
         // Helper: parse a hex color string safely, falling back to [fallback] on error.
-        fun parseColor(hex: String, fallback: String): Color {
-            val safeFallback = ColorHexCodec.parseOrDefault(fallback, Color.GRAY)
-            return ColorHexCodec.parseOrDefault(hex, safeFallback)
-        }
+        fun parseColor(hex: String, fallback: String): Color =
+            runCatching { Color.web(hex) }.getOrElse { Color.web(fallback) }
 
         val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
 
-        var accentColor = parseColor(current.accentColor, modeDefaults.accentColor)
-        var bgColor = parseColor(current.bgColor, modeDefaults.bgColor)
-        var surfaceColor = parseColor(current.surfaceColor, modeDefaults.surfaceColor)
-        var borderColor = parseColor(current.borderColor, modeDefaults.borderColor)
+        // Colour pickers — Group 2: Interactive / Accent
+        val accentPicker = ColorPicker(
+            parseColor(current.accentColor, modeDefaults.accentColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
 
-        fun styleColorButton(button: Button, color: Color) {
-            val bgHex = ColorHexCodec.colorToHex(color)
-            val fgHex = ColorContrast.textColorHexForBackground(color)
-            button.text = bgHex
-            button.style = "-fx-background-color: $bgHex; -fx-text-fill: $fgHex;"
-        }
+        // Colour pickers — Group 1: Background & Surfaces
+        val bgPicker = ColorPicker(
+            parseColor(current.bgColor, modeDefaults.bgColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
+        val surfacePicker = ColorPicker(
+            parseColor(current.surfaceColor, modeDefaults.surfaceColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
+        val borderPicker = ColorPicker(
+            parseColor(current.borderColor, modeDefaults.borderColor)
+        ).apply { maxWidth = Double.MAX_VALUE }
 
-        fun createColorButton(
-            title: String,
-            prompt: String,
-            getColor: () -> Color,
-            setColor: (Color) -> Unit,
-        ): Button = Button().apply {
-            maxWidth = Double.MAX_VALUE
-            styleColorButton(this, getColor())
-            setOnAction {
-                val selected = ColorEditorDialog.showDialog(
-                    owner = owner,
-                    title = title,
-                    prompt = prompt,
-                    initialColor = getColor(),
-                )
-                if (selected != null) {
-                    setColor(selected)
-                    styleColorButton(this, selected)
-                }
-            }
-        }
-
-        val accentButton = createColorButton(
-            title = "Select Accent Colour",
-            prompt = "Choose the accent colour used for highlighted controls.",
-            getColor = { accentColor },
-            setColor = { accentColor = it },
-        )
-        val bgButton = createColorButton(
-            title = "Select Background Colour",
-            prompt = "Choose the base background colour for scenes and windows.",
-            getColor = { bgColor },
-            setColor = { bgColor = it },
-        )
-        val surfaceButton = createColorButton(
-            title = "Select Surface Colour",
-            prompt = "Choose the surface colour used for panels and cards.",
-            getColor = { surfaceColor },
-            setColor = { surfaceColor = it },
-        )
-        val borderButton = createColorButton(
-            title = "Select Border Colour",
-            prompt = "Choose the border colour used for separators and outlines.",
-            getColor = { borderColor },
-            setColor = { borderColor = it },
-        )
-
-        // Helper: reset dialog buttons to defaults for the currently selected mode.
+        // Helper: reset pickers to defaults for the currently selected mode.
         fun resetDefaults() {
             val defaults = if (darkBtn.isSelected) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
-            accentColor = ColorHexCodec.hexToColor(defaults.accentColor)
-            bgColor = ColorHexCodec.hexToColor(defaults.bgColor)
-            surfaceColor = ColorHexCodec.hexToColor(defaults.surfaceColor)
-            borderColor = ColorHexCodec.hexToColor(defaults.borderColor)
-            styleColorButton(accentButton, accentColor)
-            styleColorButton(bgButton, bgColor)
-            styleColorButton(surfaceButton, surfaceColor)
-            styleColorButton(borderButton, borderColor)
+            accentPicker.value = Color.web(defaults.accentColor)
+            bgPicker.value = Color.web(defaults.bgColor)
+            surfacePicker.value = Color.web(defaults.surfaceColor)
+            borderPicker.value = Color.web(defaults.borderColor)
         }
 
         // Update pickers to mode defaults whenever the mode radio changes.
@@ -350,17 +300,17 @@ class App : Application() {
 
         // Group 1: Background & Surfaces
         grid.add(Label("Background:"), 0, row)
-        grid.add(bgButton, 1, row++)
+        grid.add(bgPicker, 1, row++)
         grid.add(Label("Surface (Buttons):"), 0, row)
-        grid.add(surfaceButton, 1, row++)
+        grid.add(surfacePicker, 1, row++)
         grid.add(Label("Border / edges:"), 0, row)
-        grid.add(borderButton, 1, row++)
+        grid.add(borderPicker, 1, row++)
 
         grid.add(Separator(), 0, row++, 2, 1)
 
         // Group 2: Interactive / Accent
         grid.add(Label("Accent:"), 0, row)
-        grid.add(accentButton, 1, row++)
+        grid.add(accentPicker, 1, row++)
 
         grid.add(Separator(), 0, row++, 2, 1)
 
@@ -380,10 +330,10 @@ class App : Application() {
                 val mode = if (darkBtn.isSelected) ThemeMode.DARK else ThemeMode.LIGHT
                 ThemeConfig(
                     mode = mode,
-                    accentColor = ColorHexCodec.colorToHex(accentColor),
-                    bgColor = ColorHexCodec.colorToHex(bgColor),
-                    surfaceColor = ColorHexCodec.colorToHex(surfaceColor),
-                    borderColor = ColorHexCodec.colorToHex(borderColor),
+                    accentColor = colorToHex(accentPicker.value),
+                    bgColor = colorToHex(bgPicker.value),
+                    surfaceColor = colorToHex(surfacePicker.value),
+                    borderColor = colorToHex(borderPicker.value),
                 )
             }
         }
@@ -391,6 +341,17 @@ class App : Application() {
         if (newTheme != null) {
             ThemeManager.setTheme(newTheme)
         }
+    }
+
+    /**
+     * Converts a JavaFX [Color] to a CSS hex string such as `"#1565c0"`.
+     *
+     * Uses [kotlin.math.roundToInt] with a 0–255 clamp to avoid off-by-one
+     * errors from floating-point truncation.
+     */
+    private fun colorToHex(color: Color): String {
+        fun channel(v: Double) = (v * 255).roundToInt().coerceIn(0, 255)
+        return "#%02x%02x%02x".format(channel(color.red), channel(color.green), channel(color.blue))
     }
 }
 
