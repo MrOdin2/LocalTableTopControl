@@ -21,10 +21,16 @@ internal object RecentColorsStore {
      */
     fun load(): List<Color> = SafeConfigIO.readOrElse(emptyList()) {
         val uniqueHexes = linkedSetOf<String>()
-        configFile.readLines().forEach { line ->
-            ColorHexCodec.parseOrNull(line)?.let { uniqueHexes.add(ColorHexCodec.colorToHex(it)) }
+        configFile.bufferedReader().useLines { lines ->
+            for (line in lines) {
+                val hex = ColorHexCodec.parseOrNull(line)?.let(ColorHexCodec::colorToHex) ?: continue
+                uniqueHexes.add(hex)
+                if (uniqueHexes.size >= MAX_RECENT_COLORS) {
+                    break
+                }
+            }
         }
-        uniqueHexes.take(MAX_RECENT_COLORS).map(ColorHexCodec::hexToColor)
+        uniqueHexes.map(ColorHexCodec::hexToColor)
     }
 
     /**
