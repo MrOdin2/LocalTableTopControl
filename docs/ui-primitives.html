@@ -180,6 +180,7 @@
           <ul>
             <li><a href="#example-basic-menu">Basic Context Menu</a></li>
             <li><a href="#example-contributor">Menu Contributor</a></li>
+            <li><a href="#example-reorder-helper">Reorder Helper</a></li>
             <li><a href="#example-dnd">Reorderable List</a></li>
           </ul>
         </li>
@@ -345,6 +346,17 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
         <a href="#drag-drop-context"><code>DragDropContext</code></a> with the format identifier
         and a reorder callback.
       </p>
+      <p>
+        <code>DropIndicator</code> is orientation-aware: vertical lists render the familiar
+        horizontal insertion bar, while horizontal lists render a vertical insertion bar.
+        Match the list layout when installing drop targets so indicator placement and hit
+        testing stay aligned.
+      </p>
+      <p>
+        Use <code>com.tabletopcontrol.core.ui.reorder.ReorderSupport</code> inside
+        <code>onReorder</code> to centralize index validation and drop-target adjustment
+        (including append drops at <code>listSize</code>).
+      </p>
 
       <!-- DragDropContext -->
       <h3 id="drag-drop-context">DragDropContext</h3>
@@ -364,7 +376,13 @@ node.<span class="fn">setOnContextMenuRequested</span> { e ->
       <!-- DragDropSupport -->
       <h3 id="drag-drop-support">DragDropSupport</h3>
       <p>
-        A singleton object with two installation methods:
+        A singleton object with two installation methods. Use
+        <code>installDragSource</code> on either the full item node or on a dedicated
+        <code>GrabHandle</code>; handle-only dragging is supported and is the preferred UX
+        when the rest of the card should remain interactive. Use
+        <code>installDropTarget</code> on reorder slots and pass its optional
+        <code>orientation</code> parameter when the list is horizontal so drop hit-testing and
+        <code>DropIndicator</code> rendering match the container layout.
       </p>
       <h4>installDragSource</h4>
 <pre><code><span class="kw">fun</span> <span class="fn">installDragSource</span>(
@@ -501,6 +519,30 @@ button.<span class="fn">setOnContextMenuRequested</span> { e ->
 )</code></pre>
 
       <!-- Reorderable list -->
+      <h3 id="example-reorder-helper">Reorder Helper (index math)</h3>
+      <p>
+        <code>ReorderSupport</code> encapsulates the index math above drag/drop primitives:
+      </p>
+<pre><code><span class="kw">import</span> com.tabletopcontrol.core.ui.reorder.<span class="ty">ReorderSupport</span>
+
+<span class="kw">val</span> ctx = <span class="ty">DragDropContext</span>(
+    dataFormat = <span class="st">"tabletopcontrol/example-row"</span>,
+    onReorder = { from, dropTarget ->
+        <span class="kw">if</span> (!<span class="ty">ReorderSupport</span>.<span class="fn">reorderMutableListFromDrop</span>(rows, from, dropTarget)) {
+            <span class="kw">return</span>@<span class="ty">DragDropContext</span>
+        }
+        <span class="fn">refresh</span>()
+    },
+)</code></pre>
+      <p>
+        If you need to reorder multiple parallel lists, compute one shared plan and apply it to
+        each list so they stay aligned:
+      </p>
+<pre><code><span class="ty">ReorderSupport</span>.<span class="fn">planDropReorder</span>(entries.size, from, dropTarget)?.let { plan -&gt;
+    tracker.<span class="fn">move</span>(plan.fromIndex, plan.toIndex)
+    <span class="ty">ReorderSupport</span>.<span class="fn">reorderMutableList</span>(tokenIds, plan)
+}</code></pre>
+
       <h3 id="example-dnd">Reorderable List with Grab Handles</h3>
       <p>
         A complete minimal example of a vertically reorderable list using all four
@@ -621,6 +663,11 @@ button.<span class="fn">setOnContextMenuRequested</span> { e ->
           <td><code>DragDropSupport</code></td>
           <td><span class="badge">object</span></td>
           <td>Installs drag-source and drop-target behaviour on item nodes; manages ghost, indicator, and auto-scroll.</td>
+        </tr>
+        <tr>
+          <td><code>reorder.ReorderSupport</code></td>
+          <td><span class="badge">object</span></td>
+          <td>Shared reorder orchestration helpers for drop-index validation, adjusted insertion planning, and mutable-list reordering.</td>
         </tr>
         <tr>
           <td><code>DropIndicator</code></td>

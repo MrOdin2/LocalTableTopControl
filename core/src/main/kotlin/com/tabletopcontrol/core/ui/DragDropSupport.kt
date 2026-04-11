@@ -2,9 +2,11 @@ package com.tabletopcontrol.core.ui
 
 import javafx.scene.Node
 import javafx.scene.SnapshotParameters
+import javafx.scene.control.ScrollPane
 import javafx.scene.input.ClipboardContent
 import javafx.scene.input.DataFormat
 import javafx.scene.input.TransferMode
+import javafx.geometry.Orientation
 import javafx.scene.paint.Color
 
 /**
@@ -88,12 +90,15 @@ object DragDropSupport {
      *                      become stale and drops may reorder to the wrong position.
      * @param context       Configuration and callbacks.
      * @param dropIndicator Optional [DropIndicator] to show while dragging over this node.
+     * @param orientation   Layout direction of the reordered list. Used to position the
+     *                      drop indicator and choose vertical vs horizontal auto-scroll.
      */
     fun installDropTarget(
         node: Node,
         index: Int,
         context: DragDropContext,
         dropIndicator: DropIndicator? = null,
+        orientation: Orientation = Orientation.VERTICAL,
     ) {
         val format = resolveFormat(context.dataFormat)
 
@@ -106,10 +111,10 @@ object DragDropSupport {
                 if (fromIdx != null && !isSameItem && e.gestureSource !== node && context.canAcceptDrop(sourceData)) {
                     e.acceptTransferModes(TransferMode.MOVE)
                     if (dropIndicator != null) {
-                        repositionIndicator(dropIndicator, node)
+                        repositionIndicator(dropIndicator, node, orientation)
                         dropIndicator.show()
                     }
-                    autoScroll(context.autoScrollPane, e.sceneY)
+                    autoScroll(context.autoScrollPane, e.sceneX, e.sceneY, orientation)
                 }
             }
             e.consume()
@@ -137,25 +142,27 @@ object DragDropSupport {
     // ── Internal helpers ──────────────────────────────────────────────────────
 
     /**
-     * Positions [indicator] as an absolutely-placed overlay at the top edge of [sibling]
+     * Positions [indicator] as an absolutely-placed overlay at the insertion edge of [sibling]
      * within their shared [javafx.scene.layout.Pane] parent.
      *
      * The indicator is permanently kept out of the layout flow (`isManaged = false`) so it
      * never displaces [sibling] or any other child.  Because an unmanaged node is not sized
-     * by its parent, [resizeRelocate] is used to explicitly set its width and position in a
+     * by its parent, [resizeRelocate] is used to explicitly set its size and position in a
      * single call.  The indicator is then brought to front so it is not occluded by items.
      *
      * Does nothing if [sibling] has no [javafx.scene.layout.Pane] parent.
      */
-    private fun repositionIndicator(indicator: DropIndicator, sibling: Node) {
+    private fun repositionIndicator(indicator: DropIndicator, sibling: Node, orientation: Orientation) {
         val parent = sibling.parent as? javafx.scene.layout.Pane ?: return
-        // Use parent.width for the already-laid-out size; fall back to layoutBounds during
-        // very early layout passes.  If both are 0 the indicator will be invisible on that
-        // single frame — acceptable since a drag-over can only fire once the scene is shown.
-        val indicatorWidth = parent.width.takeIf { it > 0.0 } ?: parent.layoutBounds.width
-        val indicatorY = (sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2).coerceAtLeast(0.0)
-        // resizeRelocate explicitly sizes the unmanaged node and sets its layout position.
-        indicator.resizeRelocate(0.0, indicatorY, indicatorWidth, DropIndicator.HEIGHT)
+        val parentWidth = parent.width.takeIf { it > 0.0 } ?: parent.layoutBounds.width
+        val parentHeight = parent.height.takeIf { it > 0.0 } ?: parent.layoutBounds.height
+        if (orientation == Orientation.HORIZONTAL) {
+            val indicatorX = (sibling.boundsInParent.minX - DropIndicator.THICKNESS / 2).coerceAtLeast(0.0)
+            indicator.resizeRelocate(indicatorX, 0.0, DropIndicator.THICKNESS, parentHeight)
+        } else {
+            val indicatorY = (sibling.boundsInParent.minY - DropIndicator.THICKNESS / 2).coerceAtLeast(0.0)
+            indicator.resizeRelocate(0.0, indicatorY, parentWidth, DropIndicator.THICKNESS)
+        }
         indicator.toFront()
     }
 
@@ -166,18 +173,31 @@ object DragDropSupport {
     internal fun resolveFormat(mimeType: String): DataFormat =
         DataFormat.lookupMimeType(mimeType) ?: DataFormat(mimeType)
 
-    private fun autoScroll(scrollPane: javafx.scene.control.ScrollPane?, sceneY: Double) {
+    private fun autoScroll(scrollPane: ScrollPane?, sceneX: Double, sceneY: Double, orientation: Orientation) {
         if (scrollPane == null) return
         val bounds = scrollPane.localToScene(scrollPane.boundsInLocal)
-        val contentHeight = scrollPane.content?.boundsInLocal?.height ?: 0.0
-        val viewportHeight = scrollPane.viewportBounds?.height ?: 0.0
-        val scrollRange = (contentHeight - viewportHeight).takeIf { it > 0.0 } ?: return
-        val step = AUTO_SCROLL_STEP / scrollRange
-        when {
-            sceneY < bounds.minY + AUTO_SCROLL_ZONE ->
-                scrollPane.vvalue = (scrollPane.vvalue - step).coerceAtLeast(0.0)
-            sceneY > bounds.maxY - AUTO_SCROLL_ZONE ->
-                scrollPane.vvalue = (scrollPane.vvalue + step).coerceAtMost(1.0)
+        if (orientation == Orientation.HORIZONTAL) {
+            val contentWidth = scrollPane.content?.boundsInLocal?.width ?: 0.0
+            val viewportWidth = scrollPane.viewportBounds?.width ?: 0.0
+            val scrollRange = (contentWidth - viewportWidth).takeIf { it > 0.0 } ?: return
+            val step = AUTO_SCROLL_STEP / scrollRange
+            when {
+                sceneX < bounds.minX + AUTO_SCROLL_ZONE ->
+                    scrollPane.hvalue = (scrollPane.hvalue - step).coerceAtLeast(0.0)
+                sceneX > bounds.maxX - AUTO_SCROLL_ZONE ->
+                    scrollPane.hvalue = (scrollPane.hvalue + step).coerceAtMost(1.0)
+            }
+        } else {
+            val contentHeight = scrollPane.content?.boundsInLocal?.height ?: 0.0
+            val viewportHeight = scrollPane.viewportBounds?.height ?: 0.0
+            val scrollRange = (contentHeight - viewportHeight).takeIf { it > 0.0 } ?: return
+            val step = AUTO_SCROLL_STEP / scrollRange
+            when {
+                sceneY < bounds.minY + AUTO_SCROLL_ZONE ->
+                    scrollPane.vvalue = (scrollPane.vvalue - step).coerceAtLeast(0.0)
+                sceneY > bounds.maxY - AUTO_SCROLL_ZONE ->
+                    scrollPane.vvalue = (scrollPane.vvalue + step).coerceAtMost(1.0)
+            }
         }
     }
 

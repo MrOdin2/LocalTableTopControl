@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 
 class SoundboardPluginTest {
 
@@ -165,27 +166,27 @@ class SoundboardPluginTest {
     }
 
     @Test
-    fun `adjustedDropInsertIndex supports append target`() {
-        assertEquals(4, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 5))
-        assertEquals(4, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 0, toIndex = 5))
-        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 4, toIndex = 5))
+    fun `reorder support plans append target`() {
+        assertEquals(ReorderSupport.Plan(fromIndex = 1, toIndex = 4), ReorderSupport.planDropReorder(5, 1, 5))
+        assertEquals(ReorderSupport.Plan(fromIndex = 0, toIndex = 4), ReorderSupport.planDropReorder(5, 0, 5))
+        assertNull(ReorderSupport.planDropReorder(5, 4, 5))
     }
 
     @Test
-    fun `adjustedDropInsertIndex adjusts downward moves`() {
-        assertEquals(2, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 3))
+    fun `reorder support plans downward moves`() {
+        assertEquals(ReorderSupport.Plan(fromIndex = 1, toIndex = 2), ReorderSupport.planDropReorder(5, 1, 3))
     }
 
     @Test
-    fun `adjustedDropInsertIndex keeps upward moves as target index`() {
-        assertEquals(1, SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 3, toIndex = 1))
+    fun `reorder support keeps upward target index`() {
+        assertEquals(ReorderSupport.Plan(fromIndex = 3, toIndex = 1), ReorderSupport.planDropReorder(5, 3, 1))
     }
 
     @Test
-    fun `adjustedDropInsertIndex returns null for invalid indexes`() {
-        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = -1, toIndex = 2))
-        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 1, toIndex = 6))
-        assertNull(SoundboardPlugin.adjustedDropInsertIndex(listSize = 5, fromIndex = 2, toIndex = 2))
+    fun `reorder support returns null for invalid indexes`() {
+        assertNull(ReorderSupport.planDropReorder(5, -1, 2))
+        assertNull(ReorderSupport.planDropReorder(5, 1, 6))
+        assertNull(ReorderSupport.planDropReorder(5, 2, 2))
     }
 
     @Test

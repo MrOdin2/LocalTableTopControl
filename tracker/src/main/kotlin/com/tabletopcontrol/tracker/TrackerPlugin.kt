@@ -7,6 +7,11 @@ import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.ui.DragDropContext
+import com.tabletopcontrol.core.ui.DragDropSupport
+import com.tabletopcontrol.core.ui.DropIndicator
+import com.tabletopcontrol.core.ui.GrabHandle
+import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Platform
@@ -21,8 +26,6 @@ import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
-import javafx.scene.input.ClipboardContent
-import javafx.scene.input.TransferMode
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
@@ -54,6 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * - An editable **AC** (armour class) number field.
  * - An editable **HP** (hit points) number field.
  * - A **×** button to remove that combatant.
+ * - A **grab handle** glyph that shows where to click-and-drag when reordering cards.
  *
  * A **toolbar** above the card list contains:
  * - **−** — remove all combatants (with confirmation dialog).
@@ -67,7 +71,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * - More than twice as wide as tall → cards arranged **horizontally** (left-to-right order).
  * - Otherwise → cards arranged **vertically** (top-to-bottom order).
  *
- * Cards can be **dragged and dropped** to reorder the initiative list.
+ * Cards can be **dragged and dropped** to reorder the initiative list by using
+ * the grab handle. While dragging, a shared **drop indicator bar** shows the
+ * insertion position instead of recolouring the entire target card.
  *
  * GODCLASS audit note:
  * - `TrackerPlugin` is a GODCLASS with UI, domain coordination, and token sync mixed together.
@@ -138,7 +144,7 @@ class TrackerPlugin : DmPlugin {
 
         fun refresh() {
             roundLabel.text = roundText()
-            scroll.content = buildCardPane(orientation) { refresh() }
+            scroll.content = buildCardPane(orientation, scroll) { refresh() }
         }
 
         // "−" Remove-all button.
@@ -230,21 +236,46 @@ class TrackerPlugin : DmPlugin {
      * not duplicated here.
      *
      * @param orientation the current layout direction.
+     * @param autoScrollPane optional scroll pane for auto-scroll.
      * @param refresh     callback invoked after any structural model change.
      */
-    private fun buildCardPane(orientation: Orientation, refresh: () -> Unit): Pane {
+    private fun buildCardPane(orientation: Orientation, autoScrollPane: ScrollPane?, refresh: () -> Unit): Pane {
         val container: Pane = when (orientation) {
             Orientation.HORIZONTAL -> HBox(8.0)
             else -> VBox(8.0)
         }
         container.padding = Insets(8.0)
 
-        // One card per combatant.
-        for (i in tracker.entries.indices) {
-            container.children.add(buildCard(i, orientation, refresh))
+        val indicator = DropIndicator()
+        container.children.add(indicator)
+
+        fun resolveGhostNode(dragSource: Node): Node {
+            var current: Node? = dragSource
+            while (current != null && current.parent != container) {
+                current = current.parent
+            }
+            return current ?: dragSource
         }
 
-        // "+" Add button at the end of the order.
+        val ddc = DragDropContext(
+            dataFormat = "tabletopcontrol/tracker-item",
+            autoScrollPane = autoScrollPane,
+            ghostFactory = { dragSource -> resolveGhostNode(dragSource) },
+            onReorder = { fromIdx, toIdx ->
+                val plan = ReorderSupport.planDropReorder(tracker.entries.size, fromIdx, toIdx) ?: return@DragDropContext
+                tracker.move(plan.fromIndex, plan.toIndex)
+                ReorderSupport.reorderMutableList(tokenIds, plan)
+                refresh()
+            }
+        )
+
+        // One card per combatant.
+        for (i in tracker.entries.indices) {
+            container.children.add(buildCard(i, orientation, ddc, indicator, refresh))
+        }
+
+        // "+" Add button at the end of the order. It also acts as the explicit
+        // append drop target so drag-reorder can reach index == tracker.entries.size.
         val addBtn = Button("+").apply {
             tooltip = Tooltip("Add combatant")
             setOnAction {
@@ -271,6 +302,7 @@ class TrackerPlugin : DmPlugin {
                 refresh()
             }
         }
+        DragDropSupport.installDropTarget(addBtn, tracker.entries.size, ddc, indicator, orientation)
         container.children.add(addBtn)
 
         return container
@@ -280,20 +312,23 @@ class TrackerPlugin : DmPlugin {
      * Builds a single combatant card for the entry at [index].
      *
      * The card is a [VBox] with two rows:
-     * - **Name row**: `[color swatch] [Name field (grows)] [×]`
+     * - **Name row**: `[grab handle] [color swatch] [Name field (grows in vertical layout)] [image button] [preset button] [×]`
      * - **Stats row**: `AC: [field]  HP: [field]`
      *
      * The color swatch is a small filled circle whose color matches the combatant's
      * map token, making it easy to pair cards with tokens at a glance.
      *
-     * The card is both a drag source and a drop target; dropping another card
-     * onto this card reorders the two in the initiative list.
+     * The grab handle acts as the drag source, while the card itself is the drop
+     * target; dropping another card onto this card reorders the two in the
+     * initiative list.
      *
      * @param index       zero-based position in [tracker.entries].
      * @param orientation current list orientation (used for sizing hints).
+     * @param context     drag-drop context for standard behaviour.
+     * @param indicator   drop indicator instance attached to the parent pane.
      * @param refresh     callback invoked after any structural model change.
      */
-    private fun buildCard(index: Int, orientation: Orientation, refresh: () -> Unit): VBox {
+    private fun buildCard(index: Int, orientation: Orientation, context: DragDropContext, indicator: DropIndicator, refresh: () -> Unit): VBox {
         val entry = tracker.entries[index]
 
         // Name field — updates the model on every keystroke.
@@ -446,10 +481,13 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
-        val nameRow = HBox(4.0, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
-            HBox.setHgrow(nameField, Priority.ALWAYS)
+        val handle = GrabHandle()
+        val nameRow = HBox(4.0, handle, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
+            it.alignment = javafx.geometry.Pos.CENTER_LEFT
         }
-        val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField)
+        val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField).also {
+            it.alignment = javafx.geometry.Pos.CENTER_LEFT
+        }
 
         val card = VBox(4.0, nameRow, statsRow).apply {
             padding = Insets(6.0)
@@ -458,41 +496,8 @@ class TrackerPlugin : DmPlugin {
             if (orientation == Orientation.VERTICAL) maxWidth = Double.MAX_VALUE
         }
 
-        // ── Drag source ───────────────────────────────────────────────────────
-        card.setOnDragDetected { e ->
-            val db = card.startDragAndDrop(TransferMode.MOVE)
-            val content = ClipboardContent()
-            content.putString(index.toString())
-            db.setContent(content)
-            e.consume()
-        }
-
-        // ── Drag target ───────────────────────────────────────────────────────
-        card.setOnDragOver { e ->
-            if (e.gestureSource !== card && e.dragboard.hasString()) {
-                e.acceptTransferModes(TransferMode.MOVE)
-                card.style = CARD_STYLE_DRAG_OVER
-            }
-            e.consume()
-        }
-
-        card.setOnDragExited { e ->
-            card.style = cardStyle(index)
-            e.consume()
-        }
-
-        card.setOnDragDropped { e ->
-            val fromIdx = e.dragboard.getString().toIntOrNull()
-            if (fromIdx != null && fromIdx != index) {
-                tracker.move(fromIdx, index)
-                // Keep the id list in sync with the reordered entries.
-                val movedId = tokenIds.removeAt(fromIdx)
-                tokenIds.add(index, movedId)
-                refresh()
-            }
-            e.isDropCompleted = true
-            e.consume()
-        }
+        DragDropSupport.installDragSource(handle, index, context)
+        DragDropSupport.installDropTarget(card, index, context, indicator, orientation)
 
         return card
     }
@@ -510,10 +515,6 @@ class TrackerPlugin : DmPlugin {
         private const val CARD_STYLE_ACTIVE =
             "-fx-border-color: -tc-card-active-border; -fx-border-width: 2; -fx-border-radius: 4; " +
                 "-fx-background-color: -tc-card-active-bg; -fx-background-radius: 4;"
-
-        private const val CARD_STYLE_DRAG_OVER =
-            "-fx-border-color: -tc-card-dragover-border; -fx-border-radius: 4; " +
-                "-fx-background-color: -tc-card-dragover-bg; -fx-background-radius: 4;"
 
         /**
          * 64 perceptually distinct token colours generated from 16 evenly spaced hues

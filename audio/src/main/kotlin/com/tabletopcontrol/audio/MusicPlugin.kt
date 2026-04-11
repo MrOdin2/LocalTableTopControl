@@ -10,6 +10,7 @@ import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
@@ -621,10 +622,7 @@ class MusicPlugin : DmPlugin {
     }
 
     private fun reorderTracks(fromIndex: Int, toIndex: Int) {
-        if (fromIndex !in tracks.indices || toIndex !in 0..tracks.size || fromIndex == toIndex) return
-        val moved = tracks.removeAt(fromIndex)
-        val adjustedToIndex = if (fromIndex < toIndex) toIndex - 1 else toIndex
-        tracks.add(adjustedToIndex, moved)
+        if (!ReorderSupport.reorderMutableListFromDrop(tracks, fromIndex, toIndex)) return
         rebuildTrackCards()
         saveSettings()
     }
