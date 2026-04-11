@@ -217,10 +217,14 @@ class MusicPlugin : DmPlugin {
                         pathLabel.tooltip = Tooltip(file.absolutePath)
                         saveSettings()
                     } else {
-                        pathLabel.text = "${file.name} (load failed)"
-                        pathLabel.tooltip = Tooltip(
-                            "Failed to load audio file:\n${file.absolutePath}",
-                        )
+                        val activeUri = track.uri
+                        if (activeUri != null) {
+                            pathLabel.text = fileNameFromUri(activeUri)
+                            pathLabel.tooltip = Tooltip(activeUri)
+                        } else {
+                            pathLabel.text = "No file loaded"
+                            pathLabel.tooltip = Tooltip("No file loaded")
+                        }
                     }
                 }
             }
