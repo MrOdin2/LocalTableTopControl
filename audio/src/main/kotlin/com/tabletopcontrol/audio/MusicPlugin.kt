@@ -376,8 +376,19 @@ class MusicPlugin : DmPlugin {
         // the currently active player.
         val controller = MediaTrackController()
 
-        // Disable controls while the new media loads.
-        resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
+        // Preserve the currently active controller UI until the replacement track is
+        // actually ready. Reset immediately only when there is no prior player.
+        if (previousController?.hasPlayer() == true) {
+            refreshTrackBindings(
+                track = track,
+                playPauseBtn = playPauseBtn,
+                stopBtn = stopBtn,
+                progressBar = progressBar,
+                timeLabel = timeLabel,
+            )
+        } else {
+            resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
+        }
 
         val hasActivated = AtomicBoolean(false)
         controller.bindCallbacks(
