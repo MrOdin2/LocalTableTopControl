@@ -501,10 +501,6 @@ class TrackerPlugin : DmPlugin {
             "-fx-border-color: -tc-card-active-border; -fx-border-width: 2; -fx-border-radius: 4; " +
                 "-fx-background-color: -tc-card-active-bg; -fx-background-radius: 4;"
 
-        private const val CARD_STYLE_DRAG_OVER =
-            "-fx-border-color: -tc-card-dragover-border; -fx-border-radius: 4; " +
-                "-fx-background-color: -tc-card-dragover-bg; -fx-background-radius: 4;"
-
         /**
          * 64 perceptually distinct token colours generated from 16 evenly spaced hues
          * across the full colour wheel, each at four (saturation × brightness) variants:
