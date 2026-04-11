@@ -11,6 +11,9 @@ import javafx.stage.Window
     replaceWith = ReplaceWith("ColorEditorDialog"),
 )
 object ColorEditorPopover {
+    /**
+     * Opens the shared modal colour editor dialog and returns the confirmed colour, or `null` when cancelled.
+     */
     fun showDialog(
         owner: Window?,
         title: String,
