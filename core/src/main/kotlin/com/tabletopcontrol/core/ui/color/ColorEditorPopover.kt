@@ -107,7 +107,12 @@ object ColorEditorPopover {
             prefColumnCount = 4
             tooltip = Tooltip("Blue (0–255)")
         }
-        val hField = TextField(normalizedHueDegrees(draftColor).roundToInt().toString()).apply {
+        val hField = TextField(
+            normalizedHueDegrees(draftColor)
+                .coerceIn(0.0, MAX_HUE_BELOW_360)
+                .toInt()
+                .toString(),
+        ).apply {
             prefColumnCount = 4
             tooltip = Tooltip("Hue (0–359)")
         }
