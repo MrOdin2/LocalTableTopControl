@@ -308,10 +308,9 @@ class MusicPlugin : DmPlugin {
                     saveSettings()
                 }
             } else {
-                track.controller?.let { existingController ->
+                track.controller?.let {
                     refreshTrackBindings(
                         track = track,
-                        controller = existingController,
                         playPauseBtn = playPauseBtn,
                         stopBtn = stopBtn,
                         progressBar = progressBar,
@@ -353,7 +352,8 @@ class MusicPlugin : DmPlugin {
         // Disable controls while the new media loads.
         resetTrackControls(playPauseBtn, stopBtn, progressBar, timeLabel)
 
-        bindTrackCallbacks(track, controller, playPauseBtn, stopBtn, progressBar, timeLabel)
+        track.controller = controller
+        bindTrackCallbacks(track, playPauseBtn, stopBtn, progressBar, timeLabel)
         val loaded = controller.load(
             uri = uri,
             volume = masterVolume * track.volume,
@@ -361,11 +361,11 @@ class MusicPlugin : DmPlugin {
         )
         if (!loaded) {
             controller.dispose()
+            track.controller = previousController
             track.uri = previousUri
             if (previousController?.hasPlayer() == true) {
                 refreshTrackBindings(
                     track = track,
-                    controller = previousController,
                     playPauseBtn = playPauseBtn,
                     stopBtn = stopBtn,
                     progressBar = progressBar,
@@ -376,12 +376,10 @@ class MusicPlugin : DmPlugin {
             }
             return false
         }
-        track.controller = controller
         track.uri = uri
         previousController?.dispose()
         refreshTrackBindings(
             track = track,
-            controller = controller,
             playPauseBtn = playPauseBtn,
             stopBtn = stopBtn,
             progressBar = progressBar,
@@ -392,13 +390,12 @@ class MusicPlugin : DmPlugin {
 
     private fun refreshTrackBindings(
         track: TrackState,
-        controller: MediaTrackController,
         playPauseBtn: Button,
         stopBtn: Button,
         progressBar: ProgressBar,
         timeLabel: Label,
     ) {
-        bindTrackCallbacks(track, controller, playPauseBtn, stopBtn, progressBar, timeLabel)
+        bindTrackCallbacks(track, playPauseBtn, stopBtn, progressBar, timeLabel)
         bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
     }
 
@@ -446,12 +443,12 @@ class MusicPlugin : DmPlugin {
      */
     private fun bindTrackCallbacks(
         track: TrackState,
-        controller: MediaTrackController,
         playPauseBtn: Button,
         stopBtn: Button,
         progressBar: ProgressBar,
         timeLabel: Label,
     ) {
+        val controller = track.controller ?: return
         controller.bindCallbacks(
             onReady = {
                 playPauseBtn.isDisable = false
