@@ -80,6 +80,11 @@ Common JavaFX UI/color helpers that are reused across plugins live in `core` und
 - `com.tabletopcontrol.core.ui.color.ColorContrast` — readable foreground color for colored backgrounds
 - `com.tabletopcontrol.core.ui.color.ColorEditorDialog` — reusable wheel-based color editor dialog
 
+### Shared Media Lifecycle Utility
+
+Audio plugins use a shared JavaFX media lifecycle controller
+(`com.tabletopcontrol.audio.shared.MediaTrackController`) to centralize MediaPlayer load/play/stop/progress/error/dispose handling.
+
 ---
 
 ## Planned REST / Webhook Integration

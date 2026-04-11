@@ -1,5 +1,7 @@
 package com.tabletopcontrol.audio
 
+import com.tabletopcontrol.audio.shared.MediaTrackController
+import com.tabletopcontrol.audio.shared.MediaTrackStatus
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
@@ -12,7 +14,6 @@ import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
-import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
@@ -24,8 +25,6 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.TilePane
 import javafx.scene.layout.VBox
-import javafx.scene.media.Media
-import javafx.scene.media.MediaPlayer
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
 import java.io.File
@@ -185,7 +184,7 @@ class SoundboardPlugin : DmPlugin {
         var customLabel: String? = null,
         var uri: String? = null,
         var colorHex: String? = null,
-        var player: MediaPlayer? = null,
+        var controller: MediaTrackController? = null,
         var button: Button? = null,
     ) {
         fun displayLabel(index: Int): String = customLabel ?: "Slot ${index + 1}"
@@ -256,7 +255,7 @@ class SoundboardPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
-        slots.forEach { it.player?.dispose() }
+        slots.forEach { it.controller?.dispose() }
     }
 
     private fun indexOfSlot(slot: SlotState): Int? = slots.indexOf(slot).takeIf { it >= 0 }
@@ -334,7 +333,7 @@ class SoundboardPlugin : DmPlugin {
         }
         slot.button = btn
 
-        if (slot.uri != null && slot.player == null && !loadSlot(slot)) {
+        if (slot.uri != null && (slot.controller?.hasPlayer() != true) && !loadSlot(slot)) {
             slot.uri = null
             slot.customLabel = null
             btn.text = slot.displayLabel(index)
@@ -342,7 +341,7 @@ class SoundboardPlugin : DmPlugin {
             saveConfig()
         }
         val visualState = buttonVisualState(
-            isPlaying = slot.player?.status == MediaPlayer.Status.PLAYING,
+            isPlaying = slot.controller?.status() == MediaTrackStatus.PLAYING,
             label = slot.displayLabel(index),
         )
         btn.text = visualState.text
@@ -353,9 +352,9 @@ class SoundboardPlugin : DmPlugin {
         }
 
         btn.setOnAction {
-            val player = slot.player ?: return@setOnAction
-            when (player.status) {
-                MediaPlayer.Status.PLAYING -> stopSlot(slot)
+            val controller = slot.controller ?: return@setOnAction
+            when (controller.status()) {
+                MediaTrackStatus.PLAYING -> stopSlot(slot)
                 else -> playSlot(slot)
             }
         }
@@ -434,42 +433,31 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun loadSlot(slot: SlotState): Boolean {
-        slot.player?.dispose()
-        slot.player = null
-
         val uri = slot.uri ?: return false
-        val media = try {
-            Media(uri)
-        } catch (_: Exception) {
+        val controller = slot.controller ?: MediaTrackController().also { slot.controller = it }
+        controller.bindCallbacks(
+            onError = { resetButtonToIdle(slot) },
+            onEndOfMedia = {
+                controller.stop()
+                resetButtonToIdle(slot)
+            },
+        )
+        val loaded = controller.load(
+            uri = uri,
+            volume = 1.0,
+            cycleCount = 1,
+        )
+        if (!loaded) {
+            controller.dispose()
+            slot.controller = null
             return false
-        }
-
-        val player = try {
-            MediaPlayer(media)
-        } catch (_: Exception) {
-            return false
-        }
-
-        slot.player = player.apply {
-            cycleCount = 1
-
-            setOnEndOfMedia {
-                Platform.runLater {
-                    this@apply.stop()
-                    resetButtonToIdle(slot)
-                }
-            }
-
-            setOnError {
-                Platform.runLater { resetButtonToIdle(slot) }
-            }
         }
         return true
     }
 
     private fun playSlot(slot: SlotState) {
         val label = displayLabelFor(slot)
-        slot.player?.play()
+        slot.controller?.play()
         slot.button?.let {
             it.text = buttonVisualState(isPlaying = true, label = label).text
             setPlayingStyle(slot)
@@ -477,13 +465,13 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun stopSlot(slot: SlotState) {
-        slot.player?.stop()
+        slot.controller?.stop()
         resetButtonToIdle(slot)
     }
 
     private fun clearSlot(slot: SlotState) {
-        slot.player?.dispose()
-        slot.player = null
+        slot.controller?.dispose()
+        slot.controller = null
         slot.uri = null
         slot.customLabel = null
 
@@ -534,7 +522,7 @@ class SoundboardPlugin : DmPlugin {
     }
 
     private fun applyCurrentStyle(slot: SlotState) {
-        if (slot.player?.status == MediaPlayer.Status.PLAYING) {
+        if (slot.controller?.status() == MediaTrackStatus.PLAYING) {
             setPlayingStyle(slot)
         } else {
             setIdleStyle(slot)
@@ -550,17 +538,8 @@ class SoundboardPlugin : DmPlugin {
     private fun removeSlot(slot: SlotState) {
         val slotIndex = indexOfSlot(slot) ?: return
         val removed = slots.removeAt(slotIndex)
-        removed.player?.let { player ->
-            runCatching { player.stop() }
-            player.onEndOfMedia = null
-            player.onReady = null
-            player.onPlaying = null
-            player.onPaused = null
-            player.onStopped = null
-            player.onError = null
-            player.dispose()
-        }
-        removed.player = null
+        removed.controller?.dispose()
+        removed.controller = null
         removed.button = null
         renderButtons()
         saveConfig()
