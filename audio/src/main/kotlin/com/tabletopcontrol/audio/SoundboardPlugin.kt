@@ -380,7 +380,7 @@ class SoundboardPlugin : DmPlugin {
                 label = "Set Color",
                 icon = "🎨",
                 section = MenuSection.APPEARANCE,
-                onAction = { showColorPicker(slot, btn) },
+                onAction = { showColorDialog(slot, btn) },
             ),
             MenuAction(
                 id = "soundboard.remove",
@@ -518,7 +518,7 @@ class SoundboardPlugin : DmPlugin {
         btn.style = if (color == null) "" else "-fx-background-color: $color; -fx-text-fill: ${ColorContrast.textColorHexForBackgroundHex(color)};"
     }
 
-    private fun showColorPicker(slot: SlotState, btn: Button) {
+    private fun showColorDialog(slot: SlotState, btn: Button) {
         val initial = ColorHexCodec.parseOrDefault(slot.colorHex, Color.GRAY)
         val selected = ColorEditorDialog.showDialog(
             owner = btn.scene?.window,
