@@ -157,11 +157,11 @@ object DragDropSupport {
         val parentWidth = parent.width.takeIf { it > 0.0 } ?: parent.layoutBounds.width
         val parentHeight = parent.height.takeIf { it > 0.0 } ?: parent.layoutBounds.height
         if (orientation == Orientation.HORIZONTAL) {
-            val indicatorX = (sibling.boundsInParent.minX - DropIndicator.HEIGHT / 2).coerceAtLeast(0.0)
-            indicator.resizeRelocate(indicatorX, 0.0, DropIndicator.HEIGHT, parentHeight)
+            val indicatorX = (sibling.boundsInParent.minX - DropIndicator.THICKNESS / 2).coerceAtLeast(0.0)
+            indicator.resizeRelocate(indicatorX, 0.0, DropIndicator.THICKNESS, parentHeight)
         } else {
-            val indicatorY = (sibling.boundsInParent.minY - DropIndicator.HEIGHT / 2).coerceAtLeast(0.0)
-            indicator.resizeRelocate(0.0, indicatorY, parentWidth, DropIndicator.HEIGHT)
+            val indicatorY = (sibling.boundsInParent.minY - DropIndicator.THICKNESS / 2).coerceAtLeast(0.0)
+            indicator.resizeRelocate(0.0, indicatorY, parentWidth, DropIndicator.THICKNESS)
         }
         indicator.toFront()
     }
