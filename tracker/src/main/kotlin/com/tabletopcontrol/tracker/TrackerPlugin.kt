@@ -249,7 +249,7 @@ class TrackerPlugin : DmPlugin {
             dataFormat = "tabletopcontrol/tracker-item",
             autoScrollPane = autoScrollPane,
             onReorder = { fromIdx, toIdx ->
-                val plan = ReorderSupport.planDirectReorder(tracker.entries.size, fromIdx, toIdx) ?: return@DragDropContext
+                val plan = ReorderSupport.planDropReorder(tracker.entries.size, fromIdx, toIdx) ?: return@DragDropContext
                 tracker.move(plan.fromIndex, plan.toIndex)
                 ReorderSupport.reorderMutableList(tokenIds, plan)
                 refresh()
