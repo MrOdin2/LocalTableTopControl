@@ -482,7 +482,9 @@ class TrackerPlugin : DmPlugin {
 
         val handle = GrabHandle()
         val nameRow = HBox(4.0, handle, swatch, nameField, imgBtn, savePresetBtn, removeBtn).also {
-            HBox.setHgrow(nameField, Priority.ALWAYS)
+            if (orientation == Orientation.VERTICAL) {
+                HBox.setHgrow(nameField, Priority.ALWAYS)
+            }
             it.alignment = javafx.geometry.Pos.CENTER_LEFT
         }
         val statsRow = HBox(4.0, Label("AC:"), acField, Label("HP:"), hpField).also {
