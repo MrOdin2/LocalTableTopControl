@@ -39,7 +39,7 @@ This document captures duplicated/cross-plugin routines identified for extractio
 ## A. `core.ui.color`
 - `ColorHexCodec` (hex ↔ `Color`, safe parse).
 - `ColorContrast` (readable text color for background color).
-- `ColorEditorPopover` (wheel + brightness + marker + optional RGB/HSV/Hex fields + recents).
+- `ColorEditorDialog` (wheel + brightness + marker + optional RGB/HSV/Hex fields + recents).
 - **Move from:** `LightPlugin.buildColorRow`, `SoundboardPlugin.showColorPicker`, scattered color helpers.
 
 ## B. `core.media` (or `audio.shared`)
@@ -79,4 +79,3 @@ This document captures duplicated/cross-plugin routines identified for extractio
 2. Extract `core.media` wrapper for audio plugins.
 3. Add `core.persistence` path/IO helpers and migrate serializers incrementally.
 4. Extract dialog/reorder helpers as follow-up refactors.
-
