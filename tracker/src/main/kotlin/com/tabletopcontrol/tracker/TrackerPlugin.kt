@@ -311,15 +311,15 @@ class TrackerPlugin : DmPlugin {
      * Builds a single combatant card for the entry at [index].
      *
      * The card is a [VBox] with two rows:
-     * - **Name row**: `[color swatch] [Name field (grows)] [×]`
+     * - **Name row**: `[grab handle] [color swatch] [Name field (grows)] [image button] [preset button] [×]`
      * - **Stats row**: `AC: [field]  HP: [field]`
      *
      * The color swatch is a small filled circle whose color matches the combatant's
      * map token, making it easy to pair cards with tokens at a glance.
      *
-     * The card includes a grab handle that acts as the drag source, while the
-     * card itself is the drop target; dropping another card onto this card
-     * reorders the two in the initiative list.
+     * The grab handle acts as the drag source, while the card itself is the drop
+     * target; dropping another card onto this card reorders the two in the
+     * initiative list.
      *
      * @param index       zero-based position in [tracker.entries].
      * @param orientation current list orientation (used for sizing hints).
