@@ -397,10 +397,10 @@ class MusicPlugin : DmPlugin {
             },
             onError = {
                 if (!hasActivated.compareAndSet(false, true)) return@bindCallbacks
+                track.controller = previousController
+                track.uri = previousUri
                 controller.dispose()
                 if (previousController?.hasPlayer() == true) {
-                    track.controller = previousController
-                    track.uri = previousUri
                     refreshTrackBindings(
                         track = track,
                         playPauseBtn = playPauseBtn,
@@ -422,9 +422,9 @@ class MusicPlugin : DmPlugin {
             cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1,
         )
         if (!loaded) {
-            controller.dispose()
             track.controller = previousController
             track.uri = previousUri
+            controller.dispose()
             if (previousController?.hasPlayer() == true) {
                 refreshTrackBindings(
                     track = track,
