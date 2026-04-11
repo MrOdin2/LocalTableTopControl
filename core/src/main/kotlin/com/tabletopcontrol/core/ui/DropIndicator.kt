@@ -28,8 +28,10 @@ class DropIndicator : Region() {
 
     init {
         styleClass.add("tc-drop-indicator")
+        prefWidth = HEIGHT
         prefHeight = HEIGHT
         maxWidth = Double.MAX_VALUE
+        maxHeight = Double.MAX_VALUE
         style = "-fx-background-color: -tc-accent; -fx-background-radius: 2;"
         isVisible = false
         isManaged = false
