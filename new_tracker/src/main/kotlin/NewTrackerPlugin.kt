@@ -3,13 +3,21 @@ package com.tabletopcontrol.new_tracker
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
+import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
+import com.tabletopcontrol.core.ui.InputHelpers.Companion.labeledField
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
+import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
+import javafx.geometry.Insets
+import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
 import javafx.scene.control.Label
+import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
+import javafx.scene.layout.HBox
+import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.stage.Window
 
@@ -25,71 +33,181 @@ class NewTrackerPlugin : DmPlugin {
             text = "Tracker plugin is under construction"
         }
 
+        val actorList = VBox(8.0).apply {
+            isFillWidth = true
+        }
+
         val addActorButton = Button("+").apply {
+            style = "-fx-base: -tc-accent;"
             setOnAction { e ->
                 val owner = (e.source as? Button)?.scene?.window
-                addActorDialog(owner)
+                addActorDialog(owner)?.let { actor ->
+                    actorTracker.addActor(actor)
+                    refreshActorList(actorList)
+                }
             }
         }
 
-        val actorList = VBox().apply {
+        val nextButton = Button("NEXT").apply {
+            style = "-fx-base: -tc-accent;"
+            setOnAction {
+                actorTracker.next()
+                }
+            }
 
+        val toolbar = HBox(8.0, addActorButton, nextButton).apply {
+            alignment = Pos.CENTER_LEFT
         }
 
-        val root = VBox(0.0, label, addActorButton)
+        val scrollPane = ScrollPane(actorList).apply {
+            isFitToWidth = true
+            hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+            vbarPolicy = ScrollPane.ScrollBarPolicy.AS_NEEDED
+            style = "-fx-background-color: transparent;"
+        }
+
+
+
+//        val root = VBox(0.0, label, addActorButton)
+        val root = VBox(12.0, label, toolbar, scrollPane).apply {
+            padding = Insets(12.0)
+            style = "-fx-background-color: -tc-bg;"
+            VBox.setVgrow(scrollPane, Priority.ALWAYS)
+        }
+
+        refreshActorList(actorList)
         return root
     }
 
-    fun addActorDialog(owner: Window?) {
+    private fun addActorDialog(owner: Window?): Actor? {
+        val nameInput = InputHelpers.labeledTextField("Name", "Actor name")
 
-        val label = Label().apply {
-            text = "Adding Actors is under construction"
-        }
-
-        val nameInput = InputHelpers.labeledTextField("Name", "Name of the Actor").apply {
+        val hpInput = InputHelpers.labeledTextField("HP", "Hit points").apply {
             children[1].let { (it as TextField).allowOnlyNonNegativeIntegers() }
         }
 
-        val hpInput = InputHelpers.labeledTextField("HP", "Max HP of the Actor").apply {
+        val acInput = InputHelpers.labeledTextField("AC", "Armour class").apply {
             children[1].let { (it as TextField).allowOnlyNonNegativeIntegers() }
         }
 
-        val acInput = InputHelpers.labeledTextField("AC: ", "AC of the Actor").apply {
+        val initiativeInput = InputHelpers.labeledTextField("Init", "Initiative").apply {
             children[1].let { (it as TextField).allowOnlyNonNegativeIntegers() }
         }
 
-        val content = VBox(
-            label,
-            nameInput,
-            hpInput,
-            acInput,
-        ).apply {
-            spacing = 5.0
-        }
+        val content = VBox(8.0, nameInput, hpInput, acInput, initiativeInput)
 
-//        return DialogFlows.showResultDialog(
-//            owner = owner,
-//            title = "Token Image",
-//            headerText = "Select a picture and adjust scale/position",
-//            content = content,
-//            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
-//        ) { button
-//        }
-
-        val dialog = DialogFlows.createDialog<ButtonType>(
+        return DialogFlows.showResultDialog(
             owner = owner,
             title = "Add Actor",
-            headerText = "Add an actor",
+            headerText = "Create a new actor card",
             content = content,
-            buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
+            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
+        ) { button ->
+            DialogFlows.resultForButton(button) {
+                val nameField = nameInput.children[1] as TextField
+                val hpField = hpInput.children[1] as TextField
+                val acField = acInput.children[1] as TextField
+                val initiativeField = initiativeInput.children[1] as TextField
+
+                Actor(
+                    name = nameField.text.trim().ifBlank { "Actor ${actorTracker.actorList.size + 1}" },
+                    hp = hpField.text.toIntOrNull() ?: 0,
+                    ac = acField.text.toIntOrNull() ?: 0,
+                    initiative = initiativeField.text.toIntOrNull(),
+                )
+            }
+        }
+    }
+
+    private fun refreshActorList(actorList: VBox) {
+        actorList.children.setAll(
+            if (actorTracker.actorList.isEmpty()) {
+                listOf(
+                    Label("No actors yet. Use + to add one.").apply {
+                        style = "-fx-text-fill: -tc-text-muted;"
+                    },
+                )
+            } else {
+                actorTracker.actorList.map { actor -> actorCard(actor, actorList) }
+            },
         )
-
-        dialog.showAndWait()
     }
 
-    fun actorCard(): VBox{
+    private fun actorCard(actor: Actor, actorList: VBox): VBox {
+        val nameField = TextField(actor.name).apply {
+            promptText = "Name"
+            HBox.setHgrow(this, Priority.ALWAYS)
+            textProperty().addListener { _, _, newValue ->
+                actorTracker.findActor(actor.id)?.let { currentActor ->
+                    actorTracker.updateActor(currentActor.copy(name = newValue))
+                }
+            }
+        }
 
-        return VBox().apply {}
+        val hpField = integerField(actor.hp) { value ->
+            actorTracker.findActor(actor.id)?.let { currentActor ->
+                actorTracker.updateActor(currentActor.copy(hp = value ?: 0))
+            }
+        }.apply {
+            promptText = "HP"
+        }
+
+        val acField = integerField(actor.ac) { value ->
+            actorTracker.findActor(actor.id)?.let { currentActor ->
+                actorTracker.updateActor(currentActor.copy(ac = value ?: 0))
+            }
+        }.apply {
+            promptText = "AC"
+        }
+
+        val initiativeField = integerField(actor.initiative) { value ->
+            actorTracker.findActor(actor.id)?.let { currentActor ->
+                val reSorted = actorTracker.updateActor(currentActor.copy(initiative = value))
+                if (reSorted) {
+                    refreshActorList(actorList)
+                }
+            }
+        }.apply {
+            promptText = "Init"
+        }
+
+        val deleteButton = Button("Delete").apply {
+            setOnAction {
+                actorTracker.findActor(actor.id)?.let(actorTracker::removeActor)
+                refreshActorList(actorList)
+            }
+        }
+
+        val header = HBox(8.0, nameField, deleteButton).apply {
+            alignment = Pos.CENTER_LEFT
+        }
+
+        val stats = HBox(
+            8.0,
+            labeledField("HP", hpField),
+            labeledField("AC", acField),
+            labeledField("Initiative", initiativeField),
+        ).apply {
+            alignment = Pos.CENTER_LEFT
+        }
+
+        var borderStyle = "-tc-card-border"
+        if(actor == actorTracker.getCurrentActor()){
+            borderStyle = "-tc-card-active-border"
+        }
+
+        return VBox(8.0, header, stats).apply {
+            padding = Insets(12.0)
+            style = """
+                -fx-background-color: -tc-surface;
+                -fx-border-color: $borderStyle;
+                -fx-border-radius: 8;
+                -fx-background-radius: 8;
+            """.trimIndent().replace("\n", " ")
+            maxWidth = Double.MAX_VALUE
+        }
     }
+
+
 
 }

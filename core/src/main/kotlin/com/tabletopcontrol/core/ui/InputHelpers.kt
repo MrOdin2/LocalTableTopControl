@@ -34,6 +34,17 @@ class InputHelpers {
             return HBox(label, textField)
         }
 
+        fun integerField(value: Int?, onChange: (Int?) -> Unit): TextField =
+            TextField(value?.toString().orEmpty()).apply {
+                prefColumnCount = 5
+                allowOnlyNonNegativeIntegers()
+                textProperty().addListener { _, _, newValue ->
+                    onChange(newValue.toIntOrNull())
+                }
+            }
+
+        fun labeledField(labelText: String, field: TextField): VBox =
+            VBox(4.0, Label(labelText).apply { style = "-fx-text-fill: -tc-text-muted;" }, field)
     }
 
 }
