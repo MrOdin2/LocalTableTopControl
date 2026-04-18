@@ -1,8 +1,10 @@
 package com.tabletopcontrol.new_tracker.model
 
+import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
+import com.tabletopcontrol.core.TokensResetEvent
 import javafx.scene.paint.Color
 
 
@@ -68,6 +70,9 @@ class ActorTracker(
         activeActors = 0
         currentlyActive = 0
         roundCount = 0
+        EventBus.publish(TokensResetEvent())
+        EventBus.publish(ActiveTokenChangedEvent(null, null)
+        )
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
@@ -85,6 +90,13 @@ class ActorTracker(
 
         roundCount += if (currentlyActive == activeActors - 1) 1 else 0
         currentlyActive = (currentlyActive + 1) % activeActors
+
+        EventBus.publish(
+            ActiveTokenChangedEvent(
+                actorList[currentlyActive].id,
+                actorList[currentlyActive].name,
+            ),
+        )
     }
 
     fun getCurrentActor(): Actor? =
