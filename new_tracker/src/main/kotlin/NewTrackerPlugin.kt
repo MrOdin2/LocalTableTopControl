@@ -177,7 +177,6 @@ class NewTrackerPlugin : DmPlugin {
         }
 
         val deleteButton = Button("Delete").apply {
-
             setOnAction {
                 actorTracker.findActor(actor.id)?.let(actorTracker::removeActor)
                 refreshActorList(actorList)

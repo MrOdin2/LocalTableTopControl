@@ -1,5 +1,10 @@
 package com.tabletopcontrol.new_tracker.model
 
+import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenRemovedEvent
+import javafx.scene.paint.Color
+
 
 class ActorTracker(
     val actorList: MutableList<Actor> = mutableListOf(),
@@ -11,7 +16,9 @@ class ActorTracker(
     private var activeActors: Int = 0
 
     fun addActor(actor: Actor) {
+        actor.color = TOKEN_COLORS[actorList.size]
         actorList.add(actor)
+        EventBus.publish(TokenAddedEvent(actor.id, actor.name, actor.color))
         if(actor.initiative != null){
             activeActors++
             sortActorsByInitiative()
@@ -30,6 +37,7 @@ class ActorTracker(
             activeActors--
         }
         actorList.remove(actor)
+        EventBus.publish(TokenRemovedEvent(actor.id, actor.name))
         normalizeCurrentSelection()
     }
 
@@ -95,5 +103,16 @@ class ActorTracker(
         currentlyActive = currentlyActive.coerceIn(0, activeActors - 1)
     }
 
+
+    private val TOKEN_COLORS: List<Color> = run {
+        val hues = List(16) { it * 22.5 }
+        val variants = listOf(
+            Pair(1.00, 0.90),   // vivid
+            Pair(0.55, 1.00),   // light
+            Pair(1.00, 0.55),   // dark
+            Pair(0.45, 0.80),   // muted
+        )
+        List(64) { i -> Color.hsb(hues[i % 16], variants[i / 16].first, variants[i / 16].second) }
+    }
 }
 
