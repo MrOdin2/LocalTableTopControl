@@ -53,6 +53,7 @@ class ActorTracker(
         actorList.clear()
         activeActors = 0
         currentlyActive = 0
+        roundCount = 0
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
@@ -62,9 +63,9 @@ class ActorTracker(
     }
 
     fun next(){
-        println("currentlyActive: $currentlyActive of $activeActors")
         if (activeActors == 0) {
             currentlyActive = 0
+            roundCount = 0
             return
         }
 

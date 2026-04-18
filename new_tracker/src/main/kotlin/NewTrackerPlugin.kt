@@ -33,6 +33,8 @@ class NewTrackerPlugin : DmPlugin {
             text = "Tracker plugin is under construction"
         }
 
+        val roundLabel = Label()
+
         val actorList = VBox(8.0).apply {
             isFillWidth = true
         }
@@ -43,7 +45,7 @@ class NewTrackerPlugin : DmPlugin {
                 val owner = (e.source as? Button)?.scene?.window
                 addActorDialog(owner)?.let { actor ->
                     actorTracker.addActor(actor)
-                    refreshActorList(actorList)
+                    refreshTrackerView(actorList, roundLabel)
                 }
             }
         }
@@ -52,11 +54,11 @@ class NewTrackerPlugin : DmPlugin {
             style = "-fx-base: -tc-accent;"
             setOnAction {
                 actorTracker.next()
-                refreshActorList(actorList)
+                refreshTrackerView(actorList, roundLabel)
                 }
             }
 
-        val toolbar = HBox(8.0, addActorButton, nextButton).apply {
+        val toolbar = HBox(8.0, addActorButton, nextButton, roundLabel).apply {
             alignment = Pos.CENTER_LEFT
         }
 
@@ -76,7 +78,7 @@ class NewTrackerPlugin : DmPlugin {
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
         }
 
-        refreshActorList(actorList)
+        refreshTrackerView(actorList, roundLabel)
         return root
     }
 
@@ -132,6 +134,11 @@ class NewTrackerPlugin : DmPlugin {
                 actorTracker.actorList.map { actor -> actorCard(actor, actorList) }
             },
         )
+    }
+
+    private fun refreshTrackerView(actorList: VBox, roundLabel: Label) {
+        roundLabel.text = "Round: ${actorTracker.roundCount}"
+        refreshActorList(actorList)
     }
 
     private fun actorCard(actor: Actor, actorList: VBox): VBox {
