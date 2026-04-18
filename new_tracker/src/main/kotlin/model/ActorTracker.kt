@@ -3,8 +3,10 @@ package com.tabletopcontrol.new_tracker.model
 
 class ActorTracker(
     val actorList: MutableList<Actor> = mutableListOf(),
-    var currentlyActive: Int = 0
 ){
+
+    var currentlyActive: Int = 0
+    var roundCount: Int = 0
 
     private var activeActors: Int = 0
 
@@ -14,6 +16,7 @@ class ActorTracker(
             activeActors++
             sortActorsByInitiative()
         }
+        normalizeCurrentSelection()
     }
 
     fun removeActor(actor: Actor) {
@@ -21,6 +24,7 @@ class ActorTracker(
             activeActors--
         }
         actorList.remove(actor)
+        normalizeCurrentSelection()
     }
 
     fun updateActor(updatedActor: Actor): Boolean {
@@ -37,9 +41,11 @@ class ActorTracker(
                 }
 
                 sortActorsByInitiative()
+                normalizeCurrentSelection()
                 return true
             }
         }
+        normalizeCurrentSelection()
         return false
     }
 
@@ -57,10 +63,30 @@ class ActorTracker(
 
     fun next(){
         println("currentlyActive: $currentlyActive of $activeActors")
-        currentlyActive = (currentlyActive + 1) % (activeActors + 1)
+        if (activeActors == 0) {
+            currentlyActive = 0
+            return
+        }
+
+        roundCount += if (currentlyActive == activeActors - 1) 1 else 0
+        currentlyActive = (currentlyActive + 1) % activeActors
     }
 
-    fun getCurrentActor(): Actor = actorList[currentlyActive]
+    fun getCurrentActor(): Actor? =
+        if (activeActors == 0 || currentlyActive >= actorList.size) {
+            null
+        } else {
+            actorList[currentlyActive]
+        }
+
+    private fun normalizeCurrentSelection() {
+        if (activeActors == 0) {
+            currentlyActive = 0
+            return
+        }
+
+        currentlyActive = currentlyActive.coerceIn(0, activeActors - 1)
+    }
 
 }
 

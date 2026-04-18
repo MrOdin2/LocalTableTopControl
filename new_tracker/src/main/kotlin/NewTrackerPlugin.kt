@@ -52,6 +52,7 @@ class NewTrackerPlugin : DmPlugin {
             style = "-fx-base: -tc-accent;"
             setOnAction {
                 actorTracker.next()
+                refreshActorList(actorList)
                 }
             }
 
@@ -191,10 +192,8 @@ class NewTrackerPlugin : DmPlugin {
             alignment = Pos.CENTER_LEFT
         }
 
-        var borderStyle = "-tc-card-border"
-        if(actor == actorTracker.getCurrentActor()){
-            borderStyle = "-tc-card-active-border"
-        }
+        val borderStyle =
+        if (actor.id == actorTracker.getCurrentActor()?.id) "-tc-card-active-border" else "-tc-card-border"
 
         return VBox(8.0, header, stats).apply {
             padding = Insets(12.0)
@@ -207,7 +206,5 @@ class NewTrackerPlugin : DmPlugin {
             maxWidth = Double.MAX_VALUE
         }
     }
-
-
 
 }
