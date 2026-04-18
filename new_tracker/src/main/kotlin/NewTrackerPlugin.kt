@@ -122,6 +122,10 @@ class NewTrackerPlugin : DmPlugin {
         }
     }
 
+    fun actorImageDialog(actorid: String, owner: Window?) {
+
+    }
+
     private fun refreshActorList(actorList: VBox) {
         actorList.children.setAll(
             if (actorTracker.actorList.isEmpty()) {
@@ -203,6 +207,14 @@ class NewTrackerPlugin : DmPlugin {
             }
         }
 
+        val pictureButton = Button("Pic").apply {
+            setOnAction {}
+        }
+
+        val saveButton = Button("SAVE").apply {
+            setOnAction {}
+        }
+
         val header = HBox(8.0, swatch, nameField, deleteButton, duplicateButton).apply {
             alignment = Pos.CENTER_LEFT
         }
@@ -212,6 +224,8 @@ class NewTrackerPlugin : DmPlugin {
             labeledField("HP", hpField),
             labeledField("AC", acField),
             labeledField("Initiative", initiativeField),
+            pictureButton,
+            saveButton,
         ).apply {
             alignment = Pos.CENTER_LEFT
         }
