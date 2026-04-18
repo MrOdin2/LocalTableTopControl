@@ -10,6 +10,7 @@ import javafx.scene.control.ButtonType
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
 import javafx.scene.control.TextField
+import javafx.scene.control.ToggleButton
 import javafx.scene.control.Tooltip
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
@@ -55,29 +56,7 @@ class ImageHandling {
         return button
     }
 
-    internal fun normalizeSupportedActorImageUri(uri: String): String? {
-        return try {
-            val trimmed = uri.trim()
-            if (trimmed.isEmpty()) {
-                return null
-            }
 
-            if (WINDOWS_ABSOLUTE_PATH.matches(trimmed) || trimmed.startsWith("\\\\")) {
-                return File(trimmed).canonicalFile.toURI().toString()
-            }
-
-            val parsed = URI(trimmed)
-            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
-
-            when {
-                scheme == null || scheme.isEmpty() -> File(trimmed).canonicalFile.toURI().toString()
-                scheme == "file" -> parsed.normalize().toString()
-                else -> null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
 
     internal fun pictureButtonText(settings: ActorImageSettings): String =
         if (settings.uri == null) "Pic" else "Pic*"
@@ -112,28 +91,31 @@ class ImageHandling {
             style = "-fx-fill: -tc-surface; -fx-stroke: -tc-border;"
         }
 
+        val previewImagePane = StackPane(imageView).apply {
+            minWidth = PREVIEW_SIZE
+            prefWidth = PREVIEW_SIZE
+            maxWidth = PREVIEW_SIZE
+            minHeight = PREVIEW_SIZE
+            prefHeight = PREVIEW_SIZE
+            maxHeight = PREVIEW_SIZE
+            clip = Circle(PREVIEW_CENTER, PREVIEW_CENTER, PREVIEW_RADIUS)
+        }
+
         val tokenCircle = Circle(PREVIEW_CENTER, PREVIEW_CENTER, PREVIEW_RADIUS).apply {
             style = "-fx-fill: transparent; -fx-stroke: -tc-border; -fx-stroke-width: 1.5;"
             isMouseTransparent = true
         }
 
-        val outsideOverlay = Shape.subtract(
-            Rectangle(0.0, 0.0, PREVIEW_SIZE, PREVIEW_SIZE),
-            Circle(PREVIEW_CENTER, PREVIEW_CENTER, PREVIEW_RADIUS),
-        ).apply {
-            style = "-fx-fill: -tc-bg;"
-            isMouseTransparent = true
-        }
-
         val previewPane = StackPane(
             previewFrame,
-            imageView,
-            outsideOverlay,
+            previewImagePane,
             tokenCircle,
         ).apply {
             minWidth = PREVIEW_SIZE
+            prefWidth = PREVIEW_SIZE
             maxWidth = PREVIEW_SIZE
             minHeight = PREVIEW_SIZE
+            prefHeight = PREVIEW_SIZE
             maxHeight = PREVIEW_SIZE
         }
 
@@ -147,8 +129,8 @@ class ImageHandling {
         loadImage(working.uri, imageView)
         applyTransforms(working)
 
-        val scaleXSlider = Slider(0.3, 3.0, working.scaleX).apply { isShowTickLabels = true }
-        val scaleYSlider = Slider(0.3, 3.0, working.scaleY).apply { isShowTickLabels = true }
+        val scaleXSlider = Slider(0.1, 10.0, working.scaleX).apply { isShowTickLabels = true }
+        val scaleYSlider = Slider(0.1, 10.0, working.scaleY).apply { isShowTickLabels = true }
         val offsetXSlider = Slider(-80.0, 80.0, working.offsetX).apply { isShowTickLabels = true }
         val offsetYSlider = Slider(-80.0, 80.0, working.offsetY).apply { isShowTickLabels = true }
 
@@ -156,19 +138,59 @@ class ImageHandling {
         val scaleYField = TextField().apply { prefColumnCount = 6 }
         val offsetXField = TextField().apply { prefColumnCount = 6 }
         val offsetYField = TextField().apply { prefColumnCount = 6 }
+        val lockScaleRatioButton = ToggleButton("Lock scale ratio").apply {
+            tooltip = Tooltip("Keep X and Y scaling linked using the current ratio.")
+        }
 
         bindSliderToField(scaleXSlider, scaleXField, decimals = 2)
         bindSliderToField(scaleYSlider, scaleYField, decimals = 2)
         bindSliderToField(offsetXSlider, offsetXField, decimals = 1)
         bindSliderToField(offsetYSlider, offsetYField, decimals = 1)
 
-        scaleXSlider.valueProperty().addListener { _, _, value ->
-            working = working.copy(scaleX = value.toDouble())
+        var syncScaleSliders = false
+        var lockedScaleRatio = scaleRatio(scaleXSlider.value, scaleYSlider.value)
+
+        fun applyScaleSliders() {
+            working = working.copy(
+                scaleX = scaleXSlider.value,
+                scaleY = scaleYSlider.value,
+            )
             applyTransforms(working)
         }
+
+        fun syncLockedScale(source: Slider, value: Double) {
+            if (syncScaleSliders) {
+                return
+            }
+            if (!lockScaleRatioButton.isSelected) {
+                applyScaleSliders()
+                return
+            }
+
+            try {
+                if (source === scaleXSlider) {
+                    val syncedScaleY = (value * lockedScaleRatio).coerceIn(scaleYSlider.min, scaleYSlider.max)
+                    if (abs(syncedScaleY - scaleYSlider.value) > SLIDER_VALUE_EPSILON) {
+                        scaleYSlider.value = syncedScaleY
+                    }
+                } else {
+                    val ratio = if (abs(lockedScaleRatio) <= SLIDER_VALUE_EPSILON) 1.0 else lockedScaleRatio
+                    val syncedScaleX = (value / ratio).coerceIn(scaleXSlider.min, scaleXSlider.max)
+                    if (abs(syncedScaleX - scaleXSlider.value) > SLIDER_VALUE_EPSILON) {
+                        scaleXSlider.value = syncedScaleX
+                    }
+                }
+                applyScaleSliders()
+            } finally {
+                syncScaleSliders = false
+            }
+        }
+
+        scaleXSlider.valueProperty().addListener { _, _, value ->
+            syncLockedScale(scaleXSlider, value.toDouble())
+        }
         scaleYSlider.valueProperty().addListener { _, _, value ->
-            working = working.copy(scaleY = value.toDouble())
-            applyTransforms(working)
+            syncLockedScale(scaleYSlider, value.toDouble())
         }
         offsetXSlider.valueProperty().addListener { _, _, value ->
             working = working.copy(offsetX = value.toDouble())
@@ -177,6 +199,11 @@ class ImageHandling {
         offsetYSlider.valueProperty().addListener { _, _, value ->
             working = working.copy(offsetY = value.toDouble())
             applyTransforms(working)
+        }
+        lockScaleRatioButton.selectedProperty().addListener { _, _, selected ->
+            if (selected) {
+                lockedScaleRatio = scaleRatio(scaleXSlider.value, scaleYSlider.value)
+            }
         }
 
         val clearButton = Button("Clear Picture").apply {
@@ -221,6 +248,7 @@ class ImageHandling {
             10.0,
             previewPane,
             HBox(8.0, chooseButton, clearButton),
+            lockScaleRatioButton,
             Label("Scale X"),
             HBox(8.0, scaleXSlider, scaleXField).apply { HBox.setHgrow(scaleXSlider, Priority.ALWAYS) },
             Label("Scale Y"),
@@ -349,6 +377,33 @@ class ImageHandling {
             }
         }.showAndWait()
     }
+
+    private fun normalizeSupportedActorImageUri(uri: String): String? {
+        return try {
+            val trimmed = uri.trim()
+            if (trimmed.isEmpty()) {
+                return null
+            }
+
+            if (WINDOWS_ABSOLUTE_PATH.matches(trimmed) || trimmed.startsWith("\\\\")) {
+                return File(trimmed).canonicalFile.toURI().toString()
+            }
+
+            val parsed = URI(trimmed)
+            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
+
+            when {
+                scheme.isNullOrEmpty() -> File(trimmed).canonicalFile.toURI().toString()
+                scheme == "file" -> parsed.normalize().toString()
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun scaleRatio(scaleX: Double, scaleY: Double): Double =
+        if (abs(scaleX) <= SLIDER_VALUE_EPSILON) 1.0 else scaleY / scaleX
 
     private companion object {
         val WINDOWS_ABSOLUTE_PATH = Regex("^[a-zA-Z]:[\\\\/].*")
