@@ -3,6 +3,7 @@ package com.tabletopcontrol.new_tracker.model
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import javafx.scene.paint.Color
@@ -21,6 +22,9 @@ class ActorTracker(
         actor.color = TOKEN_COLORS[actorList.size]
         actorList.add(actor)
         EventBus.publish(TokenAddedEvent(actor.id, actor.name, actor.color))
+        if (actor.imageSettings.uri != null) {
+            publishImageEvent(actor)
+        }
         if(actor.initiative != null){
             activeActors++
             sortActorsByInitiative()
@@ -47,7 +51,9 @@ class ActorTracker(
         val index = actorList.indexOfFirst { it.id == updatedActor.id }
         if (index != -1) {
             val previousActor = actorList[index]
-
+            if (previousActor.imageSettings != updatedActor.imageSettings) {
+                publishImageEvent(updatedActor)
+            }
             actorList[index] = updatedActor
             if (previousActor.initiative != updatedActor.initiative) {
                 if(previousActor.initiative != null && updatedActor.initiative == null) {
@@ -115,6 +121,19 @@ class ActorTracker(
         currentlyActive = currentlyActive.coerceIn(0, activeActors - 1)
     }
 
+    private fun publishImageEvent(actor: Actor) {
+        val settings = actor.imageSettings
+        EventBus.publish(
+            TokenImageChangedEvent(
+                id = actor.id,
+                imageUri = settings.uri,
+                imageScaleX = settings.scaleX,
+                imageScaleY = settings.scaleY,
+                imageOffsetX = settings.offsetX,
+                imageOffsetY = settings.offsetY,
+            ),
+        )
+    }
 
     private val TOKEN_COLORS: List<Color> = run {
         val hues = List(16) { it * 22.5 }

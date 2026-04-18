@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.labeledField
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
+import com.tabletopcontrol.new_tracker.ImageHandling.ImageHandling
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import javafx.geometry.Insets
@@ -28,7 +29,8 @@ class NewTrackerPlugin : DmPlugin {
 
     override val displayName: String = "NEWTracker"
 
-    val actorTracker = ActorTracker();
+    val actorTracker = ActorTracker()
+    private val imageHandling = ImageHandling()
 
     override fun createView(): Node {
 
@@ -207,9 +209,11 @@ class NewTrackerPlugin : DmPlugin {
             }
         }
 
-        val pictureButton = Button("Pic").apply {
-            setOnAction {}
-        }
+        val pictureButton = imageHandling.createPictureButton(
+            actorProvider = { actorTracker.findActor(actor.id) },
+            onActorUpdated = { updatedActor -> actorTracker.updateActor(updatedActor) },
+            onRefresh = { refreshActorList(actorList) },
+        )
 
         val saveButton = Button("SAVE").apply {
             setOnAction {}
