@@ -69,9 +69,6 @@ class NewTrackerPlugin : DmPlugin {
             style = "-fx-background-color: transparent;"
         }
 
-
-
-//        val root = VBox(0.0, label, addActorButton)
         val root = VBox(12.0, label, toolbar, scrollPane).apply {
             padding = Insets(12.0)
             style = "-fx-background-color: -tc-bg;"
@@ -180,13 +177,22 @@ class NewTrackerPlugin : DmPlugin {
         }
 
         val deleteButton = Button("Delete").apply {
+
             setOnAction {
                 actorTracker.findActor(actor.id)?.let(actorTracker::removeActor)
                 refreshActorList(actorList)
             }
         }
 
-        val header = HBox(8.0, nameField, deleteButton).apply {
+        val duplicateButton = Button("Dup").apply {
+            setOnAction {
+                actorTracker.findActor(actor.id)?.let(actorTracker::duplicateActor)?.let {
+                    refreshActorList(actorList)
+                }
+            }
+        }
+
+        val header = HBox(8.0, nameField, deleteButton, duplicateButton).apply {
             alignment = Pos.CENTER_LEFT
         }
 

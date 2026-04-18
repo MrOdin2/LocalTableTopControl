@@ -19,6 +19,12 @@ class ActorTracker(
         normalizeCurrentSelection()
     }
 
+    fun duplicateActor(actor: Actor): Actor {
+        val newActor = actor.duplicateActor()
+        addActor(newActor)
+        return newActor
+    }
+
     fun removeActor(actor: Actor) {
         if(actor.initiative != null){
             activeActors--
