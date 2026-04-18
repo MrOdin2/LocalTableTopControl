@@ -12,7 +12,7 @@ data class Actor(
     var color: Color = Color.GRAY,
     val imageSettings: ActorImageSettings = ActorImageSettings(),
 ){
-    fun duplicateActor(): Actor = Actor(UUID.randomUUID().toString(), name, hp, ac, initiative)
+    fun duplicateActor(): Actor = Actor(UUID.randomUUID().toString(), name, hp, ac, initiative, imageSettings = imageSettings)
 }
 
 data class ActorImageSettings(
