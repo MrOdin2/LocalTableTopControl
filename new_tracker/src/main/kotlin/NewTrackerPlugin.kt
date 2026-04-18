@@ -4,12 +4,13 @@ import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
-import com.tabletopcontrol.core.ui.InputHelpers.Companion.labeledField
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import com.tabletopcontrol.new_tracker.ImageHandling.ImageHandling
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
+import com.tabletopcontrol.new_tracker.preset.ActorPresetService
+import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
@@ -31,6 +32,8 @@ class NewTrackerPlugin : DmPlugin {
 
     val actorTracker = ActorTracker()
     private val imageHandling = ImageHandling()
+    private val presetService = ActorPresetService(actorTracker)
+    private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
 
     override fun createView(): Node {
 
@@ -63,7 +66,16 @@ class NewTrackerPlugin : DmPlugin {
                 }
             }
 
-        val toolbar = HBox(8.0, addActorButton, nextButton, roundLabel).apply {
+        val presetsButton = Button("Presets...").apply {
+            setOnAction { event ->
+                val owner = (event.source as? Button)?.scene?.window
+                presetLibraryDialog.show(owner) {
+                    refreshTrackerView(actorList, roundLabel)
+                }
+            }
+        }
+
+        val toolbar = HBox(8.0, addActorButton, nextButton, presetsButton, roundLabel).apply {
             alignment = Pos.CENTER_LEFT
         }
 
@@ -122,10 +134,6 @@ class NewTrackerPlugin : DmPlugin {
                 )
             }
         }
-    }
-
-    fun actorImageDialog(actorid: String, owner: Window?) {
-
     }
 
     private fun refreshActorList(actorList: VBox) {
@@ -216,7 +224,10 @@ class NewTrackerPlugin : DmPlugin {
         )
 
         val saveButton = Button("SAVE").apply {
-            setOnAction {}
+            tooltip = Tooltip("Save this actor as a preset")
+            setOnAction {
+                actorTracker.findActor(actor.id)?.let(presetService::saveActor)
+            }
         }
 
         val header = HBox(8.0, swatch, nameField, deleteButton, duplicateButton).apply {
@@ -225,9 +236,9 @@ class NewTrackerPlugin : DmPlugin {
 
         val stats = HBox(
             8.0,
-            labeledField("HP", hpField),
-            labeledField("AC", acField),
-            labeledField("Initiative", initiativeField),
+            InputHelpers.labeledField("HP", hpField),
+            InputHelpers.labeledField("AC", acField),
+            InputHelpers.labeledField("Initiative", initiativeField),
             pictureButton,
             saveButton,
         ).apply {
