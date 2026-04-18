@@ -5,6 +5,7 @@ import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.labeledField
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
@@ -16,8 +17,10 @@ import javafx.scene.control.ButtonType
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
+import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
+import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.stage.Window
 
@@ -149,6 +152,15 @@ class NewTrackerPlugin : DmPlugin {
             }
         }
 
+        val swatchColor = actor.color
+        val swatch = Region().apply {
+            minWidth = 14.0; maxWidth = 14.0
+            minHeight = 14.0; maxHeight = 14.0
+            val hex = swatchColor.let { ColorHexCodec.colorToHex(it) }
+            style = "-fx-background-color: $hex; -fx-background-radius: 7;"
+            Tooltip.install(this, Tooltip("Map token colour"))
+        }
+
         val hpField = integerField(actor.hp) { value ->
             actorTracker.findActor(actor.id)?.let { currentActor ->
                 actorTracker.updateActor(currentActor.copy(hp = value ?: 0))
@@ -191,7 +203,7 @@ class NewTrackerPlugin : DmPlugin {
             }
         }
 
-        val header = HBox(8.0, nameField, deleteButton, duplicateButton).apply {
+        val header = HBox(8.0, swatch, nameField, deleteButton, duplicateButton).apply {
             alignment = Pos.CENTER_LEFT
         }
 
