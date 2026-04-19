@@ -5,19 +5,18 @@ import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
-import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import com.tabletopcontrol.new_tracker.ImageHandling.ImageHandling
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
 import com.tabletopcontrol.new_tracker.preset.ActorPresetService
 import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
+import com.tabletopcontrol.new_tracker.ui.AddActorDialog
 import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Button
-import javafx.scene.control.ButtonType
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.TextField
@@ -35,6 +34,7 @@ class NewTrackerPlugin : DmPlugin {
     val actorTracker = ActorTracker()
     private val imageHandling = ImageHandling()
     private val presetService = ActorPresetService(actorTracker)
+    private val addActorDialog = AddActorDialog(actorTracker)
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
     private val initiativeTieDialog = InitiativeTieDialog()
 
@@ -54,7 +54,7 @@ class NewTrackerPlugin : DmPlugin {
             style = "-fx-base: -tc-accent;"
             setOnAction { e ->
                 val owner = (e.source as? Button)?.scene?.window
-                addActorDialog(owner)?.let { actor ->
+                addActorDialog.show(owner)?.let { actor ->
                     actorTracker.addActor(actor, initiativeTieResolver(owner))
                     refreshTrackerView(actorList, roundLabel)
                 }
@@ -99,45 +99,7 @@ class NewTrackerPlugin : DmPlugin {
         return root
     }
 
-    private fun addActorDialog(owner: Window?): Actor? {
-        val nameInput = InputHelpers.labeledTextField("Name", "Actor name")
 
-        val hpInput = InputHelpers.labeledTextField("HP", "Hit points").apply {
-            children[1].let { (it as TextField).allowOnlyNonNegativeIntegers() }
-        }
-
-        val acInput = InputHelpers.labeledTextField("AC", "Armour class").apply {
-            children[1].let { (it as TextField).allowOnlyNonNegativeIntegers() }
-        }
-
-        val initiativeInput = InputHelpers.labeledTextField("Init", "Initiative").apply {
-            children[1].let { (it as TextField).allowOnlyNonNegativeIntegers() }
-        }
-
-        val content = VBox(8.0, nameInput, hpInput, acInput, initiativeInput)
-
-        return DialogFlows.showResultDialog(
-            owner = owner,
-            title = "Add Actor",
-            headerText = "Create a new actor card",
-            content = content,
-            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
-        ) { button ->
-            DialogFlows.resultForButton(button) {
-                val nameField = nameInput.children[1] as TextField
-                val hpField = hpInput.children[1] as TextField
-                val acField = acInput.children[1] as TextField
-                val initiativeField = initiativeInput.children[1] as TextField
-
-                Actor(
-                    name = nameField.text.trim().ifBlank { "Actor ${actorTracker.actorList.size + 1}" },
-                    hp = hpField.text.toIntOrNull() ?: 0,
-                    ac = acField.text.toIntOrNull() ?: 0,
-                    initiative = initiativeField.text.toIntOrNull(),
-                )
-            }
-        }
-    }
 
     private fun refreshActorList(actorList: VBox) {
         actorList.children.setAll(
