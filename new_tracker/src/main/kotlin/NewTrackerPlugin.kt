@@ -40,10 +40,6 @@ class NewTrackerPlugin : DmPlugin {
 
     override fun createView(): Node {
 
-        val label = Label().apply {
-            text = "Tracker plugin is under construction"
-        }
-
         val roundLabel = Label()
 
         val actorList = VBox(8.0).apply {
@@ -89,7 +85,7 @@ class NewTrackerPlugin : DmPlugin {
             style = "-fx-background-color: transparent;"
         }
 
-        val root = VBox(12.0, label, toolbar, scrollPane).apply {
+        val root = VBox(12.0, toolbar, scrollPane).apply {
             padding = Insets(12.0)
             style = "-fx-background-color: -tc-bg;"
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
