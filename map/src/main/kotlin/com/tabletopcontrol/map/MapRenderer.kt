@@ -174,7 +174,7 @@ class MapRenderer(private val canvas: Canvas) {
     /**
      * Monotonically increasing counter used to assign a unique initial column to each
      * new token.  Never resets on removal, so columns are never reused after a token
-     * is removed and a new one is added.
+     * is removed and a new one is added. TODO: stay as close to the center as possible instead of drifting right indefinitely.
      */
     private var nextTokenCol: Int = 0
 
@@ -716,6 +716,11 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.lineWidth = r * 0.2
                 gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
             }
+
+            //always outline the token in the token color
+            gc.stroke = token.color
+            gc.lineWidth = r * 0.05
+            gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
 
             // Optionally draw the token name centred below the circle.
             if (tokenNameFont != null && token.name.isNotBlank()) {
