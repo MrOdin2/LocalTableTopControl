@@ -9,8 +9,11 @@ import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import com.tabletopcontrol.new_tracker.ImageHandling.ImageHandling
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
+import com.tabletopcontrol.new_tracker.model.InitiativeTieDecision
+import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
 import com.tabletopcontrol.new_tracker.preset.ActorPresetService
 import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
+import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
@@ -34,6 +37,7 @@ class NewTrackerPlugin : DmPlugin {
     private val imageHandling = ImageHandling()
     private val presetService = ActorPresetService(actorTracker)
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
+    private val initiativeTieDialog = InitiativeTieDialog()
 
     override fun createView(): Node {
 
@@ -52,7 +56,7 @@ class NewTrackerPlugin : DmPlugin {
             setOnAction { e ->
                 val owner = (e.source as? Button)?.scene?.window
                 addActorDialog(owner)?.let { actor ->
-                    actorTracker.addActor(actor)
+                    actorTracker.addActor(actor, initiativeTieResolver(owner))
                     refreshTrackerView(actorList, roundLabel)
                 }
             }
@@ -191,9 +195,13 @@ class NewTrackerPlugin : DmPlugin {
             promptText = "AC"
         }
 
-        val initiativeField = integerField(actor.initiative) { value ->
+        lateinit var initiativeField: TextField
+        initiativeField = integerField(actor.initiative) { value ->
             actorTracker.findActor(actor.id)?.let { currentActor ->
-                val reSorted = actorTracker.updateActor(currentActor.copy(initiative = value))
+                val reSorted = actorTracker.updateActor(
+                    currentActor.copy(initiative = value),
+                    initiativeTieResolver(initiativeField.scene?.window),
+                )
                 if (reSorted) {
                     refreshActorList(actorList)
                 }
@@ -211,7 +219,10 @@ class NewTrackerPlugin : DmPlugin {
 
         val duplicateButton = Button("Dup").apply {
             setOnAction {
-                actorTracker.findActor(actor.id)?.let(actorTracker::duplicateActor)?.let {
+                val owner = scene?.window
+                actorTracker.findActor(actor.id)?.let { currentActor ->
+                    actorTracker.duplicateActor(currentActor, initiativeTieResolver(owner))
+                }?.let {
                     refreshActorList(actorList)
                 }
             }
@@ -260,4 +271,9 @@ class NewTrackerPlugin : DmPlugin {
         }
     }
 
+    private fun initiativeTieResolver(owner: Window?): InitiativeTieResolver =
+        { actorToPlace, existingActor ->
+            initiativeTieDialog.show(owner, actorToPlace, existingActor)
+                ?: InitiativeTieDecision.EXISTING_ACTOR_FIRST
+        }
 }

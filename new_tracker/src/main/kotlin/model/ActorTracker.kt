@@ -8,6 +8,15 @@ import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import javafx.scene.paint.Color
 
+enum class InitiativeTieDecision {
+    NEW_ACTOR_FIRST,
+    EXISTING_ACTOR_FIRST,
+}
+
+typealias InitiativeTieResolver = (newActor: Actor, existingActor: Actor) -> InitiativeTieDecision
+
+private val KEEP_EXISTING_TIE_ORDER: InitiativeTieResolver =
+    { _, _ -> InitiativeTieDecision.EXISTING_ACTOR_FIRST }
 
 class ActorTracker(
     val actorList: MutableList<Actor> = mutableListOf(),
@@ -18,7 +27,11 @@ class ActorTracker(
 
     private var activeActors: Int = 0
 
-    fun addActor(actor: Actor) {
+    fun addActor(
+        actor: Actor,
+        tieResolver: InitiativeTieResolver = KEEP_EXISTING_TIE_ORDER,
+    ) {
+        val currentActorId = getCurrentActor()?.id
         actor.color = TOKEN_COLORS[actorList.size]
         actorList.add(actor)
         EventBus.publish(TokenAddedEvent(actor.id, actor.name, actor.color))
@@ -27,33 +40,41 @@ class ActorTracker(
         }
         if(actor.initiative != null){
             activeActors++
-            sortActorsByInitiative()
+            sortActorsByInitiative(actor.id, tieResolver)
         }
-        normalizeCurrentSelection()
+        normalizeCurrentSelection(currentActorId)
     }
 
-    fun duplicateActor(actor: Actor): Actor {
+    fun duplicateActor(
+        actor: Actor,
+        tieResolver: InitiativeTieResolver = KEEP_EXISTING_TIE_ORDER,
+    ): Actor {
         val newActor = actor.duplicateActor()
-        addActor(newActor)
+        addActor(newActor, tieResolver)
         return newActor
     }
 
     fun removeActor(actor: Actor) {
+        val currentActorId = getCurrentActor()?.id?.takeUnless { it == actor.id }
         if(actor.initiative != null){
             activeActors--
         }
         actorList.remove(actor)
         EventBus.publish(TokenRemovedEvent(actor.id, actor.name))
-        normalizeCurrentSelection()
+        normalizeCurrentSelection(currentActorId)
     }
 
-    fun updateActor(updatedActor: Actor): Boolean {
+    fun updateActor(
+        updatedActor: Actor,
+        tieResolver: InitiativeTieResolver = KEEP_EXISTING_TIE_ORDER,
+    ): Boolean {
         val index = actorList.indexOfFirst { it.id == updatedActor.id }
         if (index != -1) {
             val previousActor = actorList[index]
             if (previousActor.imageSettings != updatedActor.imageSettings) {
                 publishImageEvent(updatedActor)
             }
+            val currentActorId = getCurrentActor()?.id
             actorList[index] = updatedActor
             if (previousActor.initiative != updatedActor.initiative) {
                 if(previousActor.initiative != null && updatedActor.initiative == null) {
@@ -62,8 +83,8 @@ class ActorTracker(
                     activeActors++
                 }
 
-                sortActorsByInitiative()
-                normalizeCurrentSelection()
+                sortActorsByInitiative(updatedActor.id, tieResolver)
+                normalizeCurrentSelection(currentActorId)
                 return true
             }
         }
@@ -83,8 +104,37 @@ class ActorTracker(
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
 
-    private fun sortActorsByInitiative() {
-        actorList.sortWith(compareByDescending<Actor> { it.initiative ?: Int.MIN_VALUE })
+    private fun sortActorsByInitiative(
+        actorId: String,
+        tieResolver: InitiativeTieResolver,
+    ) {
+        val currentIndex = actorList.indexOfFirst { it.id == actorId }
+        if (currentIndex == -1) {
+            return
+        }
+
+        val actor = actorList.removeAt(currentIndex)
+        val insertIndex = findInsertIndex(actor, tieResolver)
+        actorList.add(insertIndex, actor)
+    }
+
+    private fun findInsertIndex(
+        actor: Actor,
+        tieResolver: InitiativeTieResolver,
+    ): Int {
+        val initiative = actor.initiative ?: return actorList.size
+
+        actorList.forEachIndexed { index, other ->
+            val otherInitiative = other.initiative
+            when {
+                otherInitiative == null -> return index
+                otherInitiative > initiative -> Unit
+                otherInitiative < initiative -> return index
+                tieResolver(actor, other) == InitiativeTieDecision.NEW_ACTOR_FIRST -> return index
+            }
+        }
+
+        return actorList.size
     }
 
     fun next(){
@@ -112,10 +162,18 @@ class ActorTracker(
             actorList[currentlyActive]
         }
 
-    private fun normalizeCurrentSelection() {
+    private fun normalizeCurrentSelection(preferredActorId: String? = null) {
         if (activeActors == 0) {
             currentlyActive = 0
             return
+        }
+
+        if (preferredActorId != null) {
+            val preferredIndex = actorList.indexOfFirst { it.id == preferredActorId }
+            if (preferredIndex in 0 until activeActors) {
+                currentlyActive = preferredIndex
+                return
+            }
         }
 
         currentlyActive = currentlyActive.coerceIn(0, activeActors - 1)
