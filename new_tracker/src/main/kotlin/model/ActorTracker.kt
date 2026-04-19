@@ -8,15 +8,14 @@ import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import javafx.scene.paint.Color
 
-enum class InitiativeTieDecision {
-    NEW_ACTOR_FIRST,
-    EXISTING_ACTOR_FIRST,
-}
-
-typealias InitiativeTieResolver = (newActor: Actor, existingActor: Actor) -> InitiativeTieDecision
+typealias InitiativeTieResolver = (
+    actorsAtInitiative: List<Actor>,
+    initiative: Int,
+    movedActorId: String,
+) -> List<Actor>?
 
 private val KEEP_EXISTING_TIE_ORDER: InitiativeTieResolver =
-    { _, _ -> InitiativeTieDecision.EXISTING_ACTOR_FIRST }
+    { actorsAtInitiative, _, _ -> actorsAtInitiative }
 
 class ActorTracker(
     val actorList: MutableList<Actor> = mutableListOf(),
@@ -114,27 +113,53 @@ class ActorTracker(
         }
 
         val actor = actorList.removeAt(currentIndex)
-        val insertIndex = findInsertIndex(actor, tieResolver)
-        actorList.add(insertIndex, actor)
-    }
-
-    private fun findInsertIndex(
-        actor: Actor,
-        tieResolver: InitiativeTieResolver,
-    ): Int {
-        val initiative = actor.initiative ?: return actorList.size
-
-        actorList.forEachIndexed { index, other ->
-            val otherInitiative = other.initiative
-            when {
-                otherInitiative == null -> return index
-                otherInitiative > initiative -> Unit
-                otherInitiative < initiative -> return index
-                tieResolver(actor, other) == InitiativeTieDecision.NEW_ACTOR_FIRST -> return index
-            }
+        val initiative = actor.initiative ?: run {
+            actorList.add(actor)
+            return
         }
 
-        return actorList.size
+        val insertIndex = actorList.indexOfFirst { other ->
+            val otherInitiative = other.initiative
+            otherInitiative == null || otherInitiative <= initiative
+        }.let { index ->
+            if (index == -1) actorList.size else index
+        }
+
+        val tieCount = actorList.drop(insertIndex).takeWhile { it.initiative == initiative }.size
+        if (tieCount == 0) {
+            actorList.add(insertIndex, actor)
+            return
+        }
+
+        val tiedActors = actorList.subList(insertIndex, insertIndex + tieCount).toList()
+        val defaultOrder = tiedActors + actor
+        val resolvedOrder = resolveTieOrder(defaultOrder, initiative, actor.id, tieResolver)
+
+        actorList.subList(insertIndex, insertIndex + tieCount).clear()
+        actorList.addAll(insertIndex, resolvedOrder)
+    }
+
+    private fun resolveTieOrder(
+        defaultOrder: List<Actor>,
+        initiative: Int,
+        movedActorId: String,
+        tieResolver: InitiativeTieResolver,
+    ): List<Actor> {
+        val resolvedOrder = tieResolver(defaultOrder, initiative, movedActorId) ?: return defaultOrder
+        val expectedIds = defaultOrder.map(Actor::id)
+        val resolvedIds = resolvedOrder.map(Actor::id)
+
+        if (resolvedOrder.size != defaultOrder.size) {
+            return defaultOrder
+        }
+        if (resolvedIds.toSet().size != expectedIds.size) {
+            return defaultOrder
+        }
+        if (resolvedIds.toSet() != expectedIds.toSet()) {
+            return defaultOrder
+        }
+
+        return resolvedOrder
     }
 
     fun next(){
