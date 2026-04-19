@@ -171,13 +171,6 @@ class MapRenderer(private val canvas: Canvas) {
     /** Stable ID of the currently active combatant's token, or `null` when none is active. */
     private var activeTokenId: String? = null
 
-    /**
-     * Monotonically increasing counter used to assign a unique initial column to each
-     * new token.  Never resets on removal, so columns are never reused after a token
-     * is removed and a new one is added. TODO: stay as close to the center as possible instead of drifting right indefinitely.
-     */
-    private var nextTokenCol: Int = 0
-
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
 
@@ -254,7 +247,18 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             // Place each new token at the next unused column at row 0.
-            tokens.add(Token(event.id, event.name, nextTokenCol++, 0, event.color))
+            val occupiedCols = tokens
+                .asSequence()
+                .filter { it.row == 0 }
+                .map { it.col }
+                .toHashSet()
+
+            var nextTokenCol = 0
+            while (nextTokenCol in occupiedCols) {
+                nextTokenCol++
+            }
+
+            tokens.add(Token(event.id, event.name, nextTokenCol, 0, event.color))
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
@@ -282,7 +286,6 @@ class MapRenderer(private val canvas: Canvas) {
             tokens.clear()
             imageCache.clear()
             activeTokenId = null
-            nextTokenCol = 0
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenImageChangedEvent> { event ->
