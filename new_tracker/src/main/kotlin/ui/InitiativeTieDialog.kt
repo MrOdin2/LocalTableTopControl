@@ -11,6 +11,7 @@ import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.ButtonType
+import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.layout.HBox
@@ -32,11 +33,18 @@ class InitiativeTieDialog {
         }
 
         val orderedActors = actorsAtInitiative.toMutableList()
-        val listBox = VBox(6.0)
+        val listBox = VBox(6.0).apply {
+            isFillWidth = true
+            prefWidth = DIALOG_CONTENT_WIDTH
+            minWidth = DIALOG_CONTENT_WIDTH
+        }
         val listScrollPane = ScrollPane(listBox).apply {
             isFitToWidth = true
-            prefHeight = (orderedActors.size * 48.0).coerceAtMost(300.0)
+            prefViewportWidth = DIALOG_CONTENT_WIDTH
+            prefViewportHeight = (orderedActors.size * 72.0).coerceIn(260.0, 420.0)
             hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
+            prefWidth = DIALOG_CONTENT_WIDTH
+            maxWidth = DIALOG_CONTENT_WIDTH
         }
         val indicator = DropIndicator()
 
@@ -65,11 +73,13 @@ class InitiativeTieDialog {
             val rows = orderedActors.mapIndexed { index, actor ->
                 val handle = GrabHandle()
                 val nameLabel = Label(actor.name).apply {
+                    isWrapText = true
+                    minWidth = 0.0
                     maxWidth = Double.MAX_VALUE
                     HBox.setHgrow(this, Priority.ALWAYS)
                 }
                 val row = HBox(8.0, handle, nameLabel).apply {
-                    alignment = Pos.CENTER_LEFT
+                    alignment = Pos.TOP_LEFT
                     maxWidth = Double.MAX_VALUE
                     padding = Insets(10.0, 12.0, 10.0, 12.0)
                     style = """
@@ -109,16 +119,35 @@ class InitiativeTieDialog {
             listScrollPane,
         ).apply {
             padding = Insets(4.0, 0.0, 0.0, 0.0)
+            prefWidth = DIALOG_CONTENT_WIDTH
+            maxWidth = DIALOG_CONTENT_WIDTH
         }
 
-        return DialogFlows.showResultDialog(
+        val dialog = createTallDialog(owner, content)
+        dialog.setResultConverter { button ->
+            DialogFlows.resultForButton(button) { orderedActors.toList() }
+        }
+        return dialog.showAndWait().orElse(null)
+    }
+
+    private fun createTallDialog(
+        owner: Window?,
+        content: VBox,
+    ): Dialog<List<Actor>> =
+        DialogFlows.createDialog<List<Actor>>(
             owner = owner,
             title = "Resolve Initiative Tie",
             headerText = "Arrange actors with the same initiative",
             content = content,
             buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
-        ) { button ->
-            DialogFlows.resultForButton(button) { orderedActors.toList() }
+        ).apply {
+            dialogPane.prefWidth = DIALOG_WIDTH
+            dialogPane.minWidth = DIALOG_WIDTH
+            dialogPane.maxWidth = DIALOG_WIDTH
         }
+
+    private companion object {
+        const val DIALOG_WIDTH = 360.0
+        const val DIALOG_CONTENT_WIDTH = 320.0
     }
 }
