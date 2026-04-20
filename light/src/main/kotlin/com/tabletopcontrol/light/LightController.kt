@@ -89,23 +89,22 @@ class LightController {
      *
      * @param on `true` to switch the lights on; `false` to switch them off
      */
-    fun setPower(on: Boolean) {
+    fun setPower(on: Boolean): LightOperationResult {
         power = on
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
      * Sets the light color.
      *
      * @param hex a CSS hex color string in the form `#RRGGBB` or `#RGB`
-     * @throws IllegalArgumentException if [hex] is not a valid CSS hex color
      */
-    fun setColor(hex: String) {
-        require(HEX_COLOR_REGEX.matches(hex)) {
-            "Color must be a CSS hex string (#RRGGBB or #RGB), was: $hex"
-        }
+    fun setColor(hex: String): LightOperationResult {
+        if (!HEX_COLOR_REGEX.matches(hex)) return LightOperationResult.InvalidColor(hex)
         color = hex.uppercase()
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
@@ -113,9 +112,10 @@ class LightController {
      *
      * @param lightEffect the desired [LightEffect]
      */
-    fun setEffect(lightEffect: LightEffect) {
+    fun setEffect(lightEffect: LightEffect): LightOperationResult {
         effect = lightEffect
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
@@ -123,9 +123,10 @@ class LightController {
      *
      * @param enabled `true` to enable cycling; `false` to disable
      */
-    fun setColorCycling(enabled: Boolean) {
+    fun setColorCycling(enabled: Boolean): LightOperationResult {
         colorCycling = enabled
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
@@ -135,12 +136,12 @@ class LightController {
      * `sx` field in the WLED segment JSON.
      *
      * @param speed a value in the range `0` (slowest) to `255` (fastest)
-     * @throws IllegalArgumentException if [speed] is outside `0..255`
      */
-    fun setEffectSpeed(speed: Int) {
-        require(speed in 0..255) { "Effect speed must be between 0 and 255, was $speed" }
+    fun setEffectSpeed(speed: Int): LightOperationResult {
+        if (speed !in 0..255) return LightOperationResult.InvalidEffectSpeed(speed)
         effectSpeed = speed
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
@@ -151,24 +152,24 @@ class LightController {
      * `ix` field in the WLED segment JSON.
      *
      * @param intensity a value in the range `0` (least) to `255` (most)
-     * @throws IllegalArgumentException if [intensity] is outside `0..255`
      */
-    fun setEffectIntensity(intensity: Int) {
-        require(intensity in 0..255) { "Effect intensity must be between 0 and 255, was $intensity" }
+    fun setEffectIntensity(intensity: Int): LightOperationResult {
+        if (intensity !in 0..255) return LightOperationResult.InvalidEffectIntensity(intensity)
         effectIntensity = intensity
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
      * Sets the output brightness.
      *
      * @param value a value in the range `0.0` (off) to `1.0` (full brightness)
-     * @throws IllegalArgumentException if [value] is outside `0.0..1.0`
      */
-    fun setBrightness(value: Double) {
-        require(value in 0.0..1.0) { "Brightness must be between 0.0 and 1.0, was $value" }
+    fun setBrightness(value: Double): LightOperationResult {
+        if (value !in 0.0..1.0) return LightOperationResult.InvalidBrightness(value)
         brightness = value
         notifyChange()
+        return LightOperationResult.Applied
     }
 
     /**
@@ -180,15 +181,37 @@ class LightController {
      * active preset and returns to manual control.
      *
      * @param id a WLED preset ID in the range `1..250`, or `null` to clear
-     * @throws IllegalArgumentException if [id] is not `null` and outside `1..250`
      */
-    fun setPreset(id: Int?) {
-        if (id != null) {
-            require(id in 1..250) { "Preset ID must be between 1 and 250, was $id" }
-        }
+    fun setPreset(id: Int?): LightOperationResult {
+        if (id != null && id !in 1..250) return LightOperationResult.InvalidPreset(id)
         preset = id
         notifyChange()
+        return LightOperationResult.Applied
     }
+
+    /**
+     * Parses operator-entered preset text and applies it when valid.
+     */
+    fun applyPresetInput(input: String): LightOperationResult {
+        val trimmed = input.trim()
+        val id = trimmed.toIntOrNull() ?: return LightOperationResult.InvalidPresetText(input)
+        return setPreset(id)
+    }
+
+    /**
+     * Captures the current validated light state for background serial writes.
+     */
+    fun snapshot(): LightStateSnapshot =
+        LightStateSnapshot(
+            power = power,
+            color = color,
+            effect = effect,
+            colorCycling = colorCycling,
+            effectSpeed = effectSpeed,
+            effectIntensity = effectIntensity,
+            brightness = brightness,
+            preset = preset,
+        )
 
     private fun notifyChange() {
         changeListeners.toList().forEach { it() }
