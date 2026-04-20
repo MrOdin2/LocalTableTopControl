@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.ui.MenuSection
 import com.tabletopcontrol.core.ui.color.ColorContrast
 import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
 import com.tabletopcontrol.map.logic.MapCalibrationService
 import com.tabletopcontrol.map.logic.MapFogOfWarService
 import com.tabletopcontrol.map.logic.MapMeasurementService
@@ -36,10 +37,13 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
+import java.io.File
 
 private enum class FogTool { NONE, DRAW, ERASE }
 
 private enum class MeasurementTool { NONE, LINE, CONE, RECTANGLE, CIRCLE }
+
+private const val MAP_LOAD_HISTORY_KEY = "map.load"
 
 class MapUiController {
     private val settingsService = MapSettingsService()
@@ -553,10 +557,16 @@ class MapUiController {
                     FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"),
                     FileChooser.ExtensionFilter("All files", "*.*"),
                 )
+                FileChooserHistoryStore.configureInitialDirectory(
+                    chooser = this,
+                    key = MAP_LOAD_HISTORY_KEY,
+                    fallbackSelection = settingsService.currentMapDisplayPath?.let(::File),
+                )
             }
             val owner = (event.source as? Button)?.scene?.window
             val file = chooser.showOpenDialog(owner)
             if (file != null) {
+                FileChooserHistoryStore.rememberSelection(MAP_LOAD_HISTORY_KEY, file)
                 settingsService.applyMapLoad(
                     uri = file.toURI().toString(),
                     displayPath = file.absolutePath,

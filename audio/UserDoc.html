@@ -217,6 +217,10 @@
         supported by your Java runtime.
       </p>
       <p>
+        When you open the chooser again, it starts in the last folder you used for the Music Player,
+        so loading several tracks from the same library is faster.
+      </p>
+      <p>
         When you select a file, the app attempts to open it with the Java media runtime. If the
         runtime cannot play that file, loading or playback can still fail after selection. Control
         callbacks are registered before each load, so ready/error states are applied immediately
@@ -277,6 +281,10 @@
         If the selected file (or a previously saved file) can no longer be opened, that slot is
         cleared so the rest of the board stays usable, and hovering the button shows which file
         failed.
+      </p>
+      <p>
+        The soundboard file chooser also reopens in the last folder you used for sound effects, so
+        loading several related sounds takes fewer clicks.
       </p>
 
       <h3 id="soundboard-customize">Customizing Buttons</h3>
