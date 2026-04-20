@@ -1,0 +1,72 @@
+package com.tabletopcontrol.new_tracker.model
+
+import com.tabletopcontrol.core.EventBus
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
+class ActorTrackerTest {
+
+    @AfterEach
+    fun tearDown() {
+        EventBus.clear()
+    }
+
+    @Test
+    fun `adding an actor with matching initiative can place the new actor first`() {
+        val tracker = ActorTracker()
+        tracker.addActor(actor("Alpha", 15))
+        tracker.addActor(actor("Bravo", 15))
+        val charlie = actor("Charlie", 15)
+
+        tracker.addActor(charlie) { actorsAtInitiative, initiative, movedActorId ->
+            assertEquals(15, initiative)
+            assertEquals(charlie.id, movedActorId)
+            assertEquals(listOf("Alpha", "Bravo", "Charlie"), actorsAtInitiative.map(Actor::name))
+            listOf(actorsAtInitiative[2], actorsAtInitiative[0], actorsAtInitiative[1])
+        }
+
+        assertEquals(listOf("Charlie", "Alpha", "Bravo"), tracker.actorList.map(Actor::name))
+    }
+
+    @Test
+    fun `adding an actor with matching initiative keeps existing order when dialog is cancelled`() {
+        val tracker = ActorTracker()
+        tracker.addActor(actor("Alpha", 15))
+        tracker.addActor(actor("Bravo", 15))
+
+        tracker.addActor(actor("Charlie", 15)) { _, _, _ ->
+            null
+        }
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), tracker.actorList.map(Actor::name))
+    }
+
+    @Test
+    fun `updating an actor into a tie resolves the full initiative group`() {
+        val tracker = ActorTracker()
+        tracker.addActor(actor("Alpha", 18))
+        tracker.addActor(actor("Bravo", 15))
+        tracker.addActor(actor("Charlie", 15))
+        val delta = actor("Delta", 10)
+        tracker.addActor(delta)
+
+        val updated = tracker.updateActor(
+            tracker.actorList.first { it.id == delta.id }.copy(initiative = 15),
+        ) { actorsAtInitiative, initiative, movedActorId ->
+            assertEquals(15, initiative)
+            assertEquals(delta.id, movedActorId)
+            assertEquals(listOf("Bravo", "Charlie", "Delta"), actorsAtInitiative.map(Actor::name))
+            listOf(actorsAtInitiative[2], actorsAtInitiative[0], actorsAtInitiative[1])
+        }
+
+        assertEquals(true, updated)
+        assertEquals(
+            listOf("Alpha", "Delta", "Bravo", "Charlie"),
+            tracker.actorList.map(Actor::name),
+        )
+    }
+
+    private fun actor(name: String, initiative: Int?): Actor =
+        Actor(name = name, initiative = initiative)
+}

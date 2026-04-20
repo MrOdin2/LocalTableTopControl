@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Tracker - TabletopControl User Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 2rem;
+    }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    h2 {
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      font-size: 1.2rem;
+    }
+    p { margin-bottom: 0.75rem; }
+    ul { margin-left: 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    code {
+      background: var(--accent-light);
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>New Tracker</h1>
+  <p>TabletopControl User Documentation</p>
+</header>
+
+<main>
+  <section>
+    <h2>Overview</h2>
+    <p>
+      New Tracker lets you keep a simple combat list with editable actor names, hit points,
+      armour class, initiative, and token pictures.
+    </p>
+    <p>
+      The active actor is highlighted, and the tracker updates the linked map token details
+      automatically as you edit each card.
+    </p>
+  </section>
+
+  <section>
+    <h2>Adding And Editing Actors</h2>
+    <p>
+      Use <strong>+</strong> to add a new actor. Each actor card lets you:
+    </p>
+    <ul>
+      <li>Edit the actor name directly in the card.</li>
+      <li>Change HP, AC, and initiative values.</li>
+      <li>Duplicate or delete the actor.</li>
+      <li>Assign a token picture and adjust its scale or offset.</li>
+    </ul>
+    <p>
+      Use <strong>NEXT</strong> to advance to the next actor with an initiative value.
+    </p>
+    <p>
+      If multiple actors share the same initiative, New Tracker opens a drag-and-drop list
+      so you can arrange that tied group in the exact order you want.
+    </p>
+    <p>
+      Initiative changes are applied when you press <strong>Enter</strong> in the initiative
+      field or when you click away from that field.
+    </p>
+  </section>
+
+  <section>
+    <h2>Preset Library</h2>
+    <p>
+      Use <strong>SAVE</strong> on any actor card to store that actor as a reusable preset.
+      The preset keeps the actor's name, HP, AC, and token picture settings.
+    </p>
+    <p>
+      Use <strong>Presets...</strong> in the toolbar to open the preset library. From there you can:
+    </p>
+    <ul>
+      <li>Load a preset to create a new actor card.</li>
+      <li>Delete saved presets you no longer need.</li>
+      <li>Open the preset folder in your system file manager.</li>
+    </ul>
+    <p>
+      Presets are stored as <code>.preset</code> files in
+      <code>~/.tabletopcontrol/presets/</code>. This library is compatible with the existing
+      Initiative Tracker preset files, so both trackers can use the same saved presets.
+    </p>
+    <p>
+      Initiative is <strong>not</strong> restored from presets in New Tracker. After loading a
+      preset, roll initiative as usual and enter the result for the current encounter.
+    </p>
+  </section>
+
+  <section>
+    <h2>Token Pictures</h2>
+    <p>
+      When a preset contains a token picture, New Tracker restores that picture automatically
+      after loading. This helps shared presets keep their visual identity across sessions and
+      across different machines.
+    </p>
+  </section>
+</main>
+</body>
+</html>

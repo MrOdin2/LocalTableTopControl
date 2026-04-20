@@ -39,6 +39,8 @@ import javafx.scene.shape.Shape
 import javafx.scene.transform.Scale
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
+import javafx.scene.text.Font
+import javafx.scene.text.FontWeight
 import javafx.stage.FileChooser
 import java.io.File
 import java.net.URI
@@ -193,6 +195,10 @@ class TrackerPlugin : DmPlugin {
             }
         }
 
+        val deprecatedLabel = Label("Deprecated, use NEWTracker").apply {
+            font = Font.font( 16.0)
+        }
+
         // Toolbar: [−]  [Next ▶]  [Presets…]  Round N
         val toolbar = HBox(8.0, removeAllBtn, nextBtn, presetsBtn, roundLabel).apply {
             padding = Insets(4.0, 8.0, 4.0, 8.0)
@@ -200,7 +206,7 @@ class TrackerPlugin : DmPlugin {
         }
 
         // Root: toolbar on top, scrollable card list below.
-        val root = VBox(0.0, toolbar, scroll).apply {
+        val root = VBox(0.0, deprecatedLabel, toolbar, scroll).apply {
             VBox.setVgrow(scroll, Priority.ALWAYS)
         }
 
