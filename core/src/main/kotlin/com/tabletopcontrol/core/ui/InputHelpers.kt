@@ -1,12 +1,11 @@
 package com.tabletopcontrol.core.ui
 
-import javafx.geometry.Pos
 import javafx.scene.control.Label
+import javafx.scene.control.Slider
 import javafx.scene.control.TextField
 import javafx.scene.control.TextFormatter
 import javafx.scene.layout.HBox
 import javafx.scene.layout.VBox
-import javafx.util.converter.IntegerStringConverter
 import kotlin.math.floor
 
 class InputHelpers {
@@ -42,6 +41,40 @@ class InputHelpers {
                     onChange(newValue.toIntOrNull())
                 }
             }
+
+        /**
+         * Applies [onValueChanged] on every slider movement while deferring [onCommit] until the
+         * interaction is finished (drag release or focus loss).
+         */
+        fun configureSliderDeferredCommit(
+            slider: Slider,
+            onValueChanged: (Number) -> Unit,
+            onCommit: () -> Unit,
+        ) {
+            var pendingCommit = false
+
+            fun commitIfNeeded() {
+                if (pendingCommit) {
+                    pendingCommit = false
+                    onCommit()
+                }
+            }
+
+            slider.valueProperty().addListener { _, _, newValue ->
+                onValueChanged(newValue)
+                pendingCommit = true
+            }
+            slider.valueChangingProperty().addListener { _, wasChanging, isChanging ->
+                if (wasChanging && !isChanging) {
+                    commitIfNeeded()
+                }
+            }
+            slider.focusedProperty().addListener { _, wasFocused, isFocused ->
+                if (wasFocused && !isFocused) {
+                    commitIfNeeded()
+                }
+            }
+        }
 
         fun labeledField(labelText: String, field: TextField): VBox =
             VBox(4.0, Label(labelText).apply { style = "-fx-text-fill: -tc-text-muted;" }, field)
