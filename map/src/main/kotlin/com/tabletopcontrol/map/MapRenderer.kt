@@ -13,6 +13,11 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.map.logic.FogOfWarState
+import com.tabletopcontrol.map.logic.GridCalibration
+import com.tabletopcontrol.map.logic.GridConfig
+import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.Token
 import java.net.URI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -246,19 +251,25 @@ class MapRenderer(private val canvas: Canvas) {
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
-            // Place each new token at the next unused column at row 0.
-            val occupiedCols = tokens
-                .asSequence()
-                .filter { it.row == 0 }
-                .map { it.col }
-                .toHashSet()
+            val existingIndex = tokens.indexOfFirst { it.id == event.id }
+            if (existingIndex >= 0) {
+                val existing = tokens[existingIndex]
+                tokens[existingIndex] = existing.copy(name = event.name, color = event.color)
+            } else {
+                // Place each new token at the next unused column at row 0.
+                val occupiedCols = tokens
+                    .asSequence()
+                    .filter { it.row == 0 }
+                    .map { it.col }
+                    .toHashSet()
 
-            var nextTokenCol = 0
-            while (nextTokenCol in occupiedCols) {
-                nextTokenCol++
+                var nextTokenCol = 0
+                while (nextTokenCol in occupiedCols) {
+                    nextTokenCol++
+                }
+
+                tokens.add(Token(event.id, event.name, nextTokenCol, 0, event.color))
             }
-
-            tokens.add(Token(event.id, event.name, nextTokenCol, 0, event.color))
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
@@ -371,24 +382,22 @@ class MapRenderer(private val canvas: Canvas) {
      * canvas is immediately ready after this call returns.
      *
      * @param resourcePath file-system path or classpath URI of the image file.
-     * @return [Result.success] when the image is loaded and drawn; [Result.failure]
-     *         with a descriptive exception when loading fails.
+     * @return [MapResult.Success] when the image is loaded and drawn;
+     *         [MapResult.Failure] with a descriptive error when loading fails.
      */
-    fun loadImage(resourcePath: String): Result<Unit> {
+    fun loadImage(resourcePath: String): MapResult<Unit> {
         val image = Image(resourcePath, false)
         return if (image.isError) {
-            val cause = image.exception
-            if (cause != null) {
-                Result.failure(cause)
-            } else {
-                Result.failure(
-                    IllegalStateException("Failed to load map image from '$resourcePath': unknown image loading error.")
-                )
-            }
+            MapResult.failure(
+                MapOperationError.ImageLoadFailed(
+                    resourcePath = resourcePath,
+                    causeMessage = image.exception?.message ?: "unknown image loading error.",
+                ),
+            )
         } else {
             mapImage = image
             redraw()
-            Result.success(Unit)
+            MapResult.success(Unit)
         }
     }
 

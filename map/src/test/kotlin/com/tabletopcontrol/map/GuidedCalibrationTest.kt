@@ -1,5 +1,8 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.guidedCalibrationStep1
+import com.tabletopcontrol.map.logic.guidedCalibrationStep2
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull

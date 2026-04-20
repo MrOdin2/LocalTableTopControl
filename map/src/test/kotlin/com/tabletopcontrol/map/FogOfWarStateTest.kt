@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.FogOfWarState
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue

@@ -1,4 +1,4 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.logic
 
 /**
  * Calibration parameters for the grid overlay.
@@ -9,7 +9,7 @@ package com.tabletopcontrol.map
  * origin off-screen.
  *
  * During a calibration session the renderer draws a crosshair at the canvas centre
- * (see [GridCalibrationModeEvent]) so the DM can align the grid precisely.
+ * (see [com.tabletopcontrol.map.GridCalibrationModeEvent]) so the DM can align the grid precisely.
  *
  * @property cellSizeInPixels  width/height of one grid cell in canvas pixels at scale 1.0;
  *                             must be positive.

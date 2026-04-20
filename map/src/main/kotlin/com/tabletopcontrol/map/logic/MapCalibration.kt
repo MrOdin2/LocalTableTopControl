@@ -1,4 +1,4 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.logic
 
 /**
  * Calibration parameters for the map image.
@@ -9,7 +9,7 @@ package com.tabletopcontrol.map
  * on-screen, making alignment straightforward.
  *
  * During a calibration session the renderer draws a red dot at the canvas centre
- * (see [MapCalibrationModeEvent]) so the DM can align a known reference point on
+ * (see [com.tabletopcontrol.map.MapCalibrationModeEvent]) so the DM can align a known reference point on
  * the map image with the physical table centre.
  *
  * @property scale    uniform zoom factor; `1.0` means no zoom; must be positive.

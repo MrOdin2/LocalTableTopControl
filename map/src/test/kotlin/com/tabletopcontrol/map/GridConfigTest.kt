@@ -1,5 +1,7 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.GridConfig
+import com.tabletopcontrol.map.logic.contrastingGridColor
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

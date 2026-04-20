@@ -1,4 +1,4 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.logic
 
 import kotlin.math.abs
 
