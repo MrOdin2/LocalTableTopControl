@@ -33,9 +33,9 @@ import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.stage.Window
 
-class NewTrackerPlugin : DmPlugin {
+class TrackerPlugin : DmPlugin {
 
-    override val displayName: String = "NEWTracker"
+    override val displayName: String = "Tracker"
 
     val actorTracker = ActorTracker()
     private val imageHandling = ImageHandling()
