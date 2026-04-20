@@ -150,6 +150,7 @@
           <ul>
             <li><a href="#card-fields">Editable Fields</a></li>
             <li><a href="#card-color">Colour Swatch</a></li>
+            <li><a href="#card-size">Token Size</a></li>
             <li><a href="#card-image">Token Image</a></li>
           </ul>
         </li>
@@ -259,6 +260,24 @@
         map updates immediately.
       </p>
 
+      <h3 id="card-size">Token Size</h3>
+      <p>
+        Each combatant's map token can use one of six footprint sizes:
+        <strong>Tiny</strong> (1/8 tile), <strong>Small</strong> (1/4 tile),
+        <strong>Medium</strong> (1 tile),
+        <strong>Large</strong> (2x2 tiles), <strong>Huge</strong> (3x3 tiles), or
+        <strong>Gargantuan</strong> (4x4 tiles).
+      </p>
+      <p>
+        Token size is intentionally tucked away because it changes less often than HP or AC:
+        <strong>right-click the combatant card</strong> and choose the size from the
+        <strong>Token Size</strong> menu. The map updates immediately.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> Existing combatants and older presets default to
+        <strong>Medium</strong> until you choose a different size.
+      </div>
+
       <h3 id="card-image">Token Image</h3>
       <p>
         You can assign a custom image (portrait or token art) to each combatant. Click the
@@ -325,6 +344,7 @@
       <ul>
         <li>Adding a combatant can create a token on the map at a default position.</li>
         <li>The token colour matches the combatant's colour swatch.</li>
+        <li>Token size changes in the tracker immediately resize the linked map token.</li>
         <li>Uploading a token image in the tracker updates the token image on the map.</li>
         <li>Removing a combatant removes its token from the map.</li>
       </ul>
@@ -351,6 +371,8 @@
       <p>
         Presets are stored as <code>.preset</code> files under
         <code>~/.tabletopcontrol/presets/</code>, including one level of subfolders.
+        Token size is saved with the preset, so a loaded ogre, dragon, or tiny object keeps the
+        same footprint it had when you saved it.
       </p>
     </section>
 

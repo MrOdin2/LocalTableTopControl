@@ -6,6 +6,7 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -21,10 +22,15 @@ import javafx.scene.Node
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
+import javafx.scene.control.ContextMenu
 import javafx.scene.control.Label
+import javafx.scene.control.MenuItem
+import javafx.scene.control.RadioMenuItem
 import javafx.scene.control.Slider
 import javafx.scene.control.ScrollPane
+import javafx.scene.control.SeparatorMenuItem
 import javafx.scene.control.TextField
+import javafx.scene.control.ToggleGroup
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
@@ -114,6 +120,9 @@ class TrackerPlugin : DmPlugin {
      */
     private val tokenColors: MutableMap<String, Color> = mutableMapOf()
 
+    /** Token footprint size keyed by stable combatant id. */
+    private val tokenSizes: MutableMap<String, TokenSize> = mutableMapOf()
+
     /**
      * Maps each combatant's stable id to the file URI of its token picture, or `null`
      * when no picture has been uploaded.  Keyed by id so the mapping survives renames.
@@ -164,6 +173,7 @@ class TrackerPlugin : DmPlugin {
                     tokenColorIndex = 0
                     tokenIds.clear()
                     tokenColors.clear()
+                    tokenSizes.clear()
                     tokenImages.clear()
                     EventBus.publish(TokensResetEvent())
                     refresh()
@@ -294,8 +304,9 @@ class TrackerPlugin : DmPlugin {
                 // new entry goes to the end (stable sort), so appending the id is correct.
                 tokenIds.add(id)
                 tokenColors[id] = color
+                tokenSizes[id] = TokenSize.MEDIUM
                 tokenImages[id] = TokenImageSettings(uri = null)
-                EventBus.publish(TokenAddedEvent(id, name, color))
+                publishTokenMetadata(id, name)
                 // When the tracker was empty before, currentIndex advances from -1 to 0.
                 if (tokenIds.getOrNull(tracker.currentIndex) != previousActiveId) {
                     EventBus.publish(
@@ -342,6 +353,7 @@ class TrackerPlugin : DmPlugin {
             promptText = "Name"
             textProperty().addListener { _, _, new ->
                 tracker.updateEntry(index, name = new)
+                tokenIds.getOrNull(index)?.let { id -> publishTokenMetadata(id, new) }
             }
             if (orientation == Orientation.HORIZONTAL) prefWidth = 110.0
             else HBox.setHgrow(this, Priority.ALWAYS)
@@ -356,6 +368,7 @@ class TrackerPlugin : DmPlugin {
                 tracker.remove(index)
                 tokenIds.removeAt(index)
                 tokenColors.remove(id)
+                tokenSizes.remove(id)
                 tokenImages.remove(id)
                 EventBus.publish(TokenRemovedEvent(id, name))
                 EventBus.publish(
@@ -400,6 +413,7 @@ class TrackerPlugin : DmPlugin {
 
         // Image button — lets the DM assign a picture to this token.
         val tokenId = tokenIds.getOrNull(index)
+        val currentSize = currentTokenSize(tokenId)
         val currentImageSettings = tokenId?.let { tokenImages[it] } ?: TokenImageSettings(uri = null)
         val hasImage = currentImageSettings.uri != null
         val imgBtn = Button(if (hasImage) "🖼✓" else "🖼").apply {
@@ -448,6 +462,7 @@ class TrackerPlugin : DmPlugin {
                     hp = entry.hp,
                     ac = entry.ac,
                     initiative = entry.initiative,
+                    tokenSize = currentSize,
                     imageUri = imageSettings?.uri,
                     imageScaleX = imageSettings?.scaleX ?: 1.0,
                     imageScaleY = imageSettings?.scaleY ?: 1.0,
@@ -500,12 +515,59 @@ class TrackerPlugin : DmPlugin {
             style = cardStyle(index)
             minWidth = if (orientation == Orientation.HORIZONTAL) 160.0 else 180.0
             if (orientation == Orientation.VERTICAL) maxWidth = Double.MAX_VALUE
+            Tooltip.install(this, Tooltip("Right-click to change token size. Current: ${currentSize.menuLabel}"))
+            setOnContextMenuRequested { event ->
+                val id = tokenIds.getOrNull(index) ?: return@setOnContextMenuRequested
+                buildTokenContextMenu(id, index, refresh).show(this, event.screenX, event.screenY)
+                event.consume()
+            }
         }
 
         DragDropSupport.installDragSource(handle, index, context)
         DragDropSupport.installDropTarget(card, index, context, indicator, orientation)
 
         return card
+    }
+
+    private fun currentTokenSize(id: String?): TokenSize =
+        id?.let { tokenSizes[it] } ?: TokenSize.MEDIUM
+
+    private fun publishTokenMetadata(id: String, name: String) {
+        val color = tokenColors[id] ?: return
+        EventBus.publish(
+            TokenAddedEvent(
+                id = id,
+                name = name,
+                color = color,
+                size = currentTokenSize(id),
+            ),
+        )
+    }
+
+    private fun buildTokenContextMenu(
+        tokenId: String,
+        index: Int,
+        refresh: () -> Unit,
+    ): ContextMenu {
+        val sizeGroup = ToggleGroup()
+        val sizeItems = TokenSize.entries.map { size ->
+            RadioMenuItem(size.menuLabel).apply {
+                toggleGroup = sizeGroup
+                isSelected = currentTokenSize(tokenId) == size
+                setOnAction {
+                    if (tokenSizes[tokenId] == size) return@setOnAction
+                    tokenSizes[tokenId] = size
+                    publishTokenMetadata(tokenId, tracker.entries.getOrNull(index)?.name ?: return@setOnAction)
+                    refresh()
+                }
+            }
+        }
+        return ContextMenu(
+            MenuItem("Token Size").apply { isDisable = true },
+            *sizeItems.toTypedArray(),
+            SeparatorMenuItem(),
+            MenuItem("Current: ${currentTokenSize(tokenId).menuLabel}").apply { isDisable = true },
+        )
     }
 
     // ── Constants ─────────────────────────────────────────────────────────────
@@ -949,6 +1011,7 @@ class TrackerPlugin : DmPlugin {
                                         tokenIds.clear()
                                         tokenIds.addAll(newIds)
                                         tokenColors[id] = color
+                                        tokenSizes[id] = preset.tokenSize
 
                                         // Use the original imageUri immediately so the token appears right
                                         // away; if there is an embedded Base64 thumbnail it will be decoded
@@ -963,7 +1026,7 @@ class TrackerPlugin : DmPlugin {
                                             offsetY = preset.imageOffsetY,
                                         )
 
-                                        EventBus.publish(TokenAddedEvent(id, preset.name, color))
+                                        publishTokenMetadata(id, preset.name)
                                         if (initialUri != null) {
                                             EventBus.publish(
                                                 TokenImageChangedEvent(

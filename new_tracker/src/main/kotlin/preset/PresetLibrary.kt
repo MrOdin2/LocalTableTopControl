@@ -1,5 +1,6 @@
 package com.tabletopcontrol.new_tracker.preset
 
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import java.awt.RenderingHints
@@ -36,6 +37,7 @@ object PresetLibrary {
         val ac: Int,
         val initiative: Int? = null,
         val initiativeEnabled: Boolean = true,
+        val tokenSize: TokenSize = TokenSize.MEDIUM,
         val folder: String = "",
         val imageUri: String? = null,
         val imageBase64: String? = null,
@@ -228,6 +230,7 @@ object PresetLibrary {
         if (!preset.initiativeEnabled) {
             appendLine("initiativeEnabled=false")
         }
+        appendLine("tokenSize=${preset.tokenSize.name}")
         preset.imageUri?.let { appendLine("imageUri=$it") }
         appendLine("imageScaleX=${preset.imageScaleX}")
         appendLine("imageScaleY=${preset.imageScaleY}")
@@ -258,6 +261,7 @@ object PresetLibrary {
             ac = ac,
             initiative = initiative,
             initiativeEnabled = initiativeEnabled,
+            tokenSize = TokenSize.fromPersistence(props["tokenSize"]),
             imageUri = props["imageUri"]?.takeIf { it.isNotBlank() },
             imageBase64 = props["imageBase64"]?.takeIf { it.isNotBlank() },
             imageScaleX = props["imageScaleX"]?.toDoubleOrNull() ?: 1.0,

@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map.logic
 
+import com.tabletopcontrol.core.TokenSize
 import javafx.scene.paint.Color
 
 /**
@@ -14,6 +15,8 @@ import javafx.scene.paint.Color
  * @property name        the combatant's display name; not guaranteed to be unique.
  * @property col         grid column index of the cell the token occupies.
  * @property row         grid row index of the cell the token occupies.
+ * @property size        rendered footprint size on the grid; defaults to [TokenSize.MEDIUM]
+ *                       for legacy saves and event publishers.
  * @property color       fill colour of the token circle; used as a fallback when no image is set.
  * @property imageUri    URI of the picture to use for this token, or `null` to render a plain
  *                       filled circle using [color].  Typically a `file:` URI obtained via a
@@ -30,6 +33,7 @@ data class Token(
     val name: String,
     val col: Int,
     val row: Int,
+    val size: TokenSize = TokenSize.MEDIUM,
     val color: Color,
     val imageUri: String? = null,
     val imageScaleX: Double = 1.0,

@@ -33,7 +33,7 @@ class ActorTracker(
         val currentActorId = getCurrentActor()?.id
         actor.color = TOKEN_COLORS[actorList.size]
         actorList.add(actor)
-        EventBus.publish(TokenAddedEvent(actor.id, actor.name, actor.color))
+        EventBus.publish(TokenAddedEvent(actor.id, actor.name, actor.color, actor.tokenSize))
         if (actor.imageSettings.uri != null) {
             publishImageEvent(actor)
         }
@@ -72,6 +72,20 @@ class ActorTracker(
             val previousActor = actorList[index]
             if (previousActor.imageSettings != updatedActor.imageSettings) {
                 publishImageEvent(updatedActor)
+            }
+            if (
+                previousActor.name != updatedActor.name ||
+                previousActor.color != updatedActor.color ||
+                previousActor.tokenSize != updatedActor.tokenSize
+            ) {
+                EventBus.publish(
+                    TokenAddedEvent(
+                        updatedActor.id,
+                        updatedActor.name,
+                        updatedActor.color,
+                        updatedActor.tokenSize,
+                    ),
+                )
             }
             val currentActorId = getCurrentActor()?.id
             actorList[index] = updatedActor
