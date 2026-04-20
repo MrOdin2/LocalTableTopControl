@@ -908,14 +908,14 @@ class MapRenderer(private val canvas: Canvas) {
     private fun drawTableViewportOutline() {
         if (!showTableViewportOutline) return
 
-        val bounds = tableViewportWorldBounds(
+        val bounds = tableViewportSceneBounds(
             viewportWidth = tableViewportWidth,
             viewportHeight = tableViewportHeight,
             tableMapOffset = tableMapOffset,
         ) ?: return
 
-        val topLeft = worldToCanvasCoords(bounds[0], bounds[2])
-        val bottomRight = worldToCanvasCoords(bounds[1], bounds[3])
+        val topLeft = sceneToCanvasCoords(bounds[0], bounds[2])
+        val bottomRight = sceneToCanvasCoords(bounds[1], bounds[3])
         val x = minOf(topLeft.first, bottomRight.first)
         val y = minOf(topLeft.second, bottomRight.second)
         val width = abs(bottomRight.first - topLeft.first)
@@ -972,16 +972,19 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
-     * Converts a world-space coordinate to canvas-space, applying this
+     * Converts a scene-space coordinate to canvas-space, applying this
      * renderer's viewport transform and optional shared table offset.
+     *
+     * Scene-space uses the canvas centre as `(0, 0)`, which makes it stable
+     * across differently sized renderer canvases.
      */
-    private fun worldToCanvasCoords(worldX: Double, worldY: Double): Pair<Double, Double> {
+    private fun sceneToCanvasCoords(sceneX: Double, sceneY: Double): Pair<Double, Double> {
         val cx = canvas.width / 2.0
         val cy = canvas.height / 2.0
         val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
         val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
-        val canvasX = cx + viewportOffsetX + viewportScale * (worldX + sceneOffsetX - cx)
-        val canvasY = cy + viewportOffsetY + viewportScale * (worldY + sceneOffsetY - cy)
+        val canvasX = cx + viewportOffsetX + viewportScale * (sceneX + sceneOffsetX)
+        val canvasY = cy + viewportOffsetY + viewportScale * (sceneY + sceneOffsetY)
         return Pair(canvasX, canvasY)
     }
 
@@ -1022,7 +1025,7 @@ class MapRenderer(private val canvas: Canvas) {
     }
 }
 
-internal fun tableViewportWorldBounds(
+internal fun tableViewportSceneBounds(
     viewportWidth: Double,
     viewportHeight: Double,
     tableMapOffset: TableMapOffset,
@@ -1031,10 +1034,10 @@ internal fun tableViewportWorldBounds(
         return null
     }
     return doubleArrayOf(
-        -tableMapOffset.offsetX,
-        viewportWidth - tableMapOffset.offsetX,
-        -tableMapOffset.offsetY,
-        viewportHeight - tableMapOffset.offsetY,
+        -viewportWidth / 2.0 - tableMapOffset.offsetX,
+        viewportWidth / 2.0 - tableMapOffset.offsetX,
+        -viewportHeight / 2.0 - tableMapOffset.offsetY,
+        viewportHeight / 2.0 - tableMapOffset.offsetY,
     )
 }
 

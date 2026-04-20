@@ -12,24 +12,24 @@ import org.junit.jupiter.api.Test
 class MapRendererHelpersTest {
 
     @Test
-    fun `table viewport bounds invert shared table offset`() {
-        val bounds = tableViewportWorldBounds(
+    fun `table viewport scene bounds are centered and invert shared table offset`() {
+        val bounds = tableViewportSceneBounds(
             viewportWidth = 1920.0,
             viewportHeight = 1080.0,
             tableMapOffset = TableMapOffset(offsetX = 120.0, offsetY = -80.0),
         )
 
         assertNotNull(bounds)
-        assertEquals(-120.0, bounds!![0], 1e-9)
-        assertEquals(1800.0, bounds[1], 1e-9)
-        assertEquals(80.0, bounds[2], 1e-9)
-        assertEquals(1160.0, bounds[3], 1e-9)
+        assertEquals(-1080.0, bounds!![0], 1e-9)
+        assertEquals(840.0, bounds[1], 1e-9)
+        assertEquals(-460.0, bounds[2], 1e-9)
+        assertEquals(620.0, bounds[3], 1e-9)
     }
 
     @Test
-    fun `table viewport bounds reject missing sizes`() {
+    fun `table viewport scene bounds reject missing sizes`() {
         assertNull(
-            tableViewportWorldBounds(
+            tableViewportSceneBounds(
                 viewportWidth = 0.0,
                 viewportHeight = 1080.0,
                 tableMapOffset = TableMapOffset(),
