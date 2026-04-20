@@ -1,6 +1,7 @@
 package com.tabletopcontrol.new_tracker.ImageHandling
 
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
+import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import javafx.geometry.Insets
@@ -230,9 +231,15 @@ class ImageHandling {
                         ),
                         FileChooser.ExtensionFilter("All files", "*.*"),
                     )
+                    FileChooserHistoryStore.configureInitialDirectory(
+                        chooser = this,
+                        key = TOKEN_IMAGE_HISTORY_KEY,
+                        fallbackSelection = FileChooserHistoryStore.fileFromUri(working.uri),
+                    )
                 }
                 val file = chooser.showOpenDialog(owner)
                 if (file != null) {
+                    FileChooserHistoryStore.rememberSelection(TOKEN_IMAGE_HISTORY_KEY, file)
                     val uri = file.toURI().toString()
                     if (loadImage(uri, imageView)) {
                         working = working.copy(uri = uri)
@@ -405,6 +412,7 @@ class ImageHandling {
         if (abs(scaleX) <= SLIDER_VALUE_EPSILON) 1.0 else scaleY / scaleX
 
     private companion object {
+        const val TOKEN_IMAGE_HISTORY_KEY = "tracker.token-image"
         val WINDOWS_ABSOLUTE_PATH = Regex("^[a-zA-Z]:[\\\\/].*")
         const val PREVIEW_SIZE = 160.0
         const val PREVIEW_RADIUS = 70.0

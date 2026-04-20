@@ -256,6 +256,7 @@ class SoundboardPlugin(
         val file = SoundboardSlotDialogs.chooseAudioFile(
             owner = button.scene?.window,
             slotNumber = slotNumber,
+            currentUri = slot.uri,
         ) ?: return
 
         slotService.loadSelectedFile(

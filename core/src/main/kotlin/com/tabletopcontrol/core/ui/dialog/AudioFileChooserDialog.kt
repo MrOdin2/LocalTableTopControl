@@ -12,6 +12,8 @@ object AudioFileChooserDialog {
         owner: Window?,
         title: String,
         audioPatterns: List<String> = defaultAudioPatterns,
+        historyKey: String? = null,
+        fallbackSelection: File? = null,
     ): File? {
         val resolvedPatterns = audioPatterns.ifEmpty { defaultAudioPatterns }
         val chooser = FileChooser().apply {
@@ -20,7 +22,14 @@ object AudioFileChooserDialog {
                 FileChooser.ExtensionFilter("Audio files", *resolvedPatterns.toTypedArray()),
                 FileChooser.ExtensionFilter("All files", "*.*"),
             )
+            historyKey?.let { key ->
+                FileChooserHistoryStore.configureInitialDirectory(this, key, fallbackSelection)
+            }
         }
-        return chooser.showOpenDialog(owner)
+        val selected = chooser.showOpenDialog(owner)
+        if (historyKey != null && selected != null) {
+            FileChooserHistoryStore.rememberSelection(historyKey, selected)
+        }
+        return selected
     }
 }

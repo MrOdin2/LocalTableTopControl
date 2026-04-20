@@ -10,6 +10,7 @@ import com.tabletopcontrol.core.ui.InputHelpers.Companion.configureSliderDeferre
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
 import com.tabletopcontrol.core.ui.dialog.AudioFileChooserDialog
+import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
@@ -44,6 +45,7 @@ class MusicPlugin : DmPlugin {
         const val MAX_TRACK_COUNT = MAX_MUSIC_TRACKS
 
         private const val TIME_UNKNOWN = "--:--"
+        private const val MUSIC_BROWSER_HISTORY_KEY = "music.browser"
     }
 
     private val trackService = MusicTrackService()
@@ -185,6 +187,8 @@ class MusicPlugin : DmPlugin {
                     owner = owner,
                     title = "Select audio file for card ${index + 1}",
                     audioPatterns = listOf("*.mp3", "*.wav", "*.aac", "*.m4a", "*.ogg"),
+                    historyKey = MUSIC_BROWSER_HISTORY_KEY,
+                    fallbackSelection = FileChooserHistoryStore.fileFromUri(track.uri),
                 ) ?: return@setOnAction
                 trackService.loadSelectedTrack(track, file.toURI().toString())
             }
