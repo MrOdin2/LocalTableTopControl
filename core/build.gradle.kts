@@ -29,7 +29,6 @@ dependencies {
     runtimeOnly(project(":map"))
     runtimeOnly(project(":audio"))
     runtimeOnly(project(":light"))
-    runtimeOnly(project(":tracker"))
     runtimeOnly(project(":new_tracker"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
