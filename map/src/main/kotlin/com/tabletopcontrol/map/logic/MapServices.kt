@@ -1,4 +1,4 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.logic
 
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
@@ -7,6 +7,30 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.map.FogOfWarCellEvent
+import com.tabletopcontrol.map.FogOfWarResetEvent
+import com.tabletopcontrol.map.FogOfWarSetupEvent
+import com.tabletopcontrol.map.GridCalibrationEvent
+import com.tabletopcontrol.map.GridCalibrationModeEvent
+import com.tabletopcontrol.map.GridUpdateEvent
+import com.tabletopcontrol.map.MapBackgroundEvent
+import com.tabletopcontrol.map.MapCalibrationEvent
+import com.tabletopcontrol.map.MapCalibrationModeEvent
+import com.tabletopcontrol.map.MapInputField
+import com.tabletopcontrol.map.MapLoadEvent
+import com.tabletopcontrol.map.MapOperationError
+import com.tabletopcontrol.map.MapRenderer
+import com.tabletopcontrol.map.MapResult
+import com.tabletopcontrol.map.MapRotationEvent
+import com.tabletopcontrol.map.MapSavedSettings
+import com.tabletopcontrol.map.MapSettingsSerializer
+import com.tabletopcontrol.map.MeasurementAddedEvent
+import com.tabletopcontrol.map.MeasurementOverlay
+import com.tabletopcontrol.map.MeasurementRemovedEvent
+import com.tabletopcontrol.map.MeasurementType
+import com.tabletopcontrol.map.MeasurementUpdatedEvent
+import com.tabletopcontrol.map.MeasurementsClearedEvent
+import com.tabletopcontrol.map.ShowTokenNamesEvent
 import javafx.scene.paint.Color
 import java.util.UUID
 

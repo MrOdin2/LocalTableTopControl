@@ -2,6 +2,9 @@ package com.tabletopcontrol.map
 
 import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
+import com.tabletopcontrol.map.logic.GridCalibration
+import com.tabletopcontrol.map.logic.GridConfig
+import com.tabletopcontrol.map.logic.MapCalibration
 import java.util.Properties
 import javafx.scene.paint.Color
 
@@ -98,7 +101,7 @@ object MapSettingsSerializer {
      * [deserializeGridColor], [deserializeBackgroundColor], and
      * [deserializeMapRotation].
      *
-     * @param gridColor       grid line colour to persist; defaults to [GridConfig.color].
+     * @param gridColor       grid line colour to persist; defaults to [com.tabletopcontrol.map.logic.GridConfig.color].
      * @param backgroundColor canvas background colour to persist; defaults to [Color.BLACK].
      * @param mapRotation     clockwise rotation of the map image in degrees (0, 90, 180, 270).
      */

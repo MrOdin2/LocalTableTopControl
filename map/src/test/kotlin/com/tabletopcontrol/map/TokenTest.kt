@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.Token
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull

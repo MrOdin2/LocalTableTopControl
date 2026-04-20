@@ -1,5 +1,8 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.GridCalibration
+import com.tabletopcontrol.map.logic.GridConfig
+import com.tabletopcontrol.map.logic.MapCalibration
 import javafx.scene.paint.Color
 
 /**
@@ -12,7 +15,7 @@ data class MapLoadEvent(val resourcePath: String)
 /**
  * Event fired when the DM changes the grid visibility or configuration.
  *
- * @property config the new [GridConfig] to apply; `null` to hide the grid.
+ * @property config the new [com.tabletopcontrol.map.logic.GridConfig] to apply; `null` to hide the grid.
  */
 data class GridUpdateEvent(val config: GridConfig?)
 
@@ -35,14 +38,14 @@ data class FogOfWarResetEvent(val revealAll: Boolean)
 /**
  * Event fired when the DM applies new map-image calibration.
  *
- * @property calibration the new [MapCalibration] to apply.
+ * @property calibration the new [com.tabletopcontrol.map.logic.MapCalibration] to apply.
  */
 data class MapCalibrationEvent(val calibration: MapCalibration)
 
 /**
  * Event fired when the DM applies new grid calibration.
  *
- * @property calibration the new [GridCalibration] to apply.
+ * @property calibration the new [com.tabletopcontrol.map.logic.GridCalibration] to apply.
  */
 data class GridCalibrationEvent(val calibration: GridCalibration)
 
@@ -72,7 +75,7 @@ data class MapCalibrationModeEvent(val active: Boolean)
  * Event fired to initialise or reinitialise the fog-of-war grid.
  *
  * Both the table-view renderer and the DM-panel minimap renderer subscribe to
- * this event and create fresh, independent [FogOfWarState] instances with the
+ * this event and create fresh, independent [com.tabletopcontrol.map.logic.FogOfWarState] instances with the
  * given dimensions.  All prior cell state is discarded.
  *
  * Fog array cell `(0, 0)` corresponds to grid position `(colOffset, rowOffset)`,

@@ -1,6 +1,15 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.ui
 
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
+import com.tabletopcontrol.map.logic.MapCalibrationService
+import com.tabletopcontrol.map.MapInputField
+import com.tabletopcontrol.map.MapOperationError
+import com.tabletopcontrol.map.MapRenderer
+import com.tabletopcontrol.map.MapResult
+import com.tabletopcontrol.map.logic.MapSettingsService
+import com.tabletopcontrol.map.logic.MapViewportState
+import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.toUserMessage
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType

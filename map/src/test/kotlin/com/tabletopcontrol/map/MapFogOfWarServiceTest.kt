@@ -1,6 +1,7 @@
 package com.tabletopcontrol.map
 
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.map.logic.MapFogOfWarService
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

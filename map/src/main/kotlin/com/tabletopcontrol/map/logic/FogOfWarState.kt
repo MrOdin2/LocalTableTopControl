@@ -1,4 +1,4 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.logic
 
 /**
  * Tracks which grid cells are revealed and which are hidden by fog of war.
@@ -74,7 +74,7 @@ class FogOfWarState(val cols: Int, val rows: Int, val cellSizeInUnits: Double = 
     fun revealedCount(): Int = revealed.sumOf { col -> col.count { it } }
 
     private fun checkBounds(col: Int, row: Int) {
-        if (col < 0 || col >= cols || row < 0 || row >= rows) {
+        if (col !in 0..<cols || row < 0 || row >= rows) {
             throw IndexOutOfBoundsException("Cell ($col, $row) is out of bounds for grid ${cols}x${rows}")
         }
     }

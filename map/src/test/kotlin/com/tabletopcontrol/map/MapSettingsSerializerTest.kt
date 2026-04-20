@@ -1,5 +1,7 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.GridCalibration
+import com.tabletopcontrol.map.logic.MapCalibration
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -204,13 +206,13 @@ class MapSettingsSerializerTest {
         assertEquals(gridCal, settings.gridCalibration)
         assertEquals(mapCal, settings.mapCalibration)
         assertEquals(gridColor.red, settings.gridColor!!.red, 1e-9)
-        assertEquals(gridColor.green, settings.gridColor!!.green, 1e-9)
-        assertEquals(gridColor.blue, settings.gridColor!!.blue, 1e-9)
-        assertEquals(gridColor.opacity, settings.gridColor!!.opacity, 1e-9)
+        assertEquals(gridColor.green, settings.gridColor.green, 1e-9)
+        assertEquals(gridColor.blue, settings.gridColor.blue, 1e-9)
+        assertEquals(gridColor.opacity, settings.gridColor.opacity, 1e-9)
         assertEquals(bgColor.red, settings.backgroundColor!!.red, 1e-9)
-        assertEquals(bgColor.green, settings.backgroundColor!!.green, 1e-9)
-        assertEquals(bgColor.blue, settings.backgroundColor!!.blue, 1e-9)
-        assertEquals(bgColor.opacity, settings.backgroundColor!!.opacity, 1e-9)
+        assertEquals(bgColor.green, settings.backgroundColor.green, 1e-9)
+        assertEquals(bgColor.blue, settings.backgroundColor.blue, 1e-9)
+        assertEquals(bgColor.opacity, settings.backgroundColor.opacity, 1e-9)
     }
 
     @Test

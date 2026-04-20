@@ -1,4 +1,4 @@
-package com.tabletopcontrol.map
+package com.tabletopcontrol.map.ui
 
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.scene.control.ComboBox

@@ -5,6 +5,8 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
+import com.tabletopcontrol.map.logic.MapTokenSyncService
+import com.tabletopcontrol.map.logic.Token
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals

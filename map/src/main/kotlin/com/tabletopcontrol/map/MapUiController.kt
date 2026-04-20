@@ -6,6 +6,14 @@ import com.tabletopcontrol.core.ui.MenuSection
 import com.tabletopcontrol.core.ui.color.ColorContrast
 import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.map.logic.MapCalibrationService
+import com.tabletopcontrol.map.logic.MapFogOfWarService
+import com.tabletopcontrol.map.logic.MapMeasurementService
+import com.tabletopcontrol.map.logic.MapSettingsService
+import com.tabletopcontrol.map.logic.MapTokenSyncService
+import com.tabletopcontrol.map.logic.MapViewportState
+import com.tabletopcontrol.map.ui.MapCalibrationDialogs
+import com.tabletopcontrol.map.ui.MapMeasurementDialogs
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.scene.Node

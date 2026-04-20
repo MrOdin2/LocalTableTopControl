@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.MapCalibrationService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
