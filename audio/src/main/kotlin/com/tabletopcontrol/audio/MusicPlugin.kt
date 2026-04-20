@@ -9,6 +9,7 @@ import com.tabletopcontrol.core.ui.GrabHandle
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.configureSliderDeferredCommit
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.dialog.AudioFileChooserDialog
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
@@ -23,7 +24,6 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
-import javafx.stage.FileChooser
 import javafx.util.Duration
 import java.io.File
 import java.net.URI
@@ -180,23 +180,12 @@ class MusicPlugin : DmPlugin {
 
         val browseBtn = Button("Browse…").apply {
             setOnAction { evt ->
-                val chooser = FileChooser().apply {
-                    title = "Select audio file for card ${index + 1}"
-                    extensionFilters.addAll(
-                        FileChooser.ExtensionFilter("MP3 files", "*.mp3"),
-                        FileChooser.ExtensionFilter(
-                            "Audio files",
-                            "*.mp3",
-                            "*.wav",
-                            "*.aac",
-                            "*.m4a",
-                            "*.ogg",
-                        ),
-                        FileChooser.ExtensionFilter("All files", "*.*"),
-                    )
-                }
                 val owner = (evt.source as? Button)?.scene?.window
-                val file = chooser.showOpenDialog(owner) ?: return@setOnAction
+                val file = AudioFileChooserDialog.showOpenDialog(
+                    owner = owner,
+                    title = "Select audio file for card ${index + 1}",
+                    audioPatterns = listOf("*.mp3", "*.wav", "*.aac", "*.m4a", "*.ogg"),
+                ) ?: return@setOnAction
                 trackService.loadSelectedTrack(track, file.toURI().toString())
             }
         }

@@ -274,8 +274,9 @@
       </p>
       <p>
         You can right-click a button that already has a sound to replace it with a different file.
-        Button callbacks are bound before each load, so load errors and end-of-playback resets are
-        applied immediately to the button state.
+        If the selected file (or a previously saved file) can no longer be opened, that slot is
+        cleared so the rest of the board stays usable, and hovering the button shows which file
+        failed.
       </p>
 
       <h3 id="soundboard-customize">Customizing Buttons</h3>
@@ -289,7 +290,9 @@
       </table>
       <p>
         Soundboard layout and button settings (loaded sound, order, and color) are persisted between
-        sessions in <code>~/.tabletopcontrol/soundboard.conf</code>.
+        sessions in <code>~/.tabletopcontrol/soundboard.conf</code>. If saving fails, the current
+        session still keeps working with the buttons exactly as shown; only the next launch may miss
+        the unsaved change.
       </p>
 
       <h3 id="soundboard-play">Playing Sounds</h3>

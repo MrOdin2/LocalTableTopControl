@@ -1,83 +1,48 @@
 package com.tabletopcontrol.audio
 
-import com.tabletopcontrol.audio.shared.MediaTrackController
-import com.tabletopcontrol.audio.shared.MediaTrackStatus
 import com.tabletopcontrol.core.DmPlugin
-import com.tabletopcontrol.core.persistence.AppConfigPaths
-import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
-import com.tabletopcontrol.core.ui.color.ColorContrast
-import com.tabletopcontrol.core.ui.color.ColorEditorDialog
-import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
-import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.geometry.Insets
+import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Tooltip
-import javafx.geometry.Pos
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.TilePane
 import javafx.scene.layout.VBox
-import javafx.scene.paint.Color
-import javafx.stage.FileChooser
-import java.io.File
-import java.net.URI
-import java.util.Base64
 
 /**
  * DM-panel plugin for a simple soundboard.
  *
- * Provides configurable soundboard buttons arranged in a responsive grid that fits
- * the number of columns to the available width, using between 2 and 8 columns
- * inclusive as space allows.
- *
- * - **Right-click** a button to load an MP3 (or other supported audio) file.
- * - **Right-click** a button to set a custom colour.
- * - **Right-click** a button to remove it.
- * - **Left-click** a loaded button to toggle playback on/off.
- * - Buttons can be reordered via drag-and-drop.
- * - When a sound finishes naturally, the button resets to its idle state.
- *
- * GODCLASS audit note:
- * - `SoundboardPlugin` is currently a GODCLASS.
- * - Features that can be moved to helpers/shared components:
- *   - Slot config persistence (`serializeConfig`, `parseConfig`, `saveConfig`, `loadConfig`).
- *   - Media/player lifecycle handling (`loadSlot`, `playSlot`, `stopSlot`, disposal/reset).
- *   - Context-menu and color-picker UI flows.
- *   - Button styling/state transitions (`setPlayingStyle`, `setIdleStyle`, `applyCurrentStyle`).
- *   - Soundboard grid rendering/reorder orchestration (`renderButtons`, drag/drop wiring).
+ * The plugin now focuses on JavaFX view wiring while [SoundboardSlotService]
+ * owns slot lifecycle, persistence, and playback result flows.
  */
-class SoundboardPlugin : DmPlugin {
+class SoundboardPlugin(
+) : DmPlugin {
+    private val slotService = SoundboardSlotService()
 
     override val displayName: String = "Soundboard"
 
-    internal data class SlotConfig(
-        val label: String? = null,
-        val uri: String? = null,
-        val colorHex: String? = null,
-    )
-
     companion object {
         /** Default number of soundboard buttons. */
-        const val BUTTON_COUNT = 16
+        const val BUTTON_COUNT = DEFAULT_SOUNDBOARD_BUTTON_COUNT
         const val DEFAULT_BUTTON_COUNT = BUTTON_COUNT
-        const val MAX_BUTTON_COUNT = 32
+        const val MAX_BUTTON_COUNT = MAX_SOUNDBOARD_BUTTON_COUNT
+
         private const val MIN_COLUMN_COUNT = 2
         private const val MAX_COLUMN_COUNT = 8
         private const val TILE_WIDTH = 90.0
         private const val TILE_GAP = 4.0
         private const val TILE_PANE_PADDING = 4.0
         private const val END_DROP_TARGET_OPACITY = 0.7
-
-        private const val CONFIG_VERSION = 1
         private const val DRAG_FORMAT = "tabletopcontrol/soundboard-slot"
 
         /** Returns the preferred column count for a given available [width]. */
@@ -87,7 +52,7 @@ class SoundboardPlugin : DmPlugin {
             return columns.coerceIn(MIN_COLUMN_COUNT, MAX_COLUMN_COUNT)
         }
 
-        internal fun clampButtonCount(requested: Int): Int = requested.coerceIn(0, MAX_BUTTON_COUNT)
+        internal fun clampButtonCount(requested: Int): Int = SoundboardSettingsCodec.clampSlotCount(requested)
 
         internal fun shouldShowInlineAddButton(slotCount: Int, columns: Int): Boolean {
             val safeColumns = columns.coerceAtLeast(1)
@@ -95,92 +60,31 @@ class SoundboardPlugin : DmPlugin {
             if (slotCount <= 0) return true
             return slotCount % safeColumns != 0
         }
-
-        internal fun serializeConfig(slots: List<SlotConfig>): String {
-            val b64 = Base64.getUrlEncoder().withoutPadding()
-            fun enc(v: String?): String = v?.let { b64.encodeToString(it.toByteArray(Charsets.UTF_8)) } ?: "-"
-
-            return buildString {
-                appendLine("version=$CONFIG_VERSION")
-                appendLine("count=${clampButtonCount(slots.size)}")
-                slots.take(MAX_BUTTON_COUNT).forEach { slot ->
-                    appendLine("slot=${enc(slot.label)}|${enc(slot.uri)}|${enc(slot.colorHex)}")
-                }
-            }
-        }
-
-        internal fun parseConfig(text: String): List<SlotConfig>? {
-            val lines = text.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
-            if (lines.isEmpty()) return null
-            val version = lines.firstOrNull { it.startsWith("version=") }
-                ?.substringAfter('=')
-                ?.toIntOrNull()
-                ?: return null
-            if (version != CONFIG_VERSION) return null
-
-            val decoder = Base64.getUrlDecoder()
-            fun dec(v: String): String? = if (v == "-") {
-                null
-            } else {
-                runCatching { String(decoder.decode(v), Charsets.UTF_8) }.getOrNull()
-            }
-
-            val count = lines.firstOrNull { it.startsWith("count=") }
-                ?.substringAfter('=')
-                ?.toIntOrNull()
-                ?.let { clampButtonCount(it) }
-                ?: DEFAULT_BUTTON_COUNT
-
-            val parsed = lines
-                .filter { it.startsWith("slot=") }
-                .mapNotNull { line ->
-                    val payload = line.substringAfter("slot=", "")
-                    val parts = payload.split('|')
-                    if (parts.size != 3) return@mapNotNull null
-                    SlotConfig(
-                        label = dec(parts[0]),
-                        uri = dec(parts[1]),
-                        colorHex = dec(parts[2])?.takeIf { ColorHexCodec.parseOrNull(it) != null },
-                    )
-                }
-                .toMutableList()
-
-            while (parsed.size < count) parsed.add(SlotConfig())
-            return parsed.take(count)
-        }
-
-        internal const val EMPTY_SLOT_TOOLTIP = "Right-click to load a sound file"
-
-        internal fun tooltipTextForUri(uri: String?): String {
-            if (uri.isNullOrBlank()) return EMPTY_SLOT_TOOLTIP
-            return runCatching { File(URI(uri)).absolutePath }.getOrDefault(uri)
-        }
-
-        internal data class ButtonVisualState(
-            val text: String,
-            val isPlaying: Boolean,
-        )
-
-        internal fun buttonVisualState(isPlaying: Boolean, label: String): ButtonVisualState =
-            if (isPlaying) {
-                ButtonVisualState(text = "⏹ $label", isPlaying = true)
-            } else {
-                ButtonVisualState(text = label, isPlaying = false)
-            }
     }
 
-    private class SlotState(
-        var customLabel: String? = null,
-        var uri: String? = null,
-        var colorHex: String? = null,
-        var controller: MediaTrackController? = null,
-        var button: Button? = null,
-    ) {
-        fun displayLabel(index: Int): String = customLabel ?: "Slot ${index + 1}"
-    }
+    private val slotButtons = mutableMapOf<SoundboardSlotState, Button>()
+    private val slotListener = object : SoundboardSlotService.Listener {
+        override fun onSlotSnapshotChanged(slot: SoundboardSlotState, snapshot: SoundboardSlotSnapshot) {
+            applySnapshot(slot, snapshot)
+        }
 
-    private val slots = mutableListOf<SlotState>()
-    private var initialized = false
+        override fun onSlotLoadResult(slot: SoundboardSlotState, result: SoundboardSlotLoadResult) {
+            if (result is SoundboardSlotLoadResult.Failed) {
+                applyLoadFailure(slot, result)
+            }
+        }
+
+        override fun onSlotPlaybackFailure(
+            slot: SoundboardSlotState,
+            result: SoundboardSlotPlaybackResult.Failed,
+        ) {
+            applyPlaybackFailure(slot, result.failure)
+        }
+
+        override fun onConfigPersistenceResult(result: SoundboardSettingsSaveResult) {
+            applyConfigSaveResult(result)
+        }
+    }
 
     private lateinit var tilePane: TilePane
     private lateinit var endDropTarget: Label
@@ -188,18 +92,9 @@ class SoundboardPlugin : DmPlugin {
     private lateinit var countLabel: Label
     private lateinit var scrollPane: ScrollPane
 
-    private val configFile: File
-        get() = AppConfigPaths.configFile("soundboard.conf")
-
     override fun createView(): Node {
-        if (!initialized) {
-            val persisted = loadConfig()
-            val initialCount = clampButtonCount(persisted?.size ?: DEFAULT_BUTTON_COUNT)
-            val initial = persisted ?: List(initialCount) { SlotConfig() }
-            slots.clear()
-            slots.addAll(initial.take(initialCount).map { SlotState(it.label, it.uri, it.colorHex) })
-            initialized = true
-        }
+        slotService.listener = slotListener
+        val loadResult = slotService.initializeIfNeeded()
 
         tilePane = TilePane(TILE_GAP, TILE_GAP).apply {
             prefTileWidth = TILE_WIDTH
@@ -207,9 +102,9 @@ class SoundboardPlugin : DmPlugin {
             prefColumns = columnsForWidth(0.0)
             style = "-fx-padding: $TILE_PANE_PADDING;"
             widthProperty().addListener { _, _, newWidth ->
-                val cols = columnsForWidth(newWidth.toDouble())
-                if (prefColumns != cols) {
-                    prefColumns = cols
+                val columns = columnsForWidth(newWidth.toDouble())
+                if (prefColumns != columns) {
+                    prefColumns = columns
                     renderButtons()
                 }
             }
@@ -222,8 +117,7 @@ class SoundboardPlugin : DmPlugin {
             alignment = Pos.CENTER
             tooltip = Tooltip("Drop a dragged soundboard button here to move it to the end")
         }
-
-        addButton = Button().apply {
+        addButton = Button("+ Add Button").apply {
             tooltip = Tooltip("Add a soundboard button (up to $MAX_BUTTON_COUNT)")
             setOnAction { addSlot() }
         }
@@ -232,27 +126,27 @@ class SoundboardPlugin : DmPlugin {
         val controls = HBox(8.0, addButton, countLabel).apply {
             HBox.setHgrow(countLabel, Priority.ALWAYS)
         }
-
-        val content = VBox(8.0, controls, tilePane, endDropTarget).apply { padding = Insets(8.0) }
+        val content = VBox(8.0, controls, tilePane, endDropTarget).apply {
+            padding = Insets(8.0)
+        }
         scrollPane = ScrollPane(content).apply {
             isFitToWidth = true
             hbarPolicy = ScrollPane.ScrollBarPolicy.NEVER
         }
 
         renderButtons()
+        applyConfigLoadResult(loadResult)
         return scrollPane
     }
 
     override fun onShutdown() {
-        slots.forEach { it.controller?.dispose() }
+        slotButtons.clear()
+        slotService.listener = null
+        slotService.shutdown()
     }
 
-    private fun indexOfSlot(slot: SlotState): Int? = slots.indexOf(slot).takeIf { it >= 0 }
-
-    private fun displayLabelFor(slot: SlotState): String =
-        indexOfSlot(slot)?.let { slot.displayLabel(it) } ?: (slot.customLabel ?: "Slot")
-
     private fun renderButtons() {
+        slotButtons.clear()
         tilePane.children.clear()
 
         val indicator = DropIndicator()
@@ -260,17 +154,16 @@ class SoundboardPlugin : DmPlugin {
             dataFormat = DRAG_FORMAT,
             autoScrollPane = scrollPane,
             onReorder = { fromIndex, toIndex ->
-                if (!ReorderSupport.reorderMutableListFromDrop(slots, fromIndex, toIndex)) return@DragDropContext
+                if (!slotService.reorderSlots(fromIndex, toIndex)) return@DragDropContext
                 renderButtons()
-                saveConfig()
             },
         )
 
-        slots.indices.forEach { index ->
-            val btn = buildButton(index)
-            DragDropSupport.installDragSource(btn, index, dragContext)
-            DragDropSupport.installDropTarget(btn, index, dragContext, indicator)
-            tilePane.children.add(btn)
+        slotService.slots.forEachIndexed { index, slot ->
+            val button = buildButton(index, slot)
+            DragDropSupport.installDragSource(button, index, dragContext)
+            DragDropSupport.installDropTarget(button, index, dragContext, indicator)
+            tilePane.children.add(button)
         }
 
         val endDropIndicator = DropIndicator()
@@ -286,8 +179,9 @@ class SoundboardPlugin : DmPlugin {
             }
             endDropTarget.properties["soundboardEndDropIndicator"] = endDropIndicator
         }
-        DragDropSupport.installDropTarget(endDropTarget, slots.size, dragContext, endDropIndicator)
-        if (shouldShowInlineAddButton(slots.size, tilePane.prefColumns)) {
+        DragDropSupport.installDropTarget(endDropTarget, slotService.slots.size, dragContext, endDropIndicator)
+
+        if (shouldShowInlineAddButton(slotService.slots.size, tilePane.prefColumns)) {
             tilePane.children.add(
                 Button("+").apply {
                     prefWidth = TILE_WIDTH
@@ -298,52 +192,23 @@ class SoundboardPlugin : DmPlugin {
                 },
             )
         }
-        tilePane.children.add(indicator)
 
-        addButton.isDisable = slots.size >= MAX_BUTTON_COUNT
-        addButton.text = "+ Add Button"
-        countLabel.text = "${slots.size}/$MAX_BUTTON_COUNT"
+        tilePane.children.add(indicator)
+        refreshControls()
     }
 
-    private fun buildButton(index: Int): Button {
-        val slot = slots[index]
-        val btn = Button(slot.displayLabel(index)).apply {
+    private fun buildButton(index: Int, slot: SoundboardSlotState): Button {
+        val button = Button().apply {
             prefWidth = TILE_WIDTH
             prefHeight = 48.0
             maxWidth = Double.MAX_VALUE
             isWrapText = true
-            tooltip = if (slot.uri != null) {
-                Tooltip(tooltipTextForUri(slot.uri))
-            } else {
-                Tooltip(EMPTY_SLOT_TOOLTIP)
-            }
         }
-        slot.button = btn
+        slotButtons[slot] = button
+        applySnapshot(slot, slotService.snapshotOf(slot))
 
-        if (slot.uri != null && (slot.controller?.hasPlayer() != true) && !loadSlot(slot)) {
-            slot.uri = null
-            slot.customLabel = null
-            btn.text = slot.displayLabel(index)
-            btn.tooltip = Tooltip(EMPTY_SLOT_TOOLTIP)
-            saveConfig()
-        }
-        val visualState = buttonVisualState(
-            isPlaying = slot.controller?.status() == MediaTrackStatus.PLAYING,
-            label = slot.displayLabel(index),
-        )
-        btn.text = visualState.text
-        if (visualState.isPlaying) {
-            setPlayingStyle(slot)
-        } else {
-            setIdleStyle(slot)
-        }
-
-        btn.setOnAction {
-            val controller = slot.controller ?: return@setOnAction
-            when (controller.status()) {
-                MediaTrackStatus.PLAYING -> stopSlot(slot)
-                else -> playSlot(slot)
-            }
+        button.setOnAction {
+            slotService.togglePlayback(slot)
         }
 
         val actions = listOf(
@@ -352,21 +217,21 @@ class SoundboardPlugin : DmPlugin {
                 label = "Load Sound…",
                 icon = "📂",
                 section = MenuSection.BASIC,
-                onAction = { showFileChooser(slot, btn) },
+                onAction = { showLoadDialog(slot, button) },
             ),
             MenuAction(
                 id = "soundboard.clear",
                 label = "Clear",
                 icon = "🗑️",
                 section = MenuSection.BASIC,
-                onAction = { clearSlot(slot) },
+                onAction = { slotService.clearSlot(slot) },
             ),
             MenuAction(
                 id = "soundboard.setColor",
                 label = "Set Color",
                 icon = "🎨",
                 section = MenuSection.APPEARANCE,
-                onAction = { showColorDialog(slot, btn) },
+                onAction = { showColorDialog(slot, button) },
             ),
             MenuAction(
                 id = "soundboard.remove",
@@ -377,171 +242,137 @@ class SoundboardPlugin : DmPlugin {
                 onAction = { removeSlot(slot) },
             ),
         )
-        btn.setOnContextMenuRequested { e ->
-            ContextMenuRenderer.build(actions).show(btn, e.screenX, e.screenY)
-            e.consume()
+        button.setOnContextMenuRequested { event ->
+            ContextMenuRenderer.build(actions).show(button, event.screenX, event.screenY)
+            event.consume()
         }
 
-        return btn
+        slotService.restoreSlot(slot)
+        return button
     }
 
-    private fun showFileChooser(slot: SlotState, btn: Button) {
-        val slotIndex = indexOfSlot(slot) ?: return
-        val chooser = FileChooser().apply {
-            title = "Load sound for Slot ${slotIndex + 1}"
-            extensionFilters.addAll(
-                FileChooser.ExtensionFilter("MP3 files", "*.mp3"),
-                FileChooser.ExtensionFilter(
-                    "Audio files", "*.mp3", "*.wav", "*.aac", "*.m4a",
-                ),
-                FileChooser.ExtensionFilter("All files", "*.*"),
-            )
-        }
-        val owner = btn.scene?.window
-        val file = chooser.showOpenDialog(owner) ?: return
+    private fun showLoadDialog(slot: SoundboardSlotState, button: Button) {
+        val slotNumber = slotNumberFor(slot) ?: return
+        val file = SoundboardSlotDialogs.chooseAudioFile(
+            owner = button.scene?.window,
+            slotNumber = slotNumber,
+        ) ?: return
 
-        slot.customLabel = file.nameWithoutExtension
-        slot.uri = file.toURI().toString()
-
-        if (!loadSlot(slot)) {
-            slot.customLabel = null
-            slot.uri = null
-            btn.text = "⚠ Load Error"
-            btn.tooltip = Tooltip("Failed to load: ${file.absolutePath}")
-            setIdleStyle(slot)
-            saveConfig()
-            return
-        }
-
-        btn.text = slot.customLabel
-        btn.tooltip = Tooltip(tooltipTextForUri(slot.uri))
-        setIdleStyle(slot)
-        saveConfig()
-    }
-
-    private fun loadSlot(slot: SlotState): Boolean {
-        val uri = slot.uri ?: return false
-        val controller = slot.controller ?: MediaTrackController().also { slot.controller = it }
-        controller.bindCallbacks(
-            onError = { resetButtonToIdle(slot) },
-            onEndOfMedia = {
-                controller.stop()
-                resetButtonToIdle(slot)
-            },
+        slotService.loadSelectedFile(
+            slot = slot,
+            requestedLabel = file.nameWithoutExtension,
+            requestedUri = file.toURI().toString(),
         )
-        val loaded = controller.load(
-            uri = uri,
-            volume = 1.0,
-            cycleCount = 1,
-        )
-        if (!loaded) {
-            controller.dispose()
-            slot.controller = null
-            return false
-        }
-        return true
     }
 
-    private fun playSlot(slot: SlotState) {
-        val label = displayLabelFor(slot)
-        slot.controller?.play()
-        slot.button?.let {
-            it.text = buttonVisualState(isPlaying = true, label = label).text
-            setPlayingStyle(slot)
-        }
+    private fun showColorDialog(slot: SoundboardSlotState, button: Button) {
+        val selectedColor = SoundboardSlotDialogs.chooseColor(
+            owner = button.scene?.window,
+            currentColorHex = slot.colorHex,
+        ) ?: return
+
+        slotService.setSlotColor(slot, selectedColor)
     }
 
-    private fun stopSlot(slot: SlotState) {
-        slot.controller?.stop()
-        resetButtonToIdle(slot)
-    }
-
-    private fun clearSlot(slot: SlotState) {
-        slot.controller?.dispose()
-        slot.controller = null
-        slot.uri = null
-        slot.customLabel = null
-
-        slot.button?.let {
-            it.text = displayLabelFor(slot)
-            it.tooltip = Tooltip(EMPTY_SLOT_TOOLTIP)
-            setIdleStyle(slot)
-        }
-        saveConfig()
-    }
-
-    private fun resetButtonToIdle(slot: SlotState) {
-        slot.button?.let {
-            it.text = displayLabelFor(slot)
-            setIdleStyle(slot)
-        }
-    }
-
-    private fun setPlayingStyle(slot: SlotState) {
-        val btn = slot.button ?: return
-        val color = slot.colorHex
-        btn.style = if (color == null) {
-            "-fx-base: -tc-accent; -fx-text-fill: -tc-on-accent;"
-        } else {
-            "-fx-background-color: $color; -fx-text-fill: ${ColorContrast.textColorHexForBackgroundHex(color)}; -fx-border-color: -tc-accent; -fx-border-width: 2;"
-        }
-    }
-
-    private fun setIdleStyle(slot: SlotState) {
-        val btn = slot.button ?: return
-        val color = slot.colorHex
-        btn.style = if (color == null) "" else "-fx-background-color: $color; -fx-text-fill: ${ColorContrast.textColorHexForBackgroundHex(color)};"
-    }
-
-    private fun showColorDialog(slot: SlotState, btn: Button) {
-        val initial = ColorHexCodec.parseOrDefault(slot.colorHex, Color.GRAY)
-        val selected = ColorEditorDialog.showDialog(
-            owner = btn.scene?.window,
-            title = "Set Button Color",
-            prompt = "Choose a color for this button",
-            initialColor = initial,
-        )
-        if (selected != null) {
-            slot.colorHex = ColorHexCodec.colorToHex(selected)
-            applyCurrentStyle(slot)
-            saveConfig()
-        }
-    }
-
-    private fun applyCurrentStyle(slot: SlotState) {
-        if (slot.controller?.status() == MediaTrackStatus.PLAYING) {
-            setPlayingStyle(slot)
-        } else {
-            setIdleStyle(slot)
-        }
-    }
     private fun addSlot() {
-        if (slots.size >= MAX_BUTTON_COUNT) return
-        slots.add(SlotState())
-        renderButtons()
-        saveConfig()
-    }
-
-    private fun removeSlot(slot: SlotState) {
-        val slotIndex = indexOfSlot(slot) ?: return
-        val removed = slots.removeAt(slotIndex)
-        removed.controller?.dispose()
-        removed.controller = null
-        removed.button = null
-        renderButtons()
-        saveConfig()
-    }
-
-    private fun saveConfig() {
-        val payload = slots.map { SlotConfig(it.customLabel, it.uri, it.colorHex) }
-        SafeConfigIO.writeText(configFile, serializeConfig(payload))
-    }
-
-    private fun loadConfig(): List<SlotConfig>? {
-        if (!configFile.exists()) return null
-
-        return SafeConfigIO.readOrElse(null) {
-            parseConfig(configFile.readText())
+        if (slotService.addSlot()) {
+            renderButtons()
         }
     }
+
+    private fun removeSlot(slot: SoundboardSlotState) {
+        if (slotService.removeSlot(slot)) {
+            renderButtons()
+        }
+    }
+
+    private fun applySnapshot(slot: SoundboardSlotState, snapshot: SoundboardSlotSnapshot) {
+        val button = slotButtons[slot] ?: return
+        button.text = snapshot.buttonText
+        button.tooltip = Tooltip(snapshot.tooltipText)
+        button.style = SoundboardSlotVisuals.cssFor(snapshot.styleState)
+    }
+
+    private fun applyLoadFailure(slot: SoundboardSlotState, result: SoundboardSlotLoadResult.Failed) {
+        val button = slotButtons[slot] ?: return
+        val attemptedPath = SoundboardSlotVisuals.tooltipTextForUri(result.requestedUri)
+        val message = buildString {
+            append("Failed to load audio file:\n")
+            append(attemptedPath)
+            append("\n\n")
+            if (result.clearedAssignedSlot || result.snapshot.uri == null) {
+                append("No sound is currently loaded for this slot.")
+            } else {
+                append("Current sound:\n")
+                append(SoundboardSlotVisuals.tooltipTextForUri(result.snapshot.uri))
+            }
+        }
+        button.text = "⚠ Load Error"
+        button.tooltip = Tooltip(message)
+        button.style = SoundboardSlotVisuals.cssFor(result.snapshot.styleState)
+    }
+
+    private fun applyPlaybackFailure(slot: SoundboardSlotState, failure: SoundboardSlotPlaybackFailure) {
+        val button = slotButtons[slot] ?: return
+        val message = when (failure) {
+            is SoundboardSlotPlaybackFailure.NoActiveTrack -> {
+                if (failure.uri == null) return
+                "No audio file is currently loaded for:\n${SoundboardSlotVisuals.tooltipTextForUri(failure.uri)}"
+            }
+
+            is SoundboardSlotPlaybackFailure.Unavailable -> {
+                val path = failure.uri?.let(SoundboardSlotVisuals::tooltipTextForUri) ?: "this slot"
+                "Track is unavailable for playback:\n$path"
+            }
+
+            is SoundboardSlotPlaybackFailure.PlayerError -> {
+                val path = failure.uri?.let(SoundboardSlotVisuals::tooltipTextForUri) ?: "this slot"
+                "Playback failed for:\n$path"
+            }
+        }
+        button.tooltip = Tooltip(message)
+    }
+
+    private fun applyConfigLoadResult(result: SoundboardSettingsLoadResult) {
+        countLabel.tooltip = when (result) {
+            is SoundboardSettingsLoadResult.Failed -> Tooltip(configFailureMessage(result.failure, duringLoad = true))
+            else -> null
+        }
+    }
+
+    private fun applyConfigSaveResult(result: SoundboardSettingsSaveResult) {
+        countLabel.tooltip = when (result) {
+            is SoundboardSettingsSaveResult.Failed -> Tooltip(configFailureMessage(result.failure, duringLoad = false))
+            is SoundboardSettingsSaveResult.Saved -> null
+        }
+    }
+
+    private fun configFailureMessage(
+        failure: SoundboardSettingsPersistenceFailure,
+        duringLoad: Boolean,
+    ): String = when (failure) {
+        is SoundboardSettingsPersistenceFailure.ReadFailed ->
+            "Soundboard settings could not be read from ${failure.configFile.absolutePath}. " +
+                "Default buttons are being used for this session."
+
+        is SoundboardSettingsPersistenceFailure.InvalidFormat ->
+            "Soundboard settings in ${failure.configFile.absolutePath} are invalid. " +
+                "Default buttons are being used for this session."
+
+        is SoundboardSettingsPersistenceFailure.WriteFailed ->
+            if (duringLoad) {
+                "Soundboard settings could not be updated at ${failure.configFile.absolutePath}."
+            } else {
+                "Soundboard changes could not be saved to ${failure.configFile.absolutePath}. " +
+                    "Your current buttons still work for this session."
+            }
+    }
+
+    private fun refreshControls() {
+        addButton.isDisable = slotService.slots.size >= MAX_BUTTON_COUNT
+        countLabel.text = "${slotService.slots.size}/$MAX_BUTTON_COUNT"
+    }
+
+    private fun slotNumberFor(slot: SoundboardSlotState): Int? =
+        slotService.slots.indexOf(slot).takeIf { it >= 0 }?.plus(1)
 }
