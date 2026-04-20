@@ -265,6 +265,7 @@ object MapCalibrationDialogs {
 
         val canvas = Canvas()
         val renderer = MapRenderer(canvas).apply {
+            applyTableMapOffset = false
             mapCalibration = working
             gridCalibration = settingsService.gridCalibration
             gridConfig = settingsService.currentGridConfig

@@ -17,6 +17,7 @@ import com.tabletopcontrol.map.logic.FogOfWarState
 import com.tabletopcontrol.map.logic.GridCalibration
 import com.tabletopcontrol.map.logic.GridConfig
 import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.TableMapOffset
 import com.tabletopcontrol.map.logic.Token
 import java.net.URI
 import kotlin.math.abs
@@ -117,6 +118,15 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var mapRotationDegrees: Int = 0
 
+    /** Shared displacement applied to the entire rendered table map. */
+    var tableMapOffset: TableMapOffset = TableMapOffset()
+
+    /** Whether this renderer should apply the shared [tableMapOffset]. */
+    var applyTableMapOffset: Boolean = true
+
+    /** Whether this renderer should draw a dashed outline of the table viewport. */
+    var showTableViewportOutline: Boolean = false
+
     /** When `true` a yellow crosshair is drawn at the canvas centre. */
     private var gridCalibrationMode: Boolean = false
 
@@ -179,6 +189,15 @@ class MapRenderer(private val canvas: Canvas) {
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
 
+    /** Latest grid colour, retained even while the visible grid is disabled. */
+    private var lastGridColor: Color = GridConfig().color
+
+    /** Current player-facing table canvas width in pixels. */
+    private var tableViewportWidth: Double = 0.0
+
+    /** Current player-facing table canvas height in pixels. */
+    private var tableViewportHeight: Double = 0.0
+
     /**
      * All active [EventBus.Subscription] handles for this renderer.
      * Populated in [attachToEventBus] and released en masse in [dispose].
@@ -221,6 +240,7 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<GridUpdateEvent> { event ->
             gridConfig = event.config
+            event.config?.color?.let { lastGridColor = it }
             redraw()
         }
         subscriptions += EventBus.subscribe<FogOfWarResetEvent> { event ->
@@ -248,6 +268,15 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<MapRotationEvent> { event ->
             mapRotationDegrees = ((event.degrees % 360) + 360) % 360
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<TableMapOffsetEvent> { event ->
+            tableMapOffset = event.offset
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<TableViewportChangedEvent> { event ->
+            tableViewportWidth = event.width
+            tableViewportHeight = event.height
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
@@ -423,6 +452,9 @@ class MapRenderer(private val canvas: Canvas) {
         gc.translate(cx + viewportOffsetX, cy + viewportOffsetY)
         gc.scale(viewportScale, viewportScale)
         gc.translate(-cx, -cy)
+        if (applyTableMapOffset) {
+            gc.translate(tableMapOffset.offsetX, tableMapOffset.offsetY)
+        }
 
         drawMapImage()
         drawGrid()
@@ -430,10 +462,11 @@ class MapRenderer(private val canvas: Canvas) {
         drawTokens()
         drawMeasurements()
         drawGridCornerDots()
-        drawGridCalibrationOverlay()
-        drawMapCalibrationOverlay()
 
         gc.restore()
+        drawTableViewportOutline()
+        drawGridCalibrationOverlay()
+        drawMapCalibrationOverlay()
     }
 
     // -------------------------------------------------------------------------
@@ -495,10 +528,12 @@ class MapRenderer(private val canvas: Canvas) {
         val h = canvas.height
         val cx = w / 2.0
         val cy = h / 2.0
-        val xMin = (0.0 - cx - viewportOffsetX) / viewportScale + cx
-        val xMax = (w   - cx - viewportOffsetX) / viewportScale + cx
-        val yMin = (0.0 - cy - viewportOffsetY) / viewportScale + cy
-        val yMax = (h   - cy - viewportOffsetY) / viewportScale + cy
+        val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
+        val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
+        val xMin = (0.0 - cx - viewportOffsetX) / viewportScale + cx - sceneOffsetX
+        val xMax = (w   - cx - viewportOffsetX) / viewportScale + cx - sceneOffsetX
+        val yMin = (0.0 - cy - viewportOffsetY) / viewportScale + cy - sceneOffsetY
+        val yMax = (h   - cy - viewportOffsetY) / viewportScale + cy - sceneOffsetY
         return doubleArrayOf(xMin, xMax, yMin, yMax)
     }
 
@@ -599,8 +634,10 @@ class MapRenderer(private val canvas: Canvas) {
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
         val cx = canvas.width / 2.0
         val cy = canvas.height / 2.0
-        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
-        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
+        val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
+        val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
+        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx - sceneOffsetX
+        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy - sceneOffsetY
         val originX = cx + gridCalibration.offsetX
         val originY = cy + gridCalibration.offsetY
         val col = floor((worldX - originX) / cellPx).toInt()
@@ -862,6 +899,38 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
+     * Draws a faint dashed rectangle on the DM minimap showing the current
+     * player-facing table viewport.
+     *
+     * The outline is rendered in screen space so its stroke width and dash
+     * pattern stay readable regardless of the DM minimap zoom level.
+     */
+    private fun drawTableViewportOutline() {
+        if (!showTableViewportOutline) return
+
+        val bounds = tableViewportSceneBounds(
+            viewportWidth = tableViewportWidth,
+            viewportHeight = tableViewportHeight,
+            tableMapOffset = tableMapOffset,
+        ) ?: return
+
+        val topLeft = sceneToCanvasCoords(bounds[0], bounds[2])
+        val bottomRight = sceneToCanvasCoords(bounds[1], bounds[3])
+        val x = minOf(topLeft.first, bottomRight.first)
+        val y = minOf(topLeft.second, bottomRight.second)
+        val width = abs(bottomRight.first - topLeft.first)
+        val height = abs(bottomRight.second - topLeft.second)
+        if (width <= 0.0 || height <= 0.0) return
+
+        gc.save()
+        gc.stroke = tableViewportOutlineColor(lastGridColor)
+        gc.lineWidth = TABLE_VIEWPORT_OUTLINE_LINE_WIDTH
+        gc.setLineDashes(TABLE_VIEWPORT_OUTLINE_DASH_LENGTH, TABLE_VIEWPORT_OUTLINE_GAP_LENGTH)
+        gc.strokeRect(x, y, width, height)
+        gc.restore()
+    }
+
+    /**
      * Draws a small red dot at every grid line intersection when map calibration
      * mode is active.
      *
@@ -902,6 +971,23 @@ class MapRenderer(private val canvas: Canvas) {
         }
     }
 
+    /**
+     * Converts a scene-space coordinate to canvas-space, applying this
+     * renderer's viewport transform and optional shared table offset.
+     *
+     * Scene-space uses the canvas centre as `(0, 0)`, which makes it stable
+     * across differently sized renderer canvases.
+     */
+    private fun sceneToCanvasCoords(sceneX: Double, sceneY: Double): Pair<Double, Double> {
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
+        val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
+        val canvasX = cx + viewportOffsetX + viewportScale * (sceneX + sceneOffsetX)
+        val canvasY = cy + viewportOffsetY + viewportScale * (sceneY + sceneOffsetY)
+        return Pair(canvasX, canvasY)
+    }
+
     companion object {
         /**
          * Font size as a fraction of grid cell size for token name labels.
@@ -933,5 +1019,32 @@ class MapRenderer(private val canvas: Canvas) {
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
         private const val MEASUREMENT_FILL_OPACITY = 0.18
         private const val DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS = 5.0
+        private const val TABLE_VIEWPORT_OUTLINE_LINE_WIDTH = 1.5
+        private const val TABLE_VIEWPORT_OUTLINE_DASH_LENGTH = 10.0
+        private const val TABLE_VIEWPORT_OUTLINE_GAP_LENGTH = 6.0
     }
+}
+
+internal fun tableViewportSceneBounds(
+    viewportWidth: Double,
+    viewportHeight: Double,
+    tableMapOffset: TableMapOffset,
+): DoubleArray? {
+    if (!viewportWidth.isFinite() || !viewportHeight.isFinite() || viewportWidth <= 0.0 || viewportHeight <= 0.0) {
+        return null
+    }
+    return doubleArrayOf(
+        -viewportWidth / 2.0 - tableMapOffset.offsetX,
+        viewportWidth / 2.0 - tableMapOffset.offsetX,
+        -viewportHeight / 2.0 - tableMapOffset.offsetY,
+        viewportHeight / 2.0 - tableMapOffset.offsetY,
+    )
+}
+
+internal fun tableViewportOutlineColor(base: Color): Color {
+    val shiftedHue = (base.hue + 20.0) % 360.0
+    val saturation = (base.saturation + 0.18).coerceIn(0.18, 1.0)
+    val brightness = (base.brightness * 0.92 + 0.08).coerceIn(0.15, 1.0)
+    val opacity = (base.opacity * 0.75).coerceIn(0.22, 0.5)
+    return Color.hsb(shiftedHue, saturation, brightness, opacity)
 }
