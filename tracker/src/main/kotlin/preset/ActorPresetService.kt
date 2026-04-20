@@ -9,11 +9,20 @@ class ActorPresetService(
     private val actorTracker: ActorTracker,
 ) {
 
-    fun saveActor(actor: Actor) {
+    fun saveActor(
+        actor: Actor,
+        confirmOverwrite: (String) -> Boolean,
+    ): Boolean {
         val presetWithoutThumbnail = actor.toPreset()
+        if (
+            PresetLibrary.hasPreset(presetWithoutThumbnail.name, presetWithoutThumbnail.folder) &&
+            !confirmOverwrite(presetWithoutThumbnail.name)
+        ) {
+            return false
+        }
         PresetLibrary.savePreset(presetWithoutThumbnail)
 
-        val imageUri = actor.imageSettings.uri ?: return
+        val imageUri = actor.imageSettings.uri ?: return true
         Thread {
             val base64 = PresetLibrary.loadAndScaleImage(imageUri) ?: return@Thread
             val onDiskFile = PresetLibrary.fileFor(
@@ -28,6 +37,7 @@ class ActorPresetService(
             }
             PresetLibrary.savePreset(latest.copy(imageBase64 = base64))
         }.also { it.isDaemon = true }.start()
+        return true
     }
 
     fun loadAll(): List<PresetLibrary.Preset> = PresetLibrary.loadAll()
