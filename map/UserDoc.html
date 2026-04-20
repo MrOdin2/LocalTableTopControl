@@ -304,6 +304,7 @@
       <p>Each token can display:</p>
       <ul>
         <li>A <strong>colour circle</strong> matching the combatant's assigned colour.</li>
+        <li>A footprint size from <strong>Tiny</strong> (1/8 tile) up to <strong>Gargantuan</strong> (4x4 tiles).</li>
         <li>A <strong>custom image</strong> (portrait or token art) uploaded in the tracker.</li>
         <li>The combatant's <strong>name label</strong> (toggle with the <em>Show Token Names</em> option).</li>
       </ul>
@@ -312,6 +313,24 @@
         directly on the minimap. See <a href="../docs/cross-plugin.html">Cross-Plugin Features</a>
         for the full details of how the tracker and map work together.
       </p>
+      <p>
+        Large footprints stay aligned to the grid automatically. A Large token covers 2x2 cells,
+        a Huge token covers 3x3 cells, and a Gargantuan token covers 4x4 cells. Tiny and Small
+        tokens render inside a single anchor cell at one-eighth and one-quarter tile size.
+      </p>
+      <p>
+        On the DM minimap you can grab a multi-cell token from any covered cell and drag it without
+        losing its footprint alignment. On the table screen, fog of war respects the full token
+        footprint so oversized creatures only appear where their occupied cells are visible.
+      </p>
+      <p>
+        When tokens overlap, smaller footprints are drawn on top of larger ones so tiny and small
+        creatures remain visible instead of disappearing underneath large bases.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> Change token size from the linked tracker card by right-clicking the
+        combatant and opening the <strong>Token Size</strong> menu.
+      </div>
     </section>
 
     <section id="measurement">

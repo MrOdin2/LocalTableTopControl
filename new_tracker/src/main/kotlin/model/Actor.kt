@@ -1,5 +1,6 @@
 package com.tabletopcontrol.new_tracker.model
 
+import com.tabletopcontrol.core.TokenSize
 import javafx.scene.paint.Color
 import java.util.UUID
 
@@ -9,10 +10,11 @@ data class Actor(
     val hp: Int = 0,
     val ac: Int = 0,
     val initiative: Int? = null,
+    val tokenSize: TokenSize = TokenSize.MEDIUM,
     var color: Color = Color.GRAY,
     val imageSettings: ActorImageSettings = ActorImageSettings(),
 ){
-    fun duplicateActor(): Actor = Actor(UUID.randomUUID().toString(), name, hp, ac, initiative, imageSettings = imageSettings)
+    fun duplicateActor(): Actor = copy(id = UUID.randomUUID().toString())
 }
 
 data class ActorImageSettings(

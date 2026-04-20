@@ -534,31 +534,34 @@ class MapTokenSyncService {
     private var activeTokenId: String? = null
     private var draggedTokenId: String? = null
     private var draggedTokenName: String? = null
+    private var draggedTokenAnchorOffset: Pair<Int, Int> = Pair(0, 0)
     private var lastDragCell: Pair<Int, Int>? = null
 
     init {
         attachToEventBus()
     }
 
-    fun beginDrag(token: Token) {
+    fun beginDrag(token: Token, grabbedCell: Pair<Int, Int> = Pair(token.col, token.row)) {
         draggedTokenId = token.id
         draggedTokenName = token.name
+        draggedTokenAnchorOffset = tokenDragAnchor(token, grabbedCell)
         lastDragCell = Pair(token.col, token.row)
     }
 
     fun publishDraggedTokenMove(cell: Pair<Int, Int>): MapResult<Unit> {
         val tokenId = draggedTokenId ?: return MapResult.failure(MapOperationError.TokenDragNotActive)
-        if (cell == lastDragCell) {
+        val originCell = draggedTokenOrigin(cell, draggedTokenAnchorOffset)
+        if (originCell == lastDragCell) {
             return MapResult.success(Unit)
         }
-        lastDragCell = cell
+        lastDragCell = originCell
         val currentName = tokens[tokenId]?.name ?: draggedTokenName.orEmpty()
         EventBus.publish(
             TokenMovedEvent(
                 id = tokenId,
                 name = currentName,
-                col = cell.first,
-                row = cell.second,
+                col = originCell.first,
+                row = originCell.second,
             ),
         )
         return MapResult.success(Unit)
@@ -567,12 +570,13 @@ class MapTokenSyncService {
     fun endDrag() {
         draggedTokenId = null
         draggedTokenName = null
+        draggedTokenAnchorOffset = Pair(0, 0)
         lastDragCell = null
     }
 
     fun replayState() {
         tokens.values.forEach { token ->
-            EventBus.publish(TokenAddedEvent(token.id, token.name, token.color))
+            EventBus.publish(TokenAddedEvent(token.id, token.name, token.color, token.size))
             EventBus.publish(TokenMovedEvent(token.id, token.name, token.col, token.row))
             EventBus.publish(
                 TokenImageChangedEvent(
@@ -597,24 +601,16 @@ class MapTokenSyncService {
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             val existing = tokens[event.id]
             if (existing != null) {
-                tokens[event.id] = existing.copy(name = event.name, color = event.color)
+                tokens[event.id] = existing.copy(name = event.name, color = event.color, size = event.size)
             } else {
-                val occupiedCols = tokens.values
-                    .asSequence()
-                    .filter { it.row == 0 }
-                    .map { it.col }
-                    .toHashSet()
-
-                var nextTokenCol = 0
-                while (nextTokenCol in occupiedCols) {
-                    nextTokenCol++
-                }
+                val (nextTokenCol, nextTokenRow) = nextAvailableTokenPlacement(tokens.values, event.size)
 
                 tokens[event.id] = Token(
                     id = event.id,
                     name = event.name,
                     col = nextTokenCol,
-                    row = 0,
+                    row = nextTokenRow,
+                    size = event.size,
                     color = event.color,
                 )
             }

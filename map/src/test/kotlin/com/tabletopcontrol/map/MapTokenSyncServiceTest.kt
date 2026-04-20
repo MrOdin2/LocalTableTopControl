@@ -5,6 +5,7 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.map.logic.MapTokenSyncService
 import com.tabletopcontrol.map.logic.Token
 import javafx.scene.paint.Color
@@ -24,7 +25,7 @@ class MapTokenSyncServiceTest {
     fun `replay republishes tracked token state`() {
         val service = MapTokenSyncService()
 
-        EventBus.publish(TokenAddedEvent("1", "Goblin", Color.RED))
+        EventBus.publish(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE))
         EventBus.publish(TokenMovedEvent("1", "Goblin", 4, 6))
         EventBus.publish(
             TokenImageChangedEvent(
@@ -48,7 +49,7 @@ class MapTokenSyncServiceTest {
         service.dispose()
 
         assertEquals(4, replayedEvents.size)
-        assertEquals(TokenAddedEvent("1", "Goblin", Color.RED), replayedEvents[0])
+        assertEquals(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE), replayedEvents[0])
         assertEquals(TokenMovedEvent("1", "Goblin", 4, 6), replayedEvents[1])
         assertEquals(
             TokenImageChangedEvent(
@@ -80,6 +81,25 @@ class MapTokenSyncServiceTest {
 
         assertEquals(1, publishedMoves.size)
         assertEquals(TokenMovedEvent("1", "Goblin", 2, 2), publishedMoves.single())
+    }
+
+    @Test
+    fun `dragging a large token preserves the grabbed footprint cell`() {
+        val service = MapTokenSyncService()
+        val publishedMoves = mutableListOf<TokenMovedEvent>()
+
+        EventBus.publish(TokenAddedEvent("1", "Ogre", Color.DARKRED, TokenSize.LARGE))
+        EventBus.subscribe<TokenMovedEvent> { publishedMoves += it }
+
+        service.beginDrag(
+            Token(id = "1", name = "Ogre", col = 4, row = 6, size = TokenSize.LARGE, color = Color.DARKRED),
+            grabbedCell = Pair(5, 7),
+        )
+        service.publishDraggedTokenMove(Pair(9, 10))
+        service.endDrag()
+        service.dispose()
+
+        assertEquals(listOf(TokenMovedEvent("1", "Ogre", 8, 9)), publishedMoves)
     }
 
     @Test

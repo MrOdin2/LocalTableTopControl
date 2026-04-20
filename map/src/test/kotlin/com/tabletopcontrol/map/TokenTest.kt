@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.map.logic.Token
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -11,6 +12,7 @@ class TokenTest {
     @Test
     fun `imageUri defaults to null`() {
         val token = Token(id = "1", name = "Goblin", col = 0, row = 0, color = Color.RED)
+        assertEquals(TokenSize.MEDIUM, token.size)
         assertNull(token.imageUri)
         assertEquals(1.0, token.imageScaleX)
         assertEquals(1.0, token.imageScaleY)
@@ -26,6 +28,7 @@ class TokenTest {
             name = "Goblin",
             col = 0,
             row = 0,
+            size = TokenSize.LARGE,
             color = Color.RED,
             imageUri = uri,
             imageScaleX = 1.2,
@@ -33,6 +36,7 @@ class TokenTest {
             imageOffsetX = 4.0,
             imageOffsetY = -3.0,
         )
+        assertEquals(TokenSize.LARGE, token.size)
         assertEquals(uri, token.imageUri)
         assertEquals(1.2, token.imageScaleX)
         assertEquals(0.8, token.imageScaleY)
@@ -45,6 +49,7 @@ class TokenTest {
         val original = Token(id = "2", name = "Orc", col = 3, row = 5, color = Color.GREEN)
         val uri = "file:///home/dm/orc.png"
         val updated = original.copy(
+            size = TokenSize.HUGE,
             imageUri = uri,
             imageScaleX = 1.5,
             imageScaleY = 0.6,
@@ -55,6 +60,7 @@ class TokenTest {
         assertEquals(original.name, updated.name)
         assertEquals(original.col, updated.col)
         assertEquals(original.row, updated.row)
+        assertEquals(TokenSize.HUGE, updated.size)
         assertEquals(original.color, updated.color)
         assertEquals(uri, updated.imageUri)
         assertEquals(1.5, updated.imageScaleX)

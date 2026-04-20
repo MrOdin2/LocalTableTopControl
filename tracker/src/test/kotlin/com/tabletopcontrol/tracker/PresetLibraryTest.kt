@@ -1,5 +1,6 @@
 package com.tabletopcontrol.tracker
 
+import com.tabletopcontrol.core.TokenSize
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -101,6 +102,13 @@ class PresetLibraryTest {
         assertTrue(text.contains("imageOffsetY=-10.0"))
     }
 
+    @Test
+    fun `serialize includes token size`() {
+        val preset = PresetLibrary.Preset("Ogre", 59, 11, 0, tokenSize = TokenSize.LARGE)
+
+        assertTrue(PresetLibrary.serialize(preset).contains("tokenSize=LARGE"))
+    }
+
     // ── deserialize ───────────────────────────────────────────────────────────
 
     @Test
@@ -148,6 +156,20 @@ class PresetLibraryTest {
         val preset = PresetLibrary.deserialize(text)
         assertEquals(1.5, preset?.imageScaleX)
         assertEquals(-10.0, preset?.imageOffsetY)
+    }
+
+    @Test
+    fun `deserialize defaults token size to medium for legacy presets`() {
+        val preset = PresetLibrary.deserialize("name=Goblin\nhp=7\nac=15\ninitiative=0")
+
+        assertEquals(TokenSize.MEDIUM, preset?.tokenSize)
+    }
+
+    @Test
+    fun `deserialize parses token size when present`() {
+        val preset = PresetLibrary.deserialize("name=Ogre\nhp=59\nac=11\ninitiative=0\ntokenSize=HUGE")
+
+        assertEquals(TokenSize.HUGE, preset?.tokenSize)
     }
 
     @Test

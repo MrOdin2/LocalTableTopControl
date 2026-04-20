@@ -1,5 +1,6 @@
 package com.tabletopcontrol.tracker
 
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import java.awt.RenderingHints
@@ -28,6 +29,7 @@ import javax.imageio.ImageIO
  * hp=200
  * ac=22
  * initiative=5
+ * tokenSize=MEDIUM
  * imageUri=file:///home/dm/tokens/dragon.png
  * imageScaleX=1.50
  * imageScaleY=1.50
@@ -96,6 +98,8 @@ object PresetLibrary {
      * @property hp           the combatant's hit points
      * @property ac           the combatant's armour class
      * @property initiative   the combatant's default initiative value (defaults to 0)
+     * @property tokenSize    rendered map-token footprint for this preset; defaults
+     *                        to [TokenSize.MEDIUM] for older preset files
      * @property folder       the name of the immediate subdirectory inside the presets
      *                        directory where this preset lives; empty string means the
      *                        preset is at the root of the presets directory.  This field
@@ -117,6 +121,7 @@ object PresetLibrary {
         val hp: Int,
         val ac: Int,
         val initiative: Int = 0,
+        val tokenSize: TokenSize = TokenSize.MEDIUM,
         val folder: String = "",
         val imageUri: String? = null,
         val imageBase64: String? = null,
@@ -389,6 +394,7 @@ object PresetLibrary {
         appendLine("hp=${preset.hp}")
         appendLine("ac=${preset.ac}")
         appendLine("initiative=${preset.initiative}")
+        appendLine("tokenSize=${preset.tokenSize.name}")
         preset.imageUri?.let { appendLine("imageUri=$it") }
         appendLine("imageScaleX=${preset.imageScaleX}")
         appendLine("imageScaleY=${preset.imageScaleY}")
@@ -423,6 +429,7 @@ object PresetLibrary {
             hp = hp,
             ac = ac,
             initiative = initiative,
+            tokenSize = TokenSize.fromPersistence(props["tokenSize"]),
             imageUri = props["imageUri"]?.takeIf { it.isNotBlank() },
             imageBase64 = props["imageBase64"]?.takeIf { it.isNotBlank() },
             imageScaleX = props["imageScaleX"]?.toDoubleOrNull() ?: 1.0,
