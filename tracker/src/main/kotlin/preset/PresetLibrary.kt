@@ -74,6 +74,11 @@ object PresetLibrary {
         }
     }
 
+    fun hasPreset(
+        name: String,
+        folder: String = "",
+    ): Boolean = existingFileFor(name, folder) != null
+
     fun loadAll(): List<Preset> =
         SafeConfigIO.readOrElse(emptyList()) {
             val baseDir = presetsDir.canonicalFile
@@ -165,29 +170,8 @@ object PresetLibrary {
             .take(200)
 
     internal fun fileFor(name: String, folder: String = ""): File {
-        val baseDir = presetsDir.also { it.mkdirs() }.canonicalFile
-
-        val targetDir = if (folder.isNotEmpty()) {
-            val sanitizedFolder = sanitizeFilename(folder)
-            require(sanitizedFolder != "." && sanitizedFolder != "..") {
-                "Folder name '$folder' is not allowed"
-            }
-            val candidate = File(baseDir, sanitizedFolder)
-            val canonicalDir = candidate.canonicalFile
-            require(canonicalDir.toPath().startsWith(baseDir.toPath())) {
-                "Resolved folder '$folder' is outside the presets directory"
-            }
-            canonicalDir.also { it.mkdirs() }
-        } else {
-            baseDir
-        }
-
-        targetDir.listFiles { file -> file.isFile && file.extension == "preset" }
-            ?.forEach { file ->
-                if (readNameFromFile(file) == name) {
-                    return file
-                }
-            }
+        val targetDir = targetDirFor(folder)
+        existingFileFor(name, targetDir)?.let { return it }
 
         val baseName = sanitizeFilename(name)
         val primary = File(targetDir, "$baseName.preset")
@@ -203,6 +187,42 @@ object PresetLibrary {
             }
             suffix++
         }
+    }
+
+    private fun existingFileFor(
+        name: String,
+        folder: String = "",
+    ): File? = existingFileFor(name, targetDirFor(folder))
+
+    private fun existingFileFor(
+        name: String,
+        targetDir: File,
+    ): File? {
+        targetDir.listFiles { file -> file.isFile && file.extension == "preset" }
+            ?.forEach { file ->
+                if (readNameFromFile(file) == name) {
+                    return file
+                }
+            }
+        return null
+    }
+
+    private fun targetDirFor(folder: String): File {
+        val baseDir = presetsDir.also { it.mkdirs() }.canonicalFile
+        if (folder.isEmpty()) {
+            return baseDir
+        }
+
+        val sanitizedFolder = sanitizeFilename(folder)
+        require(sanitizedFolder != "." && sanitizedFolder != "..") {
+            "Folder name '$folder' is not allowed"
+        }
+        val candidate = File(baseDir, sanitizedFolder)
+        val canonicalDir = candidate.canonicalFile
+        require(canonicalDir.toPath().startsWith(baseDir.toPath())) {
+            "Resolved folder '$folder' is outside the presets directory"
+        }
+        return canonicalDir.also { it.mkdirs() }
     }
 
     fun openPresetsFolder() {

@@ -17,7 +17,9 @@ import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
+import javafx.scene.control.Alert
 import javafx.scene.control.Button
+import javafx.scene.control.ButtonType
 import javafx.scene.control.ContextMenu
 import javafx.scene.control.Label
 import javafx.scene.control.MenuItem
@@ -187,7 +189,12 @@ class TrackerPlugin : DmPlugin {
         val saveButton = Button("SAVE").apply {
             tooltip = Tooltip("Save this actor as a preset")
             setOnAction {
-                actorTracker.findActor(actor.id)?.let(presetService::saveActor)
+                val owner = scene?.window
+                actorTracker.findActor(actor.id)?.let { currentActor ->
+                    presetService.saveActor(currentActor) { presetName ->
+                        confirmPresetOverwrite(owner, presetName)
+                    }
+                }
             }
         }
 
@@ -280,4 +287,18 @@ class TrackerPlugin : DmPlugin {
         { actorsAtInitiative, initiative, movedActorId ->
             initiativeTieDialog.show(owner, actorsAtInitiative, initiative, movedActorId)
         }
+
+    private fun confirmPresetOverwrite(
+        owner: Window?,
+        presetName: String,
+    ): Boolean =
+        Alert(Alert.AlertType.CONFIRMATION).apply {
+            owner?.let { initOwner(it) }
+            title = "Overwrite preset"
+            headerText = "Overwrite preset \"$presetName\"?"
+            contentText =
+                "A preset with this name already exists. Choose OK to replace it " +
+                    "with this actor's current settings, or Cancel to keep the existing preset."
+            buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
+        }.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK
 }
