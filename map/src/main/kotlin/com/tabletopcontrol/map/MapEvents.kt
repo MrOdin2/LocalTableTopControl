@@ -14,6 +14,14 @@ import javafx.scene.paint.Color
 data class MapLoadEvent(val resourcePath: String)
 
 /**
+ * Event fired when the DM removes the current map image.
+ *
+ * Renderers should clear any previously loaded image and show only the plain
+ * background colour, grid, fog, tokens, and measurements.
+ */
+data object MapClearEvent
+
+/**
  * Event fired when the DM changes the grid visibility or configuration.
  *
  * @property config the new [com.tabletopcontrol.map.logic.GridConfig] to apply; `null` to hide the grid.

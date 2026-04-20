@@ -421,24 +421,6 @@ class MapUiController {
 
         val loadButton = Button("Load Map...").apply {
             tooltip = Tooltip("Open a map image file")
-            setOnAction { event ->
-                val chooser = FileChooser().apply {
-                    title = "Select map image"
-                    extensionFilters.addAll(
-                        FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"),
-                        FileChooser.ExtensionFilter("All files", "*.*"),
-                    )
-                }
-                val owner = (event.source as? Button)?.scene?.window
-                val file = chooser.showOpenDialog(owner)
-                if (file != null) {
-                    pathField.text = file.absolutePath
-                    settingsService.applyMapLoad(
-                        uri = file.toURI().toString(),
-                        displayPath = file.absolutePath,
-                    )
-                }
-            }
         }
 
         val calibrateMapButton = Button("Calibrate Map...").apply {
@@ -471,6 +453,10 @@ class MapUiController {
         val rotateCwButton = Button("CW 90").apply {
             tooltip = Tooltip("Rotate map image 90 degrees clockwise")
             setOnAction { settingsService.rotateMapBy(90) }
+        }
+
+        val removeMapButton = Button("Remove Map").apply {
+            tooltip = Tooltip("Remove the current map image and return to a plain background colour")
         }
 
         val visibleCheck = CheckBox("Show Grid").apply {
@@ -549,9 +535,46 @@ class MapUiController {
             }
         }
 
+        fun refreshLoadedMapState() {
+            val hasLoadedMap = settingsService.currentMapImageUri != null
+            pathField.text = settingsService.currentMapDisplayPath.orEmpty()
+            removeMapButton.isDisable = !hasLoadedMap
+            calibrateMapButton.isDisable = !hasLoadedMap
+            guidedCalibrationButton.isDisable = !hasLoadedMap
+            rotateCcwButton.isDisable = !hasLoadedMap
+            rotateCwButton.isDisable = !hasLoadedMap
+        }
+
+        loadButton.setOnAction { event ->
+            val chooser = FileChooser().apply {
+                title = "Select map image"
+                extensionFilters.addAll(
+                    FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"),
+                    FileChooser.ExtensionFilter("All files", "*.*"),
+                )
+            }
+            val owner = (event.source as? Button)?.scene?.window
+            val file = chooser.showOpenDialog(owner)
+            if (file != null) {
+                settingsService.applyMapLoad(
+                    uri = file.toURI().toString(),
+                    displayPath = file.absolutePath,
+                )
+                refreshLoadedMapState()
+            }
+        }
+
+        removeMapButton.setOnAction {
+            settingsService.clearMapImage()
+            refreshLoadedMapState()
+        }
+
+        refreshLoadedMapState()
+
         val mapRow = HBox(
             4.0,
             loadButton,
+            removeMapButton,
             pathField,
             calibrateMapButton,
             guidedCalibrationButton,

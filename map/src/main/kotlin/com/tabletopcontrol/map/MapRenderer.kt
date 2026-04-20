@@ -226,6 +226,9 @@ class MapRenderer(private val canvas: Canvas) {
         subscriptions += EventBus.subscribe<MapLoadEvent> { event ->
             loadImage(event.resourcePath)
         }
+        subscriptions += EventBus.subscribe<MapClearEvent> {
+            clearImage()
+        }
         subscriptions += EventBus.subscribe<MapBackgroundEvent> { event ->
             backgroundColor = event.color
             redraw()
@@ -428,6 +431,15 @@ class MapRenderer(private val canvas: Canvas) {
             redraw()
             MapResult.success(Unit)
         }
+    }
+
+    /**
+     * Removes the current map image and redraws the canvas using the plain
+     * background colour and any remaining overlays.
+     */
+    fun clearImage() {
+        mapImage = null
+        redraw()
     }
 
     /**

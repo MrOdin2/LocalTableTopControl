@@ -15,6 +15,7 @@ import com.tabletopcontrol.map.GridCalibrationModeEvent
 import com.tabletopcontrol.map.GridUpdateEvent
 import com.tabletopcontrol.map.MapBackgroundEvent
 import com.tabletopcontrol.map.MapCalibrationEvent
+import com.tabletopcontrol.map.MapClearEvent
 import com.tabletopcontrol.map.MapCalibrationModeEvent
 import com.tabletopcontrol.map.MapInputField
 import com.tabletopcontrol.map.MapLoadEvent
@@ -81,6 +82,12 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         currentMapImageUri = uri
         currentMapDisplayPath = displayPath
         EventBus.publish(MapLoadEvent(uri))
+    }
+
+    fun clearMapImage() {
+        currentMapImageUri = null
+        currentMapDisplayPath = null
+        EventBus.publish(MapClearEvent)
     }
 
     fun previewMapCalibration(calibration: MapCalibration) {
