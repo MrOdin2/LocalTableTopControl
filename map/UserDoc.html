@@ -169,6 +169,7 @@
       <p>Key capabilities:</p>
       <ul>
         <li>Load any image file as a map (JPEG, PNG, BMP, and other common formats).</li>
+        <li>Remove the current map image and fall back to a plain background colour.</li>
         <li>Calibrate scale so the rendered map matches real-world miniature scale (typically 1 inch per grid square).</li>
         <li>Overlay a customisable grid aligned to the map's coordinate system.</li>
         <li>Paint fog of war to hide unexplored areas from the players.</li>
@@ -183,6 +184,11 @@
       <p>
         Click the <strong>Load Map</strong> button on the DM panel. A file chooser opens — navigate
         to your map image and select it. The map appears immediately on the table screen.
+      </p>
+      <p>
+        If you want to stop using an image and return to a simple coloured table, click
+        <strong>Remove Map</strong>. The image is cleared immediately and the table shows only the
+        current background colour and any active overlays such as grid, fog, tokens, or measurements.
       </p>
       <p>
         The minimap preview in the DM panel shows a scaled-down copy of the map with the fog of war
@@ -354,8 +360,13 @@
       <h2>Background Colour</h2>
       <p>
         The area around the map image (visible when the map does not fill the entire screen) can be
-        set to a custom background colour. Click <strong>Set Background</strong> on the DM panel and
+        set to a custom background colour. Click <strong>BG Color</strong> on the DM panel and
         pick a colour from the colour picker.
+      </p>
+      <p>
+        When no map image is loaded, this background colour becomes the entire player-facing map.
+        This is useful for theatre-of-the-mind scenes, quick sketches, or breaks between maps without
+        loading a new image.
       </p>
       <p>
         Setting a dark background (such as black) works well for dungeon maps where the edges should
