@@ -5,6 +5,7 @@ import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.map.logic.GridCalibration
 import com.tabletopcontrol.map.logic.GridConfig
 import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.TableMapOffset
 import java.util.Properties
 import javafx.scene.paint.Color
 
@@ -16,6 +17,7 @@ import javafx.scene.paint.Color
  * @property gridColor       saved grid line colour, or `null` if absent or unparseable.
  * @property backgroundColor saved plain-colour background, or `null` if absent or unparseable.
  * @property mapRotation     saved map rotation in degrees (0, 90, 180, or 270), or `null` if absent.
+ * @property tableMapOffset  saved whole-scene table offset, or `null` if absent or unparseable.
  */
 data class MapSavedSettings(
     val gridCalibration: GridCalibration?,
@@ -23,6 +25,7 @@ data class MapSavedSettings(
     val gridColor: Color?,
     val backgroundColor: Color?,
     val mapRotation: Int?,
+    val tableMapOffset: TableMapOffset?,
 )
 
 /**
@@ -43,6 +46,8 @@ data class MapSavedSettings(
  * map.offsetX=0.0
  * map.offsetY=0.0
  * map.rotation=0
+ * table.offsetX=0.0
+ * table.offsetY=0.0
  * background.color=0.0,0.0,0.0,1.0
  * ```
  *
@@ -104,6 +109,7 @@ object MapSettingsSerializer {
      * @param gridColor       grid line colour to persist; defaults to [com.tabletopcontrol.map.logic.GridConfig.color].
      * @param backgroundColor canvas background colour to persist; defaults to [Color.BLACK].
      * @param mapRotation     clockwise rotation of the map image in degrees (0, 90, 180, 270).
+     * @param tableMapOffset  shared displacement applied to the whole rendered table map.
      */
     fun serialize(
         gridCalibration: GridCalibration,
@@ -111,6 +117,7 @@ object MapSettingsSerializer {
         gridColor: Color = GridConfig().color,
         backgroundColor: Color = Color.BLACK,
         mapRotation: Int = 0,
+        tableMapOffset: TableMapOffset = TableMapOffset(),
     ): String {
         val sb = StringBuilder()
         sb.appendLine("grid.cellSizeInPixels=${gridCalibration.cellSizeInPixels}")
@@ -122,6 +129,8 @@ object MapSettingsSerializer {
         sb.appendLine("map.offsetX=${mapCalibration.offsetX}")
         sb.appendLine("map.offsetY=${mapCalibration.offsetY}")
         sb.appendLine("map.rotation=$mapRotation")
+        sb.appendLine("table.offsetX=${tableMapOffset.offsetX}")
+        sb.appendLine("table.offsetY=${tableMapOffset.offsetY}")
         sb.appendLine("background.color=${colorToString(backgroundColor)}")
         return sb.toString()
     }
@@ -225,6 +234,23 @@ object MapSettingsSerializer {
     }
 
     /**
+     * Parses the shared table-map offset from a properties-format [text].
+     *
+     * @return The parsed offset, or `null` if either key is absent or malformed.
+     */
+    fun deserializeTableMapOffset(text: String): TableMapOffset? {
+        return try {
+            val props = Properties()
+            props.load(text.reader())
+            val offsetX = props.getProperty("table.offsetX")?.toDoubleOrNull() ?: return null
+            val offsetY = props.getProperty("table.offsetY")?.toDoubleOrNull() ?: return null
+            TableMapOffset(offsetX = offsetX, offsetY = offsetY)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Parses all settings from a properties-format [text].
      *
      * Each field falls back to `null` if the corresponding keys are absent or unparseable,
@@ -239,6 +265,7 @@ object MapSettingsSerializer {
         gridColor = deserializeGridColor(text),
         backgroundColor = deserializeBackgroundColor(text),
         mapRotation = deserializeMapRotation(text),
+        tableMapOffset = deserializeTableMapOffset(text),
     )
 
     // ── Persistence ──────────────────────────────────────────────────────────
@@ -252,6 +279,7 @@ object MapSettingsSerializer {
      * @param gridColor       grid line colour to persist; defaults to [GridConfig.color].
      * @param backgroundColor canvas background colour to persist; defaults to [Color.BLACK].
      * @param mapRotation     clockwise rotation of the map image in degrees (0, 90, 180, 270).
+     * @param tableMapOffset  shared displacement applied to the whole rendered table map.
      */
     fun save(
         gridCalibration: GridCalibration,
@@ -259,8 +287,12 @@ object MapSettingsSerializer {
         gridColor: Color = GridConfig().color,
         backgroundColor: Color = Color.BLACK,
         mapRotation: Int = 0,
+        tableMapOffset: TableMapOffset = TableMapOffset(),
     ) {
-        SafeConfigIO.writeText(configFile, serialize(gridCalibration, mapCalibration, gridColor, backgroundColor, mapRotation))
+        SafeConfigIO.writeText(
+            configFile,
+            serialize(gridCalibration, mapCalibration, gridColor, backgroundColor, mapRotation, tableMapOffset),
+        )
     }
 
     /**
@@ -271,7 +303,7 @@ object MapSettingsSerializer {
      */
     fun load(): MapSavedSettings {
         return SafeConfigIO.readOrElse(
-            MapSavedSettings(null, null, null, null, null),
+            MapSavedSettings(null, null, null, null, null, null),
         ) {
             val text = configFile.readText()
             deserializeAll(text)

@@ -31,6 +31,7 @@ import com.tabletopcontrol.map.MeasurementType
 import com.tabletopcontrol.map.MeasurementUpdatedEvent
 import com.tabletopcontrol.map.MeasurementsClearedEvent
 import com.tabletopcontrol.map.ShowTokenNamesEvent
+import com.tabletopcontrol.map.TableMapOffsetEvent
 import javafx.scene.paint.Color
 import java.util.UUID
 
@@ -48,6 +49,9 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         private set
 
     var mapRotation: Int = savedSettings.mapRotation ?: 0
+        private set
+
+    var tableMapOffset: TableMapOffset = savedSettings.tableMapOffset ?: TableMapOffset()
         private set
 
     var showTokenNames: Boolean = false
@@ -69,6 +73,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         EventBus.publish(MapBackgroundEvent(backgroundColor))
         EventBus.publish(GridUpdateEvent(currentGridConfig))
         EventBus.publish(MapRotationEvent(mapRotation))
+        EventBus.publish(TableMapOffsetEvent(tableMapOffset))
         EventBus.publish(ShowTokenNamesEvent(showTokenNames))
     }
 
@@ -134,6 +139,24 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         return mapRotation
     }
 
+    fun nudgeTableMap(dxTiles: Int = 0, dyTiles: Int = 0): TableMapOffset {
+        val step = gridCalibration.effectiveCellSizeInPixels()
+        tableMapOffset = tableMapOffset.copy(
+            offsetX = tableMapOffset.offsetX + dxTiles * step,
+            offsetY = tableMapOffset.offsetY + dyTiles * step,
+        )
+        EventBus.publish(TableMapOffsetEvent(tableMapOffset))
+        save()
+        return tableMapOffset
+    }
+
+    fun resetTableMapOffset(): TableMapOffset {
+        tableMapOffset = TableMapOffset()
+        EventBus.publish(TableMapOffsetEvent(tableMapOffset))
+        save()
+        return tableMapOffset
+    }
+
     fun setShowTokenNames(show: Boolean) {
         showTokenNames = show
         EventBus.publish(ShowTokenNamesEvent(show))
@@ -146,6 +169,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
             gridColor = gridColor,
             backgroundColor = backgroundColor,
             mapRotation = mapRotation,
+            tableMapOffset = tableMapOffset,
         )
     }
 

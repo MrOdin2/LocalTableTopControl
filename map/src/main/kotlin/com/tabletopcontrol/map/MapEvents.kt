@@ -3,6 +3,7 @@ package com.tabletopcontrol.map
 import com.tabletopcontrol.map.logic.GridCalibration
 import com.tabletopcontrol.map.logic.GridConfig
 import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.TableMapOffset
 import javafx.scene.paint.Color
 
 /**
@@ -41,6 +42,27 @@ data class FogOfWarResetEvent(val revealAll: Boolean)
  * @property calibration the new [com.tabletopcontrol.map.logic.MapCalibration] to apply.
  */
 data class MapCalibrationEvent(val calibration: MapCalibration)
+
+/**
+ * Event fired when the DM repositions the entire rendered table map.
+ *
+ * The offset applies to the whole scene together: map image, grid, fog,
+ * tokens, and measurements.
+ *
+ * @property offset the shared table-map offset in canvas pixels.
+ */
+data class TableMapOffsetEvent(val offset: TableMapOffset)
+
+/**
+ * Event fired when the player-facing table canvas changes size.
+ *
+ * The DM minimap uses this to draw a preview outline of the portion of the
+ * map currently visible on the table screen.
+ *
+ * @property width  table canvas width in pixels.
+ * @property height table canvas height in pixels.
+ */
+data class TableViewportChangedEvent(val width: Double, val height: Double)
 
 /**
  * Event fired when the DM applies new grid calibration.

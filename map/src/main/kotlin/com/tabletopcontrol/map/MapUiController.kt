@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
@@ -21,7 +22,9 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
 import javafx.scene.control.ComboBox
+import javafx.scene.control.CustomMenuItem
 import javafx.scene.control.Label
+import javafx.scene.control.MenuButton
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
 import javafx.scene.control.ToggleButton
@@ -64,6 +67,7 @@ class MapUiController {
                     canvas.width = width
                     canvas.height = height
                     renderer.redraw()
+                    EventBus.publish(TableViewportChangedEvent(width = width, height = height))
                 }
             }
         }
@@ -101,6 +105,8 @@ class MapUiController {
         val canvas = Canvas(1.0, 1.0)
         val renderer = MapRenderer(canvas).apply {
             fogOpacity = 0.5
+            applyTableMapOffset = false
+            showTableViewportOutline = true
         }
         val viewport = MapViewportState()
 
@@ -148,6 +154,9 @@ class MapUiController {
         val circleMeasureButton = ToggleButton("Circle").apply {
             tooltip = Tooltip("Measurement tool: circle")
         }
+        val measureMenuButton = MenuButton("Measure").apply {
+            tooltip = Tooltip("Measurement tools and options")
+        }
 
         fun deactivateMeasurementButtons() {
             lineMeasureButton.isSelected = false
@@ -155,6 +164,7 @@ class MapUiController {
             rectMeasureButton.isSelected = false
             circleMeasureButton.isSelected = false
             measurementTool = MeasurementTool.NONE
+            measureMenuButton.text = "Measure"
         }
 
         fun activateMeasurementTool(tool: MeasurementTool, button: ToggleButton) {
@@ -165,6 +175,7 @@ class MapUiController {
                 deactivateMeasurementButtons()
                 button.isSelected = true
                 measurementTool = tool
+                measureMenuButton.text = "Measure: ${button.text}"
             } else {
                 deactivateMeasurementButtons()
             }
@@ -276,6 +287,30 @@ class MapUiController {
             style = "-fx-min-width: 28px; -fx-max-width: 28px;"
             setOnAction { viewport.panDown(renderer) }
         }
+        val mapLeftButton = Button("\u25c0").apply {
+            tooltip = Tooltip("Move the whole table map left by one tile")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction { settingsService.nudgeTableMap(dxTiles = -1) }
+        }
+        val mapRightButton = Button("\u25b6").apply {
+            tooltip = Tooltip("Move the whole table map right by one tile")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction { settingsService.nudgeTableMap(dxTiles = 1) }
+        }
+        val mapUpButton = Button("\u25b2").apply {
+            tooltip = Tooltip("Move the whole table map up by one tile")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction { settingsService.nudgeTableMap(dyTiles = -1) }
+        }
+        val mapDownButton = Button("\u25bc").apply {
+            tooltip = Tooltip("Move the whole table map down by one tile")
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            setOnAction { settingsService.nudgeTableMap(dyTiles = 1) }
+        }
+        val centerMapButton = Button("Center").apply {
+            tooltip = Tooltip("Reset the whole table map to the screen centre")
+            setOnAction { settingsService.resetTableMapOffset() }
+        }
 
         val mirrorCheck = CheckBox("Mirror").apply {
             isSelected = measurementService.defaultMirrorToTable
@@ -336,30 +371,37 @@ class MapUiController {
         rectMeasureButton.setOnAction { activateMeasurementTool(MeasurementTool.RECTANGLE, rectMeasureButton) }
         circleMeasureButton.setOnAction { activateMeasurementTool(MeasurementTool.CIRCLE, circleMeasureButton) }
 
+        val measurementMenuContent = VBox(
+            6.0,
+            HBox(4.0, Label("Tools:"), lineMeasureButton, coneMeasureButton, rectMeasureButton, circleMeasureButton),
+            HBox(4.0, Label("Units:"), unitsBox, Label("Cone:"), coneAngleBox),
+            mirrorCheck,
+        )
+        measureMenuButton.items.setAll(CustomMenuItem(measurementMenuContent, false))
+
         val controlsRow = HBox(
             4.0,
             zoomOutButton,
             zoomInButton,
             resetButton,
-            Label("  "),
+            Separator(Orientation.VERTICAL),
+            Label("View:"),
             panLeftButton,
             panUpButton,
             panDownButton,
             panRightButton,
-            Label("  "),
+            Separator(Orientation.VERTICAL),
+            Label("Table:"),
+            mapLeftButton,
+            mapUpButton,
+            mapDownButton,
+            mapRightButton,
+            centerMapButton,
+            Separator(Orientation.VERTICAL),
             drawFogButton,
             eraseFogButton,
-            Label("  "),
-            Label("Measure:"),
-            lineMeasureButton,
-            coneMeasureButton,
-            rectMeasureButton,
-            circleMeasureButton,
-            Label("Units:"),
-            unitsBox,
-            Label("Cone:"),
-            coneAngleBox,
-            mirrorCheck,
+            Separator(Orientation.VERTICAL),
+            measureMenuButton,
         )
 
         fogOfWarService.ensureInitialized()
