@@ -21,9 +21,9 @@ class TokenFootprintsTest {
 
         val bounds = tokenDrawBounds(token, originX = 10.0, originY = 20.0, cellPx = 40.0)
 
-        assertEquals(100.0, bounds.left, 1e-9)
-        assertEquals(150.0, bounds.top, 1e-9)
-        assertEquals(20.0, bounds.size, 1e-9)
+        assertEquals(101.0, bounds.left, 1e-9)
+        assertEquals(151.0, bounds.top, 1e-9)
+        assertEquals(18.0, bounds.size, 1e-9)
     }
 
     @Test
@@ -32,9 +32,20 @@ class TokenFootprintsTest {
 
         val bounds = tokenDrawBounds(token, originX = 10.0, originY = 20.0, cellPx = 40.0)
 
-        assertEquals(102.92893218813452, bounds.left, 1e-9)
-        assertEquals(152.92893218813452, bounds.top, 1e-9)
-        assertEquals(14.142135623730951, bounds.size, 1e-9)
+        assertEquals(103.63603896932106, bounds.left, 1e-9)
+        assertEquals(153.63603896932106, bounds.top, 1e-9)
+        assertEquals(12.727922061357857, bounds.size, 1e-9)
+    }
+
+    @Test
+    fun `medium token keeps the legacy tile margin`() {
+        val token = Token(id = "1", name = "Goblin", col = 2, row = 3, size = TokenSize.MEDIUM, color = Color.GREEN)
+
+        val bounds = tokenDrawBounds(token, originX = 10.0, originY = 20.0, cellPx = 40.0)
+
+        assertEquals(92.0, bounds.left, 1e-9)
+        assertEquals(142.0, bounds.top, 1e-9)
+        assertEquals(36.0, bounds.size, 1e-9)
     }
 
     @Test

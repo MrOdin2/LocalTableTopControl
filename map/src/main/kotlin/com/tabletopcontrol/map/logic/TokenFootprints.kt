@@ -54,12 +54,10 @@ internal fun tokenDrawBounds(
     originY: Double,
     cellPx: Double,
 ): TokenDrawBounds {
-    val insetTiles = if (token.size.footprintTiles < 1.0) {
-        (1.0 - token.size.footprintTiles) / 2.0
-    } else {
-        0.0
-    }
-    val sizePx = cellPx * token.size.footprintTiles
+    val anchorTiles = token.size.gridSpanCells.toDouble()
+    val drawTiles = token.size.footprintTiles * TOKEN_DRAW_FOOTPRINT_SCALE
+    val insetTiles = (anchorTiles - drawTiles) / 2.0
+    val sizePx = cellPx * drawTiles
     return TokenDrawBounds(
         left = originX + (token.col + insetTiles) * cellPx,
         top = originY + (token.row + insetTiles) * cellPx,
@@ -126,3 +124,5 @@ internal fun draggedTokenOrigin(
         cell.first - anchorOffset.first,
         cell.second - anchorOffset.second,
     )
+
+private const val TOKEN_DRAW_FOOTPRINT_SCALE = 0.9

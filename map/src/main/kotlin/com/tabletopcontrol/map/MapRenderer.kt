@@ -712,8 +712,6 @@ class MapRenderer(private val canvas: Canvas) {
 
         val originX = canvas.width / 2.0 + gridCalibration.offsetX
         val originY = canvas.height / 2.0 + gridCalibration.offsetY
-        val activeOutlineWidth = (cellPx * ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(2.0)
-        val tokenOutlineWidth = (cellPx * TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(1.0)
         val fow = fogOfWar
 
         if (showTokenNames) {
@@ -730,6 +728,8 @@ class MapRenderer(private val canvas: Canvas) {
             if (visibleCells.isEmpty()) continue
 
             val drawBounds = tokenDrawBounds(token, originX, originY, cellPx)
+            val activeOutlineWidth = (drawBounds.size * ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(1.0)
+            val tokenOutlineWidth = (drawBounds.size * TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(0.5)
             val isPartiallyHidden = hideTokensInFog && fow != null && visibleCells.size < occupiedCells.size
 
             if (isPartiallyHidden) {
@@ -1065,8 +1065,8 @@ class MapRenderer(private val canvas: Canvas) {
          * proportionally with [viewportScale] on the minimap.
          */
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
-        private const val ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE = 0.18
-        private const val TOKEN_OUTLINE_WIDTH_SCALE = 0.05
+        private const val ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE = 0.10
+        private const val TOKEN_OUTLINE_WIDTH_SCALE = 0.025
         private const val MEASUREMENT_FILL_OPACITY = 0.18
         private const val DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS = 5.0
         private const val TABLE_VIEWPORT_OUTLINE_LINE_WIDTH = 1.5
