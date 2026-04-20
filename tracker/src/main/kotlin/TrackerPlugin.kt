@@ -1,5 +1,6 @@
 package com.tabletopcontrol.new_tracker
 
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
@@ -17,9 +18,14 @@ import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
 import javafx.scene.control.Button
+import javafx.scene.control.ContextMenu
 import javafx.scene.control.Label
+import javafx.scene.control.MenuItem
+import javafx.scene.control.RadioMenuItem
 import javafx.scene.control.ScrollPane
+import javafx.scene.control.SeparatorMenuItem
 import javafx.scene.control.TextField
+import javafx.scene.control.ToggleGroup
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
@@ -212,7 +218,36 @@ class TrackerPlugin : DmPlugin {
                 -fx-background-radius: 8;
             """.trimIndent().replace("\n", " ")
             maxWidth = Double.MAX_VALUE
+            Tooltip.install(this, Tooltip("Right-click to change token size. Current: ${actor.tokenSize.menuLabel}"))
+            setOnContextMenuRequested { event ->
+                buildTokenContextMenu(actor.id, actorList).show(this, event.screenX, event.screenY)
+                event.consume()
+            }
         }
+    }
+
+    private fun buildTokenContextMenu(actorId: String, actorList: VBox): ContextMenu {
+        val actor = actorTracker.findActor(actorId) ?: return ContextMenu()
+        val sizeGroup = ToggleGroup()
+        val sizeItems = TokenSize.entries.map { size ->
+            RadioMenuItem(size.menuLabel).apply {
+                toggleGroup = sizeGroup
+                isSelected = actor.tokenSize == size
+                setOnAction {
+                    actorTracker.findActor(actorId)?.let { currentActor ->
+                        if (currentActor.tokenSize == size) return@let
+                        actorTracker.updateActor(currentActor.copy(tokenSize = size))
+                        refreshActorList(actorList)
+                    }
+                }
+            }
+        }
+        return ContextMenu(
+            MenuItem("Token Size").apply { isDisable = true },
+            *sizeItems.toTypedArray(),
+            SeparatorMenuItem(),
+            MenuItem("Current: ${actor.tokenSize.menuLabel}").apply { isDisable = true },
+        )
     }
 
     private fun committedInitiativeField(actor: Actor, actorList: VBox): TextField =

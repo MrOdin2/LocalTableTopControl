@@ -1,5 +1,6 @@
 package com.tabletopcontrol.new_tracker.preset
 
+import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import org.junit.jupiter.api.AfterEach
@@ -35,10 +36,11 @@ class PresetLibraryTest {
             ac=15
             initiative=0
             """.trimIndent(),
-        ))
+        )) 
 
         assertTrue(preset.initiativeEnabled)
         assertEquals(0, preset.initiative)
+        assertEquals(TokenSize.MEDIUM, preset.tokenSize)
     }
 
     @Test
@@ -49,6 +51,7 @@ class PresetLibraryTest {
             ac = 14,
             initiative = 0,
             initiativeEnabled = false,
+            tokenSize = TokenSize.LARGE,
         )
 
         val roundTrip = PresetLibrary.deserialize(PresetLibrary.serialize(preset))
@@ -65,6 +68,7 @@ class PresetLibraryTest {
             initiative = 0,
             initiativeEnabled = false,
             folder = "Bosses",
+            tokenSize = TokenSize.HUGE,
             imageUri = "file:///tokens/dragon.png",
             imageBase64 = "abc123==",
             imageScaleX = 1.5,
@@ -85,6 +89,7 @@ class PresetLibraryTest {
             hp = 22,
             ac = 12,
             initiative = 18,
+            tokenSize = TokenSize.LARGE,
             imageSettings = ActorImageSettings(
                 uri = "file:///ghost.png",
                 scaleX = 1.3,
@@ -99,10 +104,12 @@ class PresetLibraryTest {
 
         assertEquals(0, preset.initiative)
         assertEquals(false, preset.initiativeEnabled)
+        assertEquals(TokenSize.LARGE, preset.tokenSize)
         assertNull(restoredActor.initiative)
         assertEquals(actor.name, restoredActor.name)
         assertEquals(actor.hp, restoredActor.hp)
         assertEquals(actor.ac, restoredActor.ac)
+        assertEquals(actor.tokenSize, restoredActor.tokenSize)
         assertEquals(actor.imageSettings, restoredActor.imageSettings)
     }
 

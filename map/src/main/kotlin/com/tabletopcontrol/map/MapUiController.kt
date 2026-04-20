@@ -195,9 +195,10 @@ class MapUiController {
                         }
                     }
                     else -> {
+                        val clickedCell = renderer.canvasCoordsToGridCell(event.x, event.y)
                         val token = renderer.tokenAtCanvasCoords(event.x, event.y)
                         if (token != null) {
-                            tokenSyncService.beginDrag(token)
+                            tokenSyncService.beginDrag(token, clickedCell)
                         } else {
                             dragStartX = event.x
                             dragStartY = event.y

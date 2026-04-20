@@ -6,11 +6,21 @@ import javafx.scene.paint.Color
  * Event published when a new combatant is added to the initiative tracker,
  * requesting a matching token to be created on the map.
  *
+ * Subscribers may also treat a repeated [id] as a token metadata refresh for
+ * an existing token, updating its visible name, colour, or size in place.
+ *
  * @property id    stable unique identifier for the combatant/token (for example, a UUID string).
  * @property name  the combatant's display name; not guaranteed to be unique and may change over time.
  * @property color fill colour for the token circle.
+ * @property size  rendered footprint size of the token; defaults to [TokenSize.MEDIUM]
+ *                 for legacy saves and older publishers.
  */
-data class TokenAddedEvent(val id: String, val name: String, val color: Color)
+data class TokenAddedEvent(
+    val id: String,
+    val name: String,
+    val color: Color,
+    val size: TokenSize = TokenSize.MEDIUM,
+)
 
 /**
  * Event published when a combatant is removed from the initiative tracker,
