@@ -27,6 +27,8 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Application entry point and top-level JavaFX lifecycle manager.
@@ -161,9 +163,15 @@ class App : Application() {
         screenCombo.converter = object : StringConverter<Screen?>() {
             override fun toString(screen: Screen?): String {
                 if (screen == null) return "None (hidden)"
-                val idx = screens.indexOf(screen)
+                val idx = screens.indexOf(screen).coerceAtLeast(0)
                 val b = screen.bounds
-                return "Screen ${idx + 1}: ${b.width.toInt()} × ${b.height.toInt()}"
+                return formatScreenLabel(
+                    index = idx,
+                    logicalWidth = b.width,
+                    logicalHeight = b.height,
+                    outputScaleX = screen.outputScaleX,
+                    outputScaleY = screen.outputScaleY,
+                )
             }
             override fun fromString(string: String?): Screen? = null
         }
@@ -171,14 +179,7 @@ class App : Application() {
         val moveButton = Button("Move Table View")
         moveButton.setOnAction {
             val selected = screenCombo.selectionModel.selectedItem ?: return@setOnAction
-            val bounds = selected.bounds
-            if (!tableStage.isShowing) tableStage.show()
-            tableStage.isFullScreen = false
-            Platform.runLater {
-                tableStage.x = bounds.minX
-                tableStage.y = bounds.minY
-                tableStage.isFullScreen = true
-            }
+            moveTableStageToScreen(tableStage, selected)
         }
 
         // Register the listener before setting the initial selection so the
@@ -188,8 +189,10 @@ class App : Application() {
                 tableStage.hide()
                 moveButton.isDisable = true
             } else {
-                if (!tableStage.isShowing) tableStage.show()
                 moveButton.isDisable = false
+                if (!tableStage.isShowing && tableStage.scene != null) {
+                    moveTableStageToScreen(tableStage, newScreen)
+                }
             }
         }
 
@@ -396,3 +399,77 @@ class App : Application() {
 
 /** JVM entry point — delegates to the JavaFX application launcher. */
 fun main(args: Array<String>) = Application.launch(App::class.java, *args)
+
+private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
+    val bounds = screen.bounds
+    tableStage.isIconified = false
+    tableStage.isFullScreen = false
+    tableStage.x = bounds.minX
+    tableStage.y = bounds.minY
+    tableStage.width = bounds.width
+    tableStage.height = bounds.height
+    if (!tableStage.isShowing) {
+        tableStage.show()
+    }
+    tableStage.toFront()
+
+    // Mixed-DPI Windows setups can report the correct screen in JavaFX but still
+    // leave the stage at its old windowed size for one pulse after moving.
+    Platform.runLater {
+        tableStage.x = bounds.minX
+        tableStage.y = bounds.minY
+        tableStage.width = bounds.width
+        tableStage.height = bounds.height
+        Platform.runLater {
+            tableStage.isFullScreen = true
+            tableStage.toFront()
+        }
+    }
+}
+
+internal fun formatScreenLabel(
+    index: Int,
+    logicalWidth: Double,
+    logicalHeight: Double,
+    outputScaleX: Double,
+    outputScaleY: Double,
+): String {
+    val pixelWidth = effectivePixelSpan(logicalWidth, outputScaleX)
+    val pixelHeight = effectivePixelSpan(logicalHeight, outputScaleY)
+    val scaleSuffix = formatScaleSuffix(outputScaleX, outputScaleY)
+    return buildString {
+        append("Screen ")
+        append(index + 1)
+        append(": ")
+        append(pixelWidth)
+        append(" x ")
+        append(pixelHeight)
+        if (scaleSuffix != null) {
+            append(" (")
+            append(scaleSuffix)
+            append(")")
+        }
+    }
+}
+
+internal fun effectivePixelSpan(logicalSpan: Double, outputScale: Double): Int {
+    if (!logicalSpan.isFinite() || logicalSpan <= 0.0) return 0
+    val safeScale = if (outputScale.isFinite() && outputScale > 0.0) outputScale else 1.0
+    return (logicalSpan * safeScale).roundToInt().coerceAtLeast(1)
+}
+
+private fun formatScaleSuffix(outputScaleX: Double, outputScaleY: Double): String? {
+    val xPercent = scalePercent(outputScaleX)
+    val yPercent = scalePercent(outputScaleY)
+    if (xPercent == 100 && yPercent == 100) return null
+    return if (abs(outputScaleX - outputScaleY) < 0.001) {
+        "Windows scale ${xPercent}%"
+    } else {
+        "Windows scale ${xPercent}%/${yPercent}%"
+    }
+}
+
+private fun scalePercent(outputScale: Double): Int {
+    val safeScale = if (outputScale.isFinite() && outputScale > 0.0) outputScale else 1.0
+    return (safeScale * 100.0).roundToInt()
+}
