@@ -223,12 +223,19 @@
         <li>
           Click <strong>Connect</strong>. The status label changes to
           <span style="color:#00aa00">Connected</span> if successful, or shows an error message
-          if the connection failed.
+          if the connection failed. If TabletopControl cannot open the selected port, it also
+          opens an error dialog with the reason so you do not need to guess what went wrong.
         </li>
       </ol>
       <p>
         To disconnect, click <strong>Disconnect</strong>. All lighting controls remain visible so
         you can reconnect without losing your settings.
+      </p>
+      <p>
+        If the light state cannot be sent after you are connected (for example because the cable was
+        unplugged or the controller stopped responding), the connection status switches to an error
+        message and the same shared error dialog is shown once so you can react without being flooded
+        by repeated popups.
       </p>
       <div class="tip">
         <strong>Tip:</strong> TabletopControl does not remember the serial port between sessions.
@@ -252,18 +259,18 @@
     <section id="color">
       <h2>Colour</h2>
       <p>
-        Click the <strong>Colour</strong> dropdown to open the colour selector. The popup includes
+        In the colour row, click the swatch/hex control to open the colour editor dialog. The dialog includes
         a colour wheel for hue/saturation selection plus direct input fields for
         <strong>Hex</strong>, <strong>RGB</strong>, and <strong>HSV</strong> values (matching the
-        controls from JavaFX’s custom-colour editor).
+        controls from JavaFX’s custom-colour editor). The same shared editor is used in other
+        plugins (for example the Audio Soundboard) so colour picking behaves consistently.
       </p>
       <p>
-        Changes in the dropdown are staged. Use <strong>Save</strong> to apply the new colour to the
+        Changes in the dialog are staged. Use <strong>OK</strong> to apply the new colour to the
         LED strip, or <strong>Cancel</strong> to discard edits and keep the current colour.
       </p>
       <p>
-        The right panel shows a <strong>Current / New</strong> comparison and recent colour swatches
-        for quick re-selection.
+        A live preview updates as you edit values so you can confirm the selected colour before applying it.
       </p>
       <p>
         The chosen colour is used as the base colour for all static effects (such as
@@ -498,6 +505,10 @@
         press <kbd>Enter</kbd> (or click <strong>Apply Preset</strong>) to activate it. The device
         switches to that preset immediately.
       </p>
+      <p>
+        If the value is not a whole number between <strong>1</strong> and <strong>250</strong>,
+        the preset status line tells you what to fix and keeps the previous preset active.
+      </p>
       <div class="tip">
         <strong>Tip:</strong> Set up your favourite lighting scenes as presets on the WLED device
         in advance. During a session you can switch between them with a single number entry —
@@ -508,16 +519,17 @@
     <section id="debug">
       <h2>Debug Console</h2>
       <p>
-        The <strong>Debug Console</strong> (shown or hidden via a toggle) displays a live log of
-        all serial commands sent to the WLED device. Each line shows the JSON payload that was
-        transmitted.
+        The <strong>Debug Console</strong> includes a toggle that turns command logging on or off.
+        When logging is enabled, the console displays a live log of all serial commands sent to the
+        WLED device. Each line shows the JSON payload that was transmitted.
       </p>
       <p>
         This is primarily useful for troubleshooting — if the lights are not responding as expected,
-        the console can confirm whether the correct command was sent.
+        the console can confirm whether the correct command was sent. If a serial write fails, the
+        console also adds a single error line for that failure period.
       </p>
       <p>
-        The console is not needed during normal use and can be kept hidden.
+        The console is not needed during normal use and logging can be left disabled.
       </p>
     </section>
 

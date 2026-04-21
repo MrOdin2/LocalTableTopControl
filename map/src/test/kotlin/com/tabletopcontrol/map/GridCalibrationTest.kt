@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.GridCalibration
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows

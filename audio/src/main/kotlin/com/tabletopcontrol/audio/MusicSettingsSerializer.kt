@@ -1,6 +1,7 @@
 package com.tabletopcontrol.audio
 
-import java.io.File
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import java.util.Properties
 
 /**
@@ -41,15 +42,11 @@ data class MusicSettings(
  */
 object MusicSettingsSerializer {
 
-    private const val CONFIG_NAME = "music.conf"
+    internal const val CONFIG_NAME = "music.conf"
     private const val CURRENT_VERSION = 2
 
-    private val configFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, CONFIG_NAME)
-        }
+    private val configFile
+        get() = AppConfigPaths.configFile(CONFIG_NAME)
 
     /**
      * Saves [settings] to disk.
@@ -81,12 +78,10 @@ object MusicSettingsSerializer {
             }
         }
 
-        try {
+        SafeConfigIO.run {
             configFile.writer().use { writer ->
                 props.store(writer, "TabletopControl music settings")
             }
-        } catch (_: Exception) {
-            // non-fatal — continue without persistence
         }
     }
 
@@ -94,11 +89,11 @@ object MusicSettingsSerializer {
      * Loads settings from disk, migrating legacy 3-track formats when present.
      */
     fun load(): MusicSettings {
-        val props = try {
+        val props = SafeConfigIO.readOrElse(null) {
             Properties().also { loaded ->
                 configFile.reader().use { loaded.load(it) }
             }
-        } catch (_: Exception) {
+        } ?: run {
             return MusicSettings()
         }
 

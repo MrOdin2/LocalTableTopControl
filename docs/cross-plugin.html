@@ -144,6 +144,7 @@
           <ul>
             <li><a href="#token-creation">Token Creation</a></li>
             <li><a href="#token-color">Colour Sync</a></li>
+            <li><a href="#token-size">Size Sync</a></li>
             <li><a href="#token-image">Token Images</a></li>
             <li><a href="#token-placement">Positioning Tokens</a></li>
             <li><a href="#token-removal">Removing Tokens</a></li>
@@ -215,6 +216,22 @@
         a distinct colour.
       </p>
 
+      <h3 id="token-size">Size Sync</h3>
+      <p>
+        Token size is also shared between the tracker and the map. Right-click a combatant card in
+        the tracker to choose <strong>Tiny</strong> (1/8 tile), <strong>Small</strong> (1/4 tile),
+        <strong>Medium</strong> (1 tile), <strong>Large</strong> (2x2 tiles),
+        <strong>Huge</strong> (3x3 tiles), or <strong>Gargantuan</strong> (4x4 tiles).
+      </p>
+      <p>
+        The map redraws the token immediately at the matching footprint, and older presets or saved
+        data that do not include a size continue to use <strong>Medium</strong>.
+      </p>
+      <p>
+        If footprints overlap, smaller tokens are rendered above larger ones so tiny and small
+        creatures stay readable on the table screen.
+      </p>
+
       <h3 id="token-image">Token Images</h3>
       <p>
         When you upload a <strong>token image</strong> on a combatant's card in the tracker, that
@@ -245,6 +262,10 @@
       <p>
         Tokens snap to the map grid when a grid is enabled, so they stay aligned to grid squares
         automatically.
+      </p>
+      <p>
+        Multi-cell tokens can be grabbed from any covered cell on the minimap, and fog of war checks
+        the whole footprint instead of only the token's top-left corner.
       </p>
       <div class="tip">
         <strong>Tip:</strong> Use the Map plugin's minimap to move tokens during combat. The

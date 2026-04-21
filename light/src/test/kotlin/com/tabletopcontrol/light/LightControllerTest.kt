@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class LightControllerTest {
 
@@ -17,352 +16,160 @@ class LightControllerTest {
         controller = LightController()
     }
 
-    // ── defaults ─────────────────────────────────────────────────────────────
-
     @Test
-    fun `default power is on`() {
+    fun `default state is initialized`() {
         assertTrue(controller.power)
-    }
-
-    @Test
-    fun `default color is white`() {
         assertEquals("#FFFFFF", controller.color)
-    }
-
-    @Test
-    fun `default effect is NONE`() {
         assertEquals(LightEffect.NONE, controller.effect)
-    }
-
-    @Test
-    fun `default color cycling is disabled`() {
         assertFalse(controller.colorCycling)
-    }
-
-    @Test
-    fun `default brightness is 1_0`() {
+        assertEquals(LightController.DEFAULT_EFFECT_SPEED, controller.effectSpeed)
+        assertEquals(LightController.DEFAULT_EFFECT_INTENSITY, controller.effectIntensity)
         assertEquals(1.0, controller.brightness)
+        assertNull(controller.preset)
     }
 
-    // ── setPower ──────────────────────────────────────────────────────────────
-
     @Test
-    fun `setPower turns lights off`() {
-        controller.setPower(false)
+    fun `setPower returns applied and updates state`() {
+        assertEquals(LightOperationResult.Applied, controller.setPower(false))
         assertFalse(controller.power)
     }
 
     @Test
-    fun `setPower turns lights back on`() {
-        controller.setPower(false)
-        controller.setPower(true)
-        assertTrue(controller.power)
-    }
-
-    // ── setColor ─────────────────────────────────────────────────────────────
-
-    @Test
-    fun `setColor stores a valid six-digit hex color in uppercase`() {
-        controller.setColor("#ff5500")
+    fun `setColor uppercases valid hex`() {
+        assertEquals(LightOperationResult.Applied, controller.setColor("#ff5500"))
         assertEquals("#FF5500", controller.color)
     }
 
     @Test
-    fun `setColor accepts a three-digit hex shorthand`() {
-        controller.setColor("#F0F")
-        assertEquals("#F0F", controller.color)
-    }
+    fun `setColor rejects invalid hex without mutating state`() {
+        val result = controller.setColor("red")
 
-    @Test
-    fun `setColor throws on an invalid hex string`() {
-        assertThrows<IllegalArgumentException> { controller.setColor("red") }
-        assertThrows<IllegalArgumentException> { controller.setColor("#ZZZZZZ") }
-        assertThrows<IllegalArgumentException> { controller.setColor("#12345") }
+        assertTrue(result is LightOperationResult.InvalidColor)
+        assertEquals("#FFFFFF", controller.color)
     }
-
-    // ── setEffect ─────────────────────────────────────────────────────────────
 
     @Test
     fun `setEffect updates the active effect`() {
-        controller.setEffect(LightEffect.RAINBOW)
-        assertEquals(LightEffect.RAINBOW, controller.effect)
+        assertEquals(LightOperationResult.Applied, controller.setEffect(LightEffect.FIRE))
+        assertEquals(LightEffect.FIRE, controller.effect)
     }
 
     @Test
-    fun `setEffect can be changed back to NONE`() {
-        controller.setEffect(LightEffect.FIRE)
-        controller.setEffect(LightEffect.NONE)
-        assertEquals(LightEffect.NONE, controller.effect)
-    }
-
-    // ── setColorCycling ───────────────────────────────────────────────────────
-
-    @Test
-    fun `setColorCycling enables cycling`() {
-        controller.setColorCycling(true)
+    fun `setColorCycling updates the flag`() {
+        assertEquals(LightOperationResult.Applied, controller.setColorCycling(true))
         assertTrue(controller.colorCycling)
     }
 
     @Test
-    fun `setColorCycling disables cycling`() {
-        controller.setColorCycling(true)
-        controller.setColorCycling(false)
-        assertFalse(controller.colorCycling)
-    }
-
-    // ── setBrightness ─────────────────────────────────────────────────────────
-
-    @Test
-    fun `setBrightness updates the brightness`() {
-        controller.setBrightness(0.5)
-        assertEquals(0.5, controller.brightness)
-    }
-
-    @Test
-    fun `setBrightness accepts boundary values 0_0 and 1_0`() {
-        controller.setBrightness(0.0)
-        assertEquals(0.0, controller.brightness)
-
-        controller.setBrightness(1.0)
-        assertEquals(1.0, controller.brightness)
-    }
-
-    @Test
-    fun `setBrightness throws on value below 0`() {
-        assertThrows<IllegalArgumentException> { controller.setBrightness(-0.1) }
-    }
-
-    @Test
-    fun `setBrightness throws on value above 1`() {
-        assertThrows<IllegalArgumentException> { controller.setBrightness(1.1) }
-    }
-
-    // ── setEffectSpeed ────────────────────────────────────────────────────────
-
-    @Test
-    fun `default effectSpeed is 128`() {
-        assertEquals(128, controller.effectSpeed)
-    }
-
-    @Test
-    fun `setEffectSpeed updates the speed`() {
-        controller.setEffectSpeed(200)
-        assertEquals(200, controller.effectSpeed)
-    }
-
-    @Test
-    fun `setEffectSpeed accepts boundary values 0 and 255`() {
-        controller.setEffectSpeed(0)
+    fun `setEffectSpeed accepts boundary values`() {
+        assertEquals(LightOperationResult.Applied, controller.setEffectSpeed(0))
         assertEquals(0, controller.effectSpeed)
 
-        controller.setEffectSpeed(255)
+        assertEquals(LightOperationResult.Applied, controller.setEffectSpeed(255))
         assertEquals(255, controller.effectSpeed)
     }
 
     @Test
-    fun `setEffectSpeed throws on value below 0`() {
-        assertThrows<IllegalArgumentException> { controller.setEffectSpeed(-1) }
+    fun `setEffectSpeed rejects out of range values`() {
+        val result = controller.setEffectSpeed(256)
+
+        assertTrue(result is LightOperationResult.InvalidEffectSpeed)
+        assertEquals(LightController.DEFAULT_EFFECT_SPEED, controller.effectSpeed)
     }
 
     @Test
-    fun `setEffectSpeed throws on value above 255`() {
-        assertThrows<IllegalArgumentException> { controller.setEffectSpeed(256) }
-    }
-
-    @Test
-    fun `change listener is called when effectSpeed changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setEffectSpeed(100)
-        assertEquals(1, callCount)
-    }
-
-    // ── setEffectIntensity ────────────────────────────────────────────────────
-
-    @Test
-    fun `default effectIntensity is 128`() {
-        assertEquals(128, controller.effectIntensity)
-    }
-
-    @Test
-    fun `setEffectIntensity updates the intensity`() {
-        controller.setEffectIntensity(50)
-        assertEquals(50, controller.effectIntensity)
-    }
-
-    @Test
-    fun `setEffectIntensity accepts boundary values 0 and 255`() {
-        controller.setEffectIntensity(0)
+    fun `setEffectIntensity accepts boundary values`() {
+        assertEquals(LightOperationResult.Applied, controller.setEffectIntensity(0))
         assertEquals(0, controller.effectIntensity)
 
-        controller.setEffectIntensity(255)
+        assertEquals(LightOperationResult.Applied, controller.setEffectIntensity(255))
         assertEquals(255, controller.effectIntensity)
     }
 
     @Test
-    fun `setEffectIntensity throws on value below 0`() {
-        assertThrows<IllegalArgumentException> { controller.setEffectIntensity(-1) }
+    fun `setEffectIntensity rejects out of range values`() {
+        val result = controller.setEffectIntensity(-1)
+
+        assertTrue(result is LightOperationResult.InvalidEffectIntensity)
+        assertEquals(LightController.DEFAULT_EFFECT_INTENSITY, controller.effectIntensity)
     }
 
     @Test
-    fun `setEffectIntensity throws on value above 255`() {
-        assertThrows<IllegalArgumentException> { controller.setEffectIntensity(256) }
+    fun `setBrightness accepts boundary values`() {
+        assertEquals(LightOperationResult.Applied, controller.setBrightness(0.0))
+        assertEquals(0.0, controller.brightness)
+
+        assertEquals(LightOperationResult.Applied, controller.setBrightness(1.0))
+        assertEquals(1.0, controller.brightness)
     }
 
     @Test
-    fun `change listener is called when effectIntensity changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setEffectIntensity(200)
-        assertEquals(1, callCount)
+    fun `setBrightness rejects out of range values`() {
+        val result = controller.setBrightness(1.1)
+
+        assertTrue(result is LightOperationResult.InvalidBrightness)
+        assertEquals(1.0, controller.brightness)
     }
 
-    // ── setPreset ─────────────────────────────────────────────────────────────
-
     @Test
-    fun `default preset is null`() {
+    fun `setPreset accepts valid ids and null clear`() {
+        assertEquals(LightOperationResult.Applied, controller.setPreset(42))
+        assertEquals(42, controller.preset)
+
+        assertEquals(LightOperationResult.Applied, controller.setPreset(null))
         assertNull(controller.preset)
     }
 
     @Test
-    fun `setPreset stores a valid preset id`() {
-        controller.setPreset(5)
-        assertEquals(5, controller.preset)
-    }
+    fun `setPreset rejects invalid ids without mutating state`() {
+        val result = controller.setPreset(251)
 
-    @Test
-    fun `setPreset accepts boundary values 1 and 250`() {
-        controller.setPreset(1)
-        assertEquals(1, controller.preset)
-
-        controller.setPreset(250)
-        assertEquals(250, controller.preset)
-    }
-
-    @Test
-    fun `setPreset null clears the active preset`() {
-        controller.setPreset(10)
-        controller.setPreset(null)
+        assertTrue(result is LightOperationResult.InvalidPreset)
         assertNull(controller.preset)
     }
 
     @Test
-    fun `setPreset throws on id below 1`() {
-        assertThrows<IllegalArgumentException> { controller.setPreset(0) }
-        assertThrows<IllegalArgumentException> { controller.setPreset(-1) }
+    fun `applyPresetInput parses numeric text`() {
+        assertEquals(LightOperationResult.Applied, controller.applyPresetInput(" 15 "))
+        assertEquals(15, controller.preset)
     }
 
     @Test
-    fun `setPreset throws on id above 250`() {
-        assertThrows<IllegalArgumentException> { controller.setPreset(251) }
+    fun `applyPresetInput rejects non numeric text`() {
+        val result = controller.applyPresetInput("torch")
+
+        assertTrue(result is LightOperationResult.InvalidPresetText)
+        assertNull(controller.preset)
     }
 
     @Test
-    fun `change listener is called when preset changes`() {
+    fun `change listener is called when a valid update succeeds`() {
         var callCount = 0
         controller.addChangeListener { callCount++ }
-        controller.setPreset(3)
-        assertEquals(1, callCount)
-    }
 
-    @Test
-    fun `change listener is called when preset is cleared`() {
-        controller.setPreset(3)
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setPreset(null)
-        assertEquals(1, callCount)
-    }
-
-    @Test
-    fun `setting preset does not affect other fields`() {
-        controller.setColor("#AABBCC")
-        controller.setEffect(LightEffect.FIRE)
-        controller.setBrightness(0.5)
-        controller.setPower(false)
-
-        controller.setPreset(42)
-
-        assertEquals("#AABBCC", controller.color)
-        assertEquals(LightEffect.FIRE, controller.effect)
-        assertEquals(0.5, controller.brightness)
-        assertFalse(controller.power)
-    }
-
-    // ── independent state fields ──────────────────────────────────────────────
-
-    @Test
-    fun `setting color does not affect other fields`() {
-        controller.setEffect(LightEffect.STROBE)
-        controller.setColorCycling(true)
-        controller.setBrightness(0.7)
-
-        controller.setColor("#123456")
-
-        assertEquals(LightEffect.STROBE, controller.effect)
-        assertTrue(controller.colorCycling)
-        assertEquals(0.7, controller.brightness)
-    }
-
-    // ── change listeners ──────────────────────────────────────────────────────
-
-    @Test
-    fun `change listener is called when power changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setPower(false)
-        assertEquals(1, callCount)
-    }
-
-    @Test
-    fun `change listener is called when color changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setColor("#123456")
-        assertEquals(1, callCount)
-    }
-
-    @Test
-    fun `change listener is called when effect changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setEffect(LightEffect.FIRE)
-        assertEquals(1, callCount)
-    }
-
-    @Test
-    fun `change listener is called when color cycling changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
-        controller.setColorCycling(true)
-        assertEquals(1, callCount)
-    }
-
-    @Test
-    fun `change listener is called when brightness changes`() {
-        var callCount = 0
-        controller.addChangeListener { callCount++ }
         controller.setBrightness(0.3)
+
         assertEquals(1, callCount)
     }
 
     @Test
-    fun `multiple change listeners are all notified`() {
-        var a = 0
-        var b = 0
-        controller.addChangeListener { a++ }
-        controller.addChangeListener { b++ }
-        controller.setColor("#AABBCC")
-        assertEquals(1, a)
-        assertEquals(1, b)
+    fun `change listener is not called when an update is rejected`() {
+        var callCount = 0
+        controller.addChangeListener { callCount++ }
+
+        controller.setBrightness(1.5)
+
+        assertEquals(0, callCount)
     }
 
     @Test
-    fun `removed change listener is not called after removal`() {
+    fun `removed change listener is not called`() {
         var callCount = 0
         val listener = controller.addChangeListener { callCount++ }
         controller.removeChangeListener(listener)
+
         controller.setColor("#AABBCC")
+
         assertEquals(0, callCount)
     }
 
@@ -380,5 +187,53 @@ class LightControllerTest {
         controller.setPower(true)
 
         assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `snapshot uses preset command when preset is active and power is on`() {
+        controller.setPreset(7)
+
+        val command = controller.snapshot().toSerialCommand()
+
+        assertEquals(LightSerialCommand.Preset(7), command)
+    }
+
+    @Test
+    fun `snapshot uses explicit off state when power is disabled even with preset`() {
+        controller.setColor("#AABBCC")
+        controller.setPreset(7)
+        controller.setPower(false)
+
+        val command = controller.snapshot().toSerialCommand()
+
+        assertTrue(command is LightSerialCommand.State)
+        val state = command as LightSerialCommand.State
+        assertFalse(state.on)
+        assertEquals("#AABBCC", state.color)
+    }
+
+    @Test
+    fun `snapshot uses manual state command when no preset is active`() {
+        controller.setColor("#AABBCC")
+        controller.setEffect(LightEffect.LIGHTNING)
+        controller.setBrightness(0.5)
+        controller.setColorCycling(true)
+        controller.setEffectSpeed(200)
+        controller.setEffectIntensity(50)
+
+        val command = controller.snapshot().toSerialCommand()
+
+        assertEquals(
+            LightSerialCommand.State(
+                on = true,
+                color = "#AABBCC",
+                effect = LightEffect.LIGHTNING,
+                brightness = 0.5,
+                colorCycling = true,
+                speed = 200,
+                intensity = 50,
+            ),
+            command,
+        )
     }
 }

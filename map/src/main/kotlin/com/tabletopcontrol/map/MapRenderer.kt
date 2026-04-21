@@ -13,6 +13,15 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.map.logic.FogOfWarState
+import com.tabletopcontrol.map.logic.GridCalibration
+import com.tabletopcontrol.map.logic.GridConfig
+import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.TableMapOffset
+import com.tabletopcontrol.map.logic.Token
+import com.tabletopcontrol.map.logic.nextAvailableTokenPlacement
+import com.tabletopcontrol.map.logic.tokenDrawBounds
+import com.tabletopcontrol.map.logic.tokenOccupiedCells
 import java.net.URI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -112,6 +121,15 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var mapRotationDegrees: Int = 0
 
+    /** Shared displacement applied to the entire rendered table map. */
+    var tableMapOffset: TableMapOffset = TableMapOffset()
+
+    /** Whether this renderer should apply the shared [tableMapOffset]. */
+    var applyTableMapOffset: Boolean = true
+
+    /** Whether this renderer should draw a dashed outline of the table viewport. */
+    var showTableViewportOutline: Boolean = false
+
     /** When `true` a yellow crosshair is drawn at the canvas centre. */
     private var gridCalibrationMode: Boolean = false
 
@@ -171,15 +189,17 @@ class MapRenderer(private val canvas: Canvas) {
     /** Stable ID of the currently active combatant's token, or `null` when none is active. */
     private var activeTokenId: String? = null
 
-    /**
-     * Monotonically increasing counter used to assign a unique initial column to each
-     * new token.  Never resets on removal, so columns are never reused after a token
-     * is removed and a new one is added.
-     */
-    private var nextTokenCol: Int = 0
-
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
+
+    /** Latest grid colour, retained even while the visible grid is disabled. */
+    private var lastGridColor: Color = GridConfig().color
+
+    /** Current player-facing table canvas width in pixels. */
+    private var tableViewportWidth: Double = 0.0
+
+    /** Current player-facing table canvas height in pixels. */
+    private var tableViewportHeight: Double = 0.0
 
     /**
      * All active [EventBus.Subscription] handles for this renderer.
@@ -209,6 +229,9 @@ class MapRenderer(private val canvas: Canvas) {
         subscriptions += EventBus.subscribe<MapLoadEvent> { event ->
             loadImage(event.resourcePath)
         }
+        subscriptions += EventBus.subscribe<MapClearEvent> {
+            clearImage()
+        }
         subscriptions += EventBus.subscribe<MapBackgroundEvent> { event ->
             backgroundColor = event.color
             redraw()
@@ -223,6 +246,7 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<GridUpdateEvent> { event ->
             gridConfig = event.config
+            event.config?.color?.let { lastGridColor = it }
             redraw()
         }
         subscriptions += EventBus.subscribe<FogOfWarResetEvent> { event ->
@@ -252,9 +276,24 @@ class MapRenderer(private val canvas: Canvas) {
             mapRotationDegrees = ((event.degrees % 360) + 360) % 360
             redraw()
         }
+        subscriptions += EventBus.subscribe<TableMapOffsetEvent> { event ->
+            tableMapOffset = event.offset
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<TableViewportChangedEvent> { event ->
+            tableViewportWidth = event.width
+            tableViewportHeight = event.height
+            redraw()
+        }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
-            // Place each new token at the next unused column at row 0.
-            tokens.add(Token(event.id, event.name, nextTokenCol++, 0, event.color))
+            val existingIndex = tokens.indexOfFirst { it.id == event.id }
+            if (existingIndex >= 0) {
+                val existing = tokens[existingIndex]
+                tokens[existingIndex] = existing.copy(name = event.name, color = event.color, size = event.size)
+            } else {
+                val (nextTokenCol, nextTokenRow) = nextAvailableTokenPlacement(tokens, event.size)
+                tokens.add(Token(event.id, event.name, nextTokenCol, nextTokenRow, event.size, event.color))
+            }
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
@@ -282,7 +321,6 @@ class MapRenderer(private val canvas: Canvas) {
             tokens.clear()
             imageCache.clear()
             activeTokenId = null
-            nextTokenCol = 0
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenImageChangedEvent> { event ->
@@ -368,25 +406,32 @@ class MapRenderer(private val canvas: Canvas) {
      * canvas is immediately ready after this call returns.
      *
      * @param resourcePath file-system path or classpath URI of the image file.
-     * @return [Result.success] when the image is loaded and drawn; [Result.failure]
-     *         with a descriptive exception when loading fails.
+     * @return [MapResult.Success] when the image is loaded and drawn;
+     *         [MapResult.Failure] with a descriptive error when loading fails.
      */
-    fun loadImage(resourcePath: String): Result<Unit> {
+    fun loadImage(resourcePath: String): MapResult<Unit> {
         val image = Image(resourcePath, false)
         return if (image.isError) {
-            val cause = image.exception
-            if (cause != null) {
-                Result.failure(cause)
-            } else {
-                Result.failure(
-                    IllegalStateException("Failed to load map image from '$resourcePath': unknown image loading error.")
-                )
-            }
+            MapResult.failure(
+                MapOperationError.ImageLoadFailed(
+                    resourcePath = resourcePath,
+                    causeMessage = image.exception?.message ?: "unknown image loading error.",
+                ),
+            )
         } else {
             mapImage = image
             redraw()
-            Result.success(Unit)
+            MapResult.success(Unit)
         }
+    }
+
+    /**
+     * Removes the current map image and redraws the canvas using the plain
+     * background colour and any remaining overlays.
+     */
+    fun clearImage() {
+        mapImage = null
+        redraw()
     }
 
     /**
@@ -411,6 +456,9 @@ class MapRenderer(private val canvas: Canvas) {
         gc.translate(cx + viewportOffsetX, cy + viewportOffsetY)
         gc.scale(viewportScale, viewportScale)
         gc.translate(-cx, -cy)
+        if (applyTableMapOffset) {
+            gc.translate(tableMapOffset.offsetX, tableMapOffset.offsetY)
+        }
 
         drawMapImage()
         drawGrid()
@@ -418,10 +466,11 @@ class MapRenderer(private val canvas: Canvas) {
         drawTokens()
         drawMeasurements()
         drawGridCornerDots()
-        drawGridCalibrationOverlay()
-        drawMapCalibrationOverlay()
 
         gc.restore()
+        drawTableViewportOutline()
+        drawGridCalibrationOverlay()
+        drawMapCalibrationOverlay()
     }
 
     // -------------------------------------------------------------------------
@@ -483,10 +532,12 @@ class MapRenderer(private val canvas: Canvas) {
         val h = canvas.height
         val cx = w / 2.0
         val cy = h / 2.0
-        val xMin = (0.0 - cx - viewportOffsetX) / viewportScale + cx
-        val xMax = (w   - cx - viewportOffsetX) / viewportScale + cx
-        val yMin = (0.0 - cy - viewportOffsetY) / viewportScale + cy
-        val yMax = (h   - cy - viewportOffsetY) / viewportScale + cy
+        val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
+        val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
+        val xMin = (0.0 - cx - viewportOffsetX) / viewportScale + cx - sceneOffsetX
+        val xMax = (w   - cx - viewportOffsetX) / viewportScale + cx - sceneOffsetX
+        val yMin = (0.0 - cy - viewportOffsetY) / viewportScale + cy - sceneOffsetY
+        val yMax = (h   - cy - viewportOffsetY) / viewportScale + cy - sceneOffsetY
         return doubleArrayOf(xMin, xMax, yMin, yMax)
     }
 
@@ -585,10 +636,9 @@ class MapRenderer(private val canvas: Canvas) {
      */
     fun canvasCoordsToGridCell(canvasX: Double, canvasY: Double): Pair<Int, Int> {
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        val (worldX, worldY) = canvasToWorldCoords(canvasX, canvasY)
         val cx = canvas.width / 2.0
         val cy = canvas.height / 2.0
-        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx
-        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy
         val originX = cx + gridCalibration.offsetX
         val originY = cy + gridCalibration.offsetY
         val col = floor((worldX - originX) / cellPx).toInt()
@@ -635,24 +685,25 @@ class MapRenderer(private val canvas: Canvas) {
      * @return the [Token] at that grid cell, or `null`.
      */
     fun tokenAtCanvasCoords(canvasX: Double, canvasY: Double): Token? {
-        val (col, row) = canvasCoordsToGridCell(canvasX, canvasY)
-        return tokens.find { it.col == col && it.row == row }
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return null
+        val (worldX, worldY) = canvasToWorldCoords(canvasX, canvasY)
+        val originX = canvas.width / 2.0 + gridCalibration.offsetX
+        val originY = canvas.height / 2.0 + gridCalibration.offsetY
+        return tokensInHitTestOrder().firstOrNull { token ->
+            tokenDrawBounds(token, originX, originY, cellPx).contains(worldX, worldY)
+        }
     }
 
     /**
-     * Draws all tokens as filled circles above the fog-of-war layer.
+     * Draws all tokens above the fog-of-war layer using their configured footprint size.
      *
-     * Each token fills its grid cell (radius ≈ 45 % of the cell size) and is
-     * centred on the cell.  The active token receives an additional orange outline
-     * so the DM and players can immediately see whose turn it is.
-     *
-     * When [hideTokensInFog] is `true`, tokens whose grid cell is not yet revealed
-     * in [fogOfWar] are skipped — this prevents players from seeing token positions
-     * that are hidden behind the fog on the table view.  Tokens outside the fog grid
-     * bounds, or when fog is not active, are always drawn.
-     *
-     * When [showTokenNames] is `true`, the token's display name is drawn centred
-     * below the token circle so players can identify each combatant.
+     * Medium tokens occupy one tile, large creatures expand to multi-tile footprints,
+     * and tiny/small tokens render centred within a single anchor tile. Tokens are
+     * drawn from largest to smallest so smaller creatures stay visually on top when
+     * footprints overlap. When the player view hides tokens in fog, only the revealed
+     * portion of a token footprint is drawn so oversized creatures do not leak through
+     * unrevealed cells.
      */
     private fun drawTokens() {
         if (tokens.isEmpty()) return
@@ -661,72 +712,88 @@ class MapRenderer(private val canvas: Canvas) {
 
         val originX = canvas.width / 2.0 + gridCalibration.offsetX
         val originY = canvas.height / 2.0 + gridCalibration.offsetY
-        val r = cellPx * 0.45
+        val fow = fogOfWar
 
-        // Compute token-name font once per redraw (cellPx is constant for the frame).
-        val tokenNameFont = if (showTokenNames) {
-            Font.font((cellPx * TOKEN_NAME_FONT_SCALE).coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE))
-        } else null
-
-        // Set text alignment once before the loop; only used when tokenNameFont != null.
-        if (tokenNameFont != null) {
-            gc.font = tokenNameFont
+        if (showTokenNames) {
             gc.textAlign = TextAlignment.CENTER
         }
 
-        val fow = fogOfWar
-
-        for (token in tokens) {
-            // Hide tokens that are in unrevealed fog cells on the player-facing view.
-            if (hideTokensInFog && fow != null) {
-                val fogCol = token.col - fogColOffset
-                val fogRow = token.row - fogRowOffset
-                if (fogCol >= 0 && fogCol < fow.cols && fogRow >= 0 && fogRow < fow.rows
-                    && !fow.isRevealed(fogCol, fogRow)
-                ) continue
+        for (token in tokensInDrawOrder()) {
+            val occupiedCells = tokenOccupiedCells(token)
+            val visibleCells = if (hideTokensInFog && fow != null) {
+                occupiedCells.filter { (col, row) -> isPlayerVisibleCell(col, row, fow) }
+            } else {
+                occupiedCells
             }
+            if (visibleCells.isEmpty()) continue
 
-            val cx = originX + (token.col + 0.5) * cellPx
-            val cy = originY + (token.row + 0.5) * cellPx
+            val drawBounds = tokenDrawBounds(token, originX, originY, cellPx)
+            val activeOutlineWidth = (drawBounds.size * ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(1.0)
+            val tokenOutlineWidth = (drawBounds.size * TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(0.5)
+            val isPartiallyHidden = hideTokensInFog && fow != null && visibleCells.size < occupiedCells.size
 
-            // Draw the token: use the custom picture if available, otherwise a filled circle.
-            val img = token.imageUri?.let { imageCache[it] }
-            if (img != null && !img.isError) {
-                // Clip to a circle and draw the image inside it.
+            if (isPartiallyHidden) {
                 gc.save()
                 gc.beginPath()
-                gc.arc(cx, cy, r, r, 0.0, 360.0)
+                visibleCells.forEach { (col, row) ->
+                    gc.rect(
+                        originX + col * cellPx,
+                        originY + row * cellPx,
+                        cellPx,
+                        cellPx,
+                    )
+                }
                 gc.closePath()
                 gc.clip()
-                val drawW = r * 2 * token.imageScaleX
-                val drawH = r * 2 * token.imageScaleY
-                val drawX = cx - (drawW / 2) + token.imageOffsetX
-                val drawY = cy - (drawH / 2) + token.imageOffsetY
+            }
+
+            val img = token.imageUri?.let { imageCache[it] }
+            if (img != null && !img.isError) {
+                gc.save()
+                gc.beginPath()
+                gc.arc(drawBounds.centerX, drawBounds.centerY, drawBounds.size / 2.0, drawBounds.size / 2.0, 0.0, 360.0)
+                gc.closePath()
+                gc.clip()
+                val drawW = drawBounds.size * token.imageScaleX
+                val drawH = drawBounds.size * token.imageScaleY
+                val drawX = drawBounds.centerX - (drawW / 2) + token.imageOffsetX
+                val drawY = drawBounds.centerY - (drawH / 2) + token.imageOffsetY
                 gc.drawImage(img, drawX, drawY, drawW, drawH)
                 gc.restore()
             } else {
-                // Fallback: fill the token circle with the combatant colour.
                 gc.fill = token.color
-                gc.fillOval(cx - r, cy - r, r * 2, r * 2)
+                gc.fillOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
             }
 
-            // Draw an orange outline on the active token.
             if (token.id == activeTokenId) {
                 gc.stroke = Color.ORANGE
-                gc.lineWidth = r * 0.2
-                gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
+                gc.lineWidth = activeOutlineWidth
+                gc.strokeOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
             }
 
-            // Optionally draw the token name centred below the circle.
-            if (tokenNameFont != null && token.name.isNotBlank()) {
-                val fontSize = tokenNameFont.size
-                val textY = cy + r + fontSize
-                // Dark shadow offset for contrast against any background.
+            gc.stroke = token.color
+            gc.lineWidth = tokenOutlineWidth
+            gc.strokeOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
+
+            if (isPartiallyHidden) {
+                gc.restore()
+            }
+
+            if (showTokenNames && token.name.isNotBlank() && !isPartiallyHidden) {
+                val tokenNameFont = Font.font(
+                    (cellPx * token.size.footprintTiles * TOKEN_NAME_FONT_SCALE)
+                        .coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE),
+                )
+                gc.font = tokenNameFont
+                val textY = drawBounds.bottom + tokenNameFont.size
                 gc.fill = Color.BLACK
-                gc.fillText(token.name, cx + TOKEN_NAME_SHADOW_OFFSET, textY + TOKEN_NAME_SHADOW_OFFSET)
-                // White foreground text.
+                gc.fillText(
+                    token.name,
+                    drawBounds.centerX + TOKEN_NAME_SHADOW_OFFSET,
+                    textY + TOKEN_NAME_SHADOW_OFFSET,
+                )
                 gc.fill = Color.WHITE
-                gc.fillText(token.name, cx, textY)
+                gc.fillText(token.name, drawBounds.centerX, textY)
             }
         }
     }
@@ -845,6 +912,38 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
+     * Draws a faint dashed rectangle on the DM minimap showing the current
+     * player-facing table viewport.
+     *
+     * The outline is rendered in screen space so its stroke width and dash
+     * pattern stay readable regardless of the DM minimap zoom level.
+     */
+    private fun drawTableViewportOutline() {
+        if (!showTableViewportOutline) return
+
+        val bounds = tableViewportSceneBounds(
+            viewportWidth = tableViewportWidth,
+            viewportHeight = tableViewportHeight,
+            tableMapOffset = tableMapOffset,
+        ) ?: return
+
+        val topLeft = sceneToCanvasCoords(bounds[0], bounds[2])
+        val bottomRight = sceneToCanvasCoords(bounds[1], bounds[3])
+        val x = minOf(topLeft.first, bottomRight.first)
+        val y = minOf(topLeft.second, bottomRight.second)
+        val width = abs(bottomRight.first - topLeft.first)
+        val height = abs(bottomRight.second - topLeft.second)
+        if (width <= 0.0 || height <= 0.0) return
+
+        gc.save()
+        gc.stroke = tableViewportOutlineColor(lastGridColor)
+        gc.lineWidth = TABLE_VIEWPORT_OUTLINE_LINE_WIDTH
+        gc.setLineDashes(TABLE_VIEWPORT_OUTLINE_DASH_LENGTH, TABLE_VIEWPORT_OUTLINE_GAP_LENGTH)
+        gc.strokeRect(x, y, width, height)
+        gc.restore()
+    }
+
+    /**
      * Draws a small red dot at every grid line intersection when map calibration
      * mode is active.
      *
@@ -885,6 +984,58 @@ class MapRenderer(private val canvas: Canvas) {
         }
     }
 
+    /**
+     * Converts a scene-space coordinate to canvas-space, applying this
+     * renderer's viewport transform and optional shared table offset.
+     *
+     * Scene-space uses the canvas centre as `(0, 0)`, which makes it stable
+     * across differently sized renderer canvases.
+     */
+    private fun sceneToCanvasCoords(sceneX: Double, sceneY: Double): Pair<Double, Double> {
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
+        val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
+        val canvasX = cx + viewportOffsetX + viewportScale * (sceneX + sceneOffsetX)
+        val canvasY = cy + viewportOffsetY + viewportScale * (sceneY + sceneOffsetY)
+        return Pair(canvasX, canvasY)
+    }
+
+    private fun canvasToWorldCoords(canvasX: Double, canvasY: Double): Pair<Double, Double> {
+        val cx = canvas.width / 2.0
+        val cy = canvas.height / 2.0
+        val sceneOffsetX = if (applyTableMapOffset) tableMapOffset.offsetX else 0.0
+        val sceneOffsetY = if (applyTableMapOffset) tableMapOffset.offsetY else 0.0
+        val worldX = (canvasX - cx - viewportOffsetX) / viewportScale + cx - sceneOffsetX
+        val worldY = (canvasY - cy - viewportOffsetY) / viewportScale + cy - sceneOffsetY
+        return Pair(worldX, worldY)
+    }
+
+    private fun isPlayerVisibleCell(col: Int, row: Int, fow: FogOfWarState): Boolean {
+        val fogCol = col - fogColOffset
+        val fogRow = row - fogRowOffset
+        if (fogCol !in 0 until fow.cols || fogRow !in 0 until fow.rows) {
+            return true
+        }
+        return fow.isRevealed(fogCol, fogRow)
+    }
+
+    private fun tokensInDrawOrder(): List<Token> =
+        tokens.withIndex()
+            .sortedWith(
+                compareByDescending<IndexedValue<Token>> { it.value.size.footprintTiles }
+                    .thenBy { it.index },
+            )
+            .map { it.value }
+
+    private fun tokensInHitTestOrder(): List<Token> =
+        tokens.withIndex()
+            .sortedWith(
+                compareBy<IndexedValue<Token>> { it.value.size.footprintTiles }
+                    .thenByDescending { it.index },
+            )
+            .map { it.value }
+
     companion object {
         /**
          * Font size as a fraction of grid cell size for token name labels.
@@ -914,7 +1065,36 @@ class MapRenderer(private val canvas: Canvas) {
          * proportionally with [viewportScale] on the minimap.
          */
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
+        private const val ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE = 0.10
+        private const val TOKEN_OUTLINE_WIDTH_SCALE = 0.025
         private const val MEASUREMENT_FILL_OPACITY = 0.18
         private const val DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS = 5.0
+        private const val TABLE_VIEWPORT_OUTLINE_LINE_WIDTH = 1.5
+        private const val TABLE_VIEWPORT_OUTLINE_DASH_LENGTH = 10.0
+        private const val TABLE_VIEWPORT_OUTLINE_GAP_LENGTH = 6.0
     }
+}
+
+internal fun tableViewportSceneBounds(
+    viewportWidth: Double,
+    viewportHeight: Double,
+    tableMapOffset: TableMapOffset,
+): DoubleArray? {
+    if (!viewportWidth.isFinite() || !viewportHeight.isFinite() || viewportWidth <= 0.0 || viewportHeight <= 0.0) {
+        return null
+    }
+    return doubleArrayOf(
+        -viewportWidth / 2.0 - tableMapOffset.offsetX,
+        viewportWidth / 2.0 - tableMapOffset.offsetX,
+        -viewportHeight / 2.0 - tableMapOffset.offsetY,
+        viewportHeight / 2.0 - tableMapOffset.offsetY,
+    )
+}
+
+internal fun tableViewportOutlineColor(base: Color): Color {
+    val shiftedHue = (base.hue + 20.0) % 360.0
+    val saturation = (base.saturation + 0.18).coerceIn(0.18, 1.0)
+    val brightness = (base.brightness * 0.92 + 0.08).coerceIn(0.15, 1.0)
+    val opacity = (base.opacity * 0.75).coerceIn(0.22, 0.5)
+    return Color.hsb(shiftedHue, saturation, brightness, opacity)
 }

@@ -6,10 +6,11 @@ import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
 import com.tabletopcontrol.core.ui.DropIndicator
 import com.tabletopcontrol.core.ui.GrabHandle
+import com.tabletopcontrol.core.ui.InputHelpers.Companion.configureSliderDeferredCommit
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
-import javafx.beans.value.ChangeListener
-import javafx.application.Platform
+import com.tabletopcontrol.core.ui.dialog.AudioFileChooserDialog
+import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
@@ -24,9 +25,6 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
-import javafx.scene.media.Media
-import javafx.scene.media.MediaPlayer
-import javafx.stage.FileChooser
 import javafx.util.Duration
 import java.io.File
 import java.net.URI
@@ -35,15 +33,8 @@ import java.net.URISyntaxException
 /**
  * DM-panel plugin for layered music control.
  *
- * Provides an ordered list of independent music tracks, each with:
- * - .mp3 (and other audio format) file selection
- * - play/pause, stop, and loop controls
- * - per-track volume slider
- * - per-track progress bar and remaining-time display
- *
- * A master row contains a volume slider and a "Stop All" button that halts
- * every track simultaneously. Track cards can be added, reordered via drag/drop,
- * and removed from a right-click context menu.
+ * The plugin stays responsible for building the music cards and wiring UI events, while
+ * [MusicTrackService] owns track persistence plus media-load lifecycle orchestration.
  */
 class MusicPlugin : DmPlugin {
 
@@ -54,13 +45,26 @@ class MusicPlugin : DmPlugin {
         const val MAX_TRACK_COUNT = MAX_MUSIC_TRACKS
 
         private const val TIME_UNKNOWN = "--:--"
+        private const val MUSIC_BROWSER_HISTORY_KEY = "music.browser"
     }
 
-    /** Current master volume level in the range 0.0–1.0. */
-    private var masterVolume: Double = 1.0
+    private val trackService = MusicTrackService()
+    private val trackBindings = mutableMapOf<MusicTrackState, TrackCardBindings>()
+    private val trackListener = object : MusicTrackService.Listener {
+        override fun onTrackSnapshotChanged(track: MusicTrackState, snapshot: MusicTrackSnapshot) {
+            applyTrackSnapshot(track, snapshot)
+        }
 
-    /** Ordered list of track states. */
-    private val tracks = mutableListOf<TrackState>()
+        override fun onTrackLoadResult(track: MusicTrackState, result: MusicTrackLoadResult) {
+            if (result is MusicTrackLoadResult.Failed) {
+                applyLoadFailureTooltip(track, result)
+            }
+        }
+
+        override fun onTrackPlaybackFailure(track: MusicTrackState, result: MusicTrackPlaybackResult.Failed) {
+            applyPlaybackFailureTooltip(track, result.failure)
+        }
+    }
 
     /** Container that holds reorderable track cards. */
     private lateinit var tracksContainer: VBox
@@ -72,21 +76,19 @@ class MusicPlugin : DmPlugin {
     private lateinit var dropIndicator: DropIndicator
 
     override fun createView(): Node {
-        tracks.forEach(::disposeTrackPlayer)
-        val loaded = MusicSettingsSerializer.load()
-        masterVolume = loaded.masterVolume
-        tracks.clear()
-        tracks += loaded.tracks
-            .take(MAX_TRACK_COUNT)
-            .ifEmpty { listOf(PersistedMusicTrack()) }
-            .map { TrackState(uri = it.uri, volume = it.volume, loop = it.loop) }
+        trackService.listener = trackListener
+        trackService.initializeIfNeeded()
 
         val root = VBox(6.0).apply { padding = Insets(8.0) }
         tracksContainer = VBox(6.0)
         dropIndicator = DropIndicator()
         addTrackButton = Button("+ Add Track").apply {
             tooltip = Tooltip("Add another music track (up to $MAX_TRACK_COUNT)")
-            setOnAction { addTrack() }
+            setOnAction {
+                if (trackService.addTrack()) {
+                    rebuildTrackCards()
+                }
+            }
         }
 
         root.children.addAll(
@@ -107,8 +109,9 @@ class MusicPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
-        tracks.forEach(::disposeTrackPlayer)
-        saveSettings()
+        trackService.listener = null
+        trackBindings.clear()
+        trackService.shutdown()
     }
 
     // -------------------------------------------------------------------------
@@ -117,26 +120,26 @@ class MusicPlugin : DmPlugin {
 
     /**
      * Builds the master row: a volume slider that scales all tracks, and a
-     * "Stop All" button that stops every active player.
+     * "Stop All" button that halts every active player.
      */
     private fun buildMasterSection(): HBox {
-        val slider = Slider(0.0, 1.0, masterVolume).apply {
+        val slider = Slider(0.0, 1.0, trackService.masterVolume).apply {
             isShowTickMarks = false
             tooltip = Tooltip("Master volume – scales all tracks proportionally")
             maxWidth = Double.MAX_VALUE
-            configureSliderDeferredSave(this) { newValue ->
-                masterVolume = newValue.toDouble()
-                tracks.forEach { track -> track.player?.volume = masterVolume * track.volume }
-            }
+            configureSliderDeferredCommit(
+                slider = this,
+                onValueChanged = { newValue ->
+                    trackService.setMasterVolume(newValue.toDouble())
+                },
+                onCommit = trackService::persistSettings,
+            )
         }
 
         val stopAllBtn = Button("⏹ Stop All").apply {
             tooltip = Tooltip("Stop all currently playing tracks")
             setOnAction {
-                tracks.forEach { track ->
-                    track.player?.stop()
-                    track.playPauseBtn?.text = "▶ Play"
-                }
+                trackService.stopAll()
             }
         }
 
@@ -146,21 +149,19 @@ class MusicPlugin : DmPlugin {
     }
 
     /** Builds the control content for a single track. */
-    private fun buildTrackCard(index: Int, track: TrackState): TrackCardNodes {
-        val pathLabel = Label(track.uri?.let(::fileNameFromUri) ?: "No file loaded").apply {
+    private fun buildTrackCard(index: Int, track: MusicTrackState): TrackCardNodes {
+        val pathLabel = Label("No file loaded").apply {
             maxWidth = Double.MAX_VALUE
-            tooltip = Tooltip(track.uri ?: "No file loaded")
+            tooltip = Tooltip("No file loaded")
         }
 
-        val playPauseBtn = Button("▶ Play").apply { isDisable = track.uri == null }
-        val stopBtn = Button("⏹ Stop").apply { isDisable = track.uri == null }
+        val playPauseBtn = Button("▶ Play")
+        val stopBtn = Button("⏹ Stop")
         val loopCheck = CheckBox("Loop").apply { isSelected = track.loop }
-        track.playPauseBtn = playPauseBtn
 
         val progressBar = ProgressBar(0.0).apply {
             maxWidth = Double.MAX_VALUE
             prefHeight = 12.0
-            isDisable = track.uri == null
         }
         val timeLabel = Label("$TIME_UNKNOWN / $TIME_UNKNOWN").apply {
             style = "-fx-font-size: 10;"
@@ -170,73 +171,39 @@ class MusicPlugin : DmPlugin {
         val volumeSlider = Slider(0.0, 1.0, track.volume).apply {
             tooltip = Tooltip("Volume for ${index + 1}")
             maxWidth = Double.MAX_VALUE
-            configureSliderDeferredSave(this) { newValue ->
-                track.volume = newValue.toDouble()
-                track.player?.volume = masterVolume * track.volume
-            }
+            configureSliderDeferredCommit(
+                slider = this,
+                onValueChanged = { newValue ->
+                    trackService.setTrackVolume(track, newValue.toDouble())
+                },
+                onCommit = trackService::persistSettings,
+            )
         }
 
         val browseBtn = Button("Browse…").apply {
             setOnAction { evt ->
-                val chooser = FileChooser().apply {
-                    title = "Select audio file for card ${index + 1}"
-                    extensionFilters.addAll(
-                        FileChooser.ExtensionFilter("MP3 files", "*.mp3"),
-                        FileChooser.ExtensionFilter(
-                            "Audio files", "*.mp3", "*.wav", "*.aac", "*.m4a", "*.ogg",
-                        ),
-                        FileChooser.ExtensionFilter("All files", "*.*"),
-                    )
-                }
                 val owner = (evt.source as? Button)?.scene?.window
-                val file = chooser.showOpenDialog(owner)
-                if (file != null) {
-                    val selectedUri = file.toURI().toString()
-                    val loaded = loadTrack(
-                        track = track,
-                        uri = selectedUri,
-                        playPauseBtn = playPauseBtn,
-                        stopBtn = stopBtn,
-                        progressBar = progressBar,
-                        timeLabel = timeLabel,
-                    )
-                    if (loaded) {
-                        pathLabel.text = file.name
-                        pathLabel.tooltip = Tooltip(file.absolutePath)
-                        saveSettings()
-                    } else {
-                        pathLabel.text = "${file.name} (load failed)"
-                        pathLabel.tooltip = Tooltip(
-                            "Failed to load audio file:\n${file.absolutePath}",
-                        )
-                    }
-                }
+                val file = AudioFileChooserDialog.showOpenDialog(
+                    owner = owner,
+                    title = "Select audio file for card ${index + 1}",
+                    audioPatterns = listOf("*.mp3", "*.wav", "*.aac", "*.m4a", "*.ogg"),
+                    historyKey = MUSIC_BROWSER_HISTORY_KEY,
+                    fallbackSelection = FileChooserHistoryStore.fileFromUri(track.uri),
+                ) ?: return@setOnAction
+                trackService.loadSelectedTrack(track, file.toURI().toString())
             }
         }
 
         playPauseBtn.setOnAction {
-            val player = track.player ?: return@setOnAction
-            when (player.status) {
-                MediaPlayer.Status.PLAYING -> {
-                    player.pause()
-                    playPauseBtn.text = "▶ Play"
-                }
-                else -> {
-                    player.play()
-                    playPauseBtn.text = "⏸ Pause"
-                }
-            }
+            handlePlaybackResult(track, trackService.togglePlayback(track))
         }
 
         stopBtn.setOnAction {
-            track.player?.stop()
-            playPauseBtn.text = "▶ Play"
+            handlePlaybackResult(track, trackService.stop(track))
         }
 
         loopCheck.setOnAction {
-            track.loop = loopCheck.isSelected
-            track.player?.cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
-            saveSettings()
+            trackService.setTrackLoop(track, loopCheck.isSelected)
         }
 
         val grabHandle = GrabHandle()
@@ -263,10 +230,14 @@ class MusicPlugin : DmPlugin {
                     label = "Remove Track",
                     icon = "🗑",
                     section = MenuSection.DANGER_ZONE,
-                    isEnabled = tracks.size > 1,
+                    isEnabled = trackService.tracks.size > 1,
                     requiresConfirmation = true,
                     confirmationMessage = "Remove this music track?",
-                    onAction = { removeTrack(index) },
+                    onAction = {
+                        if (trackService.removeTrack(index)) {
+                            rebuildTrackCards()
+                        }
+                    },
                 ),
             ),
         )
@@ -275,33 +246,15 @@ class MusicPlugin : DmPlugin {
             event.consume()
         }
 
-        if (track.uri != null) {
-            if (track.player == null) {
-                val existingUri = track.uri!!
-                val loaded = loadTrack(
-                    track = track,
-                    uri = existingUri,
-                    playPauseBtn = playPauseBtn,
-                    stopBtn = stopBtn,
-                    progressBar = progressBar,
-                    timeLabel = timeLabel,
-                )
-                if (!loaded) {
-                    track.player = null
-                    track.uri = null
-                    pathLabel.text = "No file loaded"
-                    pathLabel.tooltip = Tooltip("No file loaded")
-                    playPauseBtn.isDisable = true
-                    stopBtn.isDisable = true
-                    progressBar.progress = 0.0
-                    progressBar.isDisable = true
-                    timeLabel.text = ""
-                    saveSettings()
-                }
-            } else {
-                bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
-            }
-        }
+        trackBindings[track] = TrackCardBindings(
+            pathLabel = pathLabel,
+            playPauseBtn = playPauseBtn,
+            stopBtn = stopBtn,
+            progressBar = progressBar,
+            timeLabel = timeLabel,
+        )
+        applyTrackSnapshot(track, trackService.snapshotOf(track))
+        trackService.restoreTrack(track)
 
         return TrackCardNodes(card = card, grabHandle = grabHandle)
     }
@@ -310,230 +263,125 @@ class MusicPlugin : DmPlugin {
     // Track management
     // -------------------------------------------------------------------------
 
-    /**
-     * Loads a new [MediaPlayer] for [track] from its configured URI.
-     *
-     * Any existing player for this track is stopped and disposed first.
-     * Controls are re-enabled once the media reports [MediaPlayer.Status.READY].
-     * The [progressBar] and [timeLabel] are updated in real time via
-     * [MediaPlayer.currentTimeProperty].
-     */
-    private fun loadTrack(
-        track: TrackState,
-        uri: String,
-        playPauseBtn: Button,
-        stopBtn: Button,
-        progressBar: ProgressBar,
-        timeLabel: Label,
-    ): Boolean {
-        val media = try {
-            Media(uri)
-        } catch (_: Exception) {
-            return false
-        }
-
-        disposeTrackPlayer(track)
-        track.uri = uri
-
-        // Disable controls while the new media loads.
-        playPauseBtn.isDisable = true
-        playPauseBtn.text = "▶ Play"
-        stopBtn.isDisable = true
-        progressBar.progress = 0.0
-        progressBar.isDisable = true
-        timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
-
-        val player = MediaPlayer(media).apply {
-            volume = masterVolume * track.volume
-            cycleCount = if (track.loop) MediaPlayer.INDEFINITE else 1
-        }
-
-        track.player = player
-        bindPlayerToControls(track, playPauseBtn, stopBtn, progressBar, timeLabel)
-        return true
-    }
-
-    private fun bindPlayerToControls(
-        track: TrackState,
-        playPauseBtn: Button,
-        stopBtn: Button,
-        progressBar: ProgressBar,
-        timeLabel: Label,
-    ) {
-        val player = track.player ?: return
-        val media = player.media ?: return
-        val status = player.status
-        val isUsable = status != MediaPlayer.Status.UNKNOWN &&
-            status != MediaPlayer.Status.HALTED &&
-            status != MediaPlayer.Status.DISPOSED
-        playPauseBtn.isDisable = !isUsable
-        stopBtn.isDisable = !isUsable
-        progressBar.isDisable = !isUsable
-        playPauseBtn.text = if (player.status == MediaPlayer.Status.PLAYING) "⏸ Pause" else "▶ Play"
-        if (isUsable && !media.duration.isUnknown && !media.duration.isIndefinite) {
-            val current = player.currentTime
-            val totalSeconds = media.duration.toSeconds()
-            if (totalSeconds > 0.0) {
-                progressBar.progress = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
-            }
-            val remaining = media.duration.subtract(current)
-            timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
-        }
-
-        player.setOnReady {
-            Platform.runLater {
-                playPauseBtn.isDisable = false
-                stopBtn.isDisable = false
-                progressBar.isDisable = false
-                val total = media.duration
-                timeLabel.text = if (!total.isUnknown && !total.isIndefinite && total.toSeconds() > 0.0) {
-                    "0:00 / -${formatDuration(total)}"
-                } else {
-                    "0:00 / $TIME_UNKNOWN"
-                }
-            }
-        }
-
-        // currentTimeProperty fires on the FX thread; no Platform.runLater needed.
-        // Early firings (before media is READY) return immediately via the isUnknown guard.
-        track.timeListener?.let(player.currentTimeProperty()::removeListener)
-        val timeListener = ChangeListener<Duration> { _, _, current ->
-            val total = media.duration
-            if (total.isUnknown || total.isIndefinite) return@ChangeListener
-            val totalSeconds = total.toSeconds()
-            if (totalSeconds <= 0.0) {
-                progressBar.progress = 0.0
-                timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
-                return@ChangeListener
-            }
-            val frac = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
-            val remaining = total.subtract(current)
-            progressBar.progress = frac
-            timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
-        }
-        track.timeListener = timeListener
-        player.currentTimeProperty().addListener(timeListener)
-
-        player.setOnError {
-            Platform.runLater {
-                playPauseBtn.isDisable = true
-                stopBtn.isDisable = true
-                playPauseBtn.text = "▶ Play"
-            }
-        }
-
-        player.setOnEndOfMedia {
-            if (player.cycleCount != MediaPlayer.INDEFINITE) {
-                Platform.runLater { playPauseBtn.text = "▶ Play" }
-            }
-        }
-    }
-
     private fun rebuildTrackCards() {
-        tracks.forEach { it.playPauseBtn = null }
+        trackBindings.clear()
         tracksContainer.children.clear()
         tracksContainer.children.add(dropIndicator)
 
         val dragContext = DragDropContext(
             dataFormat = "tabletopcontrol/music-track-card",
-            onReorder = { from, to -> reorderTracks(from, to) },
+            onReorder = { from, to ->
+                if (trackService.reorderTracks(from, to)) {
+                    rebuildTrackCards()
+                }
+            },
         )
 
-        tracks.forEachIndexed { index, track ->
+        trackService.tracks.forEachIndexed { index, track ->
             val cardNodes = buildTrackCard(index, track)
             DragDropSupport.installDragSource(cardNodes.grabHandle, index, dragContext)
             DragDropSupport.installDropTarget(cardNodes.card, index, dragContext, dropIndicator)
             tracksContainer.children.add(cardNodes.card)
         }
+
         val endDropTarget = Region().apply {
             minHeight = 18.0
             prefHeight = 18.0
             maxWidth = Double.MAX_VALUE
             isPickOnBounds = true
         }
-        DragDropSupport.installDropTarget(endDropTarget, tracks.size, dragContext, dropIndicator)
+        DragDropSupport.installDropTarget(endDropTarget, trackService.tracks.size, dragContext, dropIndicator)
         tracksContainer.children.add(endDropTarget)
 
-        addTrackButton.isDisable = tracks.size >= MAX_TRACK_COUNT
+        addTrackButton.isDisable = trackService.tracks.size >= MAX_TRACK_COUNT
     }
 
-    private fun addTrack() {
-        if (tracks.size >= MAX_TRACK_COUNT) return
-        tracks += TrackState()
-        rebuildTrackCards()
-        saveSettings()
-    }
+    private fun applyTrackSnapshot(track: MusicTrackState, snapshot: MusicTrackSnapshot) {
+        val bindings = trackBindings[track] ?: return
+        val activeUri = snapshot.uri
 
-    private fun removeTrack(index: Int) {
-        if (tracks.size <= 1 || index !in tracks.indices) return
-        disposeTrackPlayer(tracks.removeAt(index))
-        rebuildTrackCards()
-        saveSettings()
-    }
+        bindings.pathLabel.text = activeUri?.let(trackService::fileNameFromUri) ?: "No file loaded"
+        bindings.pathLabel.tooltip = Tooltip(activeUri?.let(::filePathOrRaw) ?: "No file loaded")
 
-    private fun reorderTracks(fromIndex: Int, toIndex: Int) {
-        if (fromIndex !in tracks.indices || toIndex !in 0..tracks.size || fromIndex == toIndex) return
-        val moved = tracks.removeAt(fromIndex)
-        val adjustedToIndex = if (fromIndex < toIndex) toIndex - 1 else toIndex
-        tracks.add(adjustedToIndex, moved)
-        rebuildTrackCards()
-        saveSettings()
-    }
+        if (!snapshot.isUsable) {
+            bindings.playPauseBtn.isDisable = true
+            bindings.playPauseBtn.text = "▶ Play"
+            bindings.stopBtn.isDisable = true
+            bindings.progressBar.progress = 0.0
+            bindings.progressBar.isDisable = true
+            bindings.timeLabel.text = "$TIME_UNKNOWN / $TIME_UNKNOWN"
+            return
+        }
 
-    /**
-     * Configures deferred settings persistence for a volume [slider].
-     *
-     * [onValueChanged] receives the new slider value as [Number] and is invoked
-     * immediately for runtime updates on every value change. [saveSettings] is
-     * deferred and committed once interaction ends (drag release or focus loss)
-     * to avoid frequent disk writes.
-     */
-    private fun configureSliderDeferredSave(slider: Slider, onValueChanged: (Number) -> Unit) {
-        // Tracks whether the slider value changed during interaction so settings
-        // are persisted once after interaction completes instead of every step.
-        var pendingSave = false
+        bindings.playPauseBtn.isDisable = false
+        bindings.stopBtn.isDisable = false
+        bindings.progressBar.isDisable = false
+        bindings.playPauseBtn.text = if (snapshot.phase == MusicTrackPlaybackPhase.PLAYING) "⏸ Pause" else "▶ Play"
 
-        // Persists only when there is a pending change from slider interaction.
-        fun persistIfChanged() {
-            if (pendingSave) {
-                pendingSave = false
-                saveSettings()
+        val totalDuration = snapshot.totalDuration
+        if (totalDuration != null && !totalDuration.isUnknown && !totalDuration.isIndefinite) {
+            val current = snapshot.currentTime ?: Duration.ZERO
+            val totalSeconds = totalDuration.toSeconds()
+            if (totalSeconds > 0.0) {
+                bindings.progressBar.progress = (current.toSeconds() / totalSeconds).coerceIn(0.0, 1.0)
+                val remaining = totalDuration.subtract(current)
+                bindings.timeLabel.text = "${formatDuration(current)} / -${formatDuration(remaining)}"
+            } else {
+                bindings.progressBar.progress = 0.0
+                bindings.timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
             }
+        } else {
+            val current = snapshot.currentTime ?: Duration.ZERO
+            bindings.progressBar.progress = 0.0
+            bindings.timeLabel.text = "${formatDuration(current)} / $TIME_UNKNOWN"
         }
+    }
 
-        slider.valueProperty().addListener { _, _, newValue ->
-            onValueChanged(newValue)
-            pendingSave = true
-        }
-        slider.valueChangingProperty().addListener { _, wasChanging, isChanging ->
-            if (wasChanging && !isChanging) {
-                persistIfChanged()
-            }
-        }
-        slider.focusedProperty().addListener { _, wasFocused, isFocused ->
-            if (wasFocused && !isFocused) {
-                persistIfChanged()
+    private fun handlePlaybackResult(track: MusicTrackState, result: MusicTrackPlaybackResult) {
+        when (result) {
+            is MusicTrackPlaybackResult.Success -> applyTrackSnapshot(track, result.snapshot)
+            is MusicTrackPlaybackResult.Failed -> {
+                applyTrackSnapshot(track, result.snapshot)
+                applyPlaybackFailureTooltip(track, result.failure)
             }
         }
     }
 
-    private fun saveSettings() {
-        MusicSettingsSerializer.save(
-            MusicSettings(
-                masterVolume = masterVolume,
-                tracks = tracks.map { track ->
-                    PersistedMusicTrack(uri = track.uri, volume = track.volume, loop = track.loop)
-                },
-            ),
-        )
+    private fun applyLoadFailureTooltip(track: MusicTrackState, result: MusicTrackLoadResult.Failed) {
+        val bindings = trackBindings[track] ?: return
+        val attemptedPath = filePathOrRaw(result.requestedUri)
+        val activePath = result.snapshot.uri?.let(::filePathOrRaw)
+
+        val message = when {
+            activePath != null && result.restoredPreviousTrack ->
+                "Failed to load audio file:\n$attemptedPath\n\nStill loaded:\n$activePath"
+
+            activePath != null ->
+                "Failed to load audio file:\n$attemptedPath\n\nCurrent track:\n$activePath"
+
+            else ->
+                "Failed to load audio file:\n$attemptedPath\n\nNo track currently loaded"
+        }
+        bindings.pathLabel.tooltip = Tooltip(message)
     }
 
-    private fun disposeTrackPlayer(track: TrackState) {
-        val player = track.player ?: return
-        track.timeListener?.let(player.currentTimeProperty()::removeListener)
-        track.timeListener = null
-        player.dispose()
-        track.player = null
+    private fun applyPlaybackFailureTooltip(track: MusicTrackState, failure: MusicTrackPlaybackFailure) {
+        val bindings = trackBindings[track] ?: return
+        val message = when (failure) {
+            is MusicTrackPlaybackFailure.NoActiveTrack ->
+                "No audio file is currently loaded for this track."
+
+            is MusicTrackPlaybackFailure.PlayerError -> {
+                val path = failure.uri?.let(::filePathOrRaw) ?: "this track"
+                "Playback failed for:\n$path"
+            }
+
+            is MusicTrackPlaybackFailure.Unavailable -> {
+                val path = failure.uri?.let(::filePathOrRaw) ?: "this track"
+                "Track is unavailable for playback:\n$path"
+            }
+        }
+        bindings.pathLabel.tooltip = Tooltip(message)
     }
 
     /** Formats a [Duration] as `M:SS`, or [TIME_UNKNOWN] for unknown/indefinite durations. */
@@ -545,21 +393,20 @@ class MusicPlugin : DmPlugin {
         return "$mins:${secs.toString().padStart(2, '0')}"
     }
 
-    private fun fileNameFromUri(uri: String): String = try {
-        File(URI(uri)).name.ifBlank { "Loaded track" }
+    private fun filePathOrRaw(uri: String): String = try {
+        File(URI(uri)).absolutePath
     } catch (_: URISyntaxException) {
-        uri.substringAfterLast('/').ifBlank { "Loaded track" }
+        uri
     } catch (_: IllegalArgumentException) {
-        uri.substringAfterLast('/').ifBlank { "Loaded track" }
+        uri
     }
 
-    private data class TrackState(
-        var uri: String? = null,
-        var volume: Double = 1.0,
-        var loop: Boolean = true,
-        var player: MediaPlayer? = null,
-        var playPauseBtn: Button? = null,
-        var timeListener: ChangeListener<Duration>? = null,
+    private data class TrackCardBindings(
+        val pathLabel: Label,
+        val playPauseBtn: Button,
+        val stopBtn: Button,
+        val progressBar: ProgressBar,
+        val timeLabel: Label,
     )
 
     private data class TrackCardNodes(

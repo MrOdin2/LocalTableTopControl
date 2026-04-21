@@ -169,6 +169,7 @@
       <p>Key capabilities:</p>
       <ul>
         <li>Load any image file as a map (JPEG, PNG, BMP, and other common formats).</li>
+        <li>Remove the current map image and fall back to a plain background colour.</li>
         <li>Calibrate scale so the rendered map matches real-world miniature scale (typically 1 inch per grid square).</li>
         <li>Overlay a customisable grid aligned to the map's coordinate system.</li>
         <li>Paint fog of war to hide unexplored areas from the players.</li>
@@ -183,6 +184,15 @@
       <p>
         Click the <strong>Load Map</strong> button on the DM panel. A file chooser opens — navigate
         to your map image and select it. The map appears immediately on the table screen.
+      </p>
+      <p>
+        The chooser remembers the last map folder you used, so reopening <strong>Load Map</strong>
+        starts from that location instead of sending you back to a default folder.
+      </p>
+      <p>
+        If you want to stop using an image and return to a simple coloured table, click
+        <strong>Remove Map</strong>. The image is cleared immediately and the table shows only the
+        current background colour and any active overlays such as grid, fog, tokens, or measurements.
       </p>
       <p>
         The minimap preview in the DM panel shows a scaled-down copy of the map with the fog of war
@@ -203,23 +213,34 @@
       </p>
       <p>TabletopControl offers a <strong>Guided Calibration</strong> workflow:</p>
       <ol>
-        <li>Click <strong>Calibrate Map</strong> to open the calibration dialog.</li>
+        <li>Click <strong>Guided Calibration</strong> to open the guided calibration dialog.</li>
         <li>
-          <strong>Step 1 — Grid Centre:</strong> Click the centre of any grid intersection on the
-          map image in the dialog.
+          <strong>Step 1 &mdash; Centre Point:</strong> Drag the map with the mouse for coarse
+          positioning, then use the on-screen arrows or the keyboard arrow keys to move the blue
+          cursor by exactly one calibration-screen pixel at a time until it sits on the centre
+          reference.
         </li>
         <li>
-          <strong>Step 2 — Grid Corner:</strong> Click an adjacent grid corner (one cell away in
-          any direction) to define the cell size.
+          <strong>Step 2 &mdash; Next Tile Boundary:</strong> The centre point from Step 1 stays
+          marked. Choose whether the second point should be <strong>horizontal</strong> or
+          <strong>vertical</strong>, then place the blue cursor on the start of the next tile on
+          that axis. Diagonal points are not used.
+        </li>
+        <li>
+          <strong>Wide Mode:</strong> If you want extra precision, enable <strong>Wide mode</strong>
+          and enter how many tiles away the Step 2 point should be. Instead of using the very next
+          tile boundary, you can measure to the <em>n</em>th boundary on the same axis, which makes
+          tiny placement errors matter less.
         </li>
         <li>
           Confirm. The scale and offset are applied immediately to the table screen.
         </li>
       </ol>
       <div class="tip">
-        <strong>Tip:</strong> If the calibration looks slightly off, open the calibration dialog again
-        and fine-tune by clicking a clearer intersection. The two-click process is designed to be fast
-        and repeatable.
+        <strong>Tip:</strong> The mouse is always available for coarse panning, while both the
+        on-screen arrows and the keyboard arrows move the active point by exactly one
+        calibration-screen pixel. The deeper you zoom in, the finer those nudges become on the map
+        itself.
       </div>
     </section>
 
@@ -248,6 +269,10 @@
       <p>
         After calibration, the grid lines should line up with the printed grid (or intended grid
         squares) of the map image.
+      </p>
+      <p>
+        Calibration, grid colour, background colour, and map rotation are saved between sessions in
+        <code>~/.tabletopcontrol/map-settings.conf</code>.
       </p>
     </section>
 
@@ -294,6 +319,7 @@
       <p>Each token can display:</p>
       <ul>
         <li>A <strong>colour circle</strong> matching the combatant's assigned colour.</li>
+        <li>A footprint size from <strong>Tiny</strong> (1/8 tile) up to <strong>Gargantuan</strong> (4x4 tiles).</li>
         <li>A <strong>custom image</strong> (portrait or token art) uploaded in the tracker.</li>
         <li>The combatant's <strong>name label</strong> (toggle with the <em>Show Token Names</em> option).</li>
       </ul>
@@ -302,6 +328,24 @@
         directly on the minimap. See <a href="../docs/cross-plugin.html">Cross-Plugin Features</a>
         for the full details of how the tracker and map work together.
       </p>
+      <p>
+        Large footprints stay aligned to the grid automatically. A Large token covers 2x2 cells,
+        a Huge token covers 3x3 cells, and a Gargantuan token covers 4x4 cells. Tiny and Small
+        tokens render inside a single anchor cell at one-eighth and one-quarter tile size.
+      </p>
+      <p>
+        On the DM minimap you can grab a multi-cell token from any covered cell and drag it without
+        losing its footprint alignment. On the table screen, fog of war respects the full token
+        footprint so oversized creatures only appear where their occupied cells are visible.
+      </p>
+      <p>
+        When tokens overlap, smaller footprints are drawn on top of larger ones so tiny and small
+        creatures remain visible instead of disappearing underneath large bases.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> Change token size from the linked tracker card by right-clicking the
+        combatant and opening the <strong>Token Size</strong> menu.
+      </div>
     </section>
 
     <section id="measurement">
@@ -350,8 +394,13 @@
       <h2>Background Colour</h2>
       <p>
         The area around the map image (visible when the map does not fill the entire screen) can be
-        set to a custom background colour. Click <strong>Set Background</strong> on the DM panel and
+        set to a custom background colour. Click <strong>BG Color</strong> on the DM panel and
         pick a colour from the colour picker.
+      </p>
+      <p>
+        When no map image is loaded, this background colour becomes the entire player-facing map.
+        This is useful for theatre-of-the-mind scenes, quick sketches, or breaks between maps without
+        loading a new image.
       </p>
       <p>
         Setting a dark background (such as black) works well for dungeon maps where the edges should

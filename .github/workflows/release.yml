@@ -2,8 +2,6 @@ name: Release
 
 on:
   push:
-    branches:
-      - release
     tags:
       - 'v*.*.*'
 
@@ -11,14 +9,44 @@ permissions:
   contents: write
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
+  verify-release-tag:
+    name: Verify tagged commit is on release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      should_release: ${{ steps.check.outputs.should_release }}
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag ancestry
+        id: check
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          git fetch origin release:refs/remotes/origin/release --force
+
+          if git merge-base --is-ancestor "${GITHUB_SHA}" "origin/release"; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Tagged commit is on origin/release."
+          else
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Tagged commit is not on origin/release; skipping release publication."
+          fi
+
   # Build a native installer for each target OS.
   # Each runner must build from source because the JavaFX dependencies contain
   # platform-specific native libraries, so a single shared build artifact would
   # not work across Linux, Windows, and macOS.
-  # ─────────────────────────────────────────────────────────────────────────────
   build:
     name: Build (${{ matrix.label }})
+    needs: verify-release-tag
+    if: needs.verify-release-tag.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -53,22 +81,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Determine the application version:
-      #   - When triggered by a version tag (e.g. v1.2.3), strip the leading "v".
-      #   - When triggered by a branch push, derive from build.gradle.kts (already
-      #     checked out by the preceding step) and append the short commit SHA so
-      #     the build remains uniquely identifiable.
+      # Determine the application version from the pushed tag (e.g. v1.2.3 -> 1.2.3).
       - name: Determine version
         id: version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            BASE=$(grep 'version\s*=' build.gradle.kts | head -1 \
-                   | sed 's/.*"\(.*\)".*/\1/' | sed 's/-SNAPSHOT//')
-            VERSION="${BASE}-dev+${GITHUB_SHA:0:7}"
-          fi
+          VERSION="${GITHUB_REF_NAME#v}"
           # jpackage requires a numeric-only version (MAJOR.MINOR[.MICRO]).
           # Fall back to "1.0" if the pattern cannot be extracted.
           PKG_VERSION=$(echo "${VERSION}" | grep -oE '^[0-9]+(\.[0-9]+)*')
@@ -125,17 +143,14 @@ jobs:
           name: dist-zip
           path: core/build/distributions/core-*.zip
 
-  # ─────────────────────────────────────────────────────────────────────────────
   # Collect every installer and the distribution ZIP, then publish them as a
-  # single GitHub Release.
-  #
-  # - A version tag push (v*.*.*) creates a stable release.
-  # - A push to the release branch creates/updates a rolling pre-release tagged
-  #   "release-latest" so the most recent build is always downloadable.
-  # ─────────────────────────────────────────────────────────────────────────────
+  # single GitHub Release for version tags whose commits are on the release branch.
   publish:
     name: Publish GitHub Release
-    needs: build
+    needs:
+      - verify-release-tag
+      - build
+    if: needs.verify-release-tag.outputs.should_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -143,15 +158,9 @@ jobs:
         id: meta
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${GITHUB_REF_NAME#v}"
-            PRERELEASE="false"
-          else
-            TAG="release-latest"
-            VERSION="release+${GITHUB_SHA:0:7}"
-            PRERELEASE="true"
-          fi
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${{ needs.verify-release-tag.outputs.version }}"
+          PRERELEASE="false"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
@@ -171,7 +180,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: TabletopControl ${{ steps.meta.outputs.version }}
+          name: ${{ steps.meta.outputs.version }}-Release
           draft: false
           prerelease: ${{ steps.meta.outputs.prerelease }}
           generate_release_notes: true

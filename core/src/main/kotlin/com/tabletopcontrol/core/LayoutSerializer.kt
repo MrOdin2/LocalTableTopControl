@@ -1,7 +1,8 @@
 package com.tabletopcontrol.core
 
+import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.SafeConfigIO
 import javafx.geometry.Orientation
-import java.io.File
 
 /**
  * Serialises and deserialises a [PaneNode] layout tree to/from a plain-text config file.
@@ -19,12 +20,10 @@ import java.io.File
  */
 object LayoutSerializer {
 
-    private val configFile: File
-        get() {
-            val dir = File(System.getProperty("user.home"), ".tabletopcontrol")
-            dir.mkdirs()
-            return File(dir, "dm-layout.conf")
-        }
+    internal const val CONFIG_NAME = "dm-layout.conf"
+
+    private val configFile
+        get() = AppConfigPaths.configFile(CONFIG_NAME)
 
     // ── Serialisation ────────────────────────────────────────────────────────
 
@@ -67,11 +66,7 @@ object LayoutSerializer {
      * missing or read-only config directory never crashes the application.
      */
     fun save(node: PaneNode) {
-        try {
-            configFile.writeText(serialize(node))
-        } catch (_: Exception) {
-            // non-fatal — proceed without persistence
-        }
+        SafeConfigIO.writeText(configFile, serialize(node))
     }
 
     /**
@@ -79,12 +74,7 @@ object LayoutSerializer {
      *
      * @return The saved layout tree, or `null` if the file is absent or unparseable.
      */
-    fun load(): PaneNode? =
-        try {
-            deserialize(configFile.readText())
-        } catch (_: Exception) {
-            null
-        }
+    fun load(): PaneNode? = SafeConfigIO.readOrElse(null) { deserialize(configFile.readText()) }
 
     // ── Internal parser ──────────────────────────────────────────────────────
 

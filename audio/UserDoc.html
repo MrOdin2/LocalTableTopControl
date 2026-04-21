@@ -184,6 +184,11 @@
         All audio is loaded from files on your computer. No internet connection is required for
         playback.
       </p>
+      <p>
+        Both audio plugins now use the same shared media lifecycle controller for loading,
+        playback state, progress updates, and safe disposal. This keeps behavior consistent
+        across Music Player and Soundboard when files fail to load or reach end-of-playback.
+      </p>
     </section>
 
     <section id="music">
@@ -202,6 +207,7 @@
       </ul>
       <p>
         Track order and settings are saved and restored automatically between sessions.
+        The music plugin stores this state in <code>~/.tabletopcontrol/music.conf</code>.
       </p>
 
       <h3 id="music-loading">Loading Tracks</h3>
@@ -211,9 +217,14 @@
         supported by your Java runtime.
       </p>
       <p>
+        When you open the chooser again, it starts in the last folder you used for the Music Player,
+        so loading several tracks from the same library is faster.
+      </p>
+      <p>
         When you select a file, the app attempts to open it with the Java media runtime. If the
-        runtime cannot play that file, loading or playback may still fail after selection depending
-        on when the media error is reported.
+        runtime cannot play that file, loading or playback can still fail after selection. Control
+        callbacks are registered before each load, so ready/error states are applied immediately
+        when the media runtime reports them.
       </p>
       <p>
         The file name is shown next to the button once a track is loaded. You can change the file at
@@ -267,6 +278,13 @@
       </p>
       <p>
         You can right-click a button that already has a sound to replace it with a different file.
+        If the selected file (or a previously saved file) can no longer be opened, that slot is
+        cleared so the rest of the board stays usable, and hovering the button shows which file
+        failed.
+      </p>
+      <p>
+        The soundboard file chooser also reopens in the last folder you used for sound effects, so
+        loading several related sounds takes fewer clicks.
       </p>
 
       <h3 id="soundboard-customize">Customizing Buttons</h3>
@@ -276,11 +294,13 @@
         <tr><td>Inline + Tile</td><td>When the current buttons do not fill a complete grid rectangle, a <strong>+</strong> tile appears in-grid as the next slot position. When the grid is a perfect rectangle, this inline tile is hidden to preserve the rectangular shape.</td></tr>
         <tr><td>Remove Button</td><td>Right-click a button and choose <strong>Remove Button</strong> to delete that slot.</td></tr>
         <tr><td>Drag &amp; Drop</td><td>Click and drag a button to a new position to reorder slots with immediate visual feedback. Use the <strong>Drag here to move to end</strong> target below the grid to place a button at the last position.</td></tr>
-        <tr><td>Set Color</td><td>Right-click a button and choose <strong>Set Color</strong> to open an in-dialog color wheel (with brightness slider), including a marker that shows the currently selected wheel position. You can also focus the wheel and use arrow keys to adjust hue/saturation for keyboard-friendly selection, then apply a custom button color.</td></tr>
+        <tr><td>Set Color</td><td>Right-click a button and choose <strong>Set Color</strong> to open the shared TabletopControl color editor (also used by the Light plugin).</td></tr>
       </table>
       <p>
         Soundboard layout and button settings (loaded sound, order, and color) are persisted between
-        sessions.
+        sessions in <code>~/.tabletopcontrol/soundboard.conf</code>. If saving fails, the current
+        session still keeps working with the buttons exactly as shown; only the next launch may miss
+        the unsaved change.
       </p>
 
       <h3 id="soundboard-play">Playing Sounds</h3>

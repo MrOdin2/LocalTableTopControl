@@ -1,5 +1,8 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.map.logic.GridCalibration
+import com.tabletopcontrol.map.logic.MapCalibration
+import com.tabletopcontrol.map.logic.TableMapOffset
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -63,6 +66,8 @@ class MapSettingsSerializerTest {
         assert(text.contains("map.scale=")) { "Missing map.scale" }
         assert(text.contains("map.offsetX=")) { "Missing map.offsetX" }
         assert(text.contains("map.offsetY=")) { "Missing map.offsetY" }
+        assert(text.contains("table.offsetX=")) { "Missing table.offsetX" }
+        assert(text.contains("table.offsetY=")) { "Missing table.offsetY" }
     }
 
     // ── Deserialise edge cases ───────────────────────────────────────────────
@@ -204,13 +209,13 @@ class MapSettingsSerializerTest {
         assertEquals(gridCal, settings.gridCalibration)
         assertEquals(mapCal, settings.mapCalibration)
         assertEquals(gridColor.red, settings.gridColor!!.red, 1e-9)
-        assertEquals(gridColor.green, settings.gridColor!!.green, 1e-9)
-        assertEquals(gridColor.blue, settings.gridColor!!.blue, 1e-9)
-        assertEquals(gridColor.opacity, settings.gridColor!!.opacity, 1e-9)
+        assertEquals(gridColor.green, settings.gridColor.green, 1e-9)
+        assertEquals(gridColor.blue, settings.gridColor.blue, 1e-9)
+        assertEquals(gridColor.opacity, settings.gridColor.opacity, 1e-9)
         assertEquals(bgColor.red, settings.backgroundColor!!.red, 1e-9)
-        assertEquals(bgColor.green, settings.backgroundColor!!.green, 1e-9)
-        assertEquals(bgColor.blue, settings.backgroundColor!!.blue, 1e-9)
-        assertEquals(bgColor.opacity, settings.backgroundColor!!.opacity, 1e-9)
+        assertEquals(bgColor.green, settings.backgroundColor.green, 1e-9)
+        assertEquals(bgColor.blue, settings.backgroundColor.blue, 1e-9)
+        assertEquals(bgColor.opacity, settings.backgroundColor.opacity, 1e-9)
     }
 
     @Test
@@ -248,6 +253,19 @@ class MapSettingsSerializerTest {
     }
 
     @Test
+    fun `deserializeTableMapOffset round-trips custom offset`() {
+        val offset = TableMapOffset(offsetX = 125.0, offsetY = -75.0)
+        val text = MapSettingsSerializer.serialize(GridCalibration(), MapCalibration(), tableMapOffset = offset)
+        assertEquals(offset, MapSettingsSerializer.deserializeTableMapOffset(text))
+    }
+
+    @Test
+    fun `deserializeTableMapOffset returns null when keys absent`() {
+        val text = "map.scale=1.0\nmap.offsetX=0.0\nmap.offsetY=0.0"
+        assertNull(MapSettingsSerializer.deserializeTableMapOffset(text))
+    }
+
+    @Test
     fun `deserializeMapRotation returns null for non-multiple of 90`() {
         val text = "map.rotation=45"
         assertNull(MapSettingsSerializer.deserializeMapRotation(text))
@@ -274,18 +292,27 @@ class MapSettingsSerializerTest {
     }
 
     @Test
-    fun `deserializeAll round-trips all five settings including rotation`() {
+    fun `deserializeAll round-trips all six settings including rotation and table offset`() {
         val gridCal = GridCalibration(cellSizeInPixels = 64.0, scale = 1.5, offsetX = 3.0, offsetY = -3.0)
         val mapCal = MapCalibration(scale = 2.0, offsetX = 10.0, offsetY = -5.0)
         val gridColor = Color.color(0.25, 0.5, 0.75, 1.0)
         val bgColor = Color.color(0.0, 0.0, 0.5, 1.0)
-        val text = MapSettingsSerializer.serialize(gridCal, mapCal, gridColor, bgColor, mapRotation = 180)
+        val tableOffset = TableMapOffset(offsetX = 50.0, offsetY = -100.0)
+        val text = MapSettingsSerializer.serialize(
+            gridCal,
+            mapCal,
+            gridColor,
+            bgColor,
+            mapRotation = 180,
+            tableMapOffset = tableOffset,
+        )
 
         val settings = MapSettingsSerializer.deserializeAll(text)
 
         assertEquals(gridCal, settings.gridCalibration)
         assertEquals(mapCal, settings.mapCalibration)
         assertEquals(180, settings.mapRotation)
+        assertEquals(tableOffset, settings.tableMapOffset)
     }
 
     @Test
@@ -295,5 +322,6 @@ class MapSettingsSerializerTest {
             "map.scale=1.0\nmap.offsetX=0.0\nmap.offsetY=0.0"
         val settings = MapSettingsSerializer.deserializeAll(oldText)
         assertNull(settings.mapRotation)
+        assertNull(settings.tableMapOffset)
     }
 }

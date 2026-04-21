@@ -1,14 +1,16 @@
 package com.tabletopcontrol.core
 
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.core.ui.color.ColorContrast
+import com.tabletopcontrol.core.ui.color.ColorEditorDialog
+import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
-import javafx.scene.control.ColorPicker
 import javafx.scene.control.ComboBox
-import javafx.scene.control.Dialog
 import javafx.scene.control.Label
 import javafx.scene.control.RadioButton
 import javafx.scene.control.Separator
@@ -25,6 +27,7 @@ import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
 import javafx.util.StringConverter
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -160,9 +163,15 @@ class App : Application() {
         screenCombo.converter = object : StringConverter<Screen?>() {
             override fun toString(screen: Screen?): String {
                 if (screen == null) return "None (hidden)"
-                val idx = screens.indexOf(screen)
+                val idx = screens.indexOf(screen).coerceAtLeast(0)
                 val b = screen.bounds
-                return "Screen ${idx + 1}: ${b.width.toInt()} × ${b.height.toInt()}"
+                return formatScreenLabel(
+                    index = idx,
+                    logicalWidth = b.width,
+                    logicalHeight = b.height,
+                    outputScaleX = screen.outputScaleX,
+                    outputScaleY = screen.outputScaleY,
+                )
             }
             override fun fromString(string: String?): Screen? = null
         }
@@ -170,14 +179,7 @@ class App : Application() {
         val moveButton = Button("Move Table View")
         moveButton.setOnAction {
             val selected = screenCombo.selectionModel.selectedItem ?: return@setOnAction
-            val bounds = selected.bounds
-            if (!tableStage.isShowing) tableStage.show()
-            tableStage.isFullScreen = false
-            Platform.runLater {
-                tableStage.x = bounds.minX
-                tableStage.y = bounds.minY
-                tableStage.isFullScreen = true
-            }
+            moveTableStageToScreen(tableStage, selected)
         }
 
         // Register the listener before setting the initial selection so the
@@ -187,8 +189,10 @@ class App : Application() {
                 tableStage.hide()
                 moveButton.isDisable = true
             } else {
-                if (!tableStage.isShowing) tableStage.show()
                 moveButton.isDisable = false
+                if (!tableStage.isShowing && tableStage.scene != null) {
+                    moveTableStageToScreen(tableStage, newScreen)
+                }
             }
         }
 
@@ -250,34 +254,83 @@ class App : Application() {
         }
 
         // Helper: parse a hex color string safely, falling back to [fallback] on error.
-        fun parseColor(hex: String, fallback: String): Color =
-            runCatching { Color.web(hex) }.getOrElse { Color.web(fallback) }
+        fun parseColor(hex: String, fallback: String): Color {
+            val safeFallback = ColorHexCodec.parseOrDefault(fallback, Color.GRAY)
+            return ColorHexCodec.parseOrDefault(hex, safeFallback)
+        }
 
         val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
 
-        // Colour pickers — Group 2: Interactive / Accent
-        val accentPicker = ColorPicker(
-            parseColor(current.accentColor, modeDefaults.accentColor)
-        ).apply { maxWidth = Double.MAX_VALUE }
+        var accentColor = parseColor(current.accentColor, modeDefaults.accentColor)
+        var bgColor = parseColor(current.bgColor, modeDefaults.bgColor)
+        var surfaceColor = parseColor(current.surfaceColor, modeDefaults.surfaceColor)
+        var borderColor = parseColor(current.borderColor, modeDefaults.borderColor)
 
-        // Colour pickers — Group 1: Background & Surfaces
-        val bgPicker = ColorPicker(
-            parseColor(current.bgColor, modeDefaults.bgColor)
-        ).apply { maxWidth = Double.MAX_VALUE }
-        val surfacePicker = ColorPicker(
-            parseColor(current.surfaceColor, modeDefaults.surfaceColor)
-        ).apply { maxWidth = Double.MAX_VALUE }
-        val borderPicker = ColorPicker(
-            parseColor(current.borderColor, modeDefaults.borderColor)
-        ).apply { maxWidth = Double.MAX_VALUE }
+        fun styleColorButton(button: Button, color: Color) {
+            val bgHex = ColorHexCodec.colorToHex(color)
+            val fgHex = ColorContrast.textColorHexForBackground(color)
+            button.text = bgHex
+            button.style = "-fx-background-color: $bgHex; -fx-text-fill: $fgHex;"
+        }
 
-        // Helper: reset pickers to defaults for the currently selected mode.
+        fun createColorButton(
+            title: String,
+            prompt: String,
+            getColor: () -> Color,
+            setColor: (Color) -> Unit,
+        ): Button = Button().apply {
+            maxWidth = Double.MAX_VALUE
+            styleColorButton(this, getColor())
+            setOnAction {
+                val selected = ColorEditorDialog.showDialog(
+                    owner = owner,
+                    title = title,
+                    prompt = prompt,
+                    initialColor = getColor(),
+                )
+                if (selected != null) {
+                    setColor(selected)
+                    styleColorButton(this, selected)
+                }
+            }
+        }
+
+        val accentButton = createColorButton(
+            title = "Select Accent Colour",
+            prompt = "Choose the accent colour used for highlighted controls.",
+            getColor = { accentColor },
+            setColor = { accentColor = it },
+        )
+        val bgButton = createColorButton(
+            title = "Select Background Colour",
+            prompt = "Choose the base background colour for scenes and windows.",
+            getColor = { bgColor },
+            setColor = { bgColor = it },
+        )
+        val surfaceButton = createColorButton(
+            title = "Select Surface Colour",
+            prompt = "Choose the surface colour used for panels and cards.",
+            getColor = { surfaceColor },
+            setColor = { surfaceColor = it },
+        )
+        val borderButton = createColorButton(
+            title = "Select Border Colour",
+            prompt = "Choose the border colour used for separators and outlines.",
+            getColor = { borderColor },
+            setColor = { borderColor = it },
+        )
+
+        // Helper: reset dialog buttons to defaults for the currently selected mode.
         fun resetDefaults() {
             val defaults = if (darkBtn.isSelected) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
-            accentPicker.value = Color.web(defaults.accentColor)
-            bgPicker.value = Color.web(defaults.bgColor)
-            surfacePicker.value = Color.web(defaults.surfaceColor)
-            borderPicker.value = Color.web(defaults.borderColor)
+            accentColor = ColorHexCodec.hexToColor(defaults.accentColor)
+            bgColor = ColorHexCodec.hexToColor(defaults.bgColor)
+            surfaceColor = ColorHexCodec.hexToColor(defaults.surfaceColor)
+            borderColor = ColorHexCodec.hexToColor(defaults.borderColor)
+            styleColorButton(accentButton, accentColor)
+            styleColorButton(bgButton, bgColor)
+            styleColorButton(surfaceButton, surfaceColor)
+            styleColorButton(borderButton, borderColor)
         }
 
         // Update pickers to mode defaults whenever the mode radio changes.
@@ -300,17 +353,17 @@ class App : Application() {
 
         // Group 1: Background & Surfaces
         grid.add(Label("Background:"), 0, row)
-        grid.add(bgPicker, 1, row++)
+        grid.add(bgButton, 1, row++)
         grid.add(Label("Surface (Buttons):"), 0, row)
-        grid.add(surfacePicker, 1, row++)
+        grid.add(surfaceButton, 1, row++)
         grid.add(Label("Border / edges:"), 0, row)
-        grid.add(borderPicker, 1, row++)
+        grid.add(borderButton, 1, row++)
 
         grid.add(Separator(), 0, row++, 2, 1)
 
         // Group 2: Interactive / Accent
         grid.add(Label("Accent:"), 0, row)
-        grid.add(accentPicker, 1, row++)
+        grid.add(accentButton, 1, row++)
 
         grid.add(Separator(), 0, row++, 2, 1)
 
@@ -319,44 +372,104 @@ class App : Application() {
         }
         grid.add(resetDefBtn, 1, row)
 
-        val dialog = Dialog<ThemeConfig>().apply {
-            title = "Theme Settings"
-            headerText = "Choose a color mode and customize colors."
-            initOwner(owner)
-            dialogPane.buttonTypes.setAll(ButtonType.OK, ButtonType.CANCEL)
-            dialogPane.content = grid
-            isResizable = false
-        }
-
-        dialog.setResultConverter { btn ->
-            if (btn == ButtonType.OK) {
+        val newTheme = DialogFlows.showResultDialog(
+            owner = owner,
+            title = "Theme Settings",
+            headerText = "Choose a color mode and customize colors.",
+            content = grid,
+            buttonTypes = listOf(ButtonType.OK, ButtonType.CANCEL),
+        ) { btn ->
+            DialogFlows.resultForButton(btn) {
                 val mode = if (darkBtn.isSelected) ThemeMode.DARK else ThemeMode.LIGHT
                 ThemeConfig(
                     mode = mode,
-                    accentColor = colorToHex(accentPicker.value),
-                    bgColor = colorToHex(bgPicker.value),
-                    surfaceColor = colorToHex(surfacePicker.value),
-                    borderColor = colorToHex(borderPicker.value),
+                    accentColor = ColorHexCodec.colorToHex(accentColor),
+                    bgColor = ColorHexCodec.colorToHex(bgColor),
+                    surfaceColor = ColorHexCodec.colorToHex(surfaceColor),
+                    borderColor = ColorHexCodec.colorToHex(borderColor),
                 )
-            } else null
+            }
         }
 
-        dialog.showAndWait().ifPresent { newTheme ->
+        if (newTheme != null) {
             ThemeManager.setTheme(newTheme)
         }
-    }
-
-    /**
-     * Converts a JavaFX [Color] to a CSS hex string such as `"#1565c0"`.
-     *
-     * Uses [kotlin.math.roundToInt] with a 0–255 clamp to avoid off-by-one
-     * errors from floating-point truncation.
-     */
-    private fun colorToHex(color: Color): String {
-        fun channel(v: Double) = (v * 255).roundToInt().coerceIn(0, 255)
-        return "#%02x%02x%02x".format(channel(color.red), channel(color.green), channel(color.blue))
     }
 }
 
 /** JVM entry point — delegates to the JavaFX application launcher. */
 fun main(args: Array<String>) = Application.launch(App::class.java, *args)
+
+private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
+    val bounds = screen.bounds
+    tableStage.isIconified = false
+    tableStage.isFullScreen = false
+    tableStage.x = bounds.minX
+    tableStage.y = bounds.minY
+    tableStage.width = bounds.width
+    tableStage.height = bounds.height
+    if (!tableStage.isShowing) {
+        tableStage.show()
+    }
+    tableStage.toFront()
+
+    // Mixed-DPI Windows setups can report the correct screen in JavaFX but still
+    // leave the stage at its old windowed size for one pulse after moving.
+    Platform.runLater {
+        tableStage.x = bounds.minX
+        tableStage.y = bounds.minY
+        tableStage.width = bounds.width
+        tableStage.height = bounds.height
+        Platform.runLater {
+            tableStage.isFullScreen = true
+            tableStage.toFront()
+        }
+    }
+}
+
+internal fun formatScreenLabel(
+    index: Int,
+    logicalWidth: Double,
+    logicalHeight: Double,
+    outputScaleX: Double,
+    outputScaleY: Double,
+): String {
+    val pixelWidth = effectivePixelSpan(logicalWidth, outputScaleX)
+    val pixelHeight = effectivePixelSpan(logicalHeight, outputScaleY)
+    val scaleSuffix = formatScaleSuffix(outputScaleX, outputScaleY)
+    return buildString {
+        append("Screen ")
+        append(index + 1)
+        append(": ")
+        append(pixelWidth)
+        append(" x ")
+        append(pixelHeight)
+        if (scaleSuffix != null) {
+            append(" (")
+            append(scaleSuffix)
+            append(")")
+        }
+    }
+}
+
+internal fun effectivePixelSpan(logicalSpan: Double, outputScale: Double): Int {
+    if (!logicalSpan.isFinite() || logicalSpan <= 0.0) return 0
+    val safeScale = if (outputScale.isFinite() && outputScale > 0.0) outputScale else 1.0
+    return (logicalSpan * safeScale).roundToInt().coerceAtLeast(1)
+}
+
+private fun formatScaleSuffix(outputScaleX: Double, outputScaleY: Double): String? {
+    val xPercent = scalePercent(outputScaleX)
+    val yPercent = scalePercent(outputScaleY)
+    if (xPercent == 100 && yPercent == 100) return null
+    return if (abs(outputScaleX - outputScaleY) < 0.001) {
+        "Windows scale ${xPercent}%"
+    } else {
+        "Windows scale ${xPercent}%/${yPercent}%"
+    }
+}
+
+private fun scalePercent(outputScale: Double): Int {
+    val safeScale = if (outputScale.isFinite() && outputScale > 0.0) outputScale else 1.0
+    return (safeScale * 100.0).roundToInt()
+}
