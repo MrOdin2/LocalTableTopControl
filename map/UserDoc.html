@@ -213,23 +213,34 @@
       </p>
       <p>TabletopControl offers a <strong>Guided Calibration</strong> workflow:</p>
       <ol>
-        <li>Click <strong>Calibrate Map</strong> to open the calibration dialog.</li>
+        <li>Click <strong>Guided Calibration</strong> to open the guided calibration dialog.</li>
         <li>
-          <strong>Step 1 — Grid Centre:</strong> Click the centre of any grid intersection on the
-          map image in the dialog.
+          <strong>Step 1 &mdash; Centre Point:</strong> Drag the map with the mouse for coarse
+          positioning, then use the on-screen arrows or the keyboard arrow keys to move the blue
+          cursor by exactly one calibration-screen pixel at a time until it sits on the centre
+          reference.
         </li>
         <li>
-          <strong>Step 2 — Grid Corner:</strong> Click an adjacent grid corner (one cell away in
-          any direction) to define the cell size.
+          <strong>Step 2 &mdash; Next Tile Boundary:</strong> The centre point from Step 1 stays
+          marked. Choose whether the second point should be <strong>horizontal</strong> or
+          <strong>vertical</strong>, then place the blue cursor on the start of the next tile on
+          that axis. Diagonal points are not used.
+        </li>
+        <li>
+          <strong>Wide Mode:</strong> If you want extra precision, enable <strong>Wide mode</strong>
+          and enter how many tiles away the Step 2 point should be. Instead of using the very next
+          tile boundary, you can measure to the <em>n</em>th boundary on the same axis, which makes
+          tiny placement errors matter less.
         </li>
         <li>
           Confirm. The scale and offset are applied immediately to the table screen.
         </li>
       </ol>
       <div class="tip">
-        <strong>Tip:</strong> If the calibration looks slightly off, open the calibration dialog again
-        and fine-tune by clicking a clearer intersection. The two-click process is designed to be fast
-        and repeatable.
+        <strong>Tip:</strong> The mouse is always available for coarse panning, while both the
+        on-screen arrows and the keyboard arrows move the active point by exactly one
+        calibration-screen pixel. The deeper you zoom in, the finer those nudges become on the map
+        itself.
       </div>
     </section>
 

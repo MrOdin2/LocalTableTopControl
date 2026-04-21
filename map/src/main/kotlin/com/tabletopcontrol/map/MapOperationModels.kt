@@ -17,6 +17,7 @@ enum class MapInputField {
     SCALE,
     OFFSET_X,
     OFFSET_Y,
+    GUIDED_TILE_SPAN,
     CONE_ANGLE,
     MEASUREMENT_UNITS,
     MEASUREMENT_LABEL,
@@ -54,7 +55,7 @@ fun MapOperationError.toUserMessage(): String =
         MapOperationError.GuidedCalibrationBaseMissing ->
             "Complete Step 1 before applying the guided scale adjustment."
         MapOperationError.GuidedCalibrationTargetTooClose ->
-            "Select a tile corner that is at least one grid cell away from the centre."
+            "Move the second point at least one screen pixel away from the centre point on the selected axis."
         MapOperationError.TokenDragNotActive ->
             "Start dragging a token before moving it."
         is MapOperationError.ImageLoadFailed -> {

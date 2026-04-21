@@ -289,6 +289,25 @@ class MapCalibrationService {
         )
     }
 
+    fun parseGuidedTileSpan(tileSpanText: String): MapResult<Int> {
+        val tileSpan = tileSpanText.trim().toIntOrNull()
+            ?: return MapResult.failure(
+                MapOperationError.Validation(
+                    field = MapInputField.GUIDED_TILE_SPAN,
+                    reason = "Wide mode tiles away must be a positive whole number.",
+                ),
+            )
+        if (tileSpan <= 0) {
+            return MapResult.failure(
+                MapOperationError.Validation(
+                    field = MapInputField.GUIDED_TILE_SPAN,
+                    reason = "Wide mode tiles away must be a positive whole number.",
+                ),
+            )
+        }
+        return MapResult.success(tileSpan)
+    }
+
     fun guidedStep1(
         current: MapCalibration,
         worldX: Double,
@@ -305,23 +324,35 @@ class MapCalibrationService {
         )
 
     fun guidedStep2(
-        step1Calibration: MapCalibration?,
+        currentCalibration: MapCalibration?,
         worldX: Double,
         worldY: Double,
         canvasCenterX: Double,
         canvasCenterY: Double,
         gridCellPixels: Double,
+        axis: GuidedCalibrationAxis = GuidedCalibrationAxis.HORIZONTAL,
+        targetTileSpan: Int = 1,
     ): MapResult<MapCalibration> {
-        val step1 = step1Calibration
+        val current = currentCalibration
             ?: return MapResult.failure(MapOperationError.GuidedCalibrationBaseMissing)
+        if (targetTileSpan <= 0) {
+            return MapResult.failure(
+                MapOperationError.Validation(
+                    field = MapInputField.GUIDED_TILE_SPAN,
+                    reason = "Wide mode tiles away must be a positive whole number.",
+                ),
+            )
+        }
 
         val updated = guidedCalibrationStep2(
-            step1Cal = step1,
+            currentCalibration = current,
             cornerX = worldX,
             cornerY = worldY,
             targetX = canvasCenterX,
             targetY = canvasCenterY,
             cellSizeInPixels = gridCellPixels,
+            axis = axis,
+            targetTileSpan = targetTileSpan,
         ) ?: return MapResult.failure(MapOperationError.GuidedCalibrationTargetTooClose)
 
         return MapResult.success(updated)
@@ -717,6 +748,19 @@ class MapViewportState(
         val worldX = (canvasX - centerX - offsetX) / scale + centerX
         val worldY = (canvasY - centerY - offsetY) / scale + centerY
         return Pair(worldX, worldY)
+    }
+
+    fun worldToCanvas(
+        canvasWidth: Double,
+        canvasHeight: Double,
+        worldX: Double,
+        worldY: Double,
+    ): Pair<Double, Double> {
+        val centerX = canvasWidth / 2.0
+        val centerY = canvasHeight / 2.0
+        val canvasX = centerX + offsetX + scale * (worldX - centerX)
+        val canvasY = centerY + offsetY + scale * (worldY - centerY)
+        return Pair(canvasX, canvasY)
     }
 
     private fun panBy(renderer: MapRenderer, dx: Double = 0.0, dy: Double = 0.0) {
