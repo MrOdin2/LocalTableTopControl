@@ -35,4 +35,56 @@ class DynamicMapGeometryTest {
         )
         assertTrue(distance < 0.0001)
     }
+
+    @Test
+    fun `fitted background calibration uses map cell counts instead of preview pixels`() {
+        val calibration = fittedBackgroundCalibration(
+            imageWidth = 2000.0,
+            imageHeight = 1000.0,
+            cols = 20,
+            rows = 10,
+        )
+
+        assertEquals(0.01, calibration.scale, 0.0000001)
+        assertEquals(0.0, calibration.offsetX)
+        assertEquals(0.0, calibration.offsetY)
+    }
+
+    @Test
+    fun `guided step 1 stores translation in cell units`() {
+        val calibration = guidedBackgroundCalibrationStep1(
+            current = DynamicMapBackgroundCalibration(scale = 0.01),
+            clickX = 90.0,
+            clickY = 110.0,
+            targetX = 150.0,
+            targetY = 170.0,
+            cellSizeInPixels = 30.0,
+        )
+
+        assertEquals(2.0, calibration.offsetX, 0.0000001)
+        assertEquals(2.0, calibration.offsetY, 0.0000001)
+    }
+
+    @Test
+    fun `guided step 2 scales offsets together with the background`() {
+        val calibration = guidedBackgroundCalibrationStep2(
+            currentCalibration = DynamicMapBackgroundCalibration(
+                scale = 0.01,
+                offsetX = 2.0,
+                offsetY = -1.0,
+            ),
+            cornerX = 260.0,
+            cornerY = 200.0,
+            targetX = 200.0,
+            targetY = 200.0,
+            cellSizeInPixels = 30.0,
+            axis = DynamicMapGuidedCalibrationAxis.HORIZONTAL,
+            targetTileSpan = 1,
+        )
+
+        require(calibration != null)
+        assertEquals(0.005, calibration.scale, 0.0000001)
+        assertEquals(1.0, calibration.offsetX, 0.0000001)
+        assertEquals(-0.5, calibration.offsetY, 0.0000001)
+    }
 }

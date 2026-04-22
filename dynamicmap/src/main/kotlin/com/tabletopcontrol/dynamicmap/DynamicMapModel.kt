@@ -7,6 +7,7 @@ data class DynamicMapDocument(
     val rows: Int = 20,
     val backgroundImageUri: String? = null,
     val backgroundDisplayPath: String? = null,
+    val backgroundCalibration: DynamicMapBackgroundCalibration = DynamicMapBackgroundCalibration(),
     val visibility: DynamicMapLayerVisibility = DynamicMapLayerVisibility(),
     val walls: List<DynamicMapWall> = emptyList(),
     val lights: List<DynamicMapLight> = emptyList(),

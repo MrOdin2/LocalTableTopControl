@@ -32,20 +32,12 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.min
 
-private const val BACKGROUND_HISTORY_KEY = "dynamicmap.background"
+private const val BACKGROUND_HISTORY_KEY = "dynamicmap_builder.background"
 private const val SNAP_STEP = 0.25
 
 class DynamicMapBuilderView(
     private val controller: DynamicMapBuilderController,
 ) {
-    private data class EditorMetrics(
-        val cellSize: Double,
-        val originX: Double,
-        val originY: Double,
-        val mapWidth: Double,
-        val mapHeight: Double,
-    )
-
     private var document: DynamicMapDocument = controller.currentDocument()
     private var preset: DynamicMapLightPreset = controller.currentPreset()
     private var activeTool: DynamicMapTool? = null
@@ -79,6 +71,24 @@ class DynamicMapBuilderView(
     private val lineToolButton = ToggleButton("Wall Line")
     private val rectToolButton = ToggleButton("Wall Rect")
     private val lightToolButton = ToggleButton("Light")
+    private val clearWallsButton = Button("Clear Walls").apply {
+        tooltip = Tooltip("Remove every wall segment from the current builder draft")
+        setOnAction { controller.clearWalls() }
+    }
+    private val clearLightsButton = Button("Clear Lights").apply {
+        tooltip = Tooltip("Remove every static light from the current builder draft")
+        setOnAction { controller.clearLights() }
+    }
+    private val clearTextureButton = Button("Clear Texture").apply {
+        tooltip = Tooltip("Remove the current background texture")
+        setOnAction { controller.clearBackgroundImage() }
+    }
+    private val calibrateTextureButton = Button("Calibrate Texture...").apply {
+        tooltip = Tooltip("Adjust the texture scale and position against the builder grid")
+    }
+    private val guidedCalibrationButton = Button("Guided Calibration...").apply {
+        tooltip = Tooltip("Interactive two-step texture calibration")
+    }
 
     val root: Node
 
@@ -92,6 +102,9 @@ class DynamicMapBuilderView(
             rectToolButton,
             lightToolButton,
             Separator(Orientation.VERTICAL),
+            clearWallsButton,
+            clearLightsButton,
+            Separator(Orientation.VERTICAL),
             Label("Preset:"),
             selectedPresetLabel,
             Region().also { HBox.setHgrow(it, Priority.ALWAYS) },
@@ -104,10 +117,9 @@ class DynamicMapBuilderView(
                 tooltip = Tooltip("Load an image as the builder background")
                 setOnAction { openTextureChooser() }
             },
-            Button("Clear Texture").apply {
-                tooltip = Tooltip("Remove the current background texture")
-                setOnAction { controller.clearBackgroundImage() }
-            },
+            clearTextureButton,
+            calibrateTextureButton,
+            guidedCalibrationButton,
             pathField,
         )
 
@@ -179,6 +191,19 @@ class DynamicMapBuilderView(
         lineToolButton.setOnAction { toggleTool(DynamicMapTool.WALL_LINE) }
         rectToolButton.setOnAction { toggleTool(DynamicMapTool.WALL_RECT) }
         lightToolButton.setOnAction { toggleTool(DynamicMapTool.LIGHT) }
+        calibrateTextureButton.setOnAction {
+            DynamicMapCalibrationDialogs.showBackgroundCalibrationDialog(
+                owner = root.scene?.window,
+                controller = controller,
+                previewCellSize = currentMetrics()?.cellSize ?: 1.0,
+            )
+        }
+        guidedCalibrationButton.setOnAction {
+            DynamicMapCalibrationDialogs.showGuidedCalibrationDialog(
+                owner = root.scene?.window,
+                controller = controller,
+            )
+        }
 
         canvas.setOnMousePressed { event ->
             if (event.button == MouseButton.PRIMARY) {
@@ -242,12 +267,11 @@ class DynamicMapBuilderView(
             updateStatus(null)
         }
 
-        canvas.setOnMouseClicked { event ->
-            if (event.button == MouseButton.SECONDARY) {
-                showContextMenu(event.x, event.y, event.screenX, event.screenY)
+        canvas.setOnContextMenuRequested { event ->
+            if (showContextMenu(event.x, event.y, event.screenX, event.screenY)) {
+                event.consume()
             }
         }
-        canvas.setOnContextMenuRequested { it.consume() }
 
         val disposers = mutableListOf<() -> Unit>()
         disposers += controller.observeDocument { updated ->
@@ -259,6 +283,11 @@ class DynamicMapBuilderView(
             showWallsCheck.isSelected = updated.visibility.walls
             showLightsCheck.isSelected = updated.visibility.lights
             showGridCheck.isSelected = updated.visibility.grid
+            clearTextureButton.isDisable = updated.backgroundImageUri == null
+            calibrateTextureButton.isDisable = updated.backgroundImageUri == null
+            guidedCalibrationButton.isDisable = updated.backgroundImageUri == null
+            clearWallsButton.isDisable = updated.walls.isEmpty()
+            clearLightsButton.isDisable = updated.lights.isEmpty()
             redraw()
             updateStatus(null)
         }
@@ -298,7 +327,19 @@ class DynamicMapBuilderView(
         val file = chooser.showOpenDialog(root.scene?.window)
         if (file != null) {
             FileChooserHistoryStore.rememberSelection(BACKGROUND_HISTORY_KEY, file)
-            controller.setBackgroundImage(file.toURI().toString(), file.absolutePath)
+            val uri = file.toURI().toString()
+            val image = runCatching { Image(uri, false) }
+                .getOrNull()
+                ?.takeUnless { it.isError }
+            val calibration = image?.let {
+                fittedBackgroundCalibration(
+                    imageWidth = it.width,
+                    imageHeight = it.height,
+                    cols = document.cols,
+                    rows = document.rows,
+                )
+            } ?: DynamicMapBackgroundCalibration()
+            controller.setBackgroundImage(uri, file.absolutePath, calibration)
         }
     }
 
@@ -324,9 +365,9 @@ class DynamicMapBuilderView(
         updateStatus(null)
     }
 
-    private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double) {
+    private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double): Boolean {
         val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = false)
-        val metrics = currentMetrics() ?: return
+        val metrics = currentMetrics() ?: return false
         val tolerance = 12.0 / metrics.cellSize
 
         val nearestLight = point?.let {
@@ -348,7 +389,7 @@ class DynamicMapBuilderView(
 
         if (chosenLight != null) {
             actions += MenuAction(
-                id = "dynamicmap.remove-light",
+                id = "dynamicmap_builder.remove-light",
                 label = "Remove ${chosenLight.label}",
                 section = MenuSection.DANGER_ZONE,
                 onAction = { controller.removeLight(chosenLight.id) },
@@ -356,44 +397,15 @@ class DynamicMapBuilderView(
         }
         if (chosenWall != null) {
             actions += MenuAction(
-                id = "dynamicmap.remove-wall",
+                id = "dynamicmap_builder.remove-wall",
                 label = "Remove Wall",
                 section = MenuSection.DANGER_ZONE,
                 onAction = { controller.removeWall(chosenWall.id) },
             )
         }
-        if (document.walls.isNotEmpty()) {
-            actions += MenuAction(
-                id = "dynamicmap.clear-walls",
-                label = "Clear All Walls",
-                section = MenuSection.DANGER_ZONE,
-                requiresConfirmation = true,
-                confirmationMessage = "Remove all wall segments from the current builder draft?",
-                onAction = { controller.clearWalls() },
-            )
-        }
-        if (document.lights.isNotEmpty()) {
-            actions += MenuAction(
-                id = "dynamicmap.clear-lights",
-                label = "Clear All Lights",
-                section = MenuSection.DANGER_ZONE,
-                requiresConfirmation = true,
-                confirmationMessage = "Remove all lights from the current builder draft?",
-                onAction = { controller.clearLights() },
-            )
-        }
-        if (document.backgroundImageUri != null) {
-            actions += MenuAction(
-                id = "dynamicmap.clear-texture",
-                label = "Clear Background Texture",
-                section = MenuSection.DANGER_ZONE,
-                onAction = { controller.clearBackgroundImage() },
-            )
-        }
-
-        if (actions.isNotEmpty()) {
-            ContextMenuRenderer.build(actions).show(canvas, screenX, screenY)
-        }
+        if (actions.isEmpty()) return false
+        ContextMenuRenderer.build(actions).show(canvas, screenX, screenY)
+        return true
     }
 
     private fun redraw() {
@@ -418,7 +430,7 @@ class DynamicMapBuilderView(
 
         if (document.visibility.background) {
             resolveBackgroundImage()?.let { image ->
-                gc.drawImage(image, metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
+                drawCalibratedBackgroundImage(gc, image, metrics, document.backgroundCalibration)
             }
         }
 
@@ -496,7 +508,7 @@ class DynamicMapBuilderView(
 
     private fun drawLightHalos(
         gc: javafx.scene.canvas.GraphicsContext,
-        metrics: EditorMetrics,
+        metrics: DynamicMapEditorMetrics,
     ) {
         document.lights.filter { it.enabled }.forEach { light ->
             val color = ColorHexCodec.hexToColor(light.colorHex)
@@ -515,7 +527,7 @@ class DynamicMapBuilderView(
 
     private fun drawLightMarkers(
         gc: javafx.scene.canvas.GraphicsContext,
-        metrics: EditorMetrics,
+        metrics: DynamicMapEditorMetrics,
     ) {
         document.lights.filter { it.enabled }.forEach { light ->
             val color = ColorHexCodec.hexToColor(light.colorHex)
@@ -547,23 +559,15 @@ class DynamicMapBuilderView(
         return cachedBackgroundImage
     }
 
-    private fun computeMetrics(width: Double, height: Double): EditorMetrics {
-        val padding = 20.0
-        val availableWidth = (width - padding * 2.0).coerceAtLeast(1.0)
-        val availableHeight = (height - padding * 2.0).coerceAtLeast(1.0)
-        val cellSize = min(availableWidth / document.cols, availableHeight / document.rows).coerceAtLeast(2.0)
-        val mapWidth = document.cols * cellSize
-        val mapHeight = document.rows * cellSize
-        return EditorMetrics(
-            cellSize = cellSize,
-            originX = (width - mapWidth) / 2.0,
-            originY = (height - mapHeight) / 2.0,
-            mapWidth = mapWidth,
-            mapHeight = mapHeight,
+    private fun computeMetrics(width: Double, height: Double): DynamicMapEditorMetrics =
+        computeEditorMetrics(
+            width = width,
+            height = height,
+            cols = document.cols,
+            rows = document.rows,
         )
-    }
 
-    private fun currentMetrics(): EditorMetrics? {
+    private fun currentMetrics(): DynamicMapEditorMetrics? {
         val width = canvas.width
         val height = canvas.height
         if (width <= 0.0 || height <= 0.0) return null

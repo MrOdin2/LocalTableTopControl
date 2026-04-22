@@ -39,16 +39,35 @@ class DynamicMapBuilderController {
     }
 
     fun setBackgroundImage(uri: String?, displayPath: String?) {
+        setBackgroundImage(uri = uri, displayPath = displayPath, calibration = document.backgroundCalibration)
+    }
+
+    fun setBackgroundImage(
+        uri: String?,
+        displayPath: String?,
+        calibration: DynamicMapBackgroundCalibration,
+    ) {
         updateDocument {
             it.copy(
                 backgroundImageUri = uri,
                 backgroundDisplayPath = displayPath,
+                backgroundCalibration = calibration,
             )
         }
     }
 
     fun clearBackgroundImage() {
-        setBackgroundImage(uri = null, displayPath = null)
+        updateDocument {
+            it.copy(
+                backgroundImageUri = null,
+                backgroundDisplayPath = null,
+                backgroundCalibration = DynamicMapBackgroundCalibration(),
+            )
+        }
+    }
+
+    fun setBackgroundCalibration(calibration: DynamicMapBackgroundCalibration) {
+        updateDocument { it.copy(backgroundCalibration = calibration) }
     }
 
     fun setLayerVisible(layer: DynamicMapLayer, visible: Boolean) {

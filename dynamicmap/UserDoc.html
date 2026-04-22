@@ -117,6 +117,7 @@
         <li><a href="#overview">Overview</a></li>
         <li><a href="#workspace">Builder Workspace</a></li>
         <li><a href="#editing">Editing Tools</a></li>
+        <li><a href="#calibration">Texture Calibration</a></li>
         <li><a href="#lights">Light Browser</a></li>
         <li><a href="#draft">Draft Autosave</a></li>
       </ul>
@@ -170,12 +171,36 @@
         the draft grid-friendly while still allowing more detail than full-cell snapping.
       </p>
       <div class="tip">
-        Wall lines and wall rectangles are ideal for blocking geometry. Right-click the canvas to remove
-        the nearest wall or light, or to clear an entire layer.
+        Wall lines and wall rectangles are ideal for blocking geometry. Use <strong>Clear Walls</strong>
+        and <strong>Clear Lights</strong> from the toolbar for bulk cleanup.
       </div>
       <p>
         The layer toggles let you temporarily hide the background texture, walls, lights, or grid while
         editing. Hiding a layer does not delete it.
+      </p>
+      <p>
+        Right-click <strong>near a wall or light</strong> to remove that specific element. Right-click
+        empty builder space to open the normal pane layout menu, so you can still split panes or switch
+        to the Light Browser while staying in the builder workspace.
+      </p>
+    </section>
+
+    <section id="calibration">
+      <h2>Texture Calibration</h2>
+      <p>
+        Background textures are no longer just stretched to the map bounds. Use
+        <strong>Calibrate Texture...</strong> for direct numeric alignment or
+        <strong>Guided Calibration...</strong> for the same two-step helper flow used by the standard
+        Map plugin.
+      </p>
+      <table>
+        <tr><th>Action</th><th>What it does</th></tr>
+        <tr><td>Calibrate Texture...</td><td>Fine-tune the texture scale and offset with live preview values.</td></tr>
+        <tr><td>Guided Calibration...</td><td>Pick a centre reference point, then pick the next horizontal or vertical tile boundary to lock the texture to the grid.</td></tr>
+      </table>
+      <p>
+        The builder stores texture calibration relative to the map grid, so the alignment stays stable
+        even if you later resize the DM pane.
       </p>
     </section>
 

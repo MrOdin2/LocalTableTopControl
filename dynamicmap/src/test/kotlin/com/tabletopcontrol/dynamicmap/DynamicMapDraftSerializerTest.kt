@@ -12,6 +12,11 @@ class DynamicMapDraftSerializerTest {
             rows = 27,
             backgroundImageUri = "file:///maps/castle.png",
             backgroundDisplayPath = "C:\\maps\\castle.png",
+            backgroundCalibration = DynamicMapBackgroundCalibration(
+                scale = 0.015,
+                offsetX = 1.5,
+                offsetY = -0.75,
+            ),
             visibility = DynamicMapLayerVisibility(
                 background = true,
                 walls = true,

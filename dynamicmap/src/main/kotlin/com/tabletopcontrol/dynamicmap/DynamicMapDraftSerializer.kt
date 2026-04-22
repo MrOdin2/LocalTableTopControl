@@ -28,6 +28,9 @@ object DynamicMapDraftSerializer {
         props.setProperty("visibility.grid", document.visibility.grid.toString())
         document.backgroundImageUri?.let { props.setProperty("background.imageUri", it) }
         document.backgroundDisplayPath?.let { props.setProperty("background.displayPath", it) }
+        props.setProperty("background.scale", document.backgroundCalibration.scale.toString())
+        props.setProperty("background.offsetX", document.backgroundCalibration.offsetX.toString())
+        props.setProperty("background.offsetY", document.backgroundCalibration.offsetY.toString())
 
         props.setProperty("walls.count", document.walls.size.toString())
         document.walls.forEachIndexed { index, wall ->
@@ -69,6 +72,11 @@ object DynamicMapDraftSerializer {
                 walls = props.getProperty("visibility.walls")?.toBooleanStrictOrNull() ?: true,
                 lights = props.getProperty("visibility.lights")?.toBooleanStrictOrNull() ?: true,
                 grid = props.getProperty("visibility.grid")?.toBooleanStrictOrNull() ?: true,
+            )
+            val backgroundCalibration = DynamicMapBackgroundCalibration(
+                scale = props.getProperty("background.scale")?.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0,
+                offsetX = props.getProperty("background.offsetX")?.toDoubleOrNull() ?: 0.0,
+                offsetY = props.getProperty("background.offsetY")?.toDoubleOrNull() ?: 0.0,
             )
 
             val walls = buildList {
@@ -116,6 +124,7 @@ object DynamicMapDraftSerializer {
                 rows = rows,
                 backgroundImageUri = props.getProperty("background.imageUri"),
                 backgroundDisplayPath = props.getProperty("background.displayPath"),
+                backgroundCalibration = backgroundCalibration,
                 visibility = visibility,
                 walls = walls,
                 lights = lights,
