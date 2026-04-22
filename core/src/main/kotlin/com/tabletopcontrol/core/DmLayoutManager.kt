@@ -44,7 +44,10 @@ import javafx.scene.layout.StackPane
  *   exactly one neighbouring panel (potentially by splitting that panel’s area)
  *   without affecting any other panels; only shown when such an expansion is possible.
  */
-class DmLayoutManager(private val plugins: List<DmPlugin>) {
+class DmLayoutManager(
+    private val plugins: List<DmPlugin>,
+    private val layoutConfigName: String = LayoutSerializer.DEFAULT_CONFIG_NAME,
+) {
     /**
      * SAM wrapper around the single menu lifecycle operation this manager needs: [hide].
      *
@@ -61,7 +64,7 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
     private val pluginMap: Map<String, DmPlugin> = plugins.associateBy { it.displayName }
 
     /** Current layout tree (immutable; replaced on every structural change). */
-    private var layoutRoot: PaneNode = LayoutSerializer.load() ?: defaultLayout()
+    private var layoutRoot: PaneNode = LayoutSerializer.load(layoutConfigName) ?: defaultLayout()
     private var activeContextMenu: ManagedMenu? = null
 
     /**
@@ -80,7 +83,7 @@ class DmLayoutManager(private val plugins: List<DmPlugin>) {
      */
     fun saveLayout() {
         layoutRoot = syncDividers(layoutRoot, container.center)
-        LayoutSerializer.save(layoutRoot)
+        LayoutSerializer.save(layoutRoot, layoutConfigName)
     }
 
     // ── Layout building ──────────────────────────────────────────────────────

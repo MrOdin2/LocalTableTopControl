@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynamic Map Builder - TabletopControl User Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside { width: 220px; flex-shrink: 0; }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #333; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .warning {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Dynamic Map Builder</h1>
+  <p>TabletopControl User Documentation</p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="../docs/index.html">Home</a> &rsaquo; Dynamic Map Builder
+</nav>
+
+<div class="layout">
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#workspace">Builder Workspace</a></li>
+        <li><a href="#editing">Editing Tools</a></li>
+        <li><a href="#lights">Light Browser</a></li>
+        <li><a href="#draft">Draft Autosave</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        The Dynamic Map Builder is a dedicated workspace for constructing the new Dynamic Map format.
+        It runs alongside the existing Map plugin instead of replacing it.
+      </p>
+      <p>
+        This first version focuses on the map-building basics: grid-sized map bounds, a background
+        texture, paintable wall geometry, and static point lights with reusable presets.
+      </p>
+    </section>
+
+    <section id="workspace">
+      <h2>Builder Workspace</h2>
+      <p>
+        Use the <strong>Workspace</strong> selector in the DM toolbar and choose
+        <strong>Dynamic Map Builder</strong>. That opens a separate pane layout just for builder tools.
+      </p>
+      <p>
+        The builder layout is saved independently from your regular session layout, so you can keep a
+        focused editing setup without disturbing the main DM workspace.
+      </p>
+      <table>
+        <tr><th>Workspace</th><th>Saved layout file</th></tr>
+        <tr><td>Session</td><td><code>~/.tabletopcontrol/dm-layout.conf</code></td></tr>
+        <tr><td>Dynamic Map Builder</td><td><code>~/.tabletopcontrol/dynamic-map-builder-layout.conf</code></td></tr>
+      </table>
+    </section>
+
+    <section id="editing">
+      <h2>Editing Tools</h2>
+      <p>
+        The main <strong>Dynamic Map Builder</strong> pane shows the whole map draft on a fitted grid.
+        Choose a tool from the top toolbar, then click or drag inside the map area.
+      </p>
+      <table>
+        <tr><th>Tool</th><th>What it does</th></tr>
+        <tr><td>Wall Line</td><td>Click and drag to place one straight wall segment.</td></tr>
+        <tr><td>Wall Rect</td><td>Click and drag to place a rectangular ring of four wall segments.</td></tr>
+        <tr><td>Light</td><td>Click once to place a point light using the currently selected preset.</td></tr>
+      </table>
+      <p>
+        Turn <strong>Snap 0.25</strong> on to align new content to quarter-cell increments. This keeps
+        the draft grid-friendly while still allowing more detail than full-cell snapping.
+      </p>
+      <div class="tip">
+        Wall lines and wall rectangles are ideal for blocking geometry. Right-click the canvas to remove
+        the nearest wall or light, or to clear an entire layer.
+      </div>
+      <p>
+        The layer toggles let you temporarily hide the background texture, walls, lights, or grid while
+        editing. Hiding a layer does not delete it.
+      </p>
+    </section>
+
+    <section id="lights">
+      <h2>Light Browser</h2>
+      <p>
+        Open a second pane with <strong>Light Browser</strong> to pick from ready-made point-light presets
+        such as Torch, Lantern, Campfire, or Moonbeam. After you press <strong>Use</strong> on a preset,
+        every newly placed light uses that range and colour until you choose another one.
+      </p>
+      <p>
+        The current preset is shown in the builder toolbar so you can see at a glance what the next click
+        will place.
+      </p>
+    </section>
+
+    <section id="draft">
+      <h2>Draft Autosave</h2>
+      <p>
+        The builder automatically keeps a local draft of your current work so you can close the app and
+        continue later.
+      </p>
+      <p>
+        The draft autosave is stored in
+        <code>~/.tabletopcontrol/dynamic-map-builder-draft.properties</code>.
+      </p>
+      <div class="warning">
+        Import and export for final Dynamic Map files are still being designed. The draft autosave is an
+        internal working format for the builder, not the long-term exchange format.
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  TabletopControl User Documentation &mdash;
+  <a href="../docs/index.html">Home</a>
+</footer>
+
+</body>
+</html>
