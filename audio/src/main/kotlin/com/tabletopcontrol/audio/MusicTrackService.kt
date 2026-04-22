@@ -194,22 +194,43 @@ internal class MusicTrackService(
     }
 
     fun persistSettings() {
-        settingsStore.save(
-            MusicSettings(
-                masterVolume = masterVolume,
-                tracks = trackStates.map { track ->
-                    PersistedMusicTrack(
-                        uri = track.uri,
-                        volume = track.volume,
-                        loop = track.loop,
-                    )
-                },
-            ),
-        )
+        settingsStore.save(exportSettings())
     }
 
     fun shutdown() {
         trackStates.forEach(::disposeTrack)
+        persistSettings()
+    }
+
+    fun exportSettings(): MusicSettings {
+        initializeIfNeeded()
+        return MusicSettings(
+            masterVolume = masterVolume,
+            tracks = trackStates.map { track ->
+                PersistedMusicTrack(
+                    uri = track.uri,
+                    volume = track.volume,
+                    loop = track.loop,
+                )
+            },
+        )
+    }
+
+    fun replaceSettings(settings: MusicSettings) {
+        initializeIfNeeded()
+        trackStates.forEach(::disposeTrack)
+        masterVolume = settings.masterVolume.coerceIn(0.0, 1.0)
+        trackStates.clear()
+        trackStates += settings.tracks
+            .take(MusicPlugin.MAX_TRACK_COUNT)
+            .ifEmpty { listOf(PersistedMusicTrack()) }
+            .map { persisted ->
+                MusicTrackState(
+                    uri = persisted.uri,
+                    volume = persisted.volume.coerceIn(0.0, 1.0),
+                    loop = persisted.loop,
+                )
+            }
         persistSettings()
     }
 

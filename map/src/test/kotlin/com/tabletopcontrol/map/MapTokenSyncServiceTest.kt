@@ -6,6 +6,7 @@ import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenSize
+import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.map.logic.MapTokenSyncService
 import com.tabletopcontrol.map.logic.Token
 import javafx.scene.paint.Color
@@ -100,6 +101,42 @@ class MapTokenSyncServiceTest {
         service.dispose()
 
         assertEquals(listOf(TokenMovedEvent("1", "Ogre", 8, 9)), publishedMoves)
+    }
+
+    @Test
+    fun `replace state republishes restored tokens after reset`() {
+        val service = MapTokenSyncService()
+
+        EventBus.publish(TokenAddedEvent("old", "Old Token", Color.GRAY))
+        EventBus.publish(TokenMovedEvent("old", "Old Token", 9, 9))
+
+        val replayedEvents = mutableListOf<Any>()
+        EventBus.subscribe<TokensResetEvent> { replayedEvents += it }
+        EventBus.subscribe<TokenAddedEvent> { replayedEvents += it }
+        EventBus.subscribe<TokenMovedEvent> { replayedEvents += it }
+        EventBus.subscribe<ActiveTokenChangedEvent> { replayedEvents += it }
+
+        val restoredTokens = listOf(
+            Token(
+                id = "1",
+                name = "Goblin",
+                col = 4,
+                row = 6,
+                size = TokenSize.LARGE,
+                color = Color.RED,
+            ),
+        )
+
+        service.replaceState(restoredTokens, "1")
+        service.dispose()
+
+        assertEquals(restoredTokens, service.snapshotTokens())
+        assertEquals("1", service.snapshotActiveTokenId())
+        assertEquals(4, replayedEvents.size)
+        assertTrue(replayedEvents[0] is TokensResetEvent)
+        assertEquals(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE), replayedEvents[1])
+        assertEquals(TokenMovedEvent("1", "Goblin", 4, 6), replayedEvents[2])
+        assertEquals(ActiveTokenChangedEvent("1", null), replayedEvents[3])
     }
 
     @Test

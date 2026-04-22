@@ -18,11 +18,14 @@ import com.tabletopcontrol.map.MapCalibrationEvent
 import com.tabletopcontrol.map.MapClearEvent
 import com.tabletopcontrol.map.MapCalibrationModeEvent
 import com.tabletopcontrol.map.MapInputField
+import com.tabletopcontrol.map.MapFogSceneMode
+import com.tabletopcontrol.map.MapFogSceneState
 import com.tabletopcontrol.map.MapLoadEvent
 import com.tabletopcontrol.map.MapOperationError
 import com.tabletopcontrol.map.MapRenderer
 import com.tabletopcontrol.map.MapResult
 import com.tabletopcontrol.map.MapRotationEvent
+import com.tabletopcontrol.map.MapSceneState
 import com.tabletopcontrol.map.MapSavedSettings
 import com.tabletopcontrol.map.MapSettingsSerializer
 import com.tabletopcontrol.map.MeasurementAddedEvent
@@ -76,6 +79,33 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         EventBus.publish(MapRotationEvent(mapRotation))
         EventBus.publish(TableMapOffsetEvent(tableMapOffset))
         EventBus.publish(ShowTokenNamesEvent(showTokenNames))
+    }
+
+    internal fun applySceneState(sceneState: MapSceneState) {
+        currentMapImageUri = sceneState.mapImageUri
+        currentMapDisplayPath = sceneState.mapDisplayPath ?: sceneState.mapImageUri
+        mapCalibration = sceneState.mapCalibration
+        gridCalibration = sceneState.gridCalibration
+        gridColor = sceneState.gridColor
+        backgroundColor = sceneState.backgroundColor
+        mapRotation = normalizeRotation(sceneState.mapRotation)
+        tableMapOffset = sceneState.tableMapOffset
+        showTokenNames = sceneState.showTokenNames
+        currentGridConfig = if (sceneState.gridVisible) GridConfig(color = gridColor) else null
+
+        if (currentMapImageUri != null) {
+            EventBus.publish(MapLoadEvent(currentMapImageUri.orEmpty()))
+        } else {
+            EventBus.publish(MapClearEvent)
+        }
+        EventBus.publish(MapCalibrationEvent(mapCalibration))
+        EventBus.publish(GridCalibrationEvent(gridCalibration))
+        EventBus.publish(MapBackgroundEvent(backgroundColor))
+        EventBus.publish(GridUpdateEvent(currentGridConfig))
+        EventBus.publish(MapRotationEvent(mapRotation))
+        EventBus.publish(TableMapOffsetEvent(tableMapOffset))
+        EventBus.publish(ShowTokenNamesEvent(showTokenNames))
+        save()
     }
 
     fun applyMapLoad(uri: String, displayPath: String = uri) {
@@ -439,6 +469,64 @@ class MapFogOfWarService(private val halfFogCells: Int = DEFAULT_HALF_FOG_CELLS)
         }
     }
 
+    internal fun snapshot(): MapFogSceneState? {
+        val state = fogState ?: return null
+        val revealedCells = state.revealedCount()
+        val mode = when {
+            revealedCells == 0 -> MapFogSceneMode.HIDDEN_ALL
+            revealedCells == state.cols * state.rows -> MapFogSceneMode.REVEALED_ALL
+            else -> MapFogSceneMode.PARTIAL
+        }
+
+        val cells = if (mode == MapFogSceneMode.PARTIAL) {
+            buildList {
+                for (col in 0 until state.cols) {
+                    for (row in 0 until state.rows) {
+                        if (state.isRevealed(col, row)) {
+                            add(Pair(col, row))
+                        }
+                    }
+                }
+            }
+        } else {
+            emptyList()
+        }
+
+        return MapFogSceneState(
+            cols = state.cols,
+            rows = state.rows,
+            colOffset = fogColOffset,
+            rowOffset = fogRowOffset,
+            mode = mode,
+            revealedCells = cells,
+        )
+    }
+
+    internal fun applySnapshot(snapshot: MapFogSceneState?) {
+        if (snapshot == null) {
+            fogState = null
+            fogColOffset = -halfFogCells
+            fogRowOffset = -halfFogCells
+            ensureInitialized()
+            return
+        }
+
+        val nextState = FogOfWarState(cols = snapshot.cols, rows = snapshot.rows)
+        when (snapshot.mode) {
+            MapFogSceneMode.HIDDEN_ALL -> Unit
+            MapFogSceneMode.REVEALED_ALL -> nextState.revealAll()
+            MapFogSceneMode.PARTIAL -> snapshot.revealedCells.forEach { (col, row) ->
+                if (col in 0 until snapshot.cols && row in 0 until snapshot.rows) {
+                    nextState.revealCell(col, row)
+                }
+            }
+        }
+        fogState = nextState
+        fogColOffset = snapshot.colOffset
+        fogRowOffset = snapshot.rowOffset
+        replayState()
+    }
+
     companion object {
         private const val DEFAULT_HALF_FOG_CELLS = 100
     }
@@ -621,6 +709,19 @@ class MapTokenSyncService {
             )
         }
         EventBus.publish(ActiveTokenChangedEvent(activeTokenId, null))
+    }
+
+    internal fun snapshotTokens(): List<Token> = tokens.values.map { token -> token.copy() }
+
+    internal fun snapshotActiveTokenId(): String? = activeTokenId
+
+    internal fun replaceState(nextTokens: List<Token>, nextActiveTokenId: String?) {
+        EventBus.publish(TokensResetEvent())
+        tokens.clear()
+        nextTokens.forEach { token -> tokens[token.id] = token.copy() }
+        activeTokenId = nextActiveTokenId
+        endDrag()
+        replayState()
     }
 
     fun dispose() {

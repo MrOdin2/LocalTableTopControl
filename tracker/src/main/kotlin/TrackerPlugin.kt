@@ -2,6 +2,7 @@ package com.tabletopcontrol.new_tracker
 
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
@@ -10,6 +11,7 @@ import com.tabletopcontrol.new_tracker.ImageHandling.ImageHandling
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
+import com.tabletopcontrol.new_tracker.scene.TrackerSceneCodec
 import com.tabletopcontrol.new_tracker.preset.ActorPresetService
 import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
 import com.tabletopcontrol.new_tracker.ui.AddActorDialog
@@ -35,9 +37,12 @@ import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.stage.Window
 
-class TrackerPlugin : DmPlugin {
+class TrackerPlugin : DmPlugin, SceneParticipant {
 
     override val displayName: String = "Tracker"
+    override val sceneKey: String = "tracker"
+    override val sceneDisplayName: String = displayName
+    override val sceneLoadOrder: Int = 100
 
     val actorTracker = ActorTracker()
     private val imageHandling = ImageHandling()
@@ -101,6 +106,15 @@ class TrackerPlugin : DmPlugin {
 
         refreshTrackerView(actorList, roundLabel)
         return root
+    }
+
+    override fun captureSceneState(): String = TrackerSceneCodec.serialize(actorTracker.snapshot())
+
+    override fun applySceneState(payload: String) {
+        val state = requireNotNull(TrackerSceneCodec.deserialize(payload)) {
+            "Invalid tracker scene payload"
+        }
+        actorTracker.replaceAllActors(state)
     }
 
 
