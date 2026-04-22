@@ -33,17 +33,19 @@ internal data class MapFogSceneState(
     val colOffset: Int,
     val rowOffset: Int,
     val mode: MapFogSceneMode,
-    val revealedCells: List<Pair<Int, Int>>,
+    val cells: List<Pair<Int, Int>>,
 )
 
 internal enum class MapFogSceneMode {
     HIDDEN_ALL,
     REVEALED_ALL,
-    PARTIAL,
+    PARTIAL_REVEALED,
+    PARTIAL_HIDDEN,
 }
 
 internal object MapSceneCodec {
-    private const val VERSION = 1
+    private const val VERSION = 2
+    private const val LEGACY_VERSION = 1
 
     fun serialize(state: MapSceneState): String {
         val props = Properties().apply {
@@ -89,9 +91,9 @@ internal object MapSceneCodec {
                 setProperty("fog.colOffset", state.fog.colOffset.toString())
                 setProperty("fog.rowOffset", state.fog.rowOffset.toString())
                 setProperty("fog.mode", state.fog.mode.name)
-                setProperty("fog.revealed.count", state.fog.revealedCells.size.toString())
-                state.fog.revealedCells.forEachIndexed { index, (col, row) ->
-                    setProperty("fog.revealed.$index", "$col,$row")
+                setProperty("fog.cells.count", state.fog.cells.size.toString())
+                state.fog.cells.forEachIndexed { index, (col, row) ->
+                    setProperty("fog.cells.$index", "$col,$row")
                 }
             } else {
                 setProperty("fog.present", false.toString())
@@ -107,7 +109,7 @@ internal object MapSceneCodec {
     fun deserialize(text: String): MapSceneState? {
         val props = Properties().apply { load(StringReader(text)) }
         val version = props.getProperty("version")?.toIntOrNull() ?: return null
-        if (version != VERSION) return null
+        if (version != VERSION && version != LEGACY_VERSION) return null
 
         val mapCalibration = MapCalibration(
             scale = props.getProperty("map.scale")?.toDoubleOrNull() ?: 1.0,
@@ -163,12 +165,22 @@ internal object MapSceneCodec {
             val rows = props.getProperty("fog.rows")?.toIntOrNull() ?: return null
             val colOffset = props.getProperty("fog.colOffset")?.toIntOrNull() ?: return null
             val rowOffset = props.getProperty("fog.rowOffset")?.toIntOrNull() ?: return null
-            val mode = runCatching { MapFogSceneMode.valueOf(props.getProperty("fog.mode")) }.getOrNull()
-                ?: MapFogSceneMode.HIDDEN_ALL
-            val revealedCount = props.getProperty("fog.revealed.count")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-            val revealedCells = buildList {
-                for (index in 0 until revealedCount) {
-                    val coords = props.getProperty("fog.revealed.$index")?.split(',') ?: continue
+            val mode = when (version) {
+                VERSION -> runCatching { MapFogSceneMode.valueOf(props.getProperty("fog.mode")) }.getOrNull()
+                    ?: MapFogSceneMode.HIDDEN_ALL
+
+                else -> when (props.getProperty("fog.mode")) {
+                    "REVEALED_ALL" -> MapFogSceneMode.REVEALED_ALL
+                    "PARTIAL" -> MapFogSceneMode.PARTIAL_REVEALED
+                    else -> MapFogSceneMode.HIDDEN_ALL
+                }
+            }
+            val cells = buildList {
+                val countKey = if (version == VERSION) "fog.cells.count" else "fog.revealed.count"
+                val itemPrefix = if (version == VERSION) "fog.cells." else "fog.revealed."
+                val cellCount = props.getProperty(countKey)?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+                for (index in 0 until cellCount) {
+                    val coords = props.getProperty("$itemPrefix$index")?.split(',') ?: continue
                     if (coords.size != 2) continue
                     val col = coords[0].toIntOrNull() ?: continue
                     val row = coords[1].toIntOrNull() ?: continue
@@ -181,7 +193,7 @@ internal object MapSceneCodec {
                 colOffset = colOffset,
                 rowOffset = rowOffset,
                 mode = mode,
-                revealedCells = revealedCells,
+                cells = cells,
             )
         } else {
             null

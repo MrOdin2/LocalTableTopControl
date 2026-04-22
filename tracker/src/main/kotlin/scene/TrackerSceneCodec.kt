@@ -4,7 +4,10 @@ import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
+import java.io.StringReader
+import java.io.StringWriter
 import java.util.Base64
+import java.util.Properties
 
 internal data class TrackerSceneState(
     val actors: List<Actor>,
@@ -13,16 +16,95 @@ internal data class TrackerSceneState(
 )
 
 internal object TrackerSceneCodec {
-    private const val VERSION = 1
+    private const val VERSION = 2
+    private const val LEGACY_VERSION = 1
 
     fun serialize(state: TrackerSceneState): String {
+        val props = Properties().apply {
+            setProperty("version", VERSION.toString())
+            setProperty("roundCount", state.roundCount.coerceAtLeast(0).toString())
+            state.activeActorId?.let { setProperty("activeActorId", it) }
+            setProperty("actor.count", state.actors.size.toString())
+            state.actors.forEachIndexed { index, actor ->
+                val prefix = "actor.$index"
+                setProperty("$prefix.id", actor.id)
+                setProperty("$prefix.name", actor.name)
+                setProperty("$prefix.hp", actor.hp.toString())
+                setProperty("$prefix.ac", actor.ac.toString())
+                actor.initiative?.let { setProperty("$prefix.initiative", it.toString()) }
+                setProperty("$prefix.tokenSize", actor.tokenSize.name)
+                setProperty("$prefix.color", ColorHexCodec.colorToHex(actor.color))
+                actor.imageSettings.uri?.let { setProperty("$prefix.imageUri", it) }
+                setProperty("$prefix.imageScaleX", actor.imageSettings.scaleX.toString())
+                setProperty("$prefix.imageScaleY", actor.imageSettings.scaleY.toString())
+                setProperty("$prefix.imageOffsetX", actor.imageSettings.offsetX.toString())
+                setProperty("$prefix.imageOffsetY", actor.imageSettings.offsetY.toString())
+            }
+        }
+
+        return StringWriter().use { writer ->
+            props.store(writer, "TabletopControl tracker scene")
+            writer.toString()
+        }
+    }
+
+    fun deserialize(text: String): TrackerSceneState? =
+        deserializeProperties(text) ?: deserializeLegacy(text)
+
+    private fun deserializeProperties(text: String): TrackerSceneState? {
+        val props = runCatching {
+            Properties().also { loaded ->
+                loaded.load(StringReader(text))
+            }
+        }.getOrNull() ?: return null
+
+        val version = props.getProperty("version")?.toIntOrNull() ?: return null
+        if (version != VERSION) return null
+
+        val actorCount = props.getProperty("actor.count")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val actors = buildList {
+            for (index in 0 until actorCount) {
+                val prefix = "actor.$index"
+                val id = props.getProperty("$prefix.id") ?: continue
+                val name = props.getProperty("$prefix.name") ?: continue
+                val color = ColorHexCodec.parseOrNull(props.getProperty("$prefix.color")) ?: continue
+                add(
+                    Actor(
+                        id = id,
+                        name = name,
+                        hp = props.getProperty("$prefix.hp")?.toIntOrNull() ?: continue,
+                        ac = props.getProperty("$prefix.ac")?.toIntOrNull() ?: continue,
+                        initiative = props.getProperty("$prefix.initiative")?.toIntOrNull(),
+                        tokenSize = runCatching {
+                            TokenSize.valueOf(props.getProperty("$prefix.tokenSize"))
+                        }.getOrDefault(TokenSize.MEDIUM),
+                        color = color,
+                        imageSettings = ActorImageSettings(
+                            uri = props.getProperty("$prefix.imageUri"),
+                            scaleX = props.getProperty("$prefix.imageScaleX")?.toDoubleOrNull() ?: 1.0,
+                            scaleY = props.getProperty("$prefix.imageScaleY")?.toDoubleOrNull() ?: 1.0,
+                            offsetX = props.getProperty("$prefix.imageOffsetX")?.toDoubleOrNull() ?: 0.0,
+                            offsetY = props.getProperty("$prefix.imageOffsetY")?.toDoubleOrNull() ?: 0.0,
+                        ),
+                    ),
+                )
+            }
+        }
+
+        return TrackerSceneState(
+            actors = actors,
+            activeActorId = props.getProperty("activeActorId"),
+            roundCount = props.getProperty("roundCount")?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    internal fun serializeLegacy(state: TrackerSceneState): String {
         val encoder = Base64.getUrlEncoder().withoutPadding()
 
         fun encode(value: String?): String =
             value?.let { encoder.encodeToString(it.toByteArray(Charsets.UTF_8)) } ?: "-"
-
         return buildString {
-            appendLine("version=$VERSION")
+            appendLine("version=$LEGACY_VERSION")
             appendLine("roundCount=${state.roundCount.coerceAtLeast(0)}")
             appendLine("activeActorId=${encode(state.activeActorId)}")
             appendLine("count=${state.actors.size}")
@@ -47,7 +129,7 @@ internal object TrackerSceneCodec {
         }
     }
 
-    fun deserialize(text: String): TrackerSceneState? {
+    private fun deserializeLegacy(text: String): TrackerSceneState? {
         val lines = text.lineSequence()
             .map(String::trim)
             .filter(String::isNotBlank)
@@ -58,7 +140,7 @@ internal object TrackerSceneCodec {
             ?.substringAfter('=')
             ?.toIntOrNull()
             ?: return null
-        if (version != VERSION) return null
+        if (version != LEGACY_VERSION) return null
 
         val decoder = Base64.getUrlDecoder()
 

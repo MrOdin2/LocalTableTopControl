@@ -37,6 +37,8 @@ import com.tabletopcontrol.map.MeasurementsClearedEvent
 import com.tabletopcontrol.map.ShowTokenNamesEvent
 import com.tabletopcontrol.map.TableMapOffsetEvent
 import javafx.scene.paint.Color
+import java.io.File
+import java.net.URI
 import java.util.UUID
 
 class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer.load()) {
@@ -471,18 +473,26 @@ class MapFogOfWarService(private val halfFogCells: Int = DEFAULT_HALF_FOG_CELLS)
 
     internal fun snapshot(): MapFogSceneState? {
         val state = fogState ?: return null
+        val totalCells = state.cols * state.rows
         val revealedCells = state.revealedCount()
+        val hiddenCells = totalCells - revealedCells
         val mode = when {
             revealedCells == 0 -> MapFogSceneMode.HIDDEN_ALL
-            revealedCells == state.cols * state.rows -> MapFogSceneMode.REVEALED_ALL
-            else -> MapFogSceneMode.PARTIAL
+            hiddenCells == 0 -> MapFogSceneMode.REVEALED_ALL
+            revealedCells <= hiddenCells -> MapFogSceneMode.PARTIAL_REVEALED
+            else -> MapFogSceneMode.PARTIAL_HIDDEN
         }
 
-        val cells = if (mode == MapFogSceneMode.PARTIAL) {
+        val cells = if (mode == MapFogSceneMode.PARTIAL_REVEALED || mode == MapFogSceneMode.PARTIAL_HIDDEN) {
             buildList {
                 for (col in 0 until state.cols) {
                     for (row in 0 until state.rows) {
-                        if (state.isRevealed(col, row)) {
+                        val includeCell = when (mode) {
+                            MapFogSceneMode.PARTIAL_REVEALED -> state.isRevealed(col, row)
+                            MapFogSceneMode.PARTIAL_HIDDEN -> !state.isRevealed(col, row)
+                            else -> false
+                        }
+                        if (includeCell) {
                             add(Pair(col, row))
                         }
                     }
@@ -498,7 +508,7 @@ class MapFogOfWarService(private val halfFogCells: Int = DEFAULT_HALF_FOG_CELLS)
             colOffset = fogColOffset,
             rowOffset = fogRowOffset,
             mode = mode,
-            revealedCells = cells,
+            cells = cells,
         )
     }
 
@@ -515,9 +525,17 @@ class MapFogOfWarService(private val halfFogCells: Int = DEFAULT_HALF_FOG_CELLS)
         when (snapshot.mode) {
             MapFogSceneMode.HIDDEN_ALL -> Unit
             MapFogSceneMode.REVEALED_ALL -> nextState.revealAll()
-            MapFogSceneMode.PARTIAL -> snapshot.revealedCells.forEach { (col, row) ->
+            MapFogSceneMode.PARTIAL_REVEALED -> snapshot.cells.forEach { (col, row) ->
                 if (col in 0 until snapshot.cols && row in 0 until snapshot.rows) {
                     nextState.revealCell(col, row)
+                }
+            }
+            MapFogSceneMode.PARTIAL_HIDDEN -> {
+                nextState.revealAll()
+                snapshot.cells.forEach { (col, row) ->
+                    if (col in 0 until snapshot.cols && row in 0 until snapshot.rows) {
+                        nextState.hideCell(col, row)
+                    }
                 }
             }
         }
@@ -716,13 +734,44 @@ class MapTokenSyncService {
     internal fun snapshotActiveTokenId(): String? = activeTokenId
 
     internal fun replaceState(nextTokens: List<Token>, nextActiveTokenId: String?) {
+        val previousTokensById = tokens.mapValues { (_, token) -> token.copy() }
         EventBus.publish(TokensResetEvent())
         tokens.clear()
-        nextTokens.forEach { token -> tokens[token.id] = token.copy() }
+        nextTokens.forEach { token ->
+            val previous = previousTokensById[token.id]
+            tokens[token.id] = mergeRestoredToken(previous, token)
+        }
         activeTokenId = nextActiveTokenId
         endDrag()
         replayState()
     }
+
+    private fun mergeRestoredToken(previous: Token?, restored: Token): Token {
+        val restoredHasUsableImage = restored.imageUri?.let(::isUsableTokenImageUri) == true
+        val previousHasUsableImage = previous?.imageUri?.let(::isUsableTokenImageUri) == true
+
+        if (restoredHasUsableImage || !previousHasUsableImage) {
+            return restored.copy()
+        }
+
+        return restored.copy(
+            imageUri = previous.imageUri,
+            imageScaleX = previous.imageScaleX,
+            imageScaleY = previous.imageScaleY,
+            imageOffsetX = previous.imageOffsetX,
+            imageOffsetY = previous.imageOffsetY,
+        )
+    }
+
+    private fun isUsableTokenImageUri(uri: String): Boolean =
+        runCatching {
+            val parsedUri = URI(uri)
+            when {
+                parsedUri.scheme.isNullOrEmpty() -> File(uri).exists()
+                parsedUri.scheme.equals("file", ignoreCase = true) -> File(parsedUri).exists()
+                else -> false
+            }
+        }.getOrDefault(false)
 
     fun dispose() {
         subscriptions.forEach { it.unsubscribe() }

@@ -348,13 +348,7 @@ class MapRenderer(private val canvas: Canvas) {
                         // synchronous EventBus publish thread.
                         val image = Image(newUri, /* backgroundLoading = */ true)
                         if (!image.isError) {
-                            // When loading completes successfully, cache the image and trigger a redraw.
-                            image.progressProperty().addListener { _, _, newValue ->
-                                if (newValue.toDouble() >= 1.0 && !image.isError) {
-                                    imageCache[newUri] = image
-                                    redraw()
-                                }
-                            }
+                            cacheTokenImageWhenReady(newUri, image, imageCache, ::redraw)
                         }
                     } catch (e: IllegalArgumentException) {
                         // Malformed URI or similar: treat as a load error and skip caching.
@@ -1073,6 +1067,24 @@ class MapRenderer(private val canvas: Canvas) {
         private const val TABLE_VIEWPORT_OUTLINE_DASH_LENGTH = 10.0
         private const val TABLE_VIEWPORT_OUTLINE_GAP_LENGTH = 6.0
     }
+}
+
+internal fun cacheTokenImageWhenReady(
+    uri: String,
+    image: Image,
+    imageCache: MutableMap<String, Image>,
+    onReady: () -> Unit,
+) {
+    fun cacheIfReady() {
+        if (image.isError || image.progress < 1.0 || imageCache[uri] === image) {
+            return
+        }
+        imageCache[uri] = image
+        onReady()
+    }
+
+    cacheIfReady()
+    image.progressProperty().addListener { _, _, _ -> cacheIfReady() }
 }
 
 internal fun tableViewportSceneBounds(

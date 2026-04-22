@@ -3,6 +3,7 @@ package com.tabletopcontrol.new_tracker.preset
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import com.tabletopcontrol.new_tracker.model.ActorTracker
+import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.application.Platform
 
 class ActorPresetService(
@@ -69,7 +70,7 @@ class ActorPresetService(
     ) {
         val imageBase64 = preset.imageBase64 ?: return
         Thread {
-            val decodedUri = PresetLibrary.base64ToTempUri(imageBase64) ?: return@Thread
+            val decodedUri = PresetLibrary.base64ToCachedUri(imageBase64) ?: return@Thread
             Platform.runLater {
                 val currentActor = actorTracker.findActor(actorId) ?: return@runLater
                 if (currentActor.imageSettings.uri != initialImageUri) {
@@ -89,6 +90,20 @@ class ActorPresetService(
                 onRefresh()
             }
         }.also { it.isDaemon = true }.start()
+    }
+
+    internal fun recoverSceneActors(sceneState: TrackerSceneState): TrackerSceneState {
+        val presets = PresetLibrary.loadAll()
+        return sceneState.copy(
+            actors = sceneState.actors.map { actor ->
+                val recoveredUri = PresetLibrary.recoverImageUriFor(actor, presets) ?: actor.imageSettings.uri
+                if (recoveredUri == actor.imageSettings.uri) {
+                    actor
+                } else {
+                    actor.copy(imageSettings = actor.imageSettings.copy(uri = recoveredUri))
+                }
+            },
+        )
     }
 }
 

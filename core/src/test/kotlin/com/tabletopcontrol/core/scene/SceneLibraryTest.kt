@@ -40,6 +40,32 @@ class SceneLibraryTest {
         assertEquals(scene.name, loaded.single().name)
         assertEquals(scene.sections.sortedBy(SceneSection::key), loaded.single().sections)
         assertTrue(SceneLibrary.hasScene("Goblin Ambush"))
+
+        val savedText = tempDir.resolve("Goblin Ambush.scene").toFile().readText()
+        assertTrue(savedText.trimStart().startsWith("<scene"))
+        assertTrue(savedText.contains("<section key=\"map\"><![CDATA[line one\nline two]]></section>"))
+        assertTrue(savedText.contains("<section key=\"tracker\"><![CDATA[tracker-payload]]></section>"))
+    }
+
+    @Test
+    fun `load all migrates legacy scene files to readable xml`() {
+        val scene = SavedScene(
+            name = "Legacy Scene",
+            sections = listOf(
+                SceneSection("tracker", "legacy-tracker"),
+                SceneSection("map", "legacy-map"),
+            ),
+        )
+        val file = tempDir.resolve("Legacy Scene.scene").toFile()
+        file.writeText(SceneLibrary.serializeLegacy(scene))
+
+        val loaded = SceneLibrary.loadAll()
+
+        assertEquals(listOf(scene.copy(sections = scene.sections.sortedBy(SceneSection::key))), loaded)
+        val migratedText = file.readText()
+        assertTrue(migratedText.trimStart().startsWith("<scene"))
+        assertTrue(migratedText.contains("legacy-map"))
+        assertTrue(migratedText.contains("legacy-tracker"))
     }
 
     @Test

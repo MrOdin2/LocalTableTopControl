@@ -206,6 +206,17 @@
         confirmation dialog because it replaces the current encounter state across all participating
         plugins.
       </p>
+      <p>
+        Scene files are stored in the scene folder as readable plain-text <strong>XML</strong>,
+        which makes troubleshooting much easier when you need to inspect a saved encounter by hand.
+        Older scene files still load and are upgraded to the readable format automatically the next
+        time TabletopControl reads them.
+      </p>
+      <p>
+        Scene loading also rebuilds preset-based token portraits if an older scene points to a
+        temporary image file that no longer exists, and fog of war is stored in the shorter of the
+        hidden-cell or revealed-cell lists to keep scene files compact.
+      </p>
       <div class="tip">
         <strong>Tip:</strong> Scenes are best for whole encounters or reusable battle maps.
         Presets are still the better choice for one reusable tracker actor or one reusable light

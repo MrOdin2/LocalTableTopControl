@@ -3,6 +3,7 @@ package com.tabletopcontrol.new_tracker.preset
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
+import com.tabletopcontrol.new_tracker.model.Actor
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -10,6 +11,7 @@ import java.io.File
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import javax.imageio.ImageIO
@@ -28,8 +30,8 @@ object PresetLibrary {
     private const val MAX_BASE64_DECODED_BYTES: Int = 5 * 1024 * 1024
     private val MAX_PRESET_FILE_BYTES: Long = MAX_BASE64_DECODED_BYTES.toLong() * 2L
 
-    private val tempUriCache: ConcurrentHashMap<String, File> = ConcurrentHashMap()
-    private const val TEMP_URI_CACHE_MAX: Int = 50
+    private val cachedImageFiles: ConcurrentHashMap<String, File> = ConcurrentHashMap()
+    private const val CACHED_IMAGE_FILES_MAX: Int = 50
 
     data class Preset(
         val name: String,
@@ -48,9 +50,13 @@ object PresetLibrary {
     )
 
     internal var presetsDirForTest: File? = null
+    internal var presetImageCacheDirForTest: File? = null
 
     private val presetsDir: File
         get() = presetsDirForTest ?: AppConfigPaths.configSubDir("presets")
+
+    private val presetImageCacheDir: File
+        get() = presetImageCacheDirForTest ?: AppConfigPaths.configSubDir("preset-image-cache")
 
     fun savePreset(preset: Preset) {
         var tmp: File? = null
@@ -333,18 +339,21 @@ object PresetLibrary {
         null
     }
 
-    internal fun base64ToTempUri(base64: String): String? {
+    internal fun base64ToCachedUri(base64: String): String? {
         val paddingCount = base64.takeLast(2).count { it == '=' }
         if ((base64.length.toLong() * 3L) / 4L - paddingCount > MAX_BASE64_DECODED_BYTES) {
             return null
         }
 
-        val key = base64ContentKey(base64)
-        tempUriCache[key]?.takeIf { it.exists() }?.let { return it.toURI().toString() }
+        val key = contentHash(base64)
+        cachedImageFiles[key]?.takeIf { it.exists() }?.let { return it.toURI().toString() }
 
-        val tmp = runCatching { File.createTempFile("tc-preset-", ".png") }.getOrNull()
-            ?: return null
-        tmp.deleteOnExit()
+        val targetDir = presetImageCacheDir.also { it.mkdirs() }
+        val target = File(targetDir, "$key.png")
+        if (target.exists()) {
+            cachedImageFiles[key] = target
+            return target.toURI().toString()
+        }
 
         return try {
             val charStream = object : java.io.InputStream() {
@@ -379,37 +388,80 @@ object PresetLibrary {
             }
 
             Base64.getDecoder().wrap(charStream).use { decoded ->
-                tmp.outputStream().use { output ->
-                    val buffer = ByteArray(8 * 1024)
-                    var totalBytes = 0L
-                    var readCount: Int
-                    while (decoded.read(buffer).also { readCount = it } != -1) {
-                        totalBytes += readCount
-                        if (totalBytes > MAX_BASE64_DECODED_BYTES) {
-                            tmp.delete()
-                            return null
+                val tmp = Files.createTempFile(targetDir.toPath(), "tc-preset-", ".png").toFile()
+                try {
+                    tmp.outputStream().use { output ->
+                        val buffer = ByteArray(8 * 1024)
+                        var totalBytes = 0L
+                        var readCount: Int
+                        while (decoded.read(buffer).also { readCount = it } != -1) {
+                            totalBytes += readCount
+                            if (totalBytes > MAX_BASE64_DECODED_BYTES) {
+                                tmp.delete()
+                                return null
+                            }
+                            output.write(buffer, 0, readCount)
                         }
-                        output.write(buffer, 0, readCount)
                     }
+                    try {
+                        Files.move(
+                            tmp.toPath(),
+                            target.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE,
+                        )
+                    } catch (_: Exception) {
+                        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                    }
+                } catch (error: Exception) {
+                    tmp.delete()
+                    throw error
                 }
             }
 
-            tempUriCache[key] = tmp
-            tempUriCache.entries.removeIf { !it.value.exists() }
-            while (tempUriCache.size > TEMP_URI_CACHE_MAX) {
-                val iterator = tempUriCache.entries.iterator()
+            cachedImageFiles[key] = target
+            cachedImageFiles.entries.removeIf { !it.value.exists() }
+            while (cachedImageFiles.size > CACHED_IMAGE_FILES_MAX) {
+                val iterator = cachedImageFiles.entries.iterator()
                 if (!iterator.hasNext()) {
                     break
                 }
                 val entry = iterator.next()
-                tempUriCache.remove(entry.key, entry.value)
+                cachedImageFiles.remove(entry.key, entry.value)
             }
 
-            tmp.toURI().toString()
+            target.toURI().toString()
         } catch (_: Exception) {
-            tmp.delete()
+            target.delete()
             null
         }
+    }
+
+    internal fun recoverImageUriFor(actor: Actor): String? = recoverImageUriFor(actor, loadAll())
+
+    internal fun recoverImageUriFor(actor: Actor, presets: List<Preset>): String? {
+        val currentUri = actor.imageSettings.uri ?: return null
+        if (existingLocalFile(currentUri)) {
+            return currentUri
+        }
+
+        val matchingUris = presets
+            .asSequence()
+            .filter { preset ->
+                preset.name == actor.name &&
+                    preset.hp == actor.hp &&
+                    preset.ac == actor.ac &&
+                    preset.tokenSize == actor.tokenSize &&
+                    preset.imageScaleX == actor.imageSettings.scaleX &&
+                    preset.imageScaleY == actor.imageSettings.scaleY &&
+                    preset.imageOffsetX == actor.imageSettings.offsetX &&
+                    preset.imageOffsetY == actor.imageSettings.offsetY
+            }
+            .mapNotNull { preset -> preset.imageBase64?.let(::base64ToCachedUri) }
+            .distinct()
+            .toList()
+
+        return matchingUris.singleOrNull()
     }
 
     private fun readNameFromFile(file: File): String? {
@@ -429,10 +481,18 @@ object PresetLibrary {
         }.getOrNull()
     }
 
-    private fun base64ContentKey(base64: String): String {
-        val length = base64.length
-        val prefix = base64.substring(0, minOf(256, length))
-        val suffix = base64.substring(maxOf(0, length - 256))
-        return "$length:$prefix:$suffix"
-    }
+    private fun existingLocalFile(uri: String): Boolean =
+        runCatching {
+            val parsedUri = URI(uri)
+            when {
+                parsedUri.scheme.isNullOrEmpty() -> File(uri).exists()
+                parsedUri.scheme.equals("file", ignoreCase = true) -> File(parsedUri).exists()
+                else -> false
+            }
+        }.getOrDefault(false)
+
+    private fun contentHash(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte) }
 }

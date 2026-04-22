@@ -114,7 +114,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val state = requireNotNull(TrackerSceneCodec.deserialize(payload)) {
             "Invalid tracker scene payload"
         }
-        actorTracker.replaceAllActors(state)
+        actorTracker.replaceAllActors(presetService.recoverSceneActors(state))
     }
 
 
