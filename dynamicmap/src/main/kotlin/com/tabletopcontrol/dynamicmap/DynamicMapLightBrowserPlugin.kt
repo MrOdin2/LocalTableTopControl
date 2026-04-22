@@ -22,7 +22,22 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
     override val workspaceIds: Set<DmWorkspaceId> = setOf(DmWorkspaceId.DYNAMIC_MAP_BUILDER)
 
     override fun createView(): Node {
+        var activeTool: DynamicMapTool? = null
         val selectedLabel = Label("Selected preset: ${DynamicMapLightPresets.defaultPreset.displayName}")
+        val modeLabel = Label("Placement mode: none").apply {
+            style = "-fx-text-fill: -tc-text-muted;"
+        }
+        val stopPlacementButton = Button("Stop Placement")
+        val clearLightsButton = Button("Clear All Lights")
+
+        fun refreshModeLabel() {
+            modeLabel.text = when (activeTool) {
+                DynamicMapTool.LIGHT -> "Placement mode: light placement"
+                DynamicMapTool.WALL_LINE -> "Placement mode: wall line"
+                DynamicMapTool.WALL_RECT -> "Placement mode: wall rectangle"
+                null -> "Placement mode: none"
+            }
+        }
 
         val content = VBox(8.0).apply {
             padding = Insets(8.0)
@@ -30,6 +45,7 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
         }
         content.children += Label("Point light presets")
         content.children += selectedLabel
+        content.children += modeLabel
         content.children += Separator()
 
         DynamicMapLightPresets.presets.forEach { preset ->
@@ -38,6 +54,7 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
                 style = "-fx-background-color: ${preset.colorHex}; -fx-text-fill: $swatchText;"
                 setOnAction {
                     EventBus.publish(DynamicMapLightPresetSelectedEvent(preset.id))
+                    EventBus.publish(DynamicMapToolSelectedEvent(DynamicMapTool.LIGHT))
                     selectedLabel.text = "Selected preset: ${preset.displayName}"
                 }
             }
@@ -53,9 +70,18 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
         }
 
         content.children += Separator()
+        stopPlacementButton.setOnAction {
+            EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
+        }
+        clearLightsButton.setOnAction {
+            EventBus.publish(DynamicMapClearLightsRequestedEvent)
+        }
+        content.children += stopPlacementButton
+        content.children += clearLightsButton
+        content.children += Separator()
         content.children += Label(
-            "Builder notes: this first version places static point lights. " +
-                "Moving lights with tokens and browser-managed asset libraries come next.",
+            "Selecting a preset immediately arms light placement in the main builder pane. " +
+                "Static point lights are supported in this first version; moving lights with tokens and browser-managed asset libraries come next.",
         ).apply {
             isWrapText = true
             style = "-fx-text-fill: -tc-text-muted;"
@@ -65,6 +91,12 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
             val preset = DynamicMapLightPresets.byId(event.presetId)
             selectedLabel.text = "Selected preset: ${preset.displayName}"
         }
+        val toolSubscription = EventBus.subscribe<DynamicMapToolSelectedEvent> { event ->
+            activeTool = event.tool
+            refreshModeLabel()
+        }
+
+        refreshModeLabel()
 
         return ScrollPane(content).apply {
             isFitToWidth = true
@@ -73,6 +105,7 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
             sceneProperty().addListener { _, _, newScene ->
                 if (newScene == null) {
                     presetSubscription.unsubscribe()
+                    toolSubscription.unsubscribe()
                 }
             }
         }

@@ -118,6 +118,7 @@
         <li><a href="#workspace">Builder Workspace</a></li>
         <li><a href="#editing">Editing Tools</a></li>
         <li><a href="#calibration">Texture Calibration</a></li>
+        <li><a href="#walls">Wall Tools</a></li>
         <li><a href="#lights">Light Browser</a></li>
         <li><a href="#draft">Draft Autosave</a></li>
       </ul>
@@ -158,21 +159,24 @@
       <h2>Editing Tools</h2>
       <p>
         The main <strong>Dynamic Map Builder</strong> pane shows the whole map draft on a fitted grid.
-        Choose a tool from the top toolbar, then click or drag inside the map area.
+        It now focuses on document-wide controls such as map size, layer visibility, background texture
+        loading, and calibration.
       </p>
       <table>
-        <tr><th>Tool</th><th>What it does</th></tr>
-        <tr><td>Wall Line</td><td>Click and drag to place one straight wall segment.</td></tr>
-        <tr><td>Wall Rect</td><td>Click and drag to place a rectangular ring of four wall segments.</td></tr>
-        <tr><td>Light</td><td>Click once to place a point light using the currently selected preset.</td></tr>
+        <tr><th>Main builder control</th><th>What it does</th></tr>
+        <tr><td>Load / Clear Texture</td><td>Load a background texture or remove it from the current draft.</td></tr>
+        <tr><td>Calibrate Texture...</td><td>Open numeric texture calibration with live preview.</td></tr>
+        <tr><td>Guided Calibration...</td><td>Open the two-step guided texture calibration flow.</td></tr>
+        <tr><td>Map size</td><td>Change the logical map width and height in grid cells.</td></tr>
+        <tr><td>Layer toggles</td><td>Temporarily show or hide the background, walls, lights, or grid.</td></tr>
       </table>
       <p>
         Turn <strong>Snap 0.25</strong> on to align new content to quarter-cell increments. This keeps
         the draft grid-friendly while still allowing more detail than full-cell snapping.
       </p>
       <div class="tip">
-        Wall lines and wall rectangles are ideal for blocking geometry. Use <strong>Clear Walls</strong>
-        and <strong>Clear Lights</strong> from the toolbar for bulk cleanup.
+        The main builder pane is intentionally lean. Use the supporting builder panes such as
+        <strong>Wall Tools</strong> and <strong>Light Browser</strong> to change placement modes.
       </div>
       <p>
         The layer toggles let you temporarily hide the background texture, walls, lights, or grid while
@@ -182,6 +186,9 @@
         Right-click <strong>near a wall or light</strong> to remove that specific element. Right-click
         empty builder space to open the normal pane layout menu, so you can still split panes or switch
         to the Light Browser while staying in the builder workspace.
+      </p>
+      <p>
+        Press <strong>Escape</strong> in the builder pane to leave the current placement mode.
       </p>
     </section>
 
@@ -204,16 +211,32 @@
       </p>
     </section>
 
+    <section id="walls">
+      <h2>Wall Tools</h2>
+      <p>
+        Open a second pane with <strong>Wall Tools</strong> to control wall editing. This pane now owns
+        the wall-specific placement modes instead of the main builder toolbar.
+      </p>
+      <table>
+        <tr><th>Wall Tools action</th><th>What it does</th></tr>
+        <tr><td>Wall Line</td><td>Click and drag in the builder pane to place one straight wall segment.</td></tr>
+        <tr><td>Wall Rect</td><td>Click and drag in the builder pane to place a rectangular ring of four wall segments.</td></tr>
+        <tr><td>Stop Editing</td><td>Leave wall or light placement mode without changing the draft.</td></tr>
+        <tr><td>Clear All Walls</td><td>Remove every wall segment from the current builder draft.</td></tr>
+      </table>
+    </section>
+
     <section id="lights">
       <h2>Light Browser</h2>
       <p>
         Open a second pane with <strong>Light Browser</strong> to pick from ready-made point-light presets
         such as Torch, Lantern, Campfire, or Moonbeam. After you press <strong>Use</strong> on a preset,
-        every newly placed light uses that range and colour until you choose another one.
+        the main builder pane immediately switches into light placement mode.
       </p>
       <p>
-        The current preset is shown in the builder toolbar so you can see at a glance what the next click
-        will place.
+        Every newly placed light uses that selected range and colour until you choose another preset.
+        The Light Browser also lets you stop placement mode or clear all lights without going back to
+        the main builder pane.
       </p>
     </section>
 

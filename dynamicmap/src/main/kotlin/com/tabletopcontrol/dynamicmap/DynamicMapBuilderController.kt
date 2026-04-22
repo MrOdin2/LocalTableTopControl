@@ -12,6 +12,12 @@ class DynamicMapBuilderController {
     private val presetSubscription = EventBus.subscribe<DynamicMapLightPresetSelectedEvent> { event ->
         setSelectedPreset(DynamicMapLightPresets.byId(event.presetId))
     }
+    private val clearWallsSubscription = EventBus.subscribe<DynamicMapClearWallsRequestedEvent> {
+        clearWalls()
+    }
+    private val clearLightsSubscription = EventBus.subscribe<DynamicMapClearLightsRequestedEvent> {
+        clearLights()
+    }
 
     fun currentDocument(): DynamicMapDocument = document
 
@@ -121,6 +127,8 @@ class DynamicMapBuilderController {
 
     fun onShutdown() {
         presetSubscription.unsubscribe()
+        clearWallsSubscription.unsubscribe()
+        clearLightsSubscription.unsubscribe()
     }
 
     private fun setSelectedPreset(preset: DynamicMapLightPreset) {

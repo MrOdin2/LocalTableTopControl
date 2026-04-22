@@ -17,14 +17,13 @@ import javafx.scene.control.CheckBox
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.TextField
-import javafx.scene.control.ToggleButton
 import javafx.scene.control.Tooltip
 import javafx.scene.image.Image
+import javafx.scene.input.KeyCode
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
-import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.FileChooser
@@ -60,25 +59,12 @@ class DynamicMapBuilderView(
         prefWidth = 56.0
         tooltip = Tooltip("Map height in grid cells")
     }
-    private val selectedPresetLabel = Label()
     private val statusLabel = Label()
     private val showBackgroundCheck = CheckBox("BG").apply { isSelected = document.visibility.background }
     private val showWallsCheck = CheckBox("Walls").apply { isSelected = document.visibility.walls }
     private val showLightsCheck = CheckBox("Lights").apply { isSelected = document.visibility.lights }
     private val showGridCheck = CheckBox("Grid").apply { isSelected = document.visibility.grid }
     private val snapCheck = CheckBox("Snap 0.25").apply { isSelected = snapEnabled }
-
-    private val lineToolButton = ToggleButton("Wall Line")
-    private val rectToolButton = ToggleButton("Wall Rect")
-    private val lightToolButton = ToggleButton("Light")
-    private val clearWallsButton = Button("Clear Walls").apply {
-        tooltip = Tooltip("Remove every wall segment from the current builder draft")
-        setOnAction { controller.clearWalls() }
-    }
-    private val clearLightsButton = Button("Clear Lights").apply {
-        tooltip = Tooltip("Remove every static light from the current builder draft")
-        setOnAction { controller.clearLights() }
-    }
     private val clearTextureButton = Button("Clear Texture").apply {
         tooltip = Tooltip("Remove the current background texture")
         setOnAction { controller.clearBackgroundImage() }
@@ -94,22 +80,6 @@ class DynamicMapBuilderView(
 
     init {
         HBox.setHgrow(pathField, Priority.ALWAYS)
-
-        val toolRow = HBox(
-            6.0,
-            Label("Tools:"),
-            lineToolButton,
-            rectToolButton,
-            lightToolButton,
-            Separator(Orientation.VERTICAL),
-            clearWallsButton,
-            clearLightsButton,
-            Separator(Orientation.VERTICAL),
-            Label("Preset:"),
-            selectedPresetLabel,
-            Region().also { HBox.setHgrow(it, Priority.ALWAYS) },
-            snapCheck,
-        )
 
         val textureRow = HBox(
             6.0,
@@ -139,6 +109,8 @@ class DynamicMapBuilderView(
             showWallsCheck,
             showLightsCheck,
             showGridCheck,
+            Separator(Orientation.VERTICAL),
+            snapCheck,
         )
 
         val canvasPane = object : Pane() {
@@ -159,7 +131,6 @@ class DynamicMapBuilderView(
 
         root = VBox(
             6.0,
-            toolRow,
             textureRow,
             layoutRow,
             canvasPane,
@@ -167,7 +138,14 @@ class DynamicMapBuilderView(
         ).apply {
             padding = Insets(6.0)
             style = "-fx-background-color: -tc-bg;"
+            isFocusTraversable = true
             VBox.setVgrow(canvasPane, Priority.ALWAYS)
+            setOnKeyPressed { event ->
+                if (event.code == KeyCode.ESCAPE && activeTool != null) {
+                    EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
+                    event.consume()
+                }
+            }
         }
 
         showBackgroundCheck.setOnAction {
@@ -188,9 +166,6 @@ class DynamicMapBuilderView(
             updateStatus(null)
         }
 
-        lineToolButton.setOnAction { toggleTool(DynamicMapTool.WALL_LINE) }
-        rectToolButton.setOnAction { toggleTool(DynamicMapTool.WALL_RECT) }
-        lightToolButton.setOnAction { toggleTool(DynamicMapTool.LIGHT) }
         calibrateTextureButton.setOnAction {
             DynamicMapCalibrationDialogs.showBackgroundCalibrationDialog(
                 owner = root.scene?.window,
@@ -206,6 +181,7 @@ class DynamicMapBuilderView(
         }
 
         canvas.setOnMousePressed { event ->
+            root.requestFocus()
             if (event.button == MouseButton.PRIMARY) {
                 when (activeTool) {
                     DynamicMapTool.LIGHT -> {
@@ -286,16 +262,21 @@ class DynamicMapBuilderView(
             clearTextureButton.isDisable = updated.backgroundImageUri == null
             calibrateTextureButton.isDisable = updated.backgroundImageUri == null
             guidedCalibrationButton.isDisable = updated.backgroundImageUri == null
-            clearWallsButton.isDisable = updated.walls.isEmpty()
-            clearLightsButton.isDisable = updated.lights.isEmpty()
             redraw()
             updateStatus(null)
         }
         disposers += controller.observePreset { updated ->
             preset = updated
-            selectedPresetLabel.text = "${updated.displayName} (${updated.brightRadius.toInt()} / ${updated.dimRadius.toInt()} tiles)"
             updateStatus(null)
         }
+        val toolSubscription = EventBus.subscribe<DynamicMapToolSelectedEvent> { event ->
+            activeTool = event.tool
+            dragStart = null
+            dragCurrent = null
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { toolSubscription.unsubscribe() }
         val themeSubscription = EventBus.subscribe<ThemeChangedEvent> {
             redraw()
         }
@@ -352,17 +333,6 @@ class DynamicMapBuilderView(
             colsField.text = document.cols.toString()
             rowsField.text = document.rows.toString()
         }
-    }
-
-    private fun toggleTool(tool: DynamicMapTool) {
-        activeTool = if (activeTool == tool) null else tool
-        dragStart = null
-        dragCurrent = null
-        lineToolButton.isSelected = activeTool == DynamicMapTool.WALL_LINE
-        rectToolButton.isSelected = activeTool == DynamicMapTool.WALL_RECT
-        lightToolButton.isSelected = activeTool == DynamicMapTool.LIGHT
-        redraw()
-        updateStatus(null)
     }
 
     private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double): Boolean {
