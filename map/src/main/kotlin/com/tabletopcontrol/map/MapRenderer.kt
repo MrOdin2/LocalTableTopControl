@@ -13,6 +13,7 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.map.logic.FogOfWarState
 import com.tabletopcontrol.map.logic.GridCalibration
 import com.tabletopcontrol.map.logic.GridConfig
@@ -22,7 +23,6 @@ import com.tabletopcontrol.map.logic.Token
 import com.tabletopcontrol.map.logic.nextAvailableTokenPlacement
 import com.tabletopcontrol.map.logic.tokenDrawBounds
 import com.tabletopcontrol.map.logic.tokenOccupiedCells
-import java.net.URI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -207,12 +207,7 @@ class MapRenderer(private val canvas: Canvas) {
      */
     private val subscriptions = mutableListOf<EventBus.Subscription>()
 
-    private fun isSupportedTokenImageUri(uri: String): Boolean =
-        try {
-            URI(uri).scheme.equals("file", ignoreCase = true)
-        } catch (_: Exception) {
-            false
-        }
+    private fun isSupportedTokenImageUri(uri: String): Boolean = LocalFiles.fileFromUriOrPath(uri) != null
 
     init {
         attachToEventBus()

@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.map.FogOfWarCellEvent
 import com.tabletopcontrol.map.FogOfWarResetEvent
 import com.tabletopcontrol.map.FogOfWarSetupEvent
@@ -37,8 +38,6 @@ import com.tabletopcontrol.map.MeasurementsClearedEvent
 import com.tabletopcontrol.map.ShowTokenNamesEvent
 import com.tabletopcontrol.map.TableMapOffsetEvent
 import javafx.scene.paint.Color
-import java.io.File
-import java.net.URI
 import java.util.UUID
 
 class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer.load()) {
@@ -747,32 +746,22 @@ class MapTokenSyncService {
     }
 
     private fun mergeRestoredToken(previous: Token?, restored: Token): Token {
-        val restoredHasUsableImage = restored.imageUri?.let(::isUsableTokenImageUri) == true
-        val previousHasUsableImage = previous?.imageUri?.let(::isUsableTokenImageUri) == true
+        val restoredHasUsableImage = LocalFiles.exists(restored.imageUri)
+        val previousHasUsableImage = LocalFiles.exists(previous?.imageUri)
 
         if (restoredHasUsableImage || !previousHasUsableImage) {
             return restored.copy()
         }
 
+        val previousToken = previous ?: return restored.copy()
         return restored.copy(
-            imageUri = previous.imageUri,
-            imageScaleX = previous.imageScaleX,
-            imageScaleY = previous.imageScaleY,
-            imageOffsetX = previous.imageOffsetX,
-            imageOffsetY = previous.imageOffsetY,
+            imageUri = previousToken.imageUri,
+            imageScaleX = previousToken.imageScaleX,
+            imageScaleY = previousToken.imageScaleY,
+            imageOffsetX = previousToken.imageOffsetX,
+            imageOffsetY = previousToken.imageOffsetY,
         )
     }
-
-    private fun isUsableTokenImageUri(uri: String): Boolean =
-        runCatching {
-            val parsedUri = URI(uri)
-            when {
-                parsedUri.scheme.isNullOrEmpty() -> File(uri).exists()
-                parsedUri.scheme.equals("file", ignoreCase = true) -> File(parsedUri).exists()
-                else -> false
-            }
-        }.getOrDefault(false)
-
     fun dispose() {
         subscriptions.forEach { it.unsubscribe() }
         subscriptions.clear()

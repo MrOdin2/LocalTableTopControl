@@ -2,13 +2,14 @@ package com.tabletopcontrol.new_tracker.preset
 
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.ConfigFiles
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.new_tracker.model.Actor
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
@@ -59,25 +60,7 @@ object PresetLibrary {
         get() = presetImageCacheDirForTest ?: AppConfigPaths.configSubDir("preset-image-cache")
 
     fun savePreset(preset: Preset) {
-        var tmp: File? = null
-        try {
-            presetsDir.mkdirs()
-            val target = fileFor(preset.name, preset.folder)
-            tmp = Files.createTempFile(target.parentFile.toPath(), target.name, ".tmp").toFile()
-            tmp.writeText(serialize(preset))
-            try {
-                Files.move(
-                    tmp.toPath(),
-                    target.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE,
-                )
-            } catch (_: Exception) {
-                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
-        } catch (_: Exception) {
-            SafeConfigIO.run { tmp?.delete() }
-        }
+        ConfigFiles.writeTextAtomically(fileFor(preset.name, preset.folder), serialize(preset))
     }
 
     fun hasPreset(
@@ -162,18 +145,7 @@ object PresetLibrary {
         }
     }
 
-    internal fun sanitizeFilename(name: String): String =
-        name.map { char ->
-            if (char.isLetterOrDigit() || char in " .-_") {
-                char
-            } else {
-                '_'
-            }
-        }
-            .joinToString("")
-            .trim()
-            .ifEmpty { "_" }
-            .take(200)
+    internal fun sanitizeFilename(name: String): String = ConfigFiles.sanitizeFilename(name)
 
     internal fun fileFor(name: String, folder: String = ""): File {
         val targetDir = targetDirFor(folder)
@@ -232,20 +204,7 @@ object PresetLibrary {
     }
 
     fun openPresetsFolder() {
-        val dir = presetsDir.also { it.mkdirs() }
-        try {
-            if (java.awt.Desktop.isDesktopSupported()) {
-                java.awt.Desktop.getDesktop().open(dir)
-            } else {
-                ProcessBuilder("xdg-open", dir.absolutePath).start()
-            }
-        } catch (_: Exception) {
-            try {
-                ProcessBuilder("xdg-open", dir.absolutePath).start()
-            } catch (_: Exception) {
-                // Best effort only.
-            }
-        }
+        ConfigFiles.openDirectory(presetsDir)
     }
 
     internal fun serialize(preset: Preset): String = buildString {
@@ -301,14 +260,7 @@ object PresetLibrary {
         uri: String,
         maxSize: Int = MAX_EMBEDDED_IMAGE_SIZE,
     ): String? = try {
-        val file = run {
-            val parsedUri = runCatching { URI(uri) }.getOrNull()
-            when {
-                parsedUri == null || parsedUri.scheme.isNullOrEmpty() -> File(uri)
-                parsedUri.scheme.equals("file", ignoreCase = true) -> File(parsedUri)
-                else -> return null
-            }
-        }
+        val file = LocalFiles.fileFromUriOrPath(uri) ?: return null
         val original: BufferedImage = ImageIO.read(file) ?: return null
         val width = original.width
         val height = original.height
@@ -441,7 +393,7 @@ object PresetLibrary {
 
     internal fun recoverImageUriFor(actor: Actor, presets: List<Preset>): String? {
         val currentUri = actor.imageSettings.uri ?: return null
-        if (existingLocalFile(currentUri)) {
+        if (LocalFiles.exists(currentUri)) {
             return currentUri
         }
 
@@ -480,16 +432,6 @@ object PresetLibrary {
             }
         }.getOrNull()
     }
-
-    private fun existingLocalFile(uri: String): Boolean =
-        runCatching {
-            val parsedUri = URI(uri)
-            when {
-                parsedUri.scheme.isNullOrEmpty() -> File(uri).exists()
-                parsedUri.scheme.equals("file", ignoreCase = true) -> File(parsedUri).exists()
-                else -> false
-            }
-        }.getOrDefault(false)
 
     private fun contentHash(value: String): String =
         MessageDigest.getInstance("SHA-256")

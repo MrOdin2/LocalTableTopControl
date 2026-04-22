@@ -1,14 +1,13 @@
 package com.tabletopcontrol.core.scene
 
 import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.ConfigFiles
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 import java.io.File
 import java.io.StringReader
 import java.io.StringWriter
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.util.Base64
 import java.util.Properties
 import javax.xml.parsers.DocumentBuilderFactory
@@ -31,24 +30,7 @@ object SceneLibrary {
     }
 
     private fun writeSceneFile(scene: SavedScene, target: File) {
-        var tmp: File? = null
-        try {
-            scenesDir.mkdirs()
-            tmp = Files.createTempFile(target.parentFile.toPath(), target.nameWithoutExtension, ".tmp").toFile()
-            tmp.writeText(serialize(scene))
-            try {
-                Files.move(
-                    tmp.toPath(),
-                    target.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE,
-                )
-            } catch (_: Exception) {
-                Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
-        } catch (_: Exception) {
-            SafeConfigIO.run { tmp?.delete() }
-        }
+        ConfigFiles.writeTextAtomically(target, serialize(scene))
     }
 
     fun hasScene(name: String): Boolean = existingFileFor(name) != null
@@ -75,20 +57,7 @@ object SceneLibrary {
     }
 
     fun openScenesFolder() {
-        val dir = scenesDir.also { it.mkdirs() }
-        try {
-            if (java.awt.Desktop.isDesktopSupported()) {
-                java.awt.Desktop.getDesktop().open(dir)
-            } else {
-                ProcessBuilder("xdg-open", dir.absolutePath).start()
-            }
-        } catch (_: Exception) {
-            try {
-                ProcessBuilder("xdg-open", dir.absolutePath).start()
-            } catch (_: Exception) {
-                // Best effort only.
-            }
-        }
+        ConfigFiles.openDirectory(scenesDir)
     }
 
     internal fun serialize(scene: SavedScene): String {
@@ -207,18 +176,7 @@ object SceneLibrary {
         )
     }
 
-    internal fun sanitizeFilename(name: String): String =
-        name.map { char ->
-            if (char.isLetterOrDigit() || char in " .-_") {
-                char
-            } else {
-                '_'
-            }
-        }
-            .joinToString("")
-            .trim()
-            .ifEmpty { "_" }
-            .take(200)
+    internal fun sanitizeFilename(name: String): String = ConfigFiles.sanitizeFilename(name)
 
     internal fun fileFor(name: String): File {
         val targetDir = scenesDir.also { it.mkdirs() }

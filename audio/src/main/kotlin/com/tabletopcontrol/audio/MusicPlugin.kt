@@ -1,6 +1,7 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
@@ -27,9 +28,6 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.util.Duration
-import java.io.File
-import java.net.URI
-import java.net.URISyntaxException
 
 /**
  * DM-panel plugin for layered music control.
@@ -406,13 +404,7 @@ class MusicPlugin : DmPlugin, SceneParticipant {
         return "$mins:${secs.toString().padStart(2, '0')}"
     }
 
-    private fun filePathOrRaw(uri: String): String = try {
-        File(URI(uri)).absolutePath
-    } catch (_: URISyntaxException) {
-        uri
-    } catch (_: IllegalArgumentException) {
-        uri
-    }
+    private fun filePathOrRaw(uri: String): String = LocalFiles.absolutePath(uri) ?: uri
 
     private data class TrackCardBindings(
         val pathLabel: Label,

@@ -2,12 +2,10 @@ package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.audio.shared.MediaTrackController
 import com.tabletopcontrol.audio.shared.MediaTrackStatus
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.scene.media.MediaPlayer
 import javafx.util.Duration
-import java.io.File
-import java.net.URI
-import java.net.URISyntaxException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -234,13 +232,10 @@ internal class MusicTrackService(
         persistSettings()
     }
 
-    fun fileNameFromUri(uri: String): String = try {
-        File(URI(uri)).name.ifBlank { "Loaded track" }
-    } catch (_: URISyntaxException) {
-        uri.substringAfterLast('/').ifBlank { "Loaded track" }
-    } catch (_: IllegalArgumentException) {
-        uri.substringAfterLast('/').ifBlank { "Loaded track" }
-    }
+    fun fileNameFromUri(uri: String): String =
+        LocalFiles.fileName(uri)
+            ?: uri.substringAfterLast('/')
+                .ifBlank { "Loaded track" }
 
     private fun startTrackLoad(
         track: MusicTrackState,
