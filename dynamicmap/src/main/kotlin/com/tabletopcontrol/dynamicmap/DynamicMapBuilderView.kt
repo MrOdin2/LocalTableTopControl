@@ -45,6 +45,12 @@ class DynamicMapBuilderView(
     private var dragCurrent: DynamicMapPoint? = null
     private var cachedBackgroundUri: String? = null
     private var cachedBackgroundImage: Image? = null
+    private var isPanning: Boolean = false
+    private var panDragStartX: Double = 0.0
+    private var panDragStartY: Double = 0.0
+    private var panDragStartOffsetX: Double = 0.0
+    private var panDragStartOffsetY: Double = 0.0
+    private val viewport = DynamicMapWorkspaceViewport()
 
     private val canvas = Canvas(1.0, 1.0)
     private val pathField = TextField(document.backgroundDisplayPath.orEmpty()).apply {
@@ -74,6 +80,32 @@ class DynamicMapBuilderView(
     }
     private val guidedCalibrationButton = Button("Guided Calibration...").apply {
         tooltip = Tooltip("Interactive two-step texture calibration")
+    }
+    private val zoomOutButton = Button("-").apply {
+        tooltip = Tooltip("Zoom out")
+        style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+        setOnAction {
+            viewport.zoomOut()
+            redraw()
+            updateStatus(null)
+        }
+    }
+    private val zoomInButton = Button("+").apply {
+        tooltip = Tooltip("Zoom in")
+        style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+        setOnAction {
+            viewport.zoomIn()
+            redraw()
+            updateStatus(null)
+        }
+    }
+    private val resetViewButton = Button("Reset View").apply {
+        tooltip = Tooltip("Reset zoom and pan without changing the map grid or draft")
+        setOnAction {
+            viewport.reset()
+            redraw()
+            updateStatus(null)
+        }
     }
 
     val root: Node
@@ -111,6 +143,11 @@ class DynamicMapBuilderView(
             showGridCheck,
             Separator(Orientation.VERTICAL),
             snapCheck,
+            Separator(Orientation.VERTICAL),
+            Label("View:"),
+            zoomOutButton,
+            zoomInButton,
+            resetViewButton,
         )
 
         val canvasPane = object : Pane() {
@@ -182,28 +219,44 @@ class DynamicMapBuilderView(
 
         canvas.setOnMousePressed { event ->
             root.requestFocus()
-            if (event.button == MouseButton.PRIMARY) {
-                when (activeTool) {
-                    DynamicMapTool.LIGHT -> {
-                        val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false) ?: return@setOnMousePressed
-                        controller.addLight(normalizePoint(point))
-                    }
+            when (event.button) {
+                MouseButton.PRIMARY -> {
+                    when (activeTool) {
+                        DynamicMapTool.LIGHT -> {
+                            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
+                                ?: return@setOnMousePressed
+                            controller.addLight(normalizePoint(point))
+                        }
 
-                    DynamicMapTool.WALL_LINE,
-                    DynamicMapTool.WALL_RECT
-                    -> {
-                        val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false) ?: return@setOnMousePressed
-                        dragStart = normalizePoint(point)
-                        dragCurrent = dragStart
-                        redraw()
-                    }
+                        DynamicMapTool.WALL_LINE,
+                        DynamicMapTool.WALL_RECT,
+                        -> {
+                            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
+                                ?: return@setOnMousePressed
+                            dragStart = normalizePoint(point)
+                            dragCurrent = dragStart
+                            redraw()
+                        }
 
-                    null -> Unit
+                        null -> beginPan(event.x, event.y)
+                    }
                 }
+
+                MouseButton.MIDDLE -> beginPan(event.x, event.y)
+                else -> Unit
             }
         }
 
         canvas.setOnMouseDragged { event ->
+            if (isPanning && (event.isPrimaryButtonDown || event.isMiddleButtonDown)) {
+                viewport.setPan(
+                    x = panDragStartOffsetX + (event.x - panDragStartX),
+                    y = panDragStartOffsetY + (event.y - panDragStartY),
+                )
+                redraw()
+                updateStatus(mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint))
+                return@setOnMouseDragged
+            }
             if (!event.isPrimaryButtonDown) return@setOnMouseDragged
             if (activeTool == DynamicMapTool.WALL_LINE || activeTool == DynamicMapTool.WALL_RECT) {
                 val point = mapPointFromCanvas(event.x, event.y, clampToBounds = true) ?: return@setOnMouseDragged
@@ -214,6 +267,11 @@ class DynamicMapBuilderView(
         }
 
         canvas.setOnMouseReleased { event ->
+            if (isPanning) {
+                isPanning = false
+                event.consume()
+                return@setOnMouseReleased
+            }
             if (event.button != MouseButton.PRIMARY) return@setOnMouseReleased
             val start = dragStart ?: return@setOnMouseReleased
             val end = dragCurrent ?: start
@@ -241,6 +299,13 @@ class DynamicMapBuilderView(
 
         canvas.setOnMouseExited {
             updateStatus(null)
+        }
+
+        canvas.setOnScroll { event ->
+            viewport.zoomFromScroll(event.deltaY)
+            redraw()
+            updateStatus(mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint))
+            event.consume()
         }
 
         canvas.setOnContextMenuRequested { event ->
@@ -335,10 +400,18 @@ class DynamicMapBuilderView(
         }
     }
 
+    private fun beginPan(canvasX: Double, canvasY: Double) {
+        isPanning = true
+        panDragStartX = canvasX
+        panDragStartY = canvasY
+        panDragStartOffsetX = viewport.offsetX
+        panDragStartOffsetY = viewport.offsetY
+    }
+
     private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double): Boolean {
         val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = false)
         val metrics = currentMetrics() ?: return false
-        val tolerance = 12.0 / metrics.cellSize
+        val tolerance = 12.0 / (metrics.cellSize * viewport.scale)
 
         val nearestLight = point?.let {
             document.lights
@@ -394,6 +467,9 @@ class DynamicMapBuilderView(
         gc.clearRect(0.0, 0.0, width, height)
         gc.fill = backgroundColor
         gc.fillRect(0.0, 0.0, width, height)
+
+        gc.save()
+        applyWorkspaceViewportTransform(width, height)
 
         gc.fill = surfaceColor
         gc.fillRect(metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
@@ -474,6 +550,17 @@ class DynamicMapBuilderView(
         gc.stroke = borderColor
         gc.lineWidth = 2.0
         gc.strokeRect(metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
+
+        gc.restore()
+    }
+
+    private fun applyWorkspaceViewportTransform(width: Double, height: Double) {
+        val gc = canvas.graphicsContext2D
+        val centerX = width / 2.0
+        val centerY = height / 2.0
+        gc.translate(centerX + viewport.offsetX, centerY + viewport.offsetY)
+        gc.scale(viewport.scale, viewport.scale)
+        gc.translate(-centerX, -centerY)
     }
 
     private fun drawLightHalos(
@@ -550,9 +637,15 @@ class DynamicMapBuilderView(
         clampToBounds: Boolean,
     ): DynamicMapPoint? {
         val metrics = currentMetrics() ?: return null
+        val (worldX, worldY) = viewport.canvasToWorld(
+            canvasWidth = canvas.width,
+            canvasHeight = canvas.height,
+            canvasX = canvasX,
+            canvasY = canvasY,
+        )
         val raw = DynamicMapPoint(
-            x = (canvasX - metrics.originX) / metrics.cellSize,
-            y = (canvasY - metrics.originY) / metrics.cellSize,
+            x = (worldX - metrics.originX) / metrics.cellSize,
+            y = (worldY - metrics.originY) / metrics.cellSize,
         )
         return if (clampToBounds) {
             clampPointToMap(raw, document.cols, document.rows)
@@ -578,7 +671,7 @@ class DynamicMapBuilderView(
         } ?: "Pointer off map"
         statusLabel.text =
             "$toolText | Preset: ${preset.displayName} | Walls: ${document.walls.size} | " +
-                "Lights: ${document.lights.size} | $pointerText"
+                "Lights: ${document.lights.size} | View: ${(viewport.scale * 100).toInt()}% | $pointerText"
         statusLabel.style = "-fx-text-fill: -tc-text-muted;"
     }
 

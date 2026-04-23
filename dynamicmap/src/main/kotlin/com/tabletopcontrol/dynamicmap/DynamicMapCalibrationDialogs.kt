@@ -87,9 +87,21 @@ object DynamicMapCalibrationDialogs {
             Label("Scale:"),
             DynamicMapCalibrationFormSupport.buildStepRow(scaleField, 0.05, ::tryPreview),
             Label("Offset X (px from centre):"),
-            DynamicMapCalibrationFormSupport.buildStepRow(offsetXField, 5.0, ::tryPreview),
+            DynamicMapCalibrationFormSupport.buildOffsetStepRow(
+                field = offsetXField,
+                smallStep = 5.0,
+                tileStep = safeCellSize,
+                axis = CalibrationOffsetAxis.HORIZONTAL,
+                onChanged = ::tryPreview,
+            ),
             Label("Offset Y (px from centre):"),
-            DynamicMapCalibrationFormSupport.buildStepRow(offsetYField, 5.0, ::tryPreview),
+            DynamicMapCalibrationFormSupport.buildOffsetStepRow(
+                field = offsetYField,
+                smallStep = 5.0,
+                tileStep = safeCellSize,
+                axis = CalibrationOffsetAxis.VERTICAL,
+                onChanged = ::tryPreview,
+            ),
             errorLabel,
         )
 
@@ -931,6 +943,11 @@ private enum class DynamicMapCalibrationInput {
     GUIDED_TILE_SPAN,
 }
 
+private enum class CalibrationOffsetAxis {
+    HORIZONTAL,
+    VERTICAL,
+}
+
 private sealed interface DynamicMapCalibrationParseResult<out T> {
     data class Success<T>(val value: T) : DynamicMapCalibrationParseResult<T>
 
@@ -968,6 +985,50 @@ private object DynamicMapCalibrationFormSupport {
 
         HBox.setHgrow(field, Priority.ALWAYS)
         return HBox(4.0, decrementButton, field, incrementButton)
+    }
+
+    fun buildOffsetStepRow(
+        field: TextField,
+        smallStep: Double,
+        tileStep: Double,
+        axis: CalibrationOffsetAxis,
+        onChanged: () -> Unit,
+    ): HBox {
+        fun adjust(delta: Double) {
+            val current = field.text.toDoubleOrNull() ?: 0.0
+            field.text = formatDouble(current + delta)
+            onChanged()
+        }
+
+        val safeTileStep = tileStep.takeIf { it.isFinite() && it > 0.0 } ?: smallStep
+        val backwardLabel = if (axis == CalibrationOffsetAxis.HORIZONTAL) "\u2190" else "\u2191"
+        val forwardLabel = if (axis == CalibrationOffsetAxis.HORIZONTAL) "\u2192" else "\u2193"
+        val backwardDirection = if (axis == CalibrationOffsetAxis.HORIZONTAL) "left" else "up"
+        val forwardDirection = if (axis == CalibrationOffsetAxis.HORIZONTAL) "right" else "down"
+
+        val tileBackwardButton = Button(backwardLabel).apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Move image $backwardDirection by one tile (${formatDouble(safeTileStep)} px)")
+            setOnAction { adjust(-safeTileStep) }
+        }
+        val decrementButton = Button("-").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Decrease by $smallStep px")
+            setOnAction { adjust(-smallStep) }
+        }
+        val incrementButton = Button("+").apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Increase by $smallStep px")
+            setOnAction { adjust(smallStep) }
+        }
+        val tileForwardButton = Button(forwardLabel).apply {
+            style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+            tooltip = Tooltip("Move image $forwardDirection by one tile (${formatDouble(safeTileStep)} px)")
+            setOnAction { adjust(safeTileStep) }
+        }
+
+        HBox.setHgrow(field, Priority.ALWAYS)
+        return HBox(4.0, tileBackwardButton, decrementButton, field, incrementButton, tileForwardButton)
     }
 
     fun formatDouble(value: Double): String =

@@ -117,6 +117,7 @@
         <li><a href="#overview">Overview</a></li>
         <li><a href="#workspace">Builder Workspace</a></li>
         <li><a href="#editing">Editing Tools</a></li>
+        <li><a href="#view">Zoom &amp; Pan</a></li>
         <li><a href="#calibration">Texture Calibration</a></li>
         <li><a href="#walls">Wall Tools</a></li>
         <li><a href="#lights">Light Browser</a></li>
@@ -192,6 +193,25 @@
       </p>
     </section>
 
+    <section id="view">
+      <h2>Zoom &amp; Pan</h2>
+      <p>
+        The builder canvas supports view-only zoom and pan so you can inspect details without changing
+        the map grid or any placed content.
+      </p>
+      <table>
+        <tr><th>Action</th><th>What it does</th></tr>
+        <tr><td>Mouse wheel</td><td>Zooms the builder workspace in or out.</td></tr>
+        <tr><td>Drag with no active tool</td><td>Pans around the workspace.</td></tr>
+        <tr><td>Middle mouse drag</td><td>Pans even while a placement tool is selected.</td></tr>
+        <tr><td>Reset View</td><td>Returns zoom and pan to the fitted default view.</td></tr>
+      </table>
+      <p>
+        Zoom and pan affect only your editor view. Snapping, wall drawing, light placement, and texture
+        calibration continue to use the same grid coordinates.
+      </p>
+    </section>
+
     <section id="calibration">
       <h2>Texture Calibration</h2>
       <p>
@@ -208,6 +228,12 @@
       <p>
         The builder stores texture calibration relative to the map grid, so the alignment stays stable
         even if you later resize the DM pane.
+      </p>
+      <p>
+        In the manual calibration dialog, the small <strong>+</strong> and <strong>-</strong> buttons
+        nudge offsets by a few pixels, while the arrow buttons beside them move the texture by exactly
+        one current grid tile. Use the tile arrows when the image is scaled correctly but shifted by
+        one or more squares.
       </p>
     </section>
 

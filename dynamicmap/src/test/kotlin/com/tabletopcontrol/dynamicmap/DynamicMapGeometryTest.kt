@@ -87,4 +87,28 @@ class DynamicMapGeometryTest {
         assertEquals(1.0, calibration.offsetX, 0.0000001)
         assertEquals(-0.5, calibration.offsetY, 0.0000001)
     }
+
+    @Test
+    fun `workspace viewport round trips canvas and world coordinates`() {
+        val viewport = DynamicMapWorkspaceViewport().apply {
+            zoomIn()
+            setPan(x = 80.0, y = -40.0)
+        }
+
+        val canvasPoint = viewport.worldToCanvas(
+            canvasWidth = 800.0,
+            canvasHeight = 600.0,
+            worldX = 450.0,
+            worldY = 325.0,
+        )
+        val worldPoint = viewport.canvasToWorld(
+            canvasWidth = 800.0,
+            canvasHeight = 600.0,
+            canvasX = canvasPoint.first,
+            canvasY = canvasPoint.second,
+        )
+
+        assertEquals(450.0, worldPoint.first, 0.0000001)
+        assertEquals(325.0, worldPoint.second, 0.0000001)
+    }
 }

@@ -37,6 +37,81 @@ enum class DynamicMapGuidedCalibrationAxis {
     VERTICAL,
 }
 
+class DynamicMapWorkspaceViewport(
+    private val zoomFactor: Double = 1.25,
+    private val minScale: Double = 0.25,
+    private val maxScale: Double = 12.0,
+    val panStep: Double = 40.0,
+) {
+    var scale: Double = 1.0
+        private set
+
+    var offsetX: Double = 0.0
+        private set
+
+    var offsetY: Double = 0.0
+        private set
+
+    fun reset() {
+        scale = 1.0
+        offsetX = 0.0
+        offsetY = 0.0
+    }
+
+    fun zoomFromScroll(deltaY: Double) {
+        val factor = if (deltaY > 0.0) zoomFactor else 1.0 / zoomFactor
+        zoomBy(factor)
+    }
+
+    fun zoomIn() {
+        zoomBy(zoomFactor)
+    }
+
+    fun zoomOut() {
+        zoomBy(1.0 / zoomFactor)
+    }
+
+    fun panBy(dx: Double = 0.0, dy: Double = 0.0) {
+        offsetX += dx
+        offsetY += dy
+    }
+
+    fun setPan(x: Double, y: Double) {
+        offsetX = x
+        offsetY = y
+    }
+
+    fun canvasToWorld(
+        canvasWidth: Double,
+        canvasHeight: Double,
+        canvasX: Double,
+        canvasY: Double,
+    ): Pair<Double, Double> {
+        val centerX = canvasWidth / 2.0
+        val centerY = canvasHeight / 2.0
+        val worldX = (canvasX - centerX - offsetX) / scale + centerX
+        val worldY = (canvasY - centerY - offsetY) / scale + centerY
+        return Pair(worldX, worldY)
+    }
+
+    fun worldToCanvas(
+        canvasWidth: Double,
+        canvasHeight: Double,
+        worldX: Double,
+        worldY: Double,
+    ): Pair<Double, Double> {
+        val centerX = canvasWidth / 2.0
+        val centerY = canvasHeight / 2.0
+        val canvasX = centerX + offsetX + scale * (worldX - centerX)
+        val canvasY = centerY + offsetY + scale * (worldY - centerY)
+        return Pair(canvasX, canvasY)
+    }
+
+    private fun zoomBy(factor: Double) {
+        scale = (scale * factor).coerceIn(minScale, maxScale)
+    }
+}
+
 fun computeEditorMetrics(
     width: Double,
     height: Double,

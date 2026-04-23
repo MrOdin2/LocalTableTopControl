@@ -63,6 +63,10 @@ Future decisions should be added here as well so the builder evolves from one co
 - Right-click near a wall or light should show builder-specific remove actions for that element.
 - Pressing `Escape` in the main builder pane should leave placement mode.
 - Quarter-grid snapping (`0.25`) remains available in the main builder pane because it affects general placement, not only one side-pane.
+- Workspace zoom and pan are view-only editor controls.
+- Zooming or panning must not change grid coordinates, snapping, draft geometry, background calibration, or saved map data.
+- Mouse hit-testing and placement must inverse-transform through the workspace viewport before converting to map/grid space.
+- Primary-drag pans when no placement tool is active; middle-drag pans at any time; mouse wheel zooms the workspace view.
 
 ### Background Texture Handling
 
@@ -72,6 +76,8 @@ Future decisions should be added here as well so the builder evolves from one co
 - Two calibration workflows are implemented:
   - direct numeric calibration
   - guided two-step calibration matching the standard Map plugin workflow
+- Manual background calibration offset rows include both small pixel nudges and one-tile arrow nudges.
+- Tile nudges move the texture by the current preview tile size and are intended for fixing whole-square alignment errors after scale is correct.
 
 ### Persistence
 
