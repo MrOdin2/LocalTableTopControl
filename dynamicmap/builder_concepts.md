@@ -56,9 +56,22 @@ Future decisions should be added here as well so the builder evolves from one co
   - clear all walls
 - Wall editing remains shared with the same main builder canvas.
 
+### Outline Workflow
+
+- The `Outline Browser` pane is the structural overview for placed builder elements.
+- It groups the current draft by element type and currently lists:
+  - lights
+  - walls
+- Selecting an outline item should highlight the same element on the main builder canvas.
+- The outline pane owns item-level management actions that are not tied to one placement tool, such as:
+  - remove selected element
+  - enable or disable a selected light
+- Future builder element types should join the outline instead of creating separate one-off management lists.
+
 ### Shared Editing Behavior
 
 - The active placement/editing tool is shared across builder panes through Dynamic Map builder events.
+- The current builder document and current element selection are shared across builder panes through Dynamic Map builder events.
 - Blank-space right-click in the builder canvas should fall through to the normal DM pane layout context menu.
 - Right-click near a wall or light should show builder-specific remove actions for that element.
 - Pressing `Escape` in the main builder pane should leave placement mode.
@@ -67,6 +80,7 @@ Future decisions should be added here as well so the builder evolves from one co
 - Zooming or panning must not change grid coordinates, snapping, draft geometry, background calibration, or saved map data.
 - Mouse hit-testing and placement must inverse-transform through the workspace viewport before converting to map/grid space.
 - Primary-drag pans when no placement tool is active; middle-drag pans at any time; mouse wheel zooms the workspace view.
+- Disabled lights should remain visible in the editor as subdued markers so the outline and canvas stay in sync when lights are toggled off.
 
 ### Background Texture Handling
 

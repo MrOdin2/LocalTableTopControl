@@ -1,3 +1,4 @@
 com.tabletopcontrol.dynamicmap.DynamicMapBuilderPlugin
+com.tabletopcontrol.dynamicmap.DynamicMapOutlineBrowserPlugin
 com.tabletopcontrol.dynamicmap.DynamicMapLightBrowserPlugin
 com.tabletopcontrol.dynamicmap.DynamicMapWallToolsPlugin

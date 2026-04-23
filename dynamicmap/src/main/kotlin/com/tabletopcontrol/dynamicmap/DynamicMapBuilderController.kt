@@ -18,6 +18,22 @@ class DynamicMapBuilderController {
     private val clearLightsSubscription = EventBus.subscribe<DynamicMapClearLightsRequestedEvent> {
         clearLights()
     }
+    private val snapshotSubscription = EventBus.subscribe<DynamicMapDocumentSnapshotRequestedEvent> {
+        publishDocumentChanged()
+    }
+    private val removalSubscription = EventBus.subscribe<DynamicMapElementRemovalRequestedEvent> { event ->
+        when (event.selection.kind) {
+            DynamicMapElementKind.WALL -> removeWall(event.selection.elementId)
+            DynamicMapElementKind.LIGHT -> removeLight(event.selection.elementId)
+        }
+    }
+    private val lightEnabledSubscription = EventBus.subscribe<DynamicMapLightEnabledRequestedEvent> { event ->
+        setLightEnabled(event.lightId, event.enabled)
+    }
+
+    init {
+        publishDocumentChanged()
+    }
 
     fun currentDocument(): DynamicMapDocument = document
 
@@ -121,6 +137,20 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(lights = it.lights.filterNot { light -> light.id == id }) }
     }
 
+    fun setLightEnabled(id: String, enabled: Boolean) {
+        updateDocument { current ->
+            current.copy(
+                lights = current.lights.map { light ->
+                    if (light.id == id) {
+                        light.copy(enabled = enabled)
+                    } else {
+                        light
+                    }
+                },
+            )
+        }
+    }
+
     fun clearLights() {
         updateDocument { it.copy(lights = emptyList()) }
     }
@@ -129,6 +159,9 @@ class DynamicMapBuilderController {
         presetSubscription.unsubscribe()
         clearWallsSubscription.unsubscribe()
         clearLightsSubscription.unsubscribe()
+        snapshotSubscription.unsubscribe()
+        removalSubscription.unsubscribe()
+        lightEnabledSubscription.unsubscribe()
     }
 
     private fun setSelectedPreset(preset: DynamicMapLightPreset) {
@@ -143,5 +176,10 @@ class DynamicMapBuilderController {
         document = updated
         DynamicMapDraftSerializer.save(document)
         documentListeners.toList().forEach { it(document) }
+        publishDocumentChanged()
+    }
+
+    private fun publishDocumentChanged() {
+        EventBus.publish(DynamicMapDocumentChangedEvent(document))
     }
 }

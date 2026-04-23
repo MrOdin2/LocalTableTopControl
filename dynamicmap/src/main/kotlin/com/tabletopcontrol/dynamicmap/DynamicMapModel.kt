@@ -27,6 +27,11 @@ enum class DynamicMapLayer {
     GRID,
 }
 
+enum class DynamicMapElementKind {
+    WALL,
+    LIGHT,
+}
+
 enum class DynamicMapTool {
     WALL_LINE,
     WALL_RECT,
@@ -62,6 +67,23 @@ data class DynamicMapLightPreset(
     val colorHex: String,
     val description: String,
 )
+
+data class DynamicMapElementSelection(
+    val kind: DynamicMapElementKind,
+    val elementId: String,
+)
+
+fun DynamicMapDocument.containsSelection(selection: DynamicMapElementSelection): Boolean =
+    when (selection.kind) {
+        DynamicMapElementKind.WALL -> walls.any { it.id == selection.elementId }
+        DynamicMapElementKind.LIGHT -> lights.any { it.id == selection.elementId }
+    }
+
+fun DynamicMapDocument.wallById(id: String): DynamicMapWall? =
+    walls.firstOrNull { it.id == id }
+
+fun DynamicMapDocument.lightById(id: String): DynamicMapLight? =
+    lights.firstOrNull { it.id == id }
 
 object DynamicMapLightPresets {
     val presets: List<DynamicMapLightPreset> = listOf(

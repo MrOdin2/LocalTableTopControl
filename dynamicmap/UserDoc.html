@@ -121,6 +121,7 @@
         <li><a href="#calibration">Texture Calibration</a></li>
         <li><a href="#walls">Wall Tools</a></li>
         <li><a href="#lights">Light Browser</a></li>
+        <li><a href="#outline">Outline Browser</a></li>
         <li><a href="#draft">Draft Autosave</a></li>
       </ul>
     </div>
@@ -177,7 +178,8 @@
       </p>
       <div class="tip">
         The main builder pane is intentionally lean. Use the supporting builder panes such as
-        <strong>Wall Tools</strong> and <strong>Light Browser</strong> to change placement modes.
+        <strong>Wall Tools</strong>, <strong>Light Browser</strong>, and
+        <strong>Outline Browser</strong> to manage the shared builder workflow.
       </div>
       <p>
         The layer toggles let you temporarily hide the background texture, walls, lights, or grid while
@@ -263,6 +265,30 @@
         Every newly placed light uses that selected range and colour until you choose another preset.
         The Light Browser also lets you stop placement mode or clear all lights without going back to
         the main builder pane.
+      </p>
+    </section>
+
+    <section id="outline">
+      <h2>Outline Browser</h2>
+      <p>
+        Open another pane with <strong>Outline Browser</strong> for a Blender-style overview of the
+        current draft. It groups all placed <strong>lights</strong> and <strong>walls</strong> into
+        one browser so you can inspect the whole structure without hunting across the canvas.
+      </p>
+      <table>
+        <tr><th>Outline Browser action</th><th>What it does</th></tr>
+        <tr><td>Select an item</td><td>Highlights that wall or light in the main builder canvas.</td></tr>
+        <tr><td>Remove Selected</td><td>Deletes the currently selected wall or light.</td></tr>
+        <tr><td>Disable / Enable Light</td><td>Turns the selected light source off or back on without deleting it.</td></tr>
+        <tr><td>Clear Selection</td><td>Leaves the outline item list intact but removes the current highlight.</td></tr>
+      </table>
+      <p>
+        Disabled lights stay in the outline and appear as subdued markers in the builder canvas, so
+        you can still keep track of them and switch them back on later.
+      </p>
+      <p>
+        As new Dynamic Map Builder element types are added in future updates, they are expected to
+        appear in this outline pane as well.
       </p>
     </section>
 

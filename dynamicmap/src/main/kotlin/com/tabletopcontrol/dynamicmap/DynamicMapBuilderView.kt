@@ -50,6 +50,7 @@ class DynamicMapBuilderView(
     private var panDragStartY: Double = 0.0
     private var panDragStartOffsetX: Double = 0.0
     private var panDragStartOffsetY: Double = 0.0
+    private var selectedElement: DynamicMapElementSelection? = null
     private val viewport = DynamicMapWorkspaceViewport()
 
     private val canvas = Canvas(1.0, 1.0)
@@ -317,6 +318,9 @@ class DynamicMapBuilderView(
         val disposers = mutableListOf<() -> Unit>()
         disposers += controller.observeDocument { updated ->
             document = updated
+            if (selectedElement?.let { !updated.containsSelection(it) } == true) {
+                EventBus.publish(DynamicMapSelectionChangedEvent(null))
+            }
             pathField.text = updated.backgroundDisplayPath.orEmpty()
             colsField.text = updated.cols.toString()
             rowsField.text = updated.rows.toString()
@@ -342,6 +346,12 @@ class DynamicMapBuilderView(
             updateStatus(null)
         }
         disposers += { toolSubscription.unsubscribe() }
+        val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
+            selectedElement = event.selection?.takeIf { document.containsSelection(it) }
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { selectionSubscription.unsubscribe() }
         val themeSubscription = EventBus.subscribe<ThemeChangedEvent> {
             redraw()
         }
@@ -429,6 +439,15 @@ class DynamicMapBuilderView(
         val actions = mutableListOf<MenuAction>()
         val chosenLight = nearestLight?.takeIf { nearestWall == null || it.second <= nearestWall.second }?.first
         val chosenWall = nearestWall?.takeIf { nearestLight == null || it.second < nearestLight.second }?.first
+        val chosenSelection = when {
+            chosenLight != null -> DynamicMapElementSelection(DynamicMapElementKind.LIGHT, chosenLight.id)
+            chosenWall != null -> DynamicMapElementSelection(DynamicMapElementKind.WALL, chosenWall.id)
+            else -> null
+        }
+
+        chosenSelection?.let {
+            EventBus.publish(DynamicMapSelectionChangedEvent(it))
+        }
 
         if (chosenLight != null) {
             actions += MenuAction(
@@ -506,9 +525,10 @@ class DynamicMapBuilderView(
                     metrics.originY + wall.end.y * metrics.cellSize,
                 )
             }
+            drawSelectedWallHighlight(gc, metrics, accentColor)
         }
         if (document.visibility.lights) {
-            drawLightMarkers(gc, metrics)
+            drawLightMarkers(gc, metrics, borderColor, accentColor)
         }
 
         if (dragStart != null && dragCurrent != null) {
@@ -585,19 +605,82 @@ class DynamicMapBuilderView(
     private fun drawLightMarkers(
         gc: javafx.scene.canvas.GraphicsContext,
         metrics: DynamicMapEditorMetrics,
+        borderColor: Color,
+        accentColor: Color,
     ) {
-        document.lights.filter { it.enabled }.forEach { light ->
+        document.lights.forEach { light ->
             val color = ColorHexCodec.hexToColor(light.colorHex)
             val centerX = metrics.originX + light.position.x * metrics.cellSize
             val centerY = metrics.originY + light.position.y * metrics.cellSize
             val radius = (metrics.cellSize * 0.18).coerceAtLeast(4.0)
+            val markerColor = if (light.enabled) {
+                color
+            } else {
+                color.deriveColor(0.0, 0.2, 1.0, 0.45)
+            }
 
-            gc.fill = color
+            gc.fill = markerColor
             gc.fillOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
-            gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.7)
+            gc.stroke = if (light.enabled) {
+                Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.7)
+            } else {
+                borderColor.deriveColor(0.0, 1.0, 1.0, 0.9)
+            }
             gc.lineWidth = 1.0
+            if (!light.enabled) {
+                gc.setLineDashes(4.0, 4.0)
+            }
             gc.strokeOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
+            gc.setLineDashes()
+
+            val isSelected =
+                selectedElement?.kind == DynamicMapElementKind.LIGHT &&
+                    selectedElement?.elementId == light.id
+            if (isSelected) {
+                val highlightRadius = radius + 4.0
+                gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.8)
+                gc.lineWidth = 2.5
+                gc.strokeOval(
+                    centerX - highlightRadius,
+                    centerY - highlightRadius,
+                    highlightRadius * 2.0,
+                    highlightRadius * 2.0,
+                )
+                gc.stroke = accentColor
+                gc.lineWidth = 1.5
+                gc.strokeOval(
+                    centerX - highlightRadius - 2.0,
+                    centerY - highlightRadius - 2.0,
+                    (highlightRadius + 2.0) * 2.0,
+                    (highlightRadius + 2.0) * 2.0,
+                )
+            }
         }
+    }
+
+    private fun drawSelectedWallHighlight(
+        gc: javafx.scene.canvas.GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        accentColor: Color,
+    ) {
+        val selectedWall = selectedElement
+            ?.takeIf { it.kind == DynamicMapElementKind.WALL }
+            ?.let { document.wallById(it.elementId) }
+            ?: return
+
+        val startX = metrics.originX + selectedWall.start.x * metrics.cellSize
+        val startY = metrics.originY + selectedWall.start.y * metrics.cellSize
+        val endX = metrics.originX + selectedWall.end.x * metrics.cellSize
+        val endY = metrics.originY + selectedWall.end.y * metrics.cellSize
+        val baseWidth = (metrics.cellSize * 0.12).coerceAtLeast(2.0)
+
+        gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+        gc.lineWidth = baseWidth * 2.0
+        gc.strokeLine(startX, startY, endX, endY)
+
+        gc.stroke = accentColor
+        gc.lineWidth = baseWidth * 1.2
+        gc.strokeLine(startX, startY, endX, endY)
     }
 
     private fun resolveBackgroundImage(): Image? {
