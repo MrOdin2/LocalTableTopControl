@@ -1,5 +1,7 @@
 package com.tabletopcontrol.dynamicmap
 
+import java.io.File
+
 /**
  * Published when the light browser chooses the preset to use for newly placed lights.
  */
@@ -70,6 +72,62 @@ data class DynamicMapGroupRenameRequestedEvent(
  * Published when the outline pane removes grouping metadata without deleting the grouped elements.
  */
 data class DynamicMapGroupRemovalRequestedEvent(val groupIds: Set<String>)
+
+/**
+ * Published when a builder pane needs the current construction-site list and active site.
+ */
+data object DynamicMapConstructionSiteSnapshotRequestedEvent
+
+/**
+ * Published whenever the available construction sites or active site changes.
+ */
+data class DynamicMapConstructionSiteStateChangedEvent(
+    val sites: List<DynamicMapConstructionSiteSummary>,
+    val activeSite: DynamicMapConstructionSiteSummary?,
+)
+
+/**
+ * Published when the construction-site toolbar creates a new empty builder scene.
+ */
+data class DynamicMapConstructionSiteCreateRequestedEvent(val name: String)
+
+/**
+ * Published when the construction-site toolbar saves the current document as a new site.
+ */
+data class DynamicMapConstructionSiteSaveAsRequestedEvent(val name: String)
+
+/**
+ * Published when the construction-site toolbar saves the current document to the active site.
+ */
+data object DynamicMapConstructionSiteSaveRequestedEvent
+
+/**
+ * Published when the construction-site toolbar loads a saved builder scene.
+ */
+data class DynamicMapConstructionSiteLoadRequestedEvent(val siteId: String)
+
+/**
+ * Published when the construction-site toolbar deletes a saved builder scene file.
+ */
+data class DynamicMapConstructionSiteDeleteRequestedEvent(val siteId: String)
+
+/**
+ * Published when the construction-site toolbar exports the current builder document for gameplay.
+ */
+data class DynamicMapGameplayExportRequestedEvent(val targetFile: File)
+
+/**
+ * Published after a gameplay export completes.
+ */
+data class DynamicMapGameplayExportCompletedEvent(val summary: DynamicMapGameplayExportSummary)
+
+/**
+ * Published when a gameplay export fails.
+ */
+data class DynamicMapGameplayExportFailedEvent(
+    val targetFile: File,
+    val message: String,
+)
 
 /**
  * Published when a builder pane turns a light on or off.

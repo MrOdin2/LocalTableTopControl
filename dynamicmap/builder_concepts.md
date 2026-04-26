@@ -78,6 +78,41 @@ Future decisions should be added here as well so the builder evolves from one co
 - Groups are saved in the internal builder draft and are pruned automatically when their linked elements are deleted.
 - Future builder element types should join the outline instead of creating separate one-off management lists.
 
+### Construction Site Workflow
+
+- Builder scenes are called `Construction Sites`.
+- Construction-site controls live in the top-level DM toolbar and are only visible while the `Dynamic Map Builder` workspace is active.
+- The construction-site toolbar owns named builder-scene lifecycle actions:
+  - create a new empty construction site
+  - save the current builder document as a new construction site
+  - save the current active construction site
+  - load an existing construction site
+  - delete a saved construction-site file
+  - export the current builder document as a gameplay bundle
+- Choosing a construction site in the toolbar selector loads it.
+- Loading a construction site replaces the current builder document and clears the shared element selection.
+- Editing an active construction site autosaves back to its folder-backed file so the existing persistence workflow remains low-friction.
+- The previous single draft file remains a scratch/legacy fallback when no construction site is active.
+
+### Gameplay Export
+
+- Gameplay export is triggered from the same top-level toolbar row as the construction-site controls.
+- Export writes a `.dynamicmap` zip-backed bundle rather than another editable construction-site file.
+- The first gameplay export format contains only runtime-relevant map data:
+  - map dimensions
+  - bundled background texture when the source image is available
+  - background calibration
+  - wall geometry
+  - light geometry, ranges, colour, and enabled state
+- Export deliberately strips editor-only metadata:
+  - construction-site name
+  - wall and light labels
+  - element ids
+  - outline groups
+  - editor layer visibility
+- Bundled background textures use a generic path such as `background/background.png` so source filenames and local paths are not leaked into the gameplay bundle.
+- Importing gameplay bundles back into the builder is still future work.
+
 ### Shared Editing Behavior
 
 - The active placement/editing tool is shared across builder panes through Dynamic Map builder events.
@@ -113,9 +148,11 @@ Future decisions should be added here as well so the builder evolves from one co
 
 ### Persistence
 
-- The builder keeps an internal autosave draft in `~/.tabletopcontrol/dynamic-map-builder-draft.properties`.
-- That autosave format is intentionally internal and separate from the future public import/export format.
-- Public Dynamic Map import/export is still undecided and should be documented here once the format is agreed.
+- Named construction sites are stored as internal builder-scene files in `~/.tabletopcontrol/dynamic-map-construction-sites/`.
+- The active construction site is tracked in `~/.tabletopcontrol/dynamic-map-builder-active-site.properties`.
+- The builder still keeps a scratch/legacy autosave draft in `~/.tabletopcontrol/dynamic-map-builder-draft.properties` when no named construction site is active.
+- The construction-site format is intentionally internal and separate from the gameplay export bundle.
+- Public Dynamic Map import is still undecided and should be documented here once the format is agreed.
 
 ## Future Work Notes
 

@@ -9,6 +9,7 @@ import javafx.scene.Node
  * - [displayName]: human-readable name shown in pane pickers.
  * - [iconPath]: optional classpath resource path to a 24x24 icon.
  * - [workspaceIds]: the DM workspaces in which the plugin can appear.
+ * - [createToolbarView]: optional top-level toolbar content for a workspace.
  * - [createView]: factory for the JavaFX [Node] placed in the DM panel.
  *
  * Plugins must communicate exclusively through [EventBus] and must never
@@ -40,6 +41,15 @@ interface DmPlugin {
      * fresh node on each invocation.
      */
     fun createView(): Node
+
+    /**
+     * Creates and returns optional JavaFX content for the top-level DM toolbar while [workspace]
+     * is active, or `null` if the plugin has no toolbar contribution for that workspace.
+     *
+     * This is intended for workspace-level controls, not regular pane tools. Implementations must
+     * still communicate through [EventBus] rather than directly coupling to other plugins.
+     */
+    fun createToolbarView(workspace: DmWorkspaceId): Node? = null
 
     /**
      * Creates and returns the JavaFX [Node] that this plugin contributes to the table

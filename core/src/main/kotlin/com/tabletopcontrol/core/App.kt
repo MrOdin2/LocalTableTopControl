@@ -194,6 +194,21 @@ class App : Application() {
             setOnAction { HelpManager.openHelp(hostServices) }
         }
 
+        val workspaceToolbarBox = HBox(6.0)
+        val workspaceToolbarSeparator = Separator(Orientation.VERTICAL)
+        fun updateWorkspaceToolbar(workspace: DmWorkspaceId?) {
+            val toolbarViews = if (workspace == null) {
+                emptyList()
+            } else {
+                toolbarViewsForWorkspace(plugins, workspace)
+            }
+            workspaceToolbarBox.children.setAll(toolbarViews)
+            workspaceToolbarBox.isVisible = toolbarViews.isNotEmpty()
+            workspaceToolbarBox.isManaged = toolbarViews.isNotEmpty()
+            workspaceToolbarSeparator.isVisible = toolbarViews.isNotEmpty()
+            workspaceToolbarSeparator.isManaged = toolbarViews.isNotEmpty()
+        }
+
         val workspaceCombo = ComboBox<DmWorkspaceId>().apply {
             items.addAll(workspaces)
             converter = object : StringConverter<DmWorkspaceId>() {
@@ -204,6 +219,7 @@ class App : Application() {
             selectionModel.selectedItemProperty().addListener { _, _, workspace ->
                 if (workspace != null) {
                     switchWorkspace(dmRoot, plugins, workspace)
+                    updateWorkspaceToolbar(workspace)
                 }
             }
             selectionModel.select(workspaces.first())
@@ -219,6 +235,8 @@ class App : Application() {
             Separator(Orientation.VERTICAL),
             workspaceLabel,
             workspaceCombo,
+            workspaceToolbarSeparator,
+            workspaceToolbarBox,
             spacer,
             screenLabel,
             screenCombo,
@@ -474,3 +492,11 @@ private fun scalePercent(outputScale: Double): Int {
     val safeScale = if (outputScale.isFinite() && outputScale > 0.0) outputScale else 1.0
     return (safeScale * 100.0).roundToInt()
 }
+
+internal fun toolbarViewsForWorkspace(
+    plugins: List<DmPlugin>,
+    workspace: DmWorkspaceId,
+): List<javafx.scene.Node> =
+    plugins
+        .filter { workspace in it.workspaceIds }
+        .mapNotNull { it.createToolbarView(workspace) }

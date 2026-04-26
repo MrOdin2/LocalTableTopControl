@@ -122,7 +122,8 @@
         <li><a href="#walls">Wall Tools</a></li>
         <li><a href="#lights">Light Browser</a></li>
         <li><a href="#outline">Outline Browser</a></li>
-        <li><a href="#draft">Draft Autosave</a></li>
+        <li><a href="#sites">Construction Sites</a></li>
+        <li><a href="#persistence">Builder Persistence</a></li>
       </ul>
     </div>
   </aside>
@@ -149,6 +150,11 @@
       <p>
         The builder layout is saved independently from your regular session layout, so you can keep a
         focused editing setup without disturbing the main DM workspace.
+      </p>
+      <p>
+        While the Dynamic Map Builder workspace is active, the top DM toolbar also shows the
+        construction-site selector, save controls, and gameplay export button. These controls
+        disappear again when you switch back to the regular Session workspace.
       </p>
       <table>
         <tr><th>Workspace</th><th>Saved layout file</th></tr>
@@ -178,9 +184,9 @@
         snap setting is also used when moving selected walls or lights.
       </p>
       <div class="tip">
-        The main builder pane is intentionally lean. Use the supporting builder panes such as
-        <strong>Wall Tools</strong>, <strong>Light Browser</strong>, and
-        <strong>Outline Browser</strong> to manage the shared builder workflow.
+        The main builder pane is intentionally lean. Use the builder toolbar for construction-site
+        loading and saving, and supporting builder panes such as <strong>Wall Tools</strong>,
+        <strong>Light Browser</strong>, and <strong>Outline Browser</strong> for editing workflows.
       </div>
       <p>
         The layer toggles let you temporarily hide the background texture, walls, lights, or grid while
@@ -321,19 +327,56 @@
       </p>
     </section>
 
-    <section id="draft">
-      <h2>Draft Autosave</h2>
+    <section id="sites">
+      <h2>Construction Sites</h2>
       <p>
-        The builder automatically keeps a local draft of your current work so you can close the app and
-        continue later.
+        Use the <strong>Site</strong> controls in the top DM toolbar to manage named builder scenes.
+        These controls are visible only while the <strong>Dynamic Map Builder</strong> workspace is
+        selected. A construction site is a saved Dynamic Map Builder work-in-progress that can be
+        loaded later.
+      </p>
+      <table>
+        <tr><th>Toolbar action</th><th>What it does</th></tr>
+        <tr><td>Site selector</td><td>Shows saved construction sites. Choosing one loads it into the builder.</td></tr>
+        <tr><td>New...</td><td>Creates a new empty construction site and makes it active.</td></tr>
+        <tr><td>Save</td><td>Saves the current builder document to the active construction site.</td></tr>
+        <tr><td>Save As...</td><td>Saves the current builder document under a new construction-site name.</td></tr>
+        <tr><td>Delete</td><td>Deletes the selected saved construction-site file after confirmation.</td></tr>
+        <tr><td>Export...</td><td>Writes the current builder document as a gameplay-ready Dynamic Map bundle.</td></tr>
+      </table>
+      <p>
+        When a construction site is active, builder edits autosave back to that site so you can close
+        the app and continue later. Loading another construction site clears the current outline
+        selection and shows the loaded walls, lights, groups, and texture calibration.
       </p>
       <p>
-        The draft autosave is stored in
+        <strong>Export...</strong> creates a <code>.dynamicmap</code> bundle for gameplay use. The
+        bundle includes the map size, background texture when the source image is available, texture
+        calibration, walls, and lights. It leaves out builder-only details such as construction-site
+        names, wall and light labels, element ids, outline groups, and temporary layer visibility.
+      </p>
+    </section>
+
+    <section id="persistence">
+      <h2>Builder Persistence</h2>
+      <p>
+        Named construction sites are stored in
+        <code>~/.tabletopcontrol/dynamic-map-construction-sites/</code>.
+        The currently active site is remembered in
+        <code>~/.tabletopcontrol/dynamic-map-builder-active-site.properties</code>.
+      </p>
+      <p>
+        If no named construction site is active, the builder still keeps a scratch autosave draft in
         <code>~/.tabletopcontrol/dynamic-map-builder-draft.properties</code>.
       </p>
+      <p>
+        Use <strong>Export...</strong> in the builder toolbar when you want a gameplay bundle. The
+        editable construction-site files stay separate from exported <code>.dynamicmap</code> bundles,
+        so you can keep your working notes and groups in the builder without exposing them during play.
+      </p>
       <div class="warning">
-        Import and export for final Dynamic Map files are still being designed. The draft autosave is an
-        internal working format for the builder, not the long-term exchange format.
+        Gameplay bundle import is still future work. Construction sites remain the editable working
+        format for the builder.
       </div>
     </section>
   </main>

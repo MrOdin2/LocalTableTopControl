@@ -13,6 +13,13 @@ class DynamicMapBuilderPlugin : DmPlugin {
 
     override fun createView(): Node = DynamicMapBuilderView(controller).root
 
+    override fun createToolbarView(workspace: DmWorkspaceId): Node? =
+        if (workspace == DmWorkspaceId.DYNAMIC_MAP_BUILDER) {
+            DynamicMapConstructionSiteToolbar().createView()
+        } else {
+            null
+        }
+
     override fun onShutdown() {
         controller.onShutdown()
     }

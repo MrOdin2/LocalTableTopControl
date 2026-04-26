@@ -3,7 +3,9 @@ package com.tabletopcontrol.dynamicmap
 import com.tabletopcontrol.core.EventBus
 
 class DynamicMapBuilderController {
-    private var document: DynamicMapDocument = DynamicMapDraftSerializer.load()
+    private val constructionSiteStore = DynamicMapConstructionSiteStore()
+    private var activeConstructionSite: DynamicMapConstructionSiteSummary? = null
+    private var document: DynamicMapDocument = loadInitialDocument()
     private var selectedPreset: DynamicMapLightPreset = DynamicMapLightPresets.defaultPreset
 
     private val documentListeners = mutableListOf<(DynamicMapDocument) -> Unit>()
@@ -42,9 +44,38 @@ class DynamicMapBuilderController {
     private val groupRemovalSubscription = EventBus.subscribe<DynamicMapGroupRemovalRequestedEvent> { event ->
         removeGroups(event.groupIds)
     }
+    private val constructionSiteSnapshotSubscription =
+        EventBus.subscribe<DynamicMapConstructionSiteSnapshotRequestedEvent> {
+            publishConstructionSiteStateChanged()
+        }
+    private val constructionSiteCreateSubscription =
+        EventBus.subscribe<DynamicMapConstructionSiteCreateRequestedEvent> { event ->
+            createConstructionSite(event.name)
+        }
+    private val constructionSiteSaveAsSubscription =
+        EventBus.subscribe<DynamicMapConstructionSiteSaveAsRequestedEvent> { event ->
+            saveCurrentConstructionSiteAs(event.name)
+        }
+    private val constructionSiteSaveSubscription =
+        EventBus.subscribe<DynamicMapConstructionSiteSaveRequestedEvent> {
+            saveCurrentConstructionSite()
+        }
+    private val constructionSiteLoadSubscription =
+        EventBus.subscribe<DynamicMapConstructionSiteLoadRequestedEvent> { event ->
+            loadConstructionSite(event.siteId)
+        }
+    private val constructionSiteDeleteSubscription =
+        EventBus.subscribe<DynamicMapConstructionSiteDeleteRequestedEvent> { event ->
+            deleteConstructionSite(event.siteId)
+        }
+    private val gameplayExportSubscription =
+        EventBus.subscribe<DynamicMapGameplayExportRequestedEvent> { event ->
+            exportGameplayBundle(event.targetFile)
+        }
 
     init {
         publishDocumentChanged()
+        publishConstructionSiteStateChanged()
     }
 
     fun currentDocument(): DynamicMapDocument = document
@@ -226,6 +257,55 @@ class DynamicMapBuilderController {
         }
     }
 
+    fun createConstructionSite(name: String) {
+        val emptyDocument = DynamicMapDocument()
+        val site = constructionSiteStore.createSite(name, emptyDocument) ?: return
+        replaceDocument(
+            updated = emptyDocument,
+            constructionSite = site,
+            clearSelection = true,
+        )
+    }
+
+    fun saveCurrentConstructionSite() {
+        val activeSite = activeConstructionSite ?: return
+        val savedSite = constructionSiteStore.saveSite(
+            id = activeSite.id,
+            name = activeSite.name,
+            document = document,
+        ) ?: return
+        activeConstructionSite = savedSite
+        constructionSiteStore.saveActiveSite(savedSite)
+        publishConstructionSiteStateChanged()
+    }
+
+    fun saveCurrentConstructionSiteAs(name: String) {
+        val site = constructionSiteStore.createSite(name, document) ?: return
+        activeConstructionSite = site
+        constructionSiteStore.saveActiveSite(site)
+        publishConstructionSiteStateChanged()
+    }
+
+    fun loadConstructionSite(siteId: String) {
+        val site = constructionSiteStore.summaryForId(siteId) ?: return
+        val loadedDocument = constructionSiteStore.loadSite(site.id) ?: return
+        replaceDocument(
+            updated = loadedDocument,
+            constructionSite = site,
+            clearSelection = true,
+        )
+    }
+
+    fun deleteConstructionSite(siteId: String) {
+        constructionSiteStore.deleteSite(siteId)
+        if (activeConstructionSite?.id == siteId) {
+            activeConstructionSite = null
+            constructionSiteStore.saveActiveSite(null)
+            persistCurrentDocument()
+        }
+        publishConstructionSiteStateChanged()
+    }
+
     fun onShutdown() {
         presetSubscription.unsubscribe()
         clearWallsSubscription.unsubscribe()
@@ -237,6 +317,24 @@ class DynamicMapBuilderController {
         groupCreationSubscription.unsubscribe()
         groupRenameSubscription.unsubscribe()
         groupRemovalSubscription.unsubscribe()
+        constructionSiteSnapshotSubscription.unsubscribe()
+        constructionSiteCreateSubscription.unsubscribe()
+        constructionSiteSaveAsSubscription.unsubscribe()
+        constructionSiteSaveSubscription.unsubscribe()
+        constructionSiteLoadSubscription.unsubscribe()
+        constructionSiteDeleteSubscription.unsubscribe()
+        gameplayExportSubscription.unsubscribe()
+    }
+
+    private fun loadInitialDocument(): DynamicMapDocument {
+        val activeSite = constructionSiteStore.loadActiveSite()
+        val activeDocument = activeSite?.let { constructionSiteStore.loadSite(it.id) }
+        if (activeSite != null && activeDocument != null) {
+            activeConstructionSite = activeSite
+            return activeDocument.pruneInvalidGroups()
+        }
+        constructionSiteStore.saveActiveSite(null)
+        return DynamicMapDraftSerializer.load()
     }
 
     private fun setSelectedPreset(preset: DynamicMapLightPreset) {
@@ -249,13 +347,73 @@ class DynamicMapBuilderController {
         val updated = transform(document).pruneInvalidGroups()
         if (updated == document) return
         document = updated
-        DynamicMapDraftSerializer.save(document)
+        persistCurrentDocument()
         documentListeners.toList().forEach { it(document) }
         publishDocumentChanged()
+        publishConstructionSiteStateChanged()
+    }
+
+    private fun replaceDocument(
+        updated: DynamicMapDocument,
+        constructionSite: DynamicMapConstructionSiteSummary?,
+        clearSelection: Boolean,
+    ) {
+        document = updated.pruneInvalidGroups()
+        activeConstructionSite = constructionSite
+        constructionSiteStore.saveActiveSite(constructionSite)
+        documentListeners.toList().forEach { it(document) }
+        publishDocumentChanged()
+        publishConstructionSiteStateChanged()
+        if (clearSelection) {
+            EventBus.publish(DynamicMapSelectionChangedEvent(emptySet()))
+        }
+    }
+
+    private fun persistCurrentDocument() {
+        val activeSite = activeConstructionSite
+        if (activeSite == null) {
+            DynamicMapDraftSerializer.save(document)
+            return
+        }
+        val savedSite = constructionSiteStore.saveSite(
+            id = activeSite.id,
+            name = activeSite.name,
+            document = document,
+        )
+        if (savedSite != null) {
+            activeConstructionSite = savedSite
+            constructionSiteStore.saveActiveSite(savedSite)
+        }
+    }
+
+    private fun exportGameplayBundle(targetFile: java.io.File) {
+        DynamicMapGameplayExporter.export(document, targetFile)
+            .fold(
+                onSuccess = { summary ->
+                    EventBus.publish(DynamicMapGameplayExportCompletedEvent(summary))
+                },
+                onFailure = { error ->
+                    EventBus.publish(
+                        DynamicMapGameplayExportFailedEvent(
+                            targetFile = targetFile,
+                            message = error.message ?: "The map could not be exported.",
+                        ),
+                    )
+                },
+            )
     }
 
     private fun publishDocumentChanged() {
         EventBus.publish(DynamicMapDocumentChangedEvent(document))
+    }
+
+    private fun publishConstructionSiteStateChanged() {
+        EventBus.publish(
+            DynamicMapConstructionSiteStateChangedEvent(
+                sites = constructionSiteStore.listSites(),
+                activeSite = activeConstructionSite,
+            ),
+        )
     }
 }
 
