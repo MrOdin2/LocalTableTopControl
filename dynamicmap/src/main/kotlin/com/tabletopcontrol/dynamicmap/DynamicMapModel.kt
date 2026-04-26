@@ -46,6 +46,7 @@ data class DynamicMapPoint(
 
 data class DynamicMapWall(
     val id: String = UUID.randomUUID().toString(),
+    val label: String = "Wall",
     val start: DynamicMapPoint,
     val end: DynamicMapPoint,
 )

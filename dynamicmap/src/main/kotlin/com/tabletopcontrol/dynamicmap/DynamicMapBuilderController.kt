@@ -30,8 +30,14 @@ class DynamicMapBuilderController {
     private val lightEnabledSubscription = EventBus.subscribe<DynamicMapLightEnabledRequestedEvent> { event ->
         setLightEnabled(event.lightId, event.enabled)
     }
+    private val elementRenameSubscription = EventBus.subscribe<DynamicMapElementRenameRequestedEvent> { event ->
+        renameElement(event.selection, event.label)
+    }
     private val groupCreationSubscription = EventBus.subscribe<DynamicMapGroupCreationRequestedEvent> { event ->
         createGroup(event.selections)
+    }
+    private val groupRenameSubscription = EventBus.subscribe<DynamicMapGroupRenameRequestedEvent> { event ->
+        renameGroup(event.groupId, event.label)
     }
     private val groupRemovalSubscription = EventBus.subscribe<DynamicMapGroupRemovalRequestedEvent> { event ->
         removeGroups(event.groupIds)
@@ -168,6 +174,24 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(lights = emptyList()) }
     }
 
+    fun renameElement(selection: DynamicMapElementSelection, label: String) {
+        val cleanedLabel = cleanBuilderLabel(label) ?: return
+        updateDocument { current ->
+            when (selection.kind) {
+                DynamicMapElementKind.WALL -> current.copy(
+                    walls = current.walls.map { wall ->
+                        if (wall.id == selection.elementId) wall.copy(label = cleanedLabel) else wall
+                    },
+                )
+                DynamicMapElementKind.LIGHT -> current.copy(
+                    lights = current.lights.map { light ->
+                        if (light.id == selection.elementId) light.copy(label = cleanedLabel) else light
+                    },
+                )
+            }
+        }
+    }
+
     fun createGroup(selections: Set<DynamicMapElementSelection>) {
         updateDocument { current ->
             val elements = current.filterExistingSelections(selections)
@@ -181,6 +205,17 @@ class DynamicMapBuilderController {
                     ),
                 )
             }
+        }
+    }
+
+    fun renameGroup(groupId: String, label: String) {
+        val cleanedLabel = cleanBuilderLabel(label) ?: return
+        updateDocument { current ->
+            current.copy(
+                groups = current.groups.map { group ->
+                    if (group.id == groupId) group.copy(label = cleanedLabel) else group
+                },
+            )
         }
     }
 
@@ -198,7 +233,9 @@ class DynamicMapBuilderController {
         snapshotSubscription.unsubscribe()
         removalSubscription.unsubscribe()
         lightEnabledSubscription.unsubscribe()
+        elementRenameSubscription.unsubscribe()
         groupCreationSubscription.unsubscribe()
+        groupRenameSubscription.unsubscribe()
         groupRemovalSubscription.unsubscribe()
     }
 
@@ -221,6 +258,9 @@ class DynamicMapBuilderController {
         EventBus.publish(DynamicMapDocumentChangedEvent(document))
     }
 }
+
+private fun cleanBuilderLabel(label: String): String? =
+    label.trim().takeIf { it.isNotEmpty() }?.take(80)
 
 private fun nextGroupLabel(groups: List<DynamicMapElementGroup>): String {
     val usedLabels = groups.mapTo(mutableSetOf()) { it.label }

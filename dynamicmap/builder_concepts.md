@@ -70,6 +70,8 @@ Future decisions should be added here as well so the builder evolves from one co
 - Grouping actions live in the outline right-click menu to keep the pane uncluttered:
   - create a group from the current element selection
   - remove group metadata without deleting grouped elements
+- Group and element naming also lives in the outline right-click menu.
+- Walls, lights, and groups all carry persisted labels in the internal builder draft.
 - The outline pane owns item-level management actions that are not tied to one placement tool, such as:
   - remove selected elements
   - enable or disable a selected light

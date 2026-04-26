@@ -36,6 +36,7 @@ object DynamicMapDraftSerializer {
         document.walls.forEachIndexed { index, wall ->
             val prefix = "wall.$index"
             props.setProperty("$prefix.id", wall.id)
+            props.setProperty("$prefix.label", wall.label)
             props.setProperty("$prefix.startX", wall.start.x.toString())
             props.setProperty("$prefix.startY", wall.start.y.toString())
             props.setProperty("$prefix.endX", wall.end.x.toString())
@@ -103,6 +104,7 @@ object DynamicMapDraftSerializer {
                     add(
                         DynamicMapWall(
                             id = props.getProperty("$prefix.id") ?: "wall-$index",
+                            label = props.getProperty("$prefix.label") ?: "Wall ${index + 1}",
                             start = DynamicMapPoint(startX, startY),
                             end = DynamicMapPoint(endX, endY),
                         ),

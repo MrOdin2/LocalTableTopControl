@@ -46,9 +46,25 @@ data class DynamicMapSelectionChangedEvent(val selections: Set<DynamicMapElement
 data class DynamicMapElementRemovalRequestedEvent(val selection: DynamicMapElementSelection)
 
 /**
+ * Published when the outline pane renames a single placed wall or light.
+ */
+data class DynamicMapElementRenameRequestedEvent(
+    val selection: DynamicMapElementSelection,
+    val label: String,
+)
+
+/**
  * Published when the outline pane creates a named group from the current element selection.
  */
 data class DynamicMapGroupCreationRequestedEvent(val selections: Set<DynamicMapElementSelection>)
+
+/**
+ * Published when the outline pane renames a user-defined group.
+ */
+data class DynamicMapGroupRenameRequestedEvent(
+    val groupId: String,
+    val label: String,
+)
 
 /**
  * Published when the outline pane removes grouping metadata without deleting the grouped elements.

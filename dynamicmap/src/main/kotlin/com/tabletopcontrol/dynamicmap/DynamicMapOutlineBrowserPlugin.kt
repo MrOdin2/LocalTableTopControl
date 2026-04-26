@@ -11,6 +11,8 @@ import javafx.scene.control.ContextMenu
 import javafx.scene.control.Label
 import javafx.scene.control.MenuItem
 import javafx.scene.control.SelectionMode
+import javafx.scene.control.SeparatorMenuItem
+import javafx.scene.control.TextInputDialog
 import javafx.scene.control.TreeCell
 import javafx.scene.control.TreeItem
 import javafx.scene.control.TreeView
@@ -35,9 +37,12 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         val summaryLabel = Label().apply {
             style = "-fx-text-fill: -tc-text-muted;"
         }
+        val renameMenuItem = MenuItem("Rename...")
         val groupSelectedMenuItem = MenuItem("Group Selected")
         val removeGroupMenuItem = MenuItem("Remove Group")
         val groupingContextMenu = ContextMenu(
+            renameMenuItem,
+            SeparatorMenuItem(),
             groupSelectedMenuItem,
             removeGroupMenuItem,
         )
@@ -84,7 +89,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         val toggleLightButton = Button("Disable Light")
         val clearSelectionButton = Button("Clear Selection")
         val footerLabel = Label(
-            "The outline shows every group, wall, and light in the current draft. Right-click the outline to group or ungroup selected entries.",
+            "The outline shows every group, wall, and light in the current draft. Right-click entries to rename, group, or ungroup them.",
         ).apply {
             isWrapText = true
             style = "-fx-text-fill: -tc-text-muted;"
@@ -96,7 +101,34 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 ?.takeIf { it.kind == DynamicMapElementKind.LIGHT }
                 ?.let { document.lightById(it.elementId) }
 
+        fun currentRenameTarget(): DynamicMapOutlineRenameTarget? {
+            val selectedNodes = tree.selectionModel.selectedItems.map { it.value }
+            val selectedGroups = selectedNodes.mapNotNull { it as? DynamicMapOutlineUserGroupNode }
+            val selectedElements = selectedNodes.mapNotNull { it as? DynamicMapOutlineElementNode }
+            return when {
+                selectedGroups.size == 1 && selectedElements.isEmpty() -> document
+                    .groupById(selectedGroups.single().groupId)
+                    ?.let { group ->
+                        DynamicMapOutlineRenameTarget.Group(
+                            groupId = group.id,
+                            currentLabel = group.label,
+                        )
+                    }
+                selectedGroups.isEmpty() && selectedElements.size == 1 -> {
+                    val selection = selectedElements.single().selection
+                    document.labelForSelection(selection)?.let { label ->
+                        DynamicMapOutlineRenameTarget.Element(
+                            selection = selection,
+                            currentLabel = label,
+                        )
+                    }
+                }
+                else -> null
+            }
+        }
+
         fun refreshActionButtons() {
+            renameMenuItem.isDisable = currentRenameTarget() == null
             groupSelectedMenuItem.isDisable = selections.isEmpty()
             removeGroupMenuItem.isDisable = selectedGroupIds.isEmpty()
             removeGroupMenuItem.text = if (selectedGroupIds.size > 1) "Remove Groups" else "Remove Group"
@@ -263,6 +295,33 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             },
         )
 
+        renameMenuItem.setOnAction {
+            val target = currentRenameTarget() ?: return@setOnAction
+            val dialog = TextInputDialog(target.currentLabel).apply {
+                title = "Rename ${target.displayKind}"
+                headerText = "Rename ${target.displayKind}"
+                contentText = "Name:"
+                tree.scene?.window?.let(::initOwner)
+            }
+            val result = dialog.showAndWait()
+            if (!result.isPresent) return@setOnAction
+            val newLabel = result.get().trim()
+            if (newLabel.isEmpty() || newLabel == target.currentLabel) return@setOnAction
+            when (target) {
+                is DynamicMapOutlineRenameTarget.Element -> EventBus.publish(
+                    DynamicMapElementRenameRequestedEvent(
+                        selection = target.selection,
+                        label = newLabel,
+                    ),
+                )
+                is DynamicMapOutlineRenameTarget.Group -> EventBus.publish(
+                    DynamicMapGroupRenameRequestedEvent(
+                        groupId = target.groupId,
+                        label = newLabel,
+                    ),
+                )
+            }
+        }
         groupSelectedMenuItem.setOnAction {
             val currentSelections = selections
             if (currentSelections.isEmpty()) return@setOnAction
@@ -362,6 +421,28 @@ private data class DynamicMapOutlineElementNode(
     override val label: String,
 ) : DynamicMapOutlineNode
 
+private sealed interface DynamicMapOutlineRenameTarget {
+    val currentLabel: String
+    val displayKind: String
+
+    data class Group(
+        val groupId: String,
+        override val currentLabel: String,
+    ) : DynamicMapOutlineRenameTarget {
+        override val displayKind: String = "group"
+    }
+
+    data class Element(
+        val selection: DynamicMapElementSelection,
+        override val currentLabel: String,
+    ) : DynamicMapOutlineRenameTarget {
+        override val displayKind: String = when (selection.kind) {
+            DynamicMapElementKind.WALL -> "wall"
+            DynamicMapElementKind.LIGHT -> "light"
+        }
+    }
+}
+
 private fun buildLightOutlineLabel(index: Int, light: DynamicMapLight): String {
     val state = if (light.enabled) "" else "[Off] "
     return "${index + 1}. ${state}${light.label} @ ${formatOutlineCoordinate(light.position.x)}, " +
@@ -369,7 +450,7 @@ private fun buildLightOutlineLabel(index: Int, light: DynamicMapLight): String {
 }
 
 private fun buildWallOutlineLabel(index: Int, wall: DynamicMapWall): String =
-    "${index + 1}. ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
+    "${index + 1}. ${wall.label} @ ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
         "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
 
 private fun buildGroupMemberOutlineNode(
@@ -383,13 +464,19 @@ private fun buildGroupMemberOutlineNode(
                 formatOutlineCoordinate(light.position.y)
         }
         DynamicMapElementKind.WALL -> document.wallById(selection.elementId)?.let { wall ->
-            "Wall: ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
+            "Wall: ${wall.label} @ ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
                 "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
         }
     } ?: return null
 
     return DynamicMapOutlineElementNode(selection = selection, label = label)
 }
+
+private fun DynamicMapDocument.labelForSelection(selection: DynamicMapElementSelection): String? =
+    when (selection.kind) {
+        DynamicMapElementKind.WALL -> wallById(selection.elementId)?.label
+        DynamicMapElementKind.LIGHT -> lightById(selection.elementId)?.label
+    }
 
 private fun formatOutlineCoordinate(value: Double): String =
     String.format(Locale.US, "%.2f", value)

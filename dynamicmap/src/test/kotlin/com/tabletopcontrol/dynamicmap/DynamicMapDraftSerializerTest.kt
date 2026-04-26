@@ -26,6 +26,7 @@ class DynamicMapDraftSerializerTest {
             walls = listOf(
                 DynamicMapWall(
                     id = "wall-1",
+                    label = "Outer Gate",
                     start = DynamicMapPoint(1.0, 2.0),
                     end = DynamicMapPoint(5.0, 2.0),
                 ),
@@ -58,5 +59,26 @@ class DynamicMapDraftSerializerTest {
 
         assertNotNull(restored)
         assertEquals(original, restored)
+    }
+
+    @Test
+    fun `deserialize supports legacy walls without labels`() {
+        val restored = DynamicMapDraftSerializer.deserialize(
+            """
+            map.cols=30
+            map.rows=20
+            walls.count=1
+            wall.0.id=wall-1
+            wall.0.startX=1.0
+            wall.0.startY=2.0
+            wall.0.endX=3.0
+            wall.0.endY=4.0
+            lights.count=0
+            groups.count=0
+            """.trimIndent(),
+        )
+
+        assertNotNull(restored)
+        assertEquals("Wall 1", restored?.walls?.single()?.label)
     }
 }
