@@ -30,6 +30,7 @@ dependencies {
     runtimeOnly(project(":audio"))
     runtimeOnly(project(":light"))
     runtimeOnly(project(":tracker"))
+    runtimeOnly(project(":dynamicmap_builder"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("io.mockk:mockk:1.13.10")
@@ -48,6 +49,7 @@ tasks.processResources {
     listOf("map", "audio", "tracker", "light").forEach { module ->
         from(rootProject.file("$module/UserDoc.html")) { into("userdocs/$module") }
     }
+    from(rootProject.file("dynamicmap/UserDoc.html")) { into("userdocs/dynamicmap_builder") }
 }
 
 val javaVersion = 17

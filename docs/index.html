@@ -225,6 +225,11 @@
         <li>Control background music and sound effects.</li>
         <li>Control ambient lighting via WLED devices.</li>
       </ul>
+      <p>
+        The toolbar also includes a <strong>Workspace</strong> selector so you can switch between your
+        normal session layout and specialised editing spaces such as the
+        <a href="../dynamicmap_builder/UserDoc.html">Dynamic Map Builder</a>.
+      </p>
     </section>
 
     <section id="layout">
@@ -275,8 +280,10 @@
         TabletopControl, the exact same arrangement is restored.
       </p>
       <p>
-        The layout is stored in <code>~/.tabletopcontrol/dm-layout.conf</code>. You can delete
-        this file to reset the layout to its default (single-pane) state.
+        Each workspace keeps its own layout file. The standard session workspace uses
+        <code>~/.tabletopcontrol/dm-layout.conf</code>, while the Dynamic Map Builder workspace uses
+        <code>~/.tabletopcontrol/dynamic-map-builder-layout.conf</code>. Delete either file to reset that
+        workspace to its default single-pane state.
       </p>
     </section>
 
@@ -329,6 +336,11 @@
           <div class="card-icon">💡</div>
           <h3>Ambient Lighting</h3>
           <p>Control WLED RGB lighting strips with effects, colours, brightness, and presets.</p>
+        </a>
+        <a class="plugin-card" href="../dynamicmap_builder/UserDoc.html">
+          <div class="card-icon">DM</div>
+          <h3>Dynamic Map Builder</h3>
+          <p>Build the new Dynamic Map format with wall drawing, static point lights, and a separate builder workspace.</p>
         </a>
         <a class="plugin-card" href="cross-plugin.html">
           <div class="card-icon">🔗</div>
