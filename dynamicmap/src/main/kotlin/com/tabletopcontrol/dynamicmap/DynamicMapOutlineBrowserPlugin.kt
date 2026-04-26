@@ -3,10 +3,12 @@ package com.tabletopcontrol.dynamicmap
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.DmWorkspaceId
 import com.tabletopcontrol.core.EventBus
+import javafx.collections.ListChangeListener
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
 import javafx.scene.control.Label
+import javafx.scene.control.SelectionMode
 import javafx.scene.control.TreeCell
 import javafx.scene.control.TreeItem
 import javafx.scene.control.TreeView
@@ -22,7 +24,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
 
     override fun createView(): Node {
         var document = DynamicMapDocument()
-        var selection: DynamicMapElementSelection? = null
+        var selections = emptySet<DynamicMapElementSelection>()
         var isApplyingSelection = false
         var itemBySelection = emptyMap<DynamicMapElementSelection, TreeItem<DynamicMapOutlineNode>>()
 
@@ -32,6 +34,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         val tree = TreeView<DynamicMapOutlineNode>().apply {
             isShowRoot = false
             style = "-fx-background-color: -tc-surface;"
+            selectionModel.selectionMode = SelectionMode.MULTIPLE
             cellFactory = Callback {
                 object : TreeCell<DynamicMapOutlineNode>() {
                     override fun updateItem(item: DynamicMapOutlineNode?, empty: Boolean) {
@@ -62,12 +65,13 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         }
 
         fun selectedLight(): DynamicMapLight? =
-            selection
+            selections
+                .singleOrNull()
                 ?.takeIf { it.kind == DynamicMapElementKind.LIGHT }
                 ?.let { document.lightById(it.elementId) }
 
         fun refreshActionButtons() {
-            removeSelectedButton.isDisable = selection == null
+            removeSelectedButton.isDisable = selections.isEmpty()
             val light = selectedLight()
             toggleLightButton.isDisable = light == null
             toggleLightButton.text = if (light?.enabled == false) "Enable Light" else "Disable Light"
@@ -75,18 +79,28 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
 
         fun syncTreeSelection() {
             isApplyingSelection = true
-            val treeSelection = selection?.let(itemBySelection::get)
-            if (treeSelection != null) {
-                tree.selectionModel.select(treeSelection)
-                val row = tree.getRow(treeSelection)
+            tree.selectionModel.clearSelection()
+            val treeSelections = selections.mapNotNull(itemBySelection::get)
+            treeSelections.forEach { tree.selectionModel.select(it) }
+            treeSelections.lastOrNull()?.let { lastSelection ->
+                val row = tree.getRow(lastSelection)
                 if (row >= 0) {
                     tree.scrollTo(row)
                 }
-            } else {
-                tree.selectionModel.clearSelection()
             }
             isApplyingSelection = false
             refreshActionButtons()
+        }
+
+        fun updateSelectionFromTree() {
+            val selectedOutlineItems = tree.selectionModel.selectedItems
+                .mapNotNull { it.value as? DynamicMapOutlineElementNode }
+                .mapTo(linkedSetOf()) { it.selection }
+            if (selectedOutlineItems == selections) return
+
+            selections = selectedOutlineItems
+            refreshActionButtons()
+            EventBus.publish(DynamicMapSelectionChangedEvent(selectedOutlineItems))
         }
 
         fun rebuildTree() {
@@ -145,25 +159,37 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
 
             root.children.setAll(lightsNode, wallsNode)
             itemBySelection = index
+            isApplyingSelection = true
             tree.root = root
+            isApplyingSelection = false
             summaryLabel.text =
                 "Lights: ${document.lights.count { it.enabled }}/${document.lights.size} enabled | Walls: ${document.walls.size}"
-            if (selection?.let { !document.containsSelection(it) } == true) {
-                EventBus.publish(DynamicMapSelectionChangedEvent(null))
+            val existingSelections = document.filterExistingSelections(selections)
+            if (existingSelections != selections) {
+                EventBus.publish(DynamicMapSelectionChangedEvent(existingSelections))
             } else {
                 syncTreeSelection()
             }
         }
 
-        tree.selectionModel.selectedItemProperty().addListener { _, _, selectedItem ->
-            if (isApplyingSelection) return@addListener
-            val selectedNode = selectedItem?.value as? DynamicMapOutlineElementNode
-            EventBus.publish(DynamicMapSelectionChangedEvent(selectedNode?.selection))
-        }
+        tree.selectionModel.selectedItems.addListener(
+            ListChangeListener<TreeItem<DynamicMapOutlineNode>> { change ->
+                if (!isApplyingSelection) {
+                    while (change.next()) {
+                        // Advance the JavaFX change object so selectedItems reflects the final state.
+                    }
+                    updateSelectionFromTree()
+                }
+            },
+        )
 
         removeSelectedButton.setOnAction {
-            val currentSelection = selection ?: return@setOnAction
-            EventBus.publish(DynamicMapElementRemovalRequestedEvent(currentSelection))
+            val currentSelections = selections
+            if (currentSelections.isEmpty()) return@setOnAction
+            currentSelections.forEach { selection ->
+                EventBus.publish(DynamicMapElementRemovalRequestedEvent(selection))
+            }
+            EventBus.publish(DynamicMapSelectionChangedEvent(emptySet()))
         }
         toggleLightButton.setOnAction {
             val light = selectedLight() ?: return@setOnAction
@@ -175,7 +201,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             )
         }
         clearSelectionButton.setOnAction {
-            EventBus.publish(DynamicMapSelectionChangedEvent(null))
+            EventBus.publish(DynamicMapSelectionChangedEvent(emptySet()))
         }
 
         val documentSubscription = EventBus.subscribe<DynamicMapDocumentChangedEvent> { event ->
@@ -183,8 +209,13 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             rebuildTree()
         }
         val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
-            selection = event.selection?.takeIf { document.containsSelection(it) }
-            syncTreeSelection()
+            val existingSelections = document.filterExistingSelections(event.selections)
+            if (existingSelections != selections) {
+                selections = existingSelections
+                syncTreeSelection()
+            } else {
+                refreshActionButtons()
+            }
         }
 
         refreshActionButtons()

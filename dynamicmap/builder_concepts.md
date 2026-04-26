@@ -63,8 +63,10 @@ Future decisions should be added here as well so the builder evolves from one co
   - lights
   - walls
 - Selecting an outline item should highlight the same element on the main builder canvas.
+- Holding Ctrl while clicking another outline item adds it to the current selection.
+- Multi-selection is currently introduced through the outline only; other builder surfaces may continue to replace the selection with one item.
 - The outline pane owns item-level management actions that are not tied to one placement tool, such as:
-  - remove selected element
+  - remove selected elements
   - enable or disable a selected light
 - Future builder element types should join the outline instead of creating separate one-off management lists.
 

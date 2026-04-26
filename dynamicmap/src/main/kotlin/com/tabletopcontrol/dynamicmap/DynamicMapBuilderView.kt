@@ -50,7 +50,7 @@ class DynamicMapBuilderView(
     private var panDragStartY: Double = 0.0
     private var panDragStartOffsetX: Double = 0.0
     private var panDragStartOffsetY: Double = 0.0
-    private var selectedElement: DynamicMapElementSelection? = null
+    private var selectedElements: Set<DynamicMapElementSelection> = emptySet()
     private val viewport = DynamicMapWorkspaceViewport()
 
     private val canvas = Canvas(1.0, 1.0)
@@ -318,8 +318,9 @@ class DynamicMapBuilderView(
         val disposers = mutableListOf<() -> Unit>()
         disposers += controller.observeDocument { updated ->
             document = updated
-            if (selectedElement?.let { !updated.containsSelection(it) } == true) {
-                EventBus.publish(DynamicMapSelectionChangedEvent(null))
+            val existingSelections = updated.filterExistingSelections(selectedElements)
+            if (existingSelections != selectedElements) {
+                EventBus.publish(DynamicMapSelectionChangedEvent(existingSelections))
             }
             pathField.text = updated.backgroundDisplayPath.orEmpty()
             colsField.text = updated.cols.toString()
@@ -347,7 +348,7 @@ class DynamicMapBuilderView(
         }
         disposers += { toolSubscription.unsubscribe() }
         val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
-            selectedElement = event.selection?.takeIf { document.containsSelection(it) }
+            selectedElements = document.filterExistingSelections(event.selections)
             redraw()
             updateStatus(null)
         }
@@ -634,8 +635,7 @@ class DynamicMapBuilderView(
             gc.setLineDashes()
 
             val isSelected =
-                selectedElement?.kind == DynamicMapElementKind.LIGHT &&
-                    selectedElement?.elementId == light.id
+                selectedElements.any { it.kind == DynamicMapElementKind.LIGHT && it.elementId == light.id }
             if (isSelected) {
                 val highlightRadius = radius + 4.0
                 gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.8)
@@ -663,24 +663,27 @@ class DynamicMapBuilderView(
         metrics: DynamicMapEditorMetrics,
         accentColor: Color,
     ) {
-        val selectedWall = selectedElement
-            ?.takeIf { it.kind == DynamicMapElementKind.WALL }
-            ?.let { document.wallById(it.elementId) }
-            ?: return
+        val selectedWalls = selectedElements
+            .filter { it.kind == DynamicMapElementKind.WALL }
+            .mapNotNull { document.wallById(it.elementId) }
+        if (selectedWalls.isEmpty()) return
 
-        val startX = metrics.originX + selectedWall.start.x * metrics.cellSize
-        val startY = metrics.originY + selectedWall.start.y * metrics.cellSize
-        val endX = metrics.originX + selectedWall.end.x * metrics.cellSize
-        val endY = metrics.originY + selectedWall.end.y * metrics.cellSize
         val baseWidth = (metrics.cellSize * 0.12).coerceAtLeast(2.0)
 
-        gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
-        gc.lineWidth = baseWidth * 2.0
-        gc.strokeLine(startX, startY, endX, endY)
+        selectedWalls.forEach { selectedWall ->
+            val startX = metrics.originX + selectedWall.start.x * metrics.cellSize
+            val startY = metrics.originY + selectedWall.start.y * metrics.cellSize
+            val endX = metrics.originX + selectedWall.end.x * metrics.cellSize
+            val endY = metrics.originY + selectedWall.end.y * metrics.cellSize
 
-        gc.stroke = accentColor
-        gc.lineWidth = baseWidth * 1.2
-        gc.strokeLine(startX, startY, endX, endY)
+            gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+            gc.lineWidth = baseWidth * 2.0
+            gc.strokeLine(startX, startY, endX, endY)
+
+            gc.stroke = accentColor
+            gc.lineWidth = baseWidth * 1.2
+            gc.strokeLine(startX, startY, endX, endY)
+        }
     }
 
     private fun resolveBackgroundImage(): Image? {

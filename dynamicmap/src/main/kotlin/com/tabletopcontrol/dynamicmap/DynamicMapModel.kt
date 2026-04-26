@@ -79,6 +79,9 @@ fun DynamicMapDocument.containsSelection(selection: DynamicMapElementSelection):
         DynamicMapElementKind.LIGHT -> lights.any { it.id == selection.elementId }
     }
 
+fun DynamicMapDocument.filterExistingSelections(selections: Set<DynamicMapElementSelection>): Set<DynamicMapElementSelection> =
+    selections.filterTo(linkedSetOf()) { containsSelection(it) }
+
 fun DynamicMapDocument.wallById(id: String): DynamicMapWall? =
     walls.firstOrNull { it.id == id }
 

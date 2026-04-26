@@ -36,5 +36,15 @@ class DynamicMapModelTest {
         assertEquals(light, document.lightById(light.id))
         assertFalse(document.containsSelection(DynamicMapElementSelection(DynamicMapElementKind.WALL, "missing")))
         assertFalse(document.containsSelection(DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "missing")))
+        assertEquals(
+            setOf(wallSelection, lightSelection),
+            document.filterExistingSelections(
+                setOf(
+                    wallSelection,
+                    DynamicMapElementSelection(DynamicMapElementKind.WALL, "missing"),
+                    lightSelection,
+                ),
+            ),
+        )
     }
 }

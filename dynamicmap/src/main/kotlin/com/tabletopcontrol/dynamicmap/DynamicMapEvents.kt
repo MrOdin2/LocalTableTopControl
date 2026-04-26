@@ -33,7 +33,12 @@ data class DynamicMapDocumentChangedEvent(val document: DynamicMapDocument)
 /**
  * Published whenever the shared builder selection changes.
  */
-data class DynamicMapSelectionChangedEvent(val selection: DynamicMapElementSelection?)
+data class DynamicMapSelectionChangedEvent(val selections: Set<DynamicMapElementSelection>) {
+    constructor(selection: DynamicMapElementSelection?) : this(selection?.let(::setOf).orEmpty())
+
+    val selection: DynamicMapElementSelection?
+        get() = selections.firstOrNull()
+}
 
 /**
  * Published when a builder pane requests removal of a specific element.
