@@ -74,9 +74,8 @@ class App : Application() {
         primaryStage.apply {
             title = "TabletopControl — Table View"
             scene = tableScene
-            isFullScreen = true
+            applyTablePresentationMode(Screen.getPrimary())
             setOnCloseRequest { dmStage.close() }
-            show()
         }
 
         // DM control panel — displayed on the DM's own monitor
@@ -145,9 +144,9 @@ class App : Application() {
      * the table stage entirely so no map is displayed for players. Selecting any
      * real screen while the stage is hidden makes the stage visible again.
      *
-     * Moving the Table View to another screen temporarily exits fullscreen,
-     * repositions the window to the target screen's origin, then re-enters
-     * fullscreen so it fills that display.
+     * Moving the Table View to another screen repositions the borderless
+     * presentation window to the target screen's full bounds so it fills that
+     * display even while the DM panel has focus.
      *
      * A **Theme** button on the left opens the [showThemeDialog] to let the DM
      * switch between light/dark modes and customise the theme colour roles
@@ -196,13 +195,9 @@ class App : Application() {
             }
         }
 
-        // Default to the first real screen to preserve existing behaviour.
-        // The listener above fires immediately and sets the button state correctly.
-        if (screens.isNotEmpty()) {
-            screenCombo.selectionModel.select(screens[0])
-        } else {
-            screenCombo.selectionModel.selectFirst()
-        }
+        // Start hidden so one-screen setups and non-table primary monitors open
+        // cleanly on the DM panel. Selecting a real screen shows the table view.
+        screenCombo.selectionModel.selectFirst()
 
         // Theme button on the left — opens the theme customisation dialog.
         val themeButton = Button("🎨 Theme").apply {
@@ -401,13 +396,8 @@ class App : Application() {
 fun main(args: Array<String>) = Application.launch(App::class.java, *args)
 
 private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
-    val bounds = screen.bounds
     tableStage.isIconified = false
-    tableStage.isFullScreen = false
-    tableStage.x = bounds.minX
-    tableStage.y = bounds.minY
-    tableStage.width = bounds.width
-    tableStage.height = bounds.height
+    tableStage.applyTablePresentationMode(screen)
     if (!tableStage.isShowing) {
         tableStage.show()
     }
@@ -416,15 +406,22 @@ private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
     // Mixed-DPI Windows setups can report the correct screen in JavaFX but still
     // leave the stage at its old windowed size for one pulse after moving.
     Platform.runLater {
-        tableStage.x = bounds.minX
-        tableStage.y = bounds.minY
-        tableStage.width = bounds.width
-        tableStage.height = bounds.height
+        tableStage.applyTablePresentationMode(screen)
         Platform.runLater {
-            tableStage.isFullScreen = true
+            tableStage.applyTablePresentationMode(screen)
             tableStage.toFront()
         }
     }
+}
+
+private fun Stage.applyTablePresentationMode(screen: Screen) {
+    val bounds = screen.bounds
+    isFullScreen = false
+    isAlwaysOnTop = true
+    x = bounds.minX
+    y = bounds.minY
+    width = bounds.width
+    height = bounds.height
 }
 
 internal fun formatScreenLabel(
