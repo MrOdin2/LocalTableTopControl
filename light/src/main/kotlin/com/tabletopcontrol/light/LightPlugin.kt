@@ -1,6 +1,7 @@
 package com.tabletopcontrol.light
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.light.ui.LightDebugConsoleSection
 import com.tabletopcontrol.light.ui.LightEffectParamsSection
 import com.tabletopcontrol.light.ui.LightMainControlsSection
@@ -22,8 +23,11 @@ import javafx.scene.layout.VBox
  * coalesced writes live in [LightSerialCoordinator]. This plugin composes the
  * section controllers that render the UI.
  */
-class LightPlugin : DmPlugin {
+class LightPlugin : DmPlugin, SceneParticipant {
     override val displayName: String = "Lights"
+    override val sceneKey: String = "lights"
+    override val sceneDisplayName: String = displayName
+    override val sceneLoadOrder: Int = 500
 
     private val controller = LightController()
     private val serialCoordinator = LightSerialCoordinator(controller)
@@ -75,6 +79,15 @@ class LightPlugin : DmPlugin {
     override fun onShutdown() {
         disposeSections()
         serialCoordinator.shutdown()
+    }
+
+    override fun captureSceneState(): String = LightSceneCodec.serialize(controller.sceneSnapshot())
+
+    override fun applySceneState(payload: String) {
+        val sceneState = requireNotNull(LightSceneCodec.deserialize(payload)) {
+            "Invalid light scene payload"
+        }
+        controller.applySceneState(sceneState)
     }
 
     private fun disposeSections() {

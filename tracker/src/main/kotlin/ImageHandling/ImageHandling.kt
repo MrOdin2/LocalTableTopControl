@@ -1,5 +1,6 @@
 package com.tabletopcontrol.new_tracker.ImageHandling
 
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
 import com.tabletopcontrol.new_tracker.model.Actor
@@ -24,8 +25,6 @@ import javafx.scene.shape.Rectangle
 import javafx.scene.transform.Scale
 import javafx.stage.FileChooser
 import javafx.stage.Window
-import java.io.File
-import java.net.URI
 import java.text.NumberFormat
 import java.text.ParsePosition
 import java.util.Locale
@@ -385,27 +384,7 @@ class ImageHandling {
     }
 
     private fun normalizeSupportedActorImageUri(uri: String): String? {
-        return try {
-            val trimmed = uri.trim()
-            if (trimmed.isEmpty()) {
-                return null
-            }
-
-            if (WINDOWS_ABSOLUTE_PATH.matches(trimmed) || trimmed.startsWith("\\\\")) {
-                return File(trimmed).canonicalFile.toURI().toString()
-            }
-
-            val parsed = URI(trimmed)
-            val scheme = parsed.scheme?.lowercase(Locale.ROOT)
-
-            when {
-                scheme.isNullOrEmpty() -> File(trimmed).canonicalFile.toURI().toString()
-                scheme == "file" -> parsed.normalize().toString()
-                else -> null
-            }
-        } catch (_: Exception) {
-            null
-        }
+        return LocalFiles.normalizeLocalFileUri(uri)
     }
 
     private fun scaleRatio(scaleX: Double, scaleY: Double): Double =
@@ -413,7 +392,6 @@ class ImageHandling {
 
     private companion object {
         const val TOKEN_IMAGE_HISTORY_KEY = "tracker.token-image"
-        val WINDOWS_ABSOLUTE_PATH = Regex("^[a-zA-Z]:[\\\\/].*")
         const val PREVIEW_SIZE = 160.0
         const val PREVIEW_RADIUS = 70.0
         const val PREVIEW_CENTER = PREVIEW_SIZE / 2

@@ -1,11 +1,10 @@
 package com.tabletopcontrol.core.ui.dialog
 
 import com.tabletopcontrol.core.persistence.AppConfigPaths
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import javafx.stage.FileChooser
 import java.io.File
-import java.net.URI
-import java.util.Locale
 import java.util.Properties
 
 /**
@@ -52,27 +51,7 @@ object FileChooserHistoryStore {
     /**
      * Converts a supported local-path URI into a [File] for chooser fallback purposes.
      */
-    fun fileFromUri(uri: String?): File? {
-        if (uri.isNullOrBlank()) return null
-        val trimmed = uri.trim()
-
-        return try {
-            when {
-                WINDOWS_ABSOLUTE_PATH.matches(trimmed) || trimmed.startsWith("\\\\") -> File(trimmed)
-                else -> {
-                    val parsed = URI(trimmed)
-                    val scheme = parsed.scheme?.lowercase(Locale.ROOT)
-                    when {
-                        scheme.isNullOrEmpty() -> File(trimmed)
-                        scheme == "file" -> File(parsed)
-                        else -> null
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
+    fun fileFromUri(uri: String?): File? = LocalFiles.fileFromUriOrPath(uri)
 
     internal fun initialDirectoryFor(key: String, fallbackSelection: File? = null): File? {
         val rememberedDirectory = loadProperties()
@@ -102,6 +81,4 @@ object FileChooserHistoryStore {
             }
         }
     }
-
-    private val WINDOWS_ABSOLUTE_PATH = Regex("^[a-zA-Z]:[\\\\/].*")
 }

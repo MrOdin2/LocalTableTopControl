@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.map.FogOfWarCellEvent
 import com.tabletopcontrol.map.FogOfWarResetEvent
 import com.tabletopcontrol.map.FogOfWarSetupEvent
@@ -18,11 +19,14 @@ import com.tabletopcontrol.map.MapCalibrationEvent
 import com.tabletopcontrol.map.MapClearEvent
 import com.tabletopcontrol.map.MapCalibrationModeEvent
 import com.tabletopcontrol.map.MapInputField
+import com.tabletopcontrol.map.MapFogSceneMode
+import com.tabletopcontrol.map.MapFogSceneState
 import com.tabletopcontrol.map.MapLoadEvent
 import com.tabletopcontrol.map.MapOperationError
 import com.tabletopcontrol.map.MapRenderer
 import com.tabletopcontrol.map.MapResult
 import com.tabletopcontrol.map.MapRotationEvent
+import com.tabletopcontrol.map.MapSceneState
 import com.tabletopcontrol.map.MapSavedSettings
 import com.tabletopcontrol.map.MapSettingsSerializer
 import com.tabletopcontrol.map.MeasurementAddedEvent
@@ -76,6 +80,33 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         EventBus.publish(MapRotationEvent(mapRotation))
         EventBus.publish(TableMapOffsetEvent(tableMapOffset))
         EventBus.publish(ShowTokenNamesEvent(showTokenNames))
+    }
+
+    internal fun applySceneState(sceneState: MapSceneState) {
+        currentMapImageUri = sceneState.mapImageUri
+        currentMapDisplayPath = sceneState.mapDisplayPath ?: sceneState.mapImageUri
+        mapCalibration = sceneState.mapCalibration
+        gridCalibration = sceneState.gridCalibration
+        gridColor = sceneState.gridColor
+        backgroundColor = sceneState.backgroundColor
+        mapRotation = normalizeRotation(sceneState.mapRotation)
+        tableMapOffset = sceneState.tableMapOffset
+        showTokenNames = sceneState.showTokenNames
+        currentGridConfig = if (sceneState.gridVisible) GridConfig(color = gridColor) else null
+
+        if (currentMapImageUri != null) {
+            EventBus.publish(MapLoadEvent(currentMapImageUri.orEmpty()))
+        } else {
+            EventBus.publish(MapClearEvent)
+        }
+        EventBus.publish(MapCalibrationEvent(mapCalibration))
+        EventBus.publish(GridCalibrationEvent(gridCalibration))
+        EventBus.publish(MapBackgroundEvent(backgroundColor))
+        EventBus.publish(GridUpdateEvent(currentGridConfig))
+        EventBus.publish(MapRotationEvent(mapRotation))
+        EventBus.publish(TableMapOffsetEvent(tableMapOffset))
+        EventBus.publish(ShowTokenNamesEvent(showTokenNames))
+        save()
     }
 
     fun applyMapLoad(uri: String, displayPath: String = uri) {
@@ -439,6 +470,80 @@ class MapFogOfWarService(private val halfFogCells: Int = DEFAULT_HALF_FOG_CELLS)
         }
     }
 
+    internal fun snapshot(): MapFogSceneState? {
+        val state = fogState ?: return null
+        val totalCells = state.cols * state.rows
+        val revealedCells = state.revealedCount()
+        val hiddenCells = totalCells - revealedCells
+        val mode = when {
+            revealedCells == 0 -> MapFogSceneMode.HIDDEN_ALL
+            hiddenCells == 0 -> MapFogSceneMode.REVEALED_ALL
+            revealedCells <= hiddenCells -> MapFogSceneMode.PARTIAL_REVEALED
+            else -> MapFogSceneMode.PARTIAL_HIDDEN
+        }
+
+        val cells = if (mode == MapFogSceneMode.PARTIAL_REVEALED || mode == MapFogSceneMode.PARTIAL_HIDDEN) {
+            buildList {
+                for (col in 0 until state.cols) {
+                    for (row in 0 until state.rows) {
+                        val includeCell = when (mode) {
+                            MapFogSceneMode.PARTIAL_REVEALED -> state.isRevealed(col, row)
+                            MapFogSceneMode.PARTIAL_HIDDEN -> !state.isRevealed(col, row)
+                            else -> false
+                        }
+                        if (includeCell) {
+                            add(Pair(col, row))
+                        }
+                    }
+                }
+            }
+        } else {
+            emptyList()
+        }
+
+        return MapFogSceneState(
+            cols = state.cols,
+            rows = state.rows,
+            colOffset = fogColOffset,
+            rowOffset = fogRowOffset,
+            mode = mode,
+            cells = cells,
+        )
+    }
+
+    internal fun applySnapshot(snapshot: MapFogSceneState?) {
+        if (snapshot == null) {
+            fogState = null
+            fogColOffset = -halfFogCells
+            fogRowOffset = -halfFogCells
+            ensureInitialized()
+            return
+        }
+
+        val nextState = FogOfWarState(cols = snapshot.cols, rows = snapshot.rows)
+        when (snapshot.mode) {
+            MapFogSceneMode.HIDDEN_ALL -> Unit
+            MapFogSceneMode.REVEALED_ALL -> nextState.revealAll()
+            MapFogSceneMode.PARTIAL_REVEALED -> snapshot.cells.forEach { (col, row) ->
+                if (col in 0 until snapshot.cols && row in 0 until snapshot.rows) {
+                    nextState.revealCell(col, row)
+                }
+            }
+            MapFogSceneMode.PARTIAL_HIDDEN -> {
+                nextState.revealAll()
+                snapshot.cells.forEach { (col, row) ->
+                    if (col in 0 until snapshot.cols && row in 0 until snapshot.rows) {
+                        nextState.hideCell(col, row)
+                    }
+                }
+            }
+        }
+        fogState = nextState
+        fogColOffset = snapshot.colOffset
+        fogRowOffset = snapshot.rowOffset
+        replayState()
+    }
+
     companion object {
         private const val DEFAULT_HALF_FOG_CELLS = 100
     }
@@ -623,6 +728,40 @@ class MapTokenSyncService {
         EventBus.publish(ActiveTokenChangedEvent(activeTokenId, null))
     }
 
+    internal fun snapshotTokens(): List<Token> = tokens.values.map { token -> token.copy() }
+
+    internal fun snapshotActiveTokenId(): String? = activeTokenId
+
+    internal fun replaceState(nextTokens: List<Token>, nextActiveTokenId: String?) {
+        val previousTokensById = tokens.mapValues { (_, token) -> token.copy() }
+        EventBus.publish(TokensResetEvent())
+        tokens.clear()
+        nextTokens.forEach { token ->
+            val previous = previousTokensById[token.id]
+            tokens[token.id] = mergeRestoredToken(previous, token)
+        }
+        activeTokenId = nextActiveTokenId
+        endDrag()
+        replayState()
+    }
+
+    private fun mergeRestoredToken(previous: Token?, restored: Token): Token {
+        val restoredHasUsableImage = LocalFiles.exists(restored.imageUri)
+        val previousHasUsableImage = LocalFiles.exists(previous?.imageUri)
+
+        if (restoredHasUsableImage || !previousHasUsableImage) {
+            return restored.copy()
+        }
+
+        val previousToken = previous ?: return restored.copy()
+        return restored.copy(
+            imageUri = previousToken.imageUri,
+            imageScaleX = previousToken.imageScaleX,
+            imageScaleY = previousToken.imageScaleY,
+            imageOffsetX = previousToken.imageOffsetX,
+            imageOffsetY = previousToken.imageOffsetY,
+        )
+    }
     fun dispose() {
         subscriptions.forEach { it.unsubscribe() }
         subscriptions.clear()

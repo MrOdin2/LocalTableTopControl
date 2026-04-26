@@ -1,6 +1,8 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.persistence.LocalFiles
+import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -26,9 +28,6 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.util.Duration
-import java.io.File
-import java.net.URI
-import java.net.URISyntaxException
 
 /**
  * DM-panel plugin for layered music control.
@@ -36,9 +35,12 @@ import java.net.URISyntaxException
  * The plugin stays responsible for building the music cards and wiring UI events, while
  * [MusicTrackService] owns track persistence plus media-load lifecycle orchestration.
  */
-class MusicPlugin : DmPlugin {
+class MusicPlugin : DmPlugin, SceneParticipant {
 
     override val displayName: String = "Music"
+    override val sceneKey: String = "music"
+    override val sceneDisplayName: String = displayName
+    override val sceneLoadOrder: Int = 300
 
     companion object {
         /** Maximum number of simultaneous music tracks. */
@@ -112,6 +114,15 @@ class MusicPlugin : DmPlugin {
         trackService.listener = null
         trackBindings.clear()
         trackService.shutdown()
+    }
+
+    override fun captureSceneState(): String = MusicSettingsSerializer.serialize(trackService.exportSettings())
+
+    override fun applySceneState(payload: String) {
+        val settings = requireNotNull(MusicSettingsSerializer.deserialize(payload)) {
+            "Invalid music scene payload"
+        }
+        trackService.replaceSettings(settings)
     }
 
     // -------------------------------------------------------------------------
@@ -393,13 +404,7 @@ class MusicPlugin : DmPlugin {
         return "$mins:${secs.toString().padStart(2, '0')}"
     }
 
-    private fun filePathOrRaw(uri: String): String = try {
-        File(URI(uri)).absolutePath
-    } catch (_: URISyntaxException) {
-        uri
-    } catch (_: IllegalArgumentException) {
-        uri
-    }
+    private fun filePathOrRaw(uri: String): String = LocalFiles.absolutePath(uri) ?: uri
 
     private data class TrackCardBindings(
         val pathLabel: Label,

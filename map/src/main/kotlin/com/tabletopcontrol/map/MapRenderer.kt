@@ -13,6 +13,7 @@ import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.map.logic.FogOfWarState
 import com.tabletopcontrol.map.logic.GridCalibration
 import com.tabletopcontrol.map.logic.GridConfig
@@ -22,7 +23,6 @@ import com.tabletopcontrol.map.logic.Token
 import com.tabletopcontrol.map.logic.nextAvailableTokenPlacement
 import com.tabletopcontrol.map.logic.tokenDrawBounds
 import com.tabletopcontrol.map.logic.tokenOccupiedCells
-import java.net.URI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -207,12 +207,7 @@ class MapRenderer(private val canvas: Canvas) {
      */
     private val subscriptions = mutableListOf<EventBus.Subscription>()
 
-    private fun isSupportedTokenImageUri(uri: String): Boolean =
-        try {
-            URI(uri).scheme.equals("file", ignoreCase = true)
-        } catch (_: Exception) {
-            false
-        }
+    private fun isSupportedTokenImageUri(uri: String): Boolean = LocalFiles.fileFromUriOrPath(uri) != null
 
     init {
         attachToEventBus()
@@ -348,13 +343,7 @@ class MapRenderer(private val canvas: Canvas) {
                         // synchronous EventBus publish thread.
                         val image = Image(newUri, /* backgroundLoading = */ true)
                         if (!image.isError) {
-                            // When loading completes successfully, cache the image and trigger a redraw.
-                            image.progressProperty().addListener { _, _, newValue ->
-                                if (newValue.toDouble() >= 1.0 && !image.isError) {
-                                    imageCache[newUri] = image
-                                    redraw()
-                                }
-                            }
+                            cacheTokenImageWhenReady(newUri, image, imageCache, ::redraw)
                         }
                     } catch (e: IllegalArgumentException) {
                         // Malformed URI or similar: treat as a load error and skip caching.
@@ -1073,6 +1062,24 @@ class MapRenderer(private val canvas: Canvas) {
         private const val TABLE_VIEWPORT_OUTLINE_DASH_LENGTH = 10.0
         private const val TABLE_VIEWPORT_OUTLINE_GAP_LENGTH = 6.0
     }
+}
+
+internal fun cacheTokenImageWhenReady(
+    uri: String,
+    image: Image,
+    imageCache: MutableMap<String, Image>,
+    onReady: () -> Unit,
+) {
+    fun cacheIfReady() {
+        if (image.isError || image.progress < 1.0 || imageCache[uri] === image) {
+            return
+        }
+        imageCache[uri] = image
+        onReady()
+    }
+
+    cacheIfReady()
+    image.progressProperty().addListener { _, _, _ -> cacheIfReady() }
 }
 
 internal fun tableViewportSceneBounds(

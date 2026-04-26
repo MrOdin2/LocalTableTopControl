@@ -1,5 +1,8 @@
 package com.tabletopcontrol.core
 
+import com.tabletopcontrol.core.scene.SceneBrowserDialog
+import com.tabletopcontrol.core.scene.SceneManager
+import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.color.ColorContrast
 import com.tabletopcontrol.core.ui.color.ColorEditorDialog
@@ -52,6 +55,9 @@ class App : Application() {
     /** Manages the recursive split-pane layout of the DM panel. */
     private var dmLayoutManager: DmLayoutManager? = null
 
+    /** Coordinates cross-plugin scene save/load actions. */
+    private lateinit var sceneManager: SceneManager
+
     override fun start(primaryStage: Stage) {
         // Set primaryStage style FIRST, before any other operations.
         // In JavaFX, initStyle() must be called before the stage is shown or scene is set.
@@ -60,6 +66,10 @@ class App : Application() {
         // Discover plugins first so both scenes can reference them.
         plugins = PluginLoader.loadPlugins()
         plugins.forEach { plugin -> println("Loaded plugin: ${plugin.displayName}") }
+        sceneManager = SceneManager(
+            participants = plugins.filterIsInstance<SceneParticipant>(),
+            onSceneLoaded = { dmLayoutManager?.refreshViews() },
+        )
 
         // Build both scenes and register them with the ThemeManager BEFORE
         // calling show() so the very first frame is already styled — avoids a
@@ -128,7 +138,7 @@ class App : Application() {
         val layoutManager = DmLayoutManager(plugins).also { dmLayoutManager = it }
 
         val root = BorderPane()
-        root.top = buildDisplayToolbar(tableStage)
+        root.top = buildDisplayToolbar(tableStage, sceneManager)
         root.center = layoutManager.container
 
         return Scene(root, 1280.0, 720.0)
@@ -152,7 +162,7 @@ class App : Application() {
      * switch between light/dark modes and customise the theme colour roles
      * (accent, background, surface, border).
      */
-    private fun buildDisplayToolbar(tableStage: Stage): ToolBar {
+    private fun buildDisplayToolbar(tableStage: Stage, sceneManager: SceneManager): ToolBar {
         val screens = Screen.getScreens()
 
         // null represents the "None (hidden)" option — no table view is shown.
@@ -217,10 +227,17 @@ class App : Application() {
         }
 
         // Spacer pushes screen controls to the right so the layout area is uncluttered.
+        val scenesButton = Button("Scenes...").apply {
+            tooltip = Tooltip("Browse, save, and load reusable encounter scenes")
+            setOnAction {
+                SceneBrowserDialog(sceneManager).show(scene?.window)
+            }
+        }
+
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
         val label = Label("Table View screen:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
 
-        return ToolBar(themeButton, helpButton, spacer, label, screenCombo, moveButton)
+        return ToolBar(themeButton, scenesButton, helpButton, spacer, label, screenCombo, moveButton)
     }
 
     /**

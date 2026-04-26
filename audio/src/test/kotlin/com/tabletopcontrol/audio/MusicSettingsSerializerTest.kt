@@ -93,4 +93,19 @@ class MusicSettingsSerializerTest {
         assertEquals(0.5, loaded.tracks[2].volume)
         assertTrue(loaded.tracks[2].loop)
     }
+
+    @Test
+    fun `serialize and deserialize round trip preserves scene payloads`() {
+        val settings = MusicSettings(
+            masterVolume = 0.65,
+            tracks = listOf(
+                PersistedMusicTrack(uri = "file:///music/ambience.ogg", volume = 0.3, loop = true),
+                PersistedMusicTrack(uri = "file:///music/drums.ogg", volume = 0.9, loop = false),
+            ),
+        )
+
+        val restored = MusicSettingsSerializer.deserialize(MusicSettingsSerializer.serialize(settings))
+
+        assertEquals(settings, restored)
+    }
 }
