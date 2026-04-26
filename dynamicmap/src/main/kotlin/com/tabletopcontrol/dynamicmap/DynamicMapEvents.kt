@@ -18,6 +18,11 @@ data class DynamicMapToolSelectedEvent(val tool: DynamicMapTool?)
 data object DynamicMapClearWallsRequestedEvent
 
 /**
+ * Published when the wall tools pane requests wall topology cleanup.
+ */
+data object DynamicMapOptimizeWallsRequestedEvent
+
+/**
  * Published when a side-pane requests bulk removal of all placed lights.
  */
 data object DynamicMapClearLightsRequestedEvent

@@ -53,8 +53,11 @@ Future decisions should be added here as well so the builder evolves from one co
   - wall line mode
   - wall rectangle mode
   - stop editing
+  - wall topology optimization
   - clear all walls
 - Wall editing remains shared with the same main builder canvas.
+- Wall topology optimization merges touching or overlapping collinear wall segments and removes zero-length wall stubs.
+- Manual wall optimization updates the editable builder document, clears the current selection, and remaps group membership onto the remaining merged wall ids where possible.
 
 ### Outline Workflow
 
@@ -104,6 +107,7 @@ Future decisions should be added here as well so the builder evolves from one co
   - background calibration
   - wall geometry
   - light geometry, ranges, colour, and enabled state
+- Export always optimizes wall topology before writing wall geometry so runtime maps do not carry unnecessary split segments.
 - Export deliberately strips editor-only metadata:
   - construction-site name
   - wall and light labels

@@ -32,7 +32,8 @@ object DynamicMapGameplayExporter {
         document: DynamicMapDocument,
         targetFile: File,
     ): Result<DynamicMapGameplayExportSummary> = runCatching {
-        val backgroundFile = document.backgroundImageUri
+        val exportDocument = document.optimizeWallTopology()
+        val backgroundFile = exportDocument.backgroundImageUri
             ?.let(FileChooserHistoryStore::fileFromUri)
             ?.takeIf { it.exists() && it.isFile }
         val backgroundEntry = backgroundFile?.let(::backgroundEntryName)
@@ -42,7 +43,7 @@ object DynamicMapGameplayExporter {
             zip.putNextEntry(ZipEntry(MANIFEST_ENTRY))
             zip.write(
                 DynamicMapGameplayExportSerializer
-                    .serialize(document, backgroundEntry)
+                    .serialize(exportDocument, backgroundEntry)
                     .toByteArray(StandardCharsets.UTF_8),
             )
             zip.closeEntry()
@@ -57,7 +58,7 @@ object DynamicMapGameplayExporter {
         DynamicMapGameplayExportSummary(
             targetFile = targetFile,
             includedBackground = backgroundFile != null,
-            missingBackground = document.backgroundImageUri != null && backgroundFile == null,
+            missingBackground = exportDocument.backgroundImageUri != null && backgroundFile == null,
         )
     }
 

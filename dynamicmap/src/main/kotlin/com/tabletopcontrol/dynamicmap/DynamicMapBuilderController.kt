@@ -17,6 +17,9 @@ class DynamicMapBuilderController {
     private val clearWallsSubscription = EventBus.subscribe<DynamicMapClearWallsRequestedEvent> {
         clearWalls()
     }
+    private val optimizeWallsSubscription = EventBus.subscribe<DynamicMapOptimizeWallsRequestedEvent> {
+        optimizeWalls()
+    }
     private val clearLightsSubscription = EventBus.subscribe<DynamicMapClearLightsRequestedEvent> {
         clearLights()
     }
@@ -164,6 +167,14 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(walls = emptyList()) }
     }
 
+    fun optimizeWalls() {
+        val before = document
+        updateDocument { it.optimizeWallTopology() }
+        if (document != before) {
+            EventBus.publish(DynamicMapSelectionChangedEvent(emptySet()))
+        }
+    }
+
     fun addLight(position: DynamicMapPoint) {
         val preset = selectedPreset
         val light = DynamicMapLight(
@@ -309,6 +320,7 @@ class DynamicMapBuilderController {
     fun onShutdown() {
         presetSubscription.unsubscribe()
         clearWallsSubscription.unsubscribe()
+        optimizeWallsSubscription.unsubscribe()
         clearLightsSubscription.unsubscribe()
         snapshotSubscription.unsubscribe()
         removalSubscription.unsubscribe()

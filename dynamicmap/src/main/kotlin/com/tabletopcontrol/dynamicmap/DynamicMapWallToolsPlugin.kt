@@ -27,6 +27,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         val lineButton = ToggleButton("Wall Line")
         val rectButton = ToggleButton("Wall Rect")
         val stopButton = Button("Stop Editing")
+        val optimizeWallsButton = Button("Optimize Walls")
         val clearWallsButton = Button("Clear All Walls")
 
         fun refreshToolUi() {
@@ -57,6 +58,9 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         stopButton.setOnAction {
             EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
         }
+        optimizeWallsButton.setOnAction {
+            EventBus.publish(DynamicMapOptimizeWallsRequestedEvent)
+        }
         clearWallsButton.setOnAction {
             EventBus.publish(DynamicMapClearWallsRequestedEvent)
         }
@@ -76,6 +80,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             lineButton,
             rectButton,
             stopButton,
+            optimizeWallsButton,
             Region().also { VBox.setVgrow(it, Priority.ALWAYS) },
             Separator(),
             clearWallsButton,

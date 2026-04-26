@@ -117,6 +117,96 @@ class DynamicMapGeometryTest {
     }
 
     @Test
+    fun `wall topology optimization merges touching collinear walls and updates groups`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "wall-a",
+                    label = "North Wall",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                ),
+                DynamicMapWall(
+                    id = "wall-b",
+                    label = "North Wall",
+                    start = DynamicMapPoint(2.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                ),
+                DynamicMapWall(
+                    id = "wall-c",
+                    label = "North Wall",
+                    start = DynamicMapPoint(1.5, 0.0),
+                    end = DynamicMapPoint(3.0, 0.0),
+                ),
+                DynamicMapWall(
+                    id = "wall-vertical",
+                    label = "Vertical",
+                    start = DynamicMapPoint(3.0, 0.0),
+                    end = DynamicMapPoint(3.0, 2.0),
+                ),
+                DynamicMapWall(
+                    id = "wall-separated",
+                    label = "Separated",
+                    start = DynamicMapPoint(5.0, 0.0),
+                    end = DynamicMapPoint(6.0, 0.0),
+                ),
+                DynamicMapWall(
+                    id = "wall-empty",
+                    label = "Empty",
+                    start = DynamicMapPoint(8.0, 8.0),
+                    end = DynamicMapPoint(8.0, 8.0),
+                ),
+            ),
+            lights = listOf(
+                DynamicMapLight(
+                    id = "light-1",
+                    label = "Torch",
+                    position = DynamicMapPoint(4.0, 4.0),
+                    brightRadius = 4.0,
+                    dimRadius = 8.0,
+                    colorHex = "#ffb347",
+                ),
+            ),
+            groups = listOf(
+                DynamicMapElementGroup(
+                    id = "group-1",
+                    label = "Group 1",
+                    elements = setOf(
+                        DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-a"),
+                        DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-b"),
+                        DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-empty"),
+                        DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-vertical"),
+                        DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "light-1"),
+                    ),
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+
+        assertEquals(3, optimized.walls.size)
+        assertEquals(
+            DynamicMapWall(
+                id = "wall-a",
+                label = "North Wall",
+                start = DynamicMapPoint(0.0, 0.0),
+                end = DynamicMapPoint(3.0, 0.0),
+            ),
+            optimized.walls[0],
+        )
+        assertEquals("wall-vertical", optimized.walls[1].id)
+        assertEquals("wall-separated", optimized.walls[2].id)
+        assertEquals(
+            setOf(
+                DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-a"),
+                DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-vertical"),
+                DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "light-1"),
+            ),
+            optimized.groups.single().elements,
+        )
+    }
+
+    @Test
     fun `fitted background calibration uses map cell counts instead of preview pixels`() {
         val calibration = fittedBackgroundCalibration(
             imageWidth = 2000.0,

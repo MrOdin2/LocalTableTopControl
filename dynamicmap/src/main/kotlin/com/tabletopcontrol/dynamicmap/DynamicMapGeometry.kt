@@ -1,11 +1,13 @@
 package com.tabletopcontrol.dynamicmap
 
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.round
 
 private const val MAX_FINE_NUDGE_TILES = 0.05
+private const val WALL_TOPOLOGY_EPSILON = 0.0000001
 
 data class DynamicMapBounds(
     val minX: Double,
@@ -114,6 +116,35 @@ fun DynamicMapDocument.clampMovementDelta(
     )
 }
 
+fun DynamicMapDocument.optimizeWallTopology(): DynamicMapDocument {
+    val optimizedCandidates = optimizeWallCandidates(walls)
+    val optimizedWalls = optimizedCandidates.map { it.toWall() }
+    val wallIdMap = optimizedCandidates
+        .flatMap { candidate -> candidate.sourceIds.map { sourceId -> sourceId to candidate.id } }
+        .toMap()
+
+    val optimizedGroups = groups.mapNotNull { group ->
+        val optimizedElements = group.elements.mapNotNullTo(linkedSetOf<DynamicMapElementSelection>()) { selection ->
+            when (selection.kind) {
+                DynamicMapElementKind.WALL -> wallIdMap[selection.elementId]?.let { wallId ->
+                    DynamicMapElementSelection(DynamicMapElementKind.WALL, wallId)
+                }
+                DynamicMapElementKind.LIGHT -> selection
+            }
+        }
+        if (optimizedElements.isEmpty()) {
+            null
+        } else {
+            group.copy(elements = optimizedElements)
+        }
+    }
+
+    return copy(
+        walls = optimizedWalls,
+        groups = optimizedGroups,
+    ).pruneInvalidGroups()
+}
+
 fun DynamicMapDocument.boundsForSelections(selections: Set<DynamicMapElementSelection>): DynamicMapBounds? {
     val selectedWallIds = selections
         .filter { it.kind == DynamicMapElementKind.WALL }
@@ -164,3 +195,163 @@ private operator fun DynamicMapPoint.plus(delta: DynamicMapPoint): DynamicMapPoi
         x = x + delta.x,
         y = y + delta.y,
     )
+
+private data class DynamicMapWallTopologyCandidate(
+    val id: String,
+    val label: String,
+    val start: DynamicMapPoint,
+    val end: DynamicMapPoint,
+    val sourceIds: Set<String>,
+    val sourceLabels: Set<String>,
+) {
+    fun toWall(): DynamicMapWall =
+        DynamicMapWall(
+            id = id,
+            label = label,
+            start = start,
+            end = end,
+        )
+}
+
+private fun optimizeWallCandidates(walls: List<DynamicMapWall>): List<DynamicMapWallTopologyCandidate> {
+    val candidates = walls
+        .mapNotNull { wall ->
+            if (wall.length() <= WALL_TOPOLOGY_EPSILON) {
+                null
+            } else {
+                DynamicMapWallTopologyCandidate(
+                    id = wall.id,
+                    label = wall.label,
+                    start = wall.start,
+                    end = wall.end,
+                    sourceIds = linkedSetOf(wall.id),
+                    sourceLabels = linkedSetOf(wall.label),
+                )
+            }
+        }
+        .toMutableList()
+
+    var changed: Boolean
+    do {
+        changed = false
+        mergeLoop@ for (index in candidates.indices) {
+            for (otherIndex in index + 1 until candidates.size) {
+                val merged = mergeWallCandidatesOrNull(candidates[index], candidates[otherIndex]) ?: continue
+                candidates[index] = merged
+                candidates.removeAt(otherIndex)
+                changed = true
+                break@mergeLoop
+            }
+        }
+    } while (changed)
+
+    return candidates
+}
+
+private fun mergeWallCandidatesOrNull(
+    first: DynamicMapWallTopologyCandidate,
+    second: DynamicMapWallTopologyCandidate,
+): DynamicMapWallTopologyCandidate? {
+    if (!canMergeWallCandidates(first, second)) return null
+
+    val direction = first.directionUnit()
+    val endpoints = listOf(first.start, first.end, second.start, second.end)
+    val minPoint = endpoints.minBy { it.projectOnto(direction) }
+    val maxPoint = endpoints.maxBy { it.projectOnto(direction) }
+    val (start, end) = orderedWallEndpoints(minPoint, maxPoint)
+    val labels = (first.sourceLabels + second.sourceLabels).toCollection(linkedSetOf())
+
+    return DynamicMapWallTopologyCandidate(
+        id = first.id,
+        label = if (labels.size == 1) labels.first() else "Merged Wall",
+        start = start,
+        end = end,
+        sourceIds = (first.sourceIds + second.sourceIds).toCollection(linkedSetOf()),
+        sourceLabels = labels,
+    )
+}
+
+private fun canMergeWallCandidates(
+    first: DynamicMapWallTopologyCandidate,
+    second: DynamicMapWallTopologyCandidate,
+): Boolean {
+    val firstVector = first.vector()
+    val secondVector = second.vector()
+    val firstLength = first.length()
+    val secondLength = second.length()
+    if (firstLength <= WALL_TOPOLOGY_EPSILON || secondLength <= WALL_TOPOLOGY_EPSILON) return false
+
+    val directionCross = cross(firstVector, secondVector)
+    if (abs(directionCross) > WALL_TOPOLOGY_EPSILON * firstLength * secondLength) return false
+
+    val startOffset = DynamicMapPoint(
+        x = second.start.x - first.start.x,
+        y = second.start.y - first.start.y,
+    )
+    val endOffset = DynamicMapPoint(
+        x = second.end.x - first.start.x,
+        y = second.end.y - first.start.y,
+    )
+    if (abs(cross(firstVector, startOffset)) > WALL_TOPOLOGY_EPSILON * firstLength) return false
+    if (abs(cross(firstVector, endOffset)) > WALL_TOPOLOGY_EPSILON * firstLength) return false
+
+    val direction = first.directionUnit()
+    val firstRange = projectionRange(first.start, first.end, direction)
+    val secondRange = projectionRange(second.start, second.end, direction)
+    return max(firstRange.first, secondRange.first) <=
+        min(firstRange.second, secondRange.second) + WALL_TOPOLOGY_EPSILON
+}
+
+private fun DynamicMapWallTopologyCandidate.vector(): DynamicMapPoint =
+    DynamicMapPoint(
+        x = end.x - start.x,
+        y = end.y - start.y,
+    )
+
+private fun DynamicMapWallTopologyCandidate.length(): Double = hypot(end.x - start.x, end.y - start.y)
+
+private fun DynamicMapWall.length(): Double = hypot(end.x - start.x, end.y - start.y)
+
+private fun DynamicMapWallTopologyCandidate.directionUnit(): DynamicMapPoint {
+    val length = length()
+    return DynamicMapPoint(
+        x = (end.x - start.x) / length,
+        y = (end.y - start.y) / length,
+    )
+}
+
+private fun projectionRange(
+    start: DynamicMapPoint,
+    end: DynamicMapPoint,
+    direction: DynamicMapPoint,
+): Pair<Double, Double> {
+    val first = start.projectOnto(direction)
+    val second = end.projectOnto(direction)
+    return min(first, second) to max(first, second)
+}
+
+private fun DynamicMapPoint.projectOnto(direction: DynamicMapPoint): Double =
+    x * direction.x + y * direction.y
+
+private fun cross(first: DynamicMapPoint, second: DynamicMapPoint): Double =
+    first.x * second.y - first.y * second.x
+
+private fun orderedWallEndpoints(
+    first: DynamicMapPoint,
+    second: DynamicMapPoint,
+): Pair<DynamicMapPoint, DynamicMapPoint> =
+    if (compareWallEndpoints(first, second) <= 0) {
+        first to second
+    } else {
+        second to first
+    }
+
+private fun compareWallEndpoints(
+    first: DynamicMapPoint,
+    second: DynamicMapPoint,
+): Int =
+    when {
+        abs(first.x - second.x) > WALL_TOPOLOGY_EPSILON -> first.x.compareTo(second.x)
+        abs(first.y - second.y) > WALL_TOPOLOGY_EPSILON -> first.y.compareTo(second.y)
+        else -> 0
+    }

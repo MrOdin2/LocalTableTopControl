@@ -44,6 +44,12 @@ class DynamicMapGameplayExporterTest {
                     start = DynamicMapPoint(1.0, 2.0),
                     end = DynamicMapPoint(3.0, 2.0),
                 ),
+                DynamicMapWall(
+                    id = "secret-wall-id-2",
+                    label = "Boss Gate",
+                    start = DynamicMapPoint(3.0, 2.0),
+                    end = DynamicMapPoint(5.0, 2.0),
+                ),
             ),
             lights = listOf(
                 DynamicMapLight(
@@ -79,6 +85,7 @@ class DynamicMapGameplayExporterTest {
         assertFalse(manifest.contains("Ambush Torch"))
         assertFalse(manifest.contains("Ambush Group"))
         assertFalse(manifest.contains("secret-wall-id"))
+        assertFalse(manifest.contains("secret-wall-id-2"))
         assertFalse(manifest.contains("secret-light-id"))
         assertFalse(manifest.contains("secret-group-id"))
         assertFalse(manifest.contains("visibility."))
@@ -94,6 +101,7 @@ class DynamicMapGameplayExporterTest {
         assertEquals("1.25", props.getProperty("background.scale"))
         assertEquals("1", props.getProperty("walls.count"))
         assertEquals("1.0", props.getProperty("wall.0.startX"))
+        assertEquals("5.0", props.getProperty("wall.0.endX"))
         assertEquals("1", props.getProperty("lights.count"))
         assertEquals("4.0", props.getProperty("light.0.posX"))
         assertEquals("#ffb347", props.getProperty("light.0.colorHex"))
