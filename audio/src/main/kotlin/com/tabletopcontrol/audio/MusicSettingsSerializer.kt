@@ -2,6 +2,7 @@ package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.SafeConfigIO
+import java.io.StringWriter
 import java.util.Properties
 
 /**
@@ -54,6 +55,20 @@ object MusicSettingsSerializer {
      * I/O errors are intentionally swallowed so persistence never crashes the app.
      */
     fun save(settings: MusicSettings) {
+        SafeConfigIO.run { configFile.writeText(serialize(settings)) }
+    }
+
+    /**
+     * Loads settings from disk, migrating legacy 3-track formats when present.
+     */
+    fun load(): MusicSettings {
+        val text = SafeConfigIO.readOrElse(null) { configFile.readText() } ?: run {
+            return MusicSettings()
+        }
+        return deserialize(text) ?: MusicSettings()
+    }
+
+    fun serialize(settings: MusicSettings): String {
         val master = settings.masterVolume.coerceIn(0.0, 1.0)
         val tracks = settings.tracks
             .take(MAX_MUSIC_TRACKS)
@@ -78,24 +93,18 @@ object MusicSettingsSerializer {
             }
         }
 
-        SafeConfigIO.run {
-            configFile.writer().use { writer ->
-                props.store(writer, "TabletopControl music settings")
-            }
+        return StringWriter().use { writer ->
+            props.store(writer, "TabletopControl music settings")
+            writer.toString()
         }
     }
 
-    /**
-     * Loads settings from disk, migrating legacy 3-track formats when present.
-     */
-    fun load(): MusicSettings {
-        val props = SafeConfigIO.readOrElse(null) {
+    fun deserialize(text: String): MusicSettings? {
+        val props = runCatching {
             Properties().also { loaded ->
-                configFile.reader().use { loaded.load(it) }
+                text.reader().use { loaded.load(it) }
             }
-        } ?: run {
-            return MusicSettings()
-        }
+        }.getOrNull() ?: return null
 
         val master = props.getProperty("masterVolume")?.toDoubleOrNull()?.coerceIn(0.0, 1.0) ?: 1.0
         val tracks = loadCurrentFormat(props)

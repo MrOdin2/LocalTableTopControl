@@ -9,17 +9,17 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.nio.file.Files
 
 class DmLayoutManagerContextMenuTest {
-    @TempDir
-    lateinit var tempDir: File
+    private lateinit var tempDir: File
 
     private var originalUserHome: String? = null
 
     @BeforeEach
     fun setUp() {
+        tempDir = Files.createTempDirectory("dm-layout-manager-test").toFile()
         originalUserHome = System.getProperty("user.home")
         System.setProperty("user.home", tempDir.absolutePath)
     }
@@ -31,6 +31,7 @@ class DmLayoutManagerContextMenuTest {
         } ?: run {
             System.clearProperty("user.home")
         }
+        tempDir.deleteRecursively()
     }
 
     private fun managerWithPlugin(): DmLayoutManager =

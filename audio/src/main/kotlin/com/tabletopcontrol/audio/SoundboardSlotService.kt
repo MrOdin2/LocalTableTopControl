@@ -149,6 +149,27 @@ internal class SoundboardSlotService(
         slotStates.forEach(::disposeSlot)
     }
 
+    fun exportSlots(): List<SoundboardSlotConfig> {
+        initializeIfNeeded()
+        return slotStates.map(::toConfig)
+    }
+
+    fun replaceSlots(slots: List<SoundboardSlotConfig>) {
+        initializeIfNeeded()
+        slotStates.forEach(::disposeSlot)
+        slotStates.clear()
+        slotStates += slots
+            .take(MAX_SOUNDBOARD_BUTTON_COUNT)
+            .map { config ->
+                SoundboardSlotState(
+                    customLabel = config.label,
+                    uri = config.uri,
+                    colorHex = config.colorHex,
+                )
+            }
+        persistSettings()
+    }
+
     private fun loadSlot(
         slot: SoundboardSlotState,
         requestedLabel: String?,

@@ -1,9 +1,8 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.audio.shared.MediaTrackStatus
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.ui.color.ColorContrast
-import java.io.File
-import java.net.URI
 
 internal object SoundboardSlotVisuals {
     const val EMPTY_SLOT_TOOLTIP: String = "Right-click to load a sound file"
@@ -25,7 +24,7 @@ internal object SoundboardSlotVisuals {
 
     fun tooltipTextForUri(uri: String?): String {
         if (uri.isNullOrBlank()) return EMPTY_SLOT_TOOLTIP
-        return runCatching { File(URI(uri)).absolutePath }.getOrDefault(uri)
+        return LocalFiles.absolutePath(uri) ?: uri
     }
 
     fun cssFor(styleState: SoundboardSlotStyleState): String = when (styleState) {

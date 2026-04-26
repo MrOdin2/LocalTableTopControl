@@ -29,4 +29,18 @@ class SafeConfigIOTest {
         val unwritableTarget = File(tempDir, "missing-dir/file.conf")
         assertDoesNotThrow { SafeConfigIO.writeText(unwritableTarget, "data") }
     }
+
+    @Test
+    fun `writeTextAtomically creates parent directories and writes file contents`() {
+        val target = File(tempDir, "nested/scenes/test.scene")
+
+        ConfigFiles.writeTextAtomically(target, "scene-data")
+
+        assertEquals("scene-data", target.readText())
+    }
+
+    @Test
+    fun `sanitizeFilename replaces unsupported characters`() {
+        assertEquals("Goblin_Boss_1", ConfigFiles.sanitizeFilename("Goblin/Boss:1"))
+    }
 }

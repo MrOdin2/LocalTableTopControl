@@ -86,6 +86,13 @@ class DmLayoutManager(
         LayoutSerializer.save(layoutRoot, layoutConfigName)
     }
 
+    /**
+     * Rebuilds every visible plugin view while preserving the current split layout.
+     */
+    fun refreshViews() {
+        rebuild(syncDividers(layoutRoot, container.center))
+    }
+
     // ── Layout building ──────────────────────────────────────────────────────
 
     /**

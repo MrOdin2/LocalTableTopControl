@@ -1,8 +1,11 @@
 package com.tabletopcontrol.core
 
+import com.tabletopcontrol.core.scene.SceneBrowserDialog
+import com.tabletopcontrol.core.scene.SceneManager
+import com.tabletopcontrol.core.scene.SceneParticipant
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.color.ColorContrast
 import com.tabletopcontrol.core.ui.color.ColorEditorDialog
-import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Application
 import javafx.application.Platform
@@ -53,11 +56,18 @@ class App : Application() {
     /** Manages the currently active recursive split-pane layout of the DM panel. */
     private var dmLayoutManager: DmLayoutManager? = null
 
+    /** Coordinates cross-plugin scene save/load actions. */
+    private lateinit var sceneManager: SceneManager
+
     override fun start(primaryStage: Stage) {
         primaryStage.initStyle(StageStyle.UNDECORATED)
 
         plugins = PluginLoader.loadPlugins()
         plugins.forEach { plugin -> println("Loaded plugin: ${plugin.displayName}") }
+        sceneManager = SceneManager(
+            participants = plugins.filterIsInstance<SceneParticipant>(),
+            onSceneLoaded = { dmLayoutManager?.refreshViews() },
+        )
 
         val tableScene = buildTableScene(plugins)
         val dmScene = buildDmScene(plugins, primaryStage)
@@ -68,9 +78,8 @@ class App : Application() {
         primaryStage.apply {
             title = "TabletopControl - Table View"
             scene = tableScene
-            isFullScreen = true
+            applyTablePresentationMode(Screen.getPrimary())
             setOnCloseRequest { dmStage.close() }
-            show()
         }
 
         dmStage = Stage().apply {
@@ -116,7 +125,7 @@ class App : Application() {
      */
     private fun buildDmScene(plugins: List<DmPlugin>, tableStage: Stage): Scene {
         val root = BorderPane()
-        root.top = buildDisplayToolbar(tableStage, plugins, root)
+        root.top = buildDisplayToolbar(sceneManager, tableStage, plugins, root)
         if (root.center == null) {
             switchWorkspace(root, plugins, availableWorkspaces(plugins).first())
         }
@@ -124,10 +133,23 @@ class App : Application() {
     }
 
     /**
-     * Builds a slim toolbar at the top of the DM panel that lets the DM switch workspaces
-     * and choose which screen the table view is shown on.
+     * Builds a slim toolbar at the top of the DM panel that lets the DM choose
+     * which screen the Table View is shown on and move it there or switch workspaces.
+     *
+     * The first entry in the combo box is **None (hidden)** — selecting it hides
+     * the table stage entirely so no map is displayed for players. Selecting any
+     * real screen while the stage is hidden makes the stage visible again.
+     *
+     * Moving the Table View to another screen repositions the borderless
+     * presentation window to the target screen's full bounds so it fills that
+     * display even while the DM panel has focus.
+     *
+     * A **Theme** button on the left opens the [showThemeDialog] to let the DM
+     * switch between light/dark modes and customise the theme colour roles
+     * (accent, background, surface, border).
      */
     private fun buildDisplayToolbar(
+        sceneManager: SceneManager,
         tableStage: Stage,
         plugins: List<DmPlugin>,
         dmRoot: BorderPane,
@@ -173,11 +195,9 @@ class App : Application() {
             }
         }
 
-        if (screens.isNotEmpty()) {
-            screenCombo.selectionModel.select(screens[0])
-        } else {
-            screenCombo.selectionModel.selectFirst()
-        }
+        // Start hidden so one-screen setups and non-table primary monitors open
+        // cleanly on the DM panel. Selecting a real screen shows the table view.
+        screenCombo.selectionModel.selectFirst()
 
         val themeButton = Button("Theme").apply {
             tooltip = Tooltip("Customise the application theme")
@@ -192,6 +212,14 @@ class App : Application() {
         val helpButton = Button("Help").apply {
             tooltip = Tooltip("Open the user documentation in your browser")
             setOnAction { HelpManager.openHelp(hostServices) }
+        }
+
+        // Spacer pushes screen controls to the right so the layout area is uncluttered.
+        val scenesButton = Button("Scenes...").apply {
+            tooltip = Tooltip("Browse, save, and load reusable encounter scenes")
+            setOnAction {
+                SceneBrowserDialog(sceneManager).show(scene?.window)
+            }
         }
 
         val workspaceToolbarBox = HBox(6.0)
@@ -263,7 +291,6 @@ class App : Application() {
         dmLayoutManager = layoutManager
         root.center = layoutManager.container
     }
-
     /**
      * Opens the theme customisation dialog.
      */
@@ -422,28 +449,30 @@ class App : Application() {
 fun main(args: Array<String>) = Application.launch(App::class.java, *args)
 
 private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
-    val bounds = screen.bounds
     tableStage.isIconified = false
-    tableStage.isFullScreen = false
-    tableStage.x = bounds.minX
-    tableStage.y = bounds.minY
-    tableStage.width = bounds.width
-    tableStage.height = bounds.height
+    tableStage.applyTablePresentationMode(screen)
     if (!tableStage.isShowing) {
         tableStage.show()
     }
     tableStage.toFront()
 
     Platform.runLater {
-        tableStage.x = bounds.minX
-        tableStage.y = bounds.minY
-        tableStage.width = bounds.width
-        tableStage.height = bounds.height
+        tableStage.applyTablePresentationMode(screen)
         Platform.runLater {
-            tableStage.isFullScreen = true
+            tableStage.applyTablePresentationMode(screen)
             tableStage.toFront()
         }
     }
+}
+
+private fun Stage.applyTablePresentationMode(screen: Screen) {
+    val bounds = screen.bounds
+    isFullScreen = false
+    isAlwaysOnTop = true
+    x = bounds.minX
+    y = bounds.minY
+    width = bounds.width
+    height = bounds.height
 }
 
 internal fun formatScreenLabel(

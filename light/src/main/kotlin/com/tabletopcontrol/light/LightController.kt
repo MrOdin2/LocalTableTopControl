@@ -213,6 +213,28 @@ class LightController {
             preset = preset,
         )
 
+    internal fun sceneSnapshot(): LightSceneState =
+        LightSceneState(
+            power = power,
+            color = color,
+            effect = effect,
+            colorCycling = colorCycling,
+            brightness = brightness,
+            effectSpeed = effectSpeed,
+            effectIntensity = effectIntensity,
+        )
+
+    internal fun applySceneState(sceneState: LightSceneState) {
+        setPreset(null)
+        setPower(sceneState.power)
+        setColor(sceneState.color)
+        setEffect(sceneState.effect)
+        setColorCycling(sceneState.colorCycling)
+        setEffectSpeed(sceneState.effectSpeed)
+        setEffectIntensity(sceneState.effectIntensity)
+        setBrightness(sceneState.brightness)
+    }
+
     private fun notifyChange() {
         changeListeners.toList().forEach { it() }
     }

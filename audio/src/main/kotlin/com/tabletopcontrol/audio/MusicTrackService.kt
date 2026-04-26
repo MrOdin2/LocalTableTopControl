@@ -2,12 +2,10 @@ package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.audio.shared.MediaTrackController
 import com.tabletopcontrol.audio.shared.MediaTrackStatus
+import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.ui.reorder.ReorderSupport
 import javafx.scene.media.MediaPlayer
 import javafx.util.Duration
-import java.io.File
-import java.net.URI
-import java.net.URISyntaxException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -194,18 +192,7 @@ internal class MusicTrackService(
     }
 
     fun persistSettings() {
-        settingsStore.save(
-            MusicSettings(
-                masterVolume = masterVolume,
-                tracks = trackStates.map { track ->
-                    PersistedMusicTrack(
-                        uri = track.uri,
-                        volume = track.volume,
-                        loop = track.loop,
-                    )
-                },
-            ),
-        )
+        settingsStore.save(exportSettings())
     }
 
     fun shutdown() {
@@ -213,13 +200,42 @@ internal class MusicTrackService(
         persistSettings()
     }
 
-    fun fileNameFromUri(uri: String): String = try {
-        File(URI(uri)).name.ifBlank { "Loaded track" }
-    } catch (_: URISyntaxException) {
-        uri.substringAfterLast('/').ifBlank { "Loaded track" }
-    } catch (_: IllegalArgumentException) {
-        uri.substringAfterLast('/').ifBlank { "Loaded track" }
+    fun exportSettings(): MusicSettings {
+        initializeIfNeeded()
+        return MusicSettings(
+            masterVolume = masterVolume,
+            tracks = trackStates.map { track ->
+                PersistedMusicTrack(
+                    uri = track.uri,
+                    volume = track.volume,
+                    loop = track.loop,
+                )
+            },
+        )
     }
+
+    fun replaceSettings(settings: MusicSettings) {
+        initializeIfNeeded()
+        trackStates.forEach(::disposeTrack)
+        masterVolume = settings.masterVolume.coerceIn(0.0, 1.0)
+        trackStates.clear()
+        trackStates += settings.tracks
+            .take(MusicPlugin.MAX_TRACK_COUNT)
+            .ifEmpty { listOf(PersistedMusicTrack()) }
+            .map { persisted ->
+                MusicTrackState(
+                    uri = persisted.uri,
+                    volume = persisted.volume.coerceIn(0.0, 1.0),
+                    loop = persisted.loop,
+                )
+            }
+        persistSettings()
+    }
+
+    fun fileNameFromUri(uri: String): String =
+        LocalFiles.fileName(uri)
+            ?: uri.substringAfterLast('/')
+                .ifBlank { "Loaded track" }
 
     private fun startTrackLoad(
         track: MusicTrackState,

@@ -140,6 +140,7 @@
       <h2>On this page</h2>
       <ul>
         <li><a href="#overview">Overview</a></li>
+        <li><a href="#scenes">Scene Browser</a></li>
         <li><a href="#tracker-map">Tracker ↔ Map</a>
           <ul>
             <li><a href="#token-creation">Token Creation</a></li>
@@ -181,6 +182,47 @@
         (combatant added, moved, image changed, removed) and the Map listens and updates the
         table screen accordingly. You control everything from the Tracker side.
       </p>
+    </section>
+
+    <section id="scenes">
+      <h2>Scene Browser</h2>
+      <p>
+        The <strong>Scenes...</strong> button in the main toolbar is the shared cross-plugin way to
+        capture and restore a full encounter setup. A scene can include:
+      </p>
+      <ul>
+        <li>Map image, calibration, token positions, and fog of war.</li>
+        <li>Tracker actors with their live HP, AC, initiative, and token settings.</li>
+        <li>Music tracks and volume settings.</li>
+        <li>Soundboard button assignments and order.</li>
+        <li>Ambient light colour, effect, speed, intensity, and brightness.</li>
+      </ul>
+      <p>
+        Use <strong>Save Current Scene</strong> to capture the current setup. TabletopControl asks
+        for a scene name and shows a confirmation dialog before saving. If that name already exists,
+        it asks again before replacing the older scene.
+      </p>
+      <p>
+        Use <strong>Load</strong> beside any saved scene to restore it. Loading also shows a
+        confirmation dialog because it replaces the current encounter state across all participating
+        plugins.
+      </p>
+      <p>
+        Scene files are stored in the scene folder as readable plain-text <strong>XML</strong>,
+        which makes troubleshooting much easier when you need to inspect a saved encounter by hand.
+        Older scene files still load and are upgraded to the readable format automatically the next
+        time TabletopControl reads them.
+      </p>
+      <p>
+        Scene loading also rebuilds preset-based token portraits if an older scene points to a
+        temporary image file that no longer exists, and fog of war is stored in the shorter of the
+        hidden-cell or revealed-cell lists to keep scene files compact.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> Scenes are best for whole encounters or reusable battle maps.
+        Presets are still the better choice for one reusable tracker actor or one reusable light
+        preset stored on the WLED device.
+      </div>
     </section>
 
     <section id="tracker-map">
