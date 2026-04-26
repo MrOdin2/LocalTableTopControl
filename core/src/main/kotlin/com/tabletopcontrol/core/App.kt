@@ -258,8 +258,9 @@ class App : Application() {
         val screenLabel = Label("Table View screen:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
 
         return ToolBar(
-            themeButton,
             helpButton,
+            themeButton,
+            scenesButton,
             Separator(Orientation.VERTICAL),
             workspaceLabel,
             workspaceCombo,
