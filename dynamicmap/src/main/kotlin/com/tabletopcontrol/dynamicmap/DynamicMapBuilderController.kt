@@ -30,6 +30,12 @@ class DynamicMapBuilderController {
     private val lightEnabledSubscription = EventBus.subscribe<DynamicMapLightEnabledRequestedEvent> { event ->
         setLightEnabled(event.lightId, event.enabled)
     }
+    private val groupCreationSubscription = EventBus.subscribe<DynamicMapGroupCreationRequestedEvent> { event ->
+        createGroup(event.selections)
+    }
+    private val groupRemovalSubscription = EventBus.subscribe<DynamicMapGroupRemovalRequestedEvent> { event ->
+        removeGroups(event.groupIds)
+    }
 
     init {
         publishDocumentChanged()
@@ -137,6 +143,13 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(lights = it.lights.filterNot { light -> light.id == id }) }
     }
 
+    fun moveSelections(
+        selections: Set<DynamicMapElementSelection>,
+        delta: DynamicMapPoint,
+    ) {
+        updateDocument { it.moveSelections(selections, delta) }
+    }
+
     fun setLightEnabled(id: String, enabled: Boolean) {
         updateDocument { current ->
             current.copy(
@@ -155,6 +168,29 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(lights = emptyList()) }
     }
 
+    fun createGroup(selections: Set<DynamicMapElementSelection>) {
+        updateDocument { current ->
+            val elements = current.filterExistingSelections(selections)
+            if (elements.isEmpty()) {
+                current
+            } else {
+                current.copy(
+                    groups = current.groups + DynamicMapElementGroup(
+                        label = nextGroupLabel(current.groups),
+                        elements = elements,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun removeGroups(groupIds: Set<String>) {
+        if (groupIds.isEmpty()) return
+        updateDocument { current ->
+            current.copy(groups = current.groups.filterNot { it.id in groupIds })
+        }
+    }
+
     fun onShutdown() {
         presetSubscription.unsubscribe()
         clearWallsSubscription.unsubscribe()
@@ -162,6 +198,8 @@ class DynamicMapBuilderController {
         snapshotSubscription.unsubscribe()
         removalSubscription.unsubscribe()
         lightEnabledSubscription.unsubscribe()
+        groupCreationSubscription.unsubscribe()
+        groupRemovalSubscription.unsubscribe()
     }
 
     private fun setSelectedPreset(preset: DynamicMapLightPreset) {
@@ -171,7 +209,7 @@ class DynamicMapBuilderController {
     }
 
     private fun updateDocument(transform: (DynamicMapDocument) -> DynamicMapDocument) {
-        val updated = transform(document)
+        val updated = transform(document).pruneInvalidGroups()
         if (updated == document) return
         document = updated
         DynamicMapDraftSerializer.save(document)
@@ -181,5 +219,15 @@ class DynamicMapBuilderController {
 
     private fun publishDocumentChanged() {
         EventBus.publish(DynamicMapDocumentChangedEvent(document))
+    }
+}
+
+private fun nextGroupLabel(groups: List<DynamicMapElementGroup>): String {
+    val usedLabels = groups.mapTo(mutableSetOf()) { it.label }
+    var index = 1
+    while (true) {
+        val candidate = "Group $index"
+        if (candidate !in usedLabels) return candidate
+        index += 1
     }
 }

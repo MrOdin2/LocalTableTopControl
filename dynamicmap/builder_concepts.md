@@ -59,15 +59,20 @@ Future decisions should be added here as well so the builder evolves from one co
 ### Outline Workflow
 
 - The `Outline Browser` pane is the structural overview for placed builder elements.
-- It groups the current draft by element type and currently lists:
+- It groups the current draft by user-defined groups and by element type, currently listing:
+  - groups
   - lights
   - walls
 - Selecting an outline item should highlight the same element on the main builder canvas.
+- Selecting a user-defined group should select every element linked to that group, using the normal shared element selection event.
 - Holding Ctrl while clicking another outline item adds it to the current selection.
 - Multi-selection is currently introduced through the outline only; other builder surfaces may continue to replace the selection with one item.
 - The outline pane owns item-level management actions that are not tied to one placement tool, such as:
+  - create a group from the current element selection
+  - remove group metadata without deleting grouped elements
   - remove selected elements
   - enable or disable a selected light
+- Groups are saved in the internal builder draft and are pruned automatically when their linked elements are deleted.
 - Future builder element types should join the outline instead of creating separate one-off management lists.
 
 ### Shared Editing Behavior
@@ -76,8 +81,16 @@ Future decisions should be added here as well so the builder evolves from one co
 - The current builder document and current element selection are shared across builder panes through Dynamic Map builder events.
 - Blank-space right-click in the builder canvas should fall through to the normal DM pane layout context menu.
 - Right-click near a wall or light should show builder-specific remove actions for that element.
+- With no placement tool active, primary-drag on a selected wall or light moves the selected element set.
+- Primary-drag on empty canvas space still pans the workspace view.
 - Pressing `Escape` in the main builder pane should leave placement mode.
 - Quarter-grid snapping (`0.25`) remains available in the main builder pane because it affects general placement, not only one side-pane.
+- Quarter-grid snapping also controls movement increments for dragged selected elements.
+- Arrow keys nudge the selected element set when the main builder pane has focus and no placement tool is active.
+- Arrow key nudge sizes are fixed editor commands:
+  - plain arrows move `0.25` tile
+  - Shift plus arrows move `1` tile
+  - Ctrl plus arrows move by one screen pixel converted to grid units, capped to remain a fine adjustment
 - Workspace zoom and pan are view-only editor controls.
 - Zooming or panning must not change grid coordinates, snapping, draft geometry, background calibration, or saved map data.
 - Mouse hit-testing and placement must inverse-transform through the workspace viewport before converting to map/grid space.

@@ -46,6 +46,16 @@ data class DynamicMapSelectionChangedEvent(val selections: Set<DynamicMapElement
 data class DynamicMapElementRemovalRequestedEvent(val selection: DynamicMapElementSelection)
 
 /**
+ * Published when the outline pane creates a named group from the current element selection.
+ */
+data class DynamicMapGroupCreationRequestedEvent(val selections: Set<DynamicMapElementSelection>)
+
+/**
+ * Published when the outline pane removes grouping metadata without deleting the grouped elements.
+ */
+data class DynamicMapGroupRemovalRequestedEvent(val groupIds: Set<String>)
+
+/**
  * Published when a builder pane turns a light on or off.
  */
 data class DynamicMapLightEnabledRequestedEvent(

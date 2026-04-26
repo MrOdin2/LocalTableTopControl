@@ -25,8 +25,10 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
     override fun createView(): Node {
         var document = DynamicMapDocument()
         var selections = emptySet<DynamicMapElementSelection>()
+        var selectedGroupIds = emptySet<String>()
         var isApplyingSelection = false
         var itemBySelection = emptyMap<DynamicMapElementSelection, TreeItem<DynamicMapOutlineNode>>()
+        var itemByGroupId = emptyMap<String, TreeItem<DynamicMapOutlineNode>>()
 
         val summaryLabel = Label().apply {
             style = "-fx-text-fill: -tc-text-muted;"
@@ -47,6 +49,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                         text = item.label
                         style = when (item) {
                             is DynamicMapOutlineGroupNode -> "-fx-font-weight: bold;"
+                            is DynamicMapOutlineUserGroupNode -> "-fx-font-weight: bold; -fx-text-fill: -tc-accent;"
                             is DynamicMapOutlineHintNode -> "-fx-text-fill: -tc-text-muted;"
                             is DynamicMapOutlineElementNode -> ""
                         }
@@ -54,11 +57,13 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 }
             }
         }
+        val createGroupButton = Button("Group Selected")
+        val removeGroupButton = Button("Remove Group")
         val removeSelectedButton = Button("Remove Selected")
         val toggleLightButton = Button("Disable Light")
         val clearSelectionButton = Button("Clear Selection")
         val footerLabel = Label(
-            "The outline shows every wall and light in the current draft. Future builder element types should join this pane as they are added.",
+            "The outline shows every group, wall, and light in the current draft. Selecting a group selects all elements linked to it.",
         ).apply {
             isWrapText = true
             style = "-fx-text-fill: -tc-text-muted;"
@@ -71,6 +76,9 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 ?.let { document.lightById(it.elementId) }
 
         fun refreshActionButtons() {
+            createGroupButton.isDisable = selections.isEmpty()
+            removeGroupButton.isDisable = selectedGroupIds.isEmpty()
+            removeGroupButton.text = if (selectedGroupIds.size > 1) "Remove Groups" else "Remove Group"
             removeSelectedButton.isDisable = selections.isEmpty()
             val light = selectedLight()
             toggleLightButton.isDisable = light == null
@@ -80,7 +88,13 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         fun syncTreeSelection() {
             isApplyingSelection = true
             tree.selectionModel.clearSelection()
-            val treeSelections = selections.mapNotNull(itemBySelection::get)
+            selectedGroupIds = selectedGroupIds.filterTo(linkedSetOf()) { document.groupById(it) != null }
+            val groupedSelections = selectedGroupIds
+                .flatMap { document.groupById(it)?.elements.orEmpty() }
+                .toSet()
+            val individualSelections = selections.filterTo(linkedSetOf()) { it !in groupedSelections }
+            val treeSelections = selectedGroupIds.mapNotNull(itemByGroupId::get) +
+                individualSelections.mapNotNull(itemBySelection::get)
             treeSelections.forEach { tree.selectionModel.select(it) }
             treeSelections.lastOrNull()?.let { lastSelection ->
                 val row = tree.getRow(lastSelection)
@@ -93,14 +107,28 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         }
 
         fun updateSelectionFromTree() {
-            val selectedOutlineItems = tree.selectionModel.selectedItems
-                .mapNotNull { it.value as? DynamicMapOutlineElementNode }
-                .mapTo(linkedSetOf()) { it.selection }
-            if (selectedOutlineItems == selections) return
+            val selectedNodes = tree.selectionModel.selectedItems.map { it.value }
+            val treeSelectedGroupIds = selectedNodes
+                .mapNotNull { it as? DynamicMapOutlineUserGroupNode }
+                .mapTo(linkedSetOf()) { it.groupId }
+            val groupSelections = treeSelectedGroupIds.flatMap { groupId ->
+                document.groupById(groupId)?.elements.orEmpty()
+            }
+            val elementSelections = selectedNodes
+                .mapNotNull { it as? DynamicMapOutlineElementNode }
+                .map { it.selection }
+            val selectedOutlineItems = (groupSelections + elementSelections)
+                .filterTo(linkedSetOf()) { document.containsSelection(it) }
+            val selectionChanged = selectedOutlineItems != selections
+            val groupSelectionChanged = treeSelectedGroupIds != selectedGroupIds
+            if (!selectionChanged && !groupSelectionChanged) return
 
             selections = selectedOutlineItems
+            selectedGroupIds = treeSelectedGroupIds
             refreshActionButtons()
-            EventBus.publish(DynamicMapSelectionChangedEvent(selectedOutlineItems))
+            if (selectionChanged) {
+                EventBus.publish(DynamicMapSelectionChangedEvent(selectedOutlineItems))
+            }
         }
 
         fun rebuildTree() {
@@ -108,6 +136,35 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 isExpanded = true
             }
             val index = linkedMapOf<DynamicMapElementSelection, TreeItem<DynamicMapOutlineNode>>()
+            val groupIndex = linkedMapOf<String, TreeItem<DynamicMapOutlineNode>>()
+
+            val groupsNode = TreeItem<DynamicMapOutlineNode>(
+                DynamicMapOutlineGroupNode("Groups (${document.groups.size})"),
+            ).apply { isExpanded = true }
+            if (document.groups.isEmpty()) {
+                groupsNode.children += TreeItem<DynamicMapOutlineNode>(
+                    DynamicMapOutlineHintNode("No groups created yet"),
+                )
+            } else {
+                document.groups.forEach { group ->
+                    val groupSelections = document.filterExistingSelections(group.elements)
+                    val groupItem = TreeItem<DynamicMapOutlineNode>(
+                        DynamicMapOutlineUserGroupNode(
+                            groupId = group.id,
+                            label = "${group.label} (${groupSelections.size})",
+                        ),
+                    ).apply {
+                        isExpanded = true
+                    }
+                    groupSelections.forEach { selection ->
+                        buildGroupMemberOutlineNode(selection, document)?.let { memberNode ->
+                            groupItem.children += TreeItem<DynamicMapOutlineNode>(memberNode)
+                        }
+                    }
+                    groupsNode.children += groupItem
+                    groupIndex[group.id] = groupItem
+                }
+            }
 
             val lightsNode = TreeItem<DynamicMapOutlineNode>(
                 DynamicMapOutlineGroupNode("Lights (${document.lights.size})"),
@@ -157,13 +214,15 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 }
             }
 
-            root.children.setAll(lightsNode, wallsNode)
+            root.children.setAll(groupsNode, lightsNode, wallsNode)
             itemBySelection = index
+            itemByGroupId = groupIndex
+            selectedGroupIds = selectedGroupIds.filterTo(linkedSetOf()) { document.groupById(it) != null }
             isApplyingSelection = true
             tree.root = root
             isApplyingSelection = false
             summaryLabel.text =
-                "Lights: ${document.lights.count { it.enabled }}/${document.lights.size} enabled | Walls: ${document.walls.size}"
+                "Groups: ${document.groups.size} | Lights: ${document.lights.count { it.enabled }}/${document.lights.size} enabled | Walls: ${document.walls.size}"
             val existingSelections = document.filterExistingSelections(selections)
             if (existingSelections != selections) {
                 EventBus.publish(DynamicMapSelectionChangedEvent(existingSelections))
@@ -183,6 +242,18 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             },
         )
 
+        createGroupButton.setOnAction {
+            val currentSelections = selections
+            if (currentSelections.isEmpty()) return@setOnAction
+            EventBus.publish(DynamicMapGroupCreationRequestedEvent(currentSelections))
+        }
+        removeGroupButton.setOnAction {
+            val currentGroupIds = selectedGroupIds
+            if (currentGroupIds.isEmpty()) return@setOnAction
+            selectedGroupIds = emptySet()
+            refreshActionButtons()
+            EventBus.publish(DynamicMapGroupRemovalRequestedEvent(currentGroupIds))
+        }
         removeSelectedButton.setOnAction {
             val currentSelections = selections
             if (currentSelections.isEmpty()) return@setOnAction
@@ -212,6 +283,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             val existingSelections = document.filterExistingSelections(event.selections)
             if (existingSelections != selections) {
                 selections = existingSelections
+                selectedGroupIds = emptySet()
                 syncTreeSelection()
             } else {
                 refreshActionButtons()
@@ -226,6 +298,8 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             Label("Builder outline"),
             summaryLabel,
             tree,
+            createGroupButton,
+            removeGroupButton,
             removeSelectedButton,
             toggleLightButton,
             clearSelectionButton,
@@ -234,6 +308,8 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             padding = Insets(8.0)
             style = "-fx-background-color: -tc-bg;"
             VBox.setVgrow(tree, Priority.ALWAYS)
+            createGroupButton.maxWidth = Double.MAX_VALUE
+            removeGroupButton.maxWidth = Double.MAX_VALUE
             removeSelectedButton.maxWidth = Double.MAX_VALUE
             toggleLightButton.maxWidth = Double.MAX_VALUE
             clearSelectionButton.maxWidth = Double.MAX_VALUE
@@ -255,6 +331,11 @@ private data class DynamicMapOutlineGroupNode(
     override val label: String,
 ) : DynamicMapOutlineNode
 
+private data class DynamicMapOutlineUserGroupNode(
+    val groupId: String,
+    override val label: String,
+) : DynamicMapOutlineNode
+
 private data class DynamicMapOutlineHintNode(
     override val label: String,
 ) : DynamicMapOutlineNode
@@ -273,6 +354,25 @@ private fun buildLightOutlineLabel(index: Int, light: DynamicMapLight): String {
 private fun buildWallOutlineLabel(index: Int, wall: DynamicMapWall): String =
     "${index + 1}. ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
         "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
+
+private fun buildGroupMemberOutlineNode(
+    selection: DynamicMapElementSelection,
+    document: DynamicMapDocument,
+): DynamicMapOutlineElementNode? {
+    val label = when (selection.kind) {
+        DynamicMapElementKind.LIGHT -> document.lightById(selection.elementId)?.let { light ->
+            val state = if (light.enabled) "" else "[Off] "
+            "Light: ${state}${light.label} @ ${formatOutlineCoordinate(light.position.x)}, " +
+                formatOutlineCoordinate(light.position.y)
+        }
+        DynamicMapElementKind.WALL -> document.wallById(selection.elementId)?.let { wall ->
+            "Wall: ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
+                "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
+        }
+    } ?: return null
+
+    return DynamicMapOutlineElementNode(selection = selection, label = label)
+}
 
 private fun formatOutlineCoordinate(value: Double): String =
     String.format(Locale.US, "%.2f", value)

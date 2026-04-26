@@ -20,6 +20,7 @@ import javafx.scene.control.TextField
 import javafx.scene.control.Tooltip
 import javafx.scene.image.Image
 import javafx.scene.input.KeyCode
+import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
@@ -33,6 +34,15 @@ import kotlin.math.min
 
 private const val BACKGROUND_HISTORY_KEY = "dynamicmap_builder.background"
 private const val SNAP_STEP = 0.25
+private const val KEYBOARD_NUDGE_STEP = 0.25
+private const val KEYBOARD_SHIFT_NUDGE_STEP = 1.0
+
+private data class DynamicMapMoveDrag(
+    val startPoint: DynamicMapPoint,
+    val baseDocument: DynamicMapDocument,
+    val selections: Set<DynamicMapElementSelection>,
+    val delta: DynamicMapPoint = DynamicMapPoint(0.0, 0.0),
+)
 
 class DynamicMapBuilderView(
     private val controller: DynamicMapBuilderController,
@@ -51,6 +61,7 @@ class DynamicMapBuilderView(
     private var panDragStartOffsetX: Double = 0.0
     private var panDragStartOffsetY: Double = 0.0
     private var selectedElements: Set<DynamicMapElementSelection> = emptySet()
+    private var moveDrag: DynamicMapMoveDrag? = null
     private val viewport = DynamicMapWorkspaceViewport()
 
     private val canvas = Canvas(1.0, 1.0)
@@ -179,9 +190,15 @@ class DynamicMapBuilderView(
             isFocusTraversable = true
             VBox.setVgrow(canvasPane, Priority.ALWAYS)
             setOnKeyPressed { event ->
-                if (event.code == KeyCode.ESCAPE && activeTool != null) {
-                    EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
-                    event.consume()
+                when {
+                    event.code == KeyCode.ESCAPE && activeTool != null -> {
+                        EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
+                        event.consume()
+                    }
+
+                    handleKeyboardNudge(event) -> {
+                        event.consume()
+                    }
                 }
             }
         }
@@ -239,7 +256,25 @@ class DynamicMapBuilderView(
                             redraw()
                         }
 
-                        null -> beginPan(event.x, event.y)
+                        null -> {
+                            val selection = selectionAtCanvas(event.x, event.y)
+                            if (selection != null) {
+                                val dragSelections = if (selection in selectedElements) {
+                                    selectedElements
+                                } else {
+                                    setOf(selection)
+                                }
+                                if (dragSelections != selectedElements) {
+                                    EventBus.publish(DynamicMapSelectionChangedEvent(dragSelections))
+                                }
+                                val point = mapPointFromCanvas(event.x, event.y, clampToBounds = true)
+                                    ?: return@setOnMousePressed
+                                beginMoveDrag(point, dragSelections)
+                                event.consume()
+                            } else {
+                                beginPan(event.x, event.y)
+                            }
+                        }
                     }
                 }
 
@@ -249,6 +284,12 @@ class DynamicMapBuilderView(
         }
 
         canvas.setOnMouseDragged { event ->
+            val activeMoveDrag = moveDrag
+            if (activeMoveDrag != null && event.isPrimaryButtonDown) {
+                updateMoveDrag(event.x, event.y, activeMoveDrag)
+                event.consume()
+                return@setOnMouseDragged
+            }
             if (isPanning && (event.isPrimaryButtonDown || event.isMiddleButtonDown)) {
                 viewport.setPan(
                     x = panDragStartOffsetX + (event.x - panDragStartX),
@@ -268,6 +309,12 @@ class DynamicMapBuilderView(
         }
 
         canvas.setOnMouseReleased { event ->
+            val activeMoveDrag = moveDrag
+            if (activeMoveDrag != null) {
+                commitMoveDrag(activeMoveDrag)
+                event.consume()
+                return@setOnMouseReleased
+            }
             if (isPanning) {
                 isPanning = false
                 event.consume()
@@ -349,6 +396,9 @@ class DynamicMapBuilderView(
         disposers += { toolSubscription.unsubscribe() }
         val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
             selectedElements = document.filterExistingSelections(event.selections)
+            if (moveDrag != null) {
+                moveDrag = null
+            }
             redraw()
             updateStatus(null)
         }
@@ -419,32 +469,94 @@ class DynamicMapBuilderView(
         panDragStartOffsetY = viewport.offsetY
     }
 
+    private fun beginMoveDrag(
+        startPoint: DynamicMapPoint,
+        selections: Set<DynamicMapElementSelection>,
+    ) {
+        isPanning = false
+        moveDrag = DynamicMapMoveDrag(
+            startPoint = startPoint,
+            baseDocument = document,
+            selections = selections,
+        )
+        updateStatus(startPoint)
+    }
+
+    private fun handleKeyboardNudge(event: KeyEvent): Boolean {
+        if (!isBuilderCanvasFocusOwner()) return false
+        if (activeTool != null || moveDrag != null || selectedElements.isEmpty()) return false
+        val direction = when (event.code) {
+            KeyCode.LEFT -> DynamicMapPoint(-1.0, 0.0)
+            KeyCode.RIGHT -> DynamicMapPoint(1.0, 0.0)
+            KeyCode.UP -> DynamicMapPoint(0.0, -1.0)
+            KeyCode.DOWN -> DynamicMapPoint(0.0, 1.0)
+            else -> return false
+        }
+        val step = keyboardNudgeStep(event)
+        val requestedDelta = DynamicMapPoint(
+            x = direction.x * step,
+            y = direction.y * step,
+        )
+        val clampedDelta = document.clampMovementDelta(selectedElements, requestedDelta)
+        if (clampedDelta.x == 0.0 && clampedDelta.y == 0.0) return true
+
+        controller.moveSelections(selectedElements, clampedDelta)
+        return true
+    }
+
+    private fun keyboardNudgeStep(event: KeyEvent): Double =
+        when {
+            event.isControlDown -> currentMetrics()
+                ?.let { fineMovementStepInTiles(it.cellSize, viewport.scale) }
+                ?: 0.01
+            event.isShiftDown -> KEYBOARD_SHIFT_NUDGE_STEP
+            else -> KEYBOARD_NUDGE_STEP
+        }
+
+    private fun isBuilderCanvasFocusOwner(): Boolean {
+        val focusOwner = root.scene?.focusOwner
+        return focusOwner == root || focusOwner == canvas
+    }
+
+    private fun updateMoveDrag(
+        canvasX: Double,
+        canvasY: Double,
+        drag: DynamicMapMoveDrag,
+    ) {
+        val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = true) ?: return
+        val requestedDelta = DynamicMapPoint(
+            x = point.x - drag.startPoint.x,
+            y = point.y - drag.startPoint.y,
+        ).let { delta ->
+            if (snapEnabled) snapPoint(delta, SNAP_STEP) else delta
+        }
+        val clampedDelta = drag.baseDocument.clampMovementDelta(drag.selections, requestedDelta)
+        moveDrag = drag.copy(delta = clampedDelta)
+        document = drag.baseDocument.moveSelections(drag.selections, clampedDelta)
+        redraw()
+        updateStatus(normalizePoint(point))
+    }
+
+    private fun commitMoveDrag(drag: DynamicMapMoveDrag) {
+        moveDrag = null
+        document = drag.baseDocument
+        if (drag.delta.x != 0.0 || drag.delta.y != 0.0) {
+            controller.moveSelections(drag.selections, drag.delta)
+        } else {
+            redraw()
+            updateStatus(null)
+        }
+    }
+
     private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double): Boolean {
-        val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = false)
-        val metrics = currentMetrics() ?: return false
-        val tolerance = 12.0 / (metrics.cellSize * viewport.scale)
-
-        val nearestLight = point?.let {
-            document.lights
-                .map { light -> light to distanceToSegment(it, light.position, light.position) }
-                .filter { (_, distance) -> distance <= tolerance }
-                .minByOrNull { it.second }
-        }
-        val nearestWall = point?.let {
-            document.walls
-                .map { wall -> wall to distanceToWall(it, wall) }
-                .filter { (_, distance) -> distance <= tolerance }
-                .minByOrNull { it.second }
-        }
-
         val actions = mutableListOf<MenuAction>()
-        val chosenLight = nearestLight?.takeIf { nearestWall == null || it.second <= nearestWall.second }?.first
-        val chosenWall = nearestWall?.takeIf { nearestLight == null || it.second < nearestLight.second }?.first
-        val chosenSelection = when {
-            chosenLight != null -> DynamicMapElementSelection(DynamicMapElementKind.LIGHT, chosenLight.id)
-            chosenWall != null -> DynamicMapElementSelection(DynamicMapElementKind.WALL, chosenWall.id)
-            else -> null
-        }
+        val chosenSelection = selectionAtCanvas(canvasX, canvasY)
+        val chosenLight = chosenSelection
+            ?.takeIf { it.kind == DynamicMapElementKind.LIGHT }
+            ?.let { document.lightById(it.elementId) }
+        val chosenWall = chosenSelection
+            ?.takeIf { it.kind == DynamicMapElementKind.WALL }
+            ?.let { document.wallById(it.elementId) }
 
         chosenSelection?.let {
             EventBus.publish(DynamicMapSelectionChangedEvent(it))
@@ -469,6 +581,34 @@ class DynamicMapBuilderView(
         if (actions.isEmpty()) return false
         ContextMenuRenderer.build(actions).show(canvas, screenX, screenY)
         return true
+    }
+
+    private fun selectionAtCanvas(canvasX: Double, canvasY: Double): DynamicMapElementSelection? {
+        val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = false) ?: return null
+        val metrics = currentMetrics() ?: return null
+        val tolerance = 12.0 / (metrics.cellSize * viewport.scale)
+
+        val nearestLight = document.lights
+            .map { light -> light to distanceToSegment(point, light.position, light.position) }
+            .filter { (_, distance) -> distance <= tolerance }
+            .minByOrNull { it.second }
+        val nearestWall = document.walls
+            .map { wall -> wall to distanceToWall(point, wall) }
+            .filter { (_, distance) -> distance <= tolerance }
+            .minByOrNull { it.second }
+
+        val chosenLight = nearestLight
+            ?.takeIf { nearestWall == null || it.second <= nearestWall.second }
+            ?.first
+        val chosenWall = nearestWall
+            ?.takeIf { nearestLight == null || it.second < nearestLight.second }
+            ?.first
+
+        return when {
+            chosenLight != null -> DynamicMapElementSelection(DynamicMapElementKind.LIGHT, chosenLight.id)
+            chosenWall != null -> DynamicMapElementSelection(DynamicMapElementKind.WALL, chosenWall.id)
+            else -> null
+        }
     }
 
     private fun redraw() {
@@ -750,7 +890,7 @@ class DynamicMapBuilderView(
             DynamicMapTool.WALL_LINE -> "Tool: wall line"
             DynamicMapTool.WALL_RECT -> "Tool: wall rectangle"
             DynamicMapTool.LIGHT -> "Tool: light placement"
-            null -> "Tool: none"
+            null -> moveDrag?.let { "Tool: moving ${it.selections.size} selected" } ?: "Tool: none"
         }
         val pointerText = mapPoint?.let {
             "Pointer ${formatGrid(it.x)}, ${formatGrid(it.y)}"

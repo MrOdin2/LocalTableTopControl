@@ -11,6 +11,7 @@ data class DynamicMapDocument(
     val visibility: DynamicMapLayerVisibility = DynamicMapLayerVisibility(),
     val walls: List<DynamicMapWall> = emptyList(),
     val lights: List<DynamicMapLight> = emptyList(),
+    val groups: List<DynamicMapElementGroup> = emptyList(),
 )
 
 data class DynamicMapLayerVisibility(
@@ -59,6 +60,12 @@ data class DynamicMapLight(
     val enabled: Boolean = true,
 )
 
+data class DynamicMapElementGroup(
+    val id: String = UUID.randomUUID().toString(),
+    val label: String,
+    val elements: Set<DynamicMapElementSelection>,
+)
+
 data class DynamicMapLightPreset(
     val id: String,
     val displayName: String,
@@ -82,11 +89,26 @@ fun DynamicMapDocument.containsSelection(selection: DynamicMapElementSelection):
 fun DynamicMapDocument.filterExistingSelections(selections: Set<DynamicMapElementSelection>): Set<DynamicMapElementSelection> =
     selections.filterTo(linkedSetOf()) { containsSelection(it) }
 
+fun DynamicMapDocument.pruneInvalidGroups(): DynamicMapDocument {
+    val validGroups = groups.mapNotNull { group ->
+        val elements = filterExistingSelections(group.elements)
+        if (elements.isEmpty()) {
+            null
+        } else {
+            group.copy(elements = elements)
+        }
+    }
+    return if (validGroups == groups) this else copy(groups = validGroups)
+}
+
 fun DynamicMapDocument.wallById(id: String): DynamicMapWall? =
     walls.firstOrNull { it.id == id }
 
 fun DynamicMapDocument.lightById(id: String): DynamicMapLight? =
     lights.firstOrNull { it.id == id }
+
+fun DynamicMapDocument.groupById(id: String): DynamicMapElementGroup? =
+    groups.firstOrNull { it.id == id }
 
 object DynamicMapLightPresets {
     val presets: List<DynamicMapLightPreset> = listOf(

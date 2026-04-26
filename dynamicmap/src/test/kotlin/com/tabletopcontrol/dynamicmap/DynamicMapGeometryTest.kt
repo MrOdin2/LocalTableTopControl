@@ -27,6 +27,12 @@ class DynamicMapGeometryTest {
     }
 
     @Test
+    fun `fine movement step uses one screen pixel capped to a small tile step`() {
+        assertEquals(0.025, fineMovementStepInTiles(cellSize = 20.0, scale = 2.0), 0.0000001)
+        assertEquals(0.05, fineMovementStepInTiles(cellSize = 8.0, scale = 1.0), 0.0000001)
+    }
+
+    @Test
     fun `distance to segment is zero for points on the segment`() {
         val distance = distanceToSegment(
             point = DynamicMapPoint(2.0, 2.0),
@@ -34,6 +40,80 @@ class DynamicMapGeometryTest {
             end = DynamicMapPoint(3.0, 3.0),
         )
         assertTrue(distance < 0.0001)
+    }
+
+    @Test
+    fun `move selections translates selected walls and lights together`() {
+        val wall = DynamicMapWall(
+            id = "wall-1",
+            start = DynamicMapPoint(1.0, 2.0),
+            end = DynamicMapPoint(3.0, 2.0),
+        )
+        val otherWall = DynamicMapWall(
+            id = "wall-2",
+            start = DynamicMapPoint(5.0, 5.0),
+            end = DynamicMapPoint(6.0, 5.0),
+        )
+        val light = DynamicMapLight(
+            id = "light-1",
+            label = "Torch",
+            position = DynamicMapPoint(4.0, 4.0),
+            brightRadius = 4.0,
+            dimRadius = 8.0,
+            colorHex = "#ffb347",
+        )
+        val document = DynamicMapDocument(
+            walls = listOf(wall, otherWall),
+            lights = listOf(light),
+        )
+
+        val moved = document.moveSelections(
+            selections = setOf(
+                DynamicMapElementSelection(DynamicMapElementKind.WALL, wall.id),
+                DynamicMapElementSelection(DynamicMapElementKind.LIGHT, light.id),
+            ),
+            delta = DynamicMapPoint(0.5, -1.0),
+        )
+
+        assertEquals(DynamicMapPoint(1.5, 1.0), moved.walls[0].start)
+        assertEquals(DynamicMapPoint(3.5, 1.0), moved.walls[0].end)
+        assertEquals(otherWall, moved.walls[1])
+        assertEquals(DynamicMapPoint(4.5, 3.0), moved.lights[0].position)
+    }
+
+    @Test
+    fun `movement delta is clamped to keep selected geometry inside map bounds`() {
+        val document = DynamicMapDocument(
+            cols = 10,
+            rows = 8,
+            walls = listOf(
+                DynamicMapWall(
+                    id = "wall-1",
+                    start = DynamicMapPoint(1.0, 2.0),
+                    end = DynamicMapPoint(3.0, 4.0),
+                ),
+            ),
+            lights = listOf(
+                DynamicMapLight(
+                    id = "light-1",
+                    label = "Torch",
+                    position = DynamicMapPoint(8.0, 7.0),
+                    brightRadius = 4.0,
+                    dimRadius = 8.0,
+                    colorHex = "#ffb347",
+                ),
+            ),
+        )
+
+        val delta = document.clampMovementDelta(
+            selections = setOf(
+                DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-1"),
+                DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "light-1"),
+            ),
+            requestedDelta = DynamicMapPoint(5.0, -3.0),
+        )
+
+        assertEquals(DynamicMapPoint(2.0, -2.0), delta)
     }
 
     @Test

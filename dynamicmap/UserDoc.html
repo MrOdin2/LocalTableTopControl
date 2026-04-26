@@ -174,7 +174,8 @@
       </table>
       <p>
         Turn <strong>Snap 0.25</strong> on to align new content to quarter-cell increments. This keeps
-        the draft grid-friendly while still allowing more detail than full-cell snapping.
+        the draft grid-friendly while still allowing more detail than full-cell snapping. The same
+        snap setting is also used when moving selected walls or lights.
       </p>
       <div class="tip">
         The main builder pane is intentionally lean. Use the supporting builder panes such as
@@ -191,6 +192,16 @@
         to the Light Browser while staying in the builder workspace.
       </p>
       <p>
+        With no placement tool active, drag a selected wall or light directly on the builder canvas to
+        move it. If several outline items are selected, dragging any selected item moves the whole
+        selection together. Drag empty canvas space to pan the workspace as before.
+      </p>
+      <p>
+        Arrow keys also nudge the selected items when the main builder pane has focus:
+        plain arrows move by a quarter tile, <strong>Shift</strong> plus arrows move by one tile, and
+        <strong>Ctrl</strong> plus arrows make a fine screen-pixel adjustment.
+      </p>
+      <p>
         Press <strong>Escape</strong> in the builder pane to leave the current placement mode.
       </p>
     </section>
@@ -204,7 +215,11 @@
       <table>
         <tr><th>Action</th><th>What it does</th></tr>
         <tr><td>Mouse wheel</td><td>Zooms the builder workspace in or out.</td></tr>
-        <tr><td>Drag with no active tool</td><td>Pans around the workspace.</td></tr>
+        <tr><td>Drag empty space with no active tool</td><td>Pans around the workspace.</td></tr>
+        <tr><td>Drag a selected wall or light with no active tool</td><td>Moves the selected element or selected group on the grid.</td></tr>
+        <tr><td>Arrow keys</td><td>Nudge selected elements by 0.25 tile.</td></tr>
+        <tr><td>Shift + Arrow keys</td><td>Nudge selected elements by 1 tile.</td></tr>
+        <tr><td>Ctrl + Arrow keys</td><td>Nudge selected elements by a fine screen-pixel step.</td></tr>
         <tr><td>Middle mouse drag</td><td>Pans even while a placement tool is selected.</td></tr>
         <tr><td>Reset View</td><td>Returns zoom and pan to the fitted default view.</td></tr>
       </table>
@@ -272,13 +287,17 @@
       <h2>Outline Browser</h2>
       <p>
         Open another pane with <strong>Outline Browser</strong> for a Blender-style overview of the
-        current draft. It groups all placed <strong>lights</strong> and <strong>walls</strong> into
-        one browser so you can inspect the whole structure without hunting across the canvas.
+        current draft. It shows user-created <strong>groups</strong> plus all placed
+        <strong>lights</strong> and <strong>walls</strong> in one browser, so you can inspect the
+        whole structure without hunting across the canvas.
       </p>
       <table>
         <tr><th>Outline Browser action</th><th>What it does</th></tr>
         <tr><td>Select an item</td><td>Highlights that wall or light in the main builder canvas.</td></tr>
+        <tr><td>Select a group</td><td>Selects every wall or light linked to that group.</td></tr>
         <tr><td>Ctrl-click another item</td><td>Adds or removes that item from the current outline selection.</td></tr>
+        <tr><td>Group Selected</td><td>Creates a saved group from the currently selected walls and lights.</td></tr>
+        <tr><td>Remove Group</td><td>Removes the selected group entry but keeps its walls and lights on the map.</td></tr>
         <tr><td>Remove Selected</td><td>Deletes every currently selected wall or light.</td></tr>
         <tr><td>Disable / Enable Light</td><td>Turns one selected light source off or back on without deleting it.</td></tr>
         <tr><td>Clear Selection</td><td>Leaves the outline item list intact but removes the current highlights.</td></tr>
@@ -286,6 +305,10 @@
       <p>
         Disabled lights stay in the outline and appear as subdued markers in the builder canvas, so
         you can still keep track of them and switch them back on later.
+      </p>
+      <p>
+        Groups are saved with the builder draft. If grouped walls or lights are deleted later, the
+        group automatically forgets those missing elements.
       </p>
       <p>
         As new Dynamic Map Builder element types are added in future updates, they are expected to

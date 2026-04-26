@@ -55,6 +55,19 @@ object DynamicMapDraftSerializer {
             props.setProperty("$prefix.enabled", light.enabled.toString())
         }
 
+        props.setProperty("groups.count", document.groups.size.toString())
+        document.groups.forEachIndexed { index, group ->
+            val prefix = "group.$index"
+            props.setProperty("$prefix.id", group.id)
+            props.setProperty("$prefix.label", group.label)
+            props.setProperty("$prefix.elements.count", group.elements.size.toString())
+            group.elements.forEachIndexed { elementIndex, selection ->
+                val elementPrefix = "$prefix.element.$elementIndex"
+                props.setProperty("$elementPrefix.kind", selection.kind.name)
+                props.setProperty("$elementPrefix.id", selection.elementId)
+            }
+        }
+
         val writer = StringWriter()
         props.store(writer, "Dynamic Map Builder draft")
         return writer.toString()
@@ -119,6 +132,32 @@ object DynamicMapDraftSerializer {
                 }
             }
 
+            val groups = buildList {
+                val count = props.getProperty("groups.count")?.toIntOrNull() ?: 0
+                repeat(count) { index ->
+                    val prefix = "group.$index"
+                    val elements = buildSet {
+                        val elementCount = props.getProperty("$prefix.elements.count")?.toIntOrNull() ?: 0
+                        repeat(elementCount) { elementIndex ->
+                            val elementPrefix = "$prefix.element.$elementIndex"
+                            val kindName = props.getProperty("$elementPrefix.kind") ?: return@repeat
+                            val kind = DynamicMapElementKind.values().firstOrNull { it.name == kindName } ?: return@repeat
+                            val elementId = props.getProperty("$elementPrefix.id") ?: return@repeat
+                            add(DynamicMapElementSelection(kind = kind, elementId = elementId))
+                        }
+                    }
+                    if (elements.isNotEmpty()) {
+                        add(
+                            DynamicMapElementGroup(
+                                id = props.getProperty("$prefix.id") ?: "group-$index",
+                                label = props.getProperty("$prefix.label") ?: "Group ${index + 1}",
+                                elements = elements,
+                            ),
+                        )
+                    }
+                }
+            }
+
             DynamicMapDocument(
                 cols = cols,
                 rows = rows,
@@ -128,7 +167,8 @@ object DynamicMapDraftSerializer {
                 visibility = visibility,
                 walls = walls,
                 lights = lights,
-            )
+                groups = groups,
+            ).pruneInvalidGroups()
         } catch (_: Exception) {
             null
         }

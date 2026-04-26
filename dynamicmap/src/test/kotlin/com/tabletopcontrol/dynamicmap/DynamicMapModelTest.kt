@@ -29,12 +29,13 @@ class DynamicMapModelTest {
 
         val wallSelection = DynamicMapElementSelection(DynamicMapElementKind.WALL, wall.id)
         val lightSelection = DynamicMapElementSelection(DynamicMapElementKind.LIGHT, light.id)
+        val missingWallSelection = DynamicMapElementSelection(DynamicMapElementKind.WALL, "missing")
 
         assertTrue(document.containsSelection(wallSelection))
         assertTrue(document.containsSelection(lightSelection))
         assertEquals(wall, document.wallById(wall.id))
         assertEquals(light, document.lightById(light.id))
-        assertFalse(document.containsSelection(DynamicMapElementSelection(DynamicMapElementKind.WALL, "missing")))
+        assertFalse(document.containsSelection(missingWallSelection))
         assertFalse(document.containsSelection(DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "missing")))
         assertEquals(
             setOf(wallSelection, lightSelection),
@@ -46,5 +47,23 @@ class DynamicMapModelTest {
                 ),
             ),
         )
+
+        val mixedGroup = DynamicMapElementGroup(
+            id = "group-1",
+            label = "Mixed Group",
+            elements = setOf(wallSelection, missingWallSelection),
+        )
+        val emptyGroup = DynamicMapElementGroup(
+            id = "group-2",
+            label = "Empty Group",
+            elements = setOf(missingWallSelection),
+        )
+        val prunedDocument = document.copy(groups = listOf(mixedGroup, emptyGroup)).pruneInvalidGroups()
+
+        assertEquals(
+            listOf(mixedGroup.copy(elements = setOf(wallSelection))),
+            prunedDocument.groups,
+        )
+        assertEquals(mixedGroup.copy(elements = setOf(wallSelection)), prunedDocument.groupById("group-1"))
     }
 }

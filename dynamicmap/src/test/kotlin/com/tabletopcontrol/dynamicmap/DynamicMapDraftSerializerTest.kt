@@ -40,6 +40,16 @@ class DynamicMapDraftSerializerTest {
                     colorHex = "#ffb347",
                 ),
             ),
+            groups = listOf(
+                DynamicMapElementGroup(
+                    id = "group-1",
+                    label = "Entry Ambience",
+                    elements = setOf(
+                        DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-1"),
+                        DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "light-1"),
+                    ),
+                ),
+            ),
         )
 
         val restored = DynamicMapDraftSerializer.deserialize(
