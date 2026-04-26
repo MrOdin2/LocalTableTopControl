@@ -67,9 +67,10 @@ Future decisions should be added here as well so the builder evolves from one co
 - Selecting a user-defined group should select every element linked to that group, using the normal shared element selection event.
 - Holding Ctrl while clicking another outline item adds it to the current selection.
 - Multi-selection is currently introduced through the outline only; other builder surfaces may continue to replace the selection with one item.
-- The outline pane owns item-level management actions that are not tied to one placement tool, such as:
+- Grouping actions live in the outline right-click menu to keep the pane uncluttered:
   - create a group from the current element selection
   - remove group metadata without deleting grouped elements
+- The outline pane owns item-level management actions that are not tied to one placement tool, such as:
   - remove selected elements
   - enable or disable a selected light
 - Groups are saved in the internal builder draft and are pruned automatically when their linked elements are deleted.

@@ -7,7 +7,9 @@ import javafx.collections.ListChangeListener
 import javafx.geometry.Insets
 import javafx.scene.Node
 import javafx.scene.control.Button
+import javafx.scene.control.ContextMenu
 import javafx.scene.control.Label
+import javafx.scene.control.MenuItem
 import javafx.scene.control.SelectionMode
 import javafx.scene.control.TreeCell
 import javafx.scene.control.TreeItem
@@ -33,12 +35,29 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         val summaryLabel = Label().apply {
             style = "-fx-text-fill: -tc-text-muted;"
         }
-        val tree = TreeView<DynamicMapOutlineNode>().apply {
+        val groupSelectedMenuItem = MenuItem("Group Selected")
+        val removeGroupMenuItem = MenuItem("Remove Group")
+        val groupingContextMenu = ContextMenu(
+            groupSelectedMenuItem,
+            removeGroupMenuItem,
+        )
+        lateinit var tree: TreeView<DynamicMapOutlineNode>
+        tree = TreeView<DynamicMapOutlineNode>().apply {
             isShowRoot = false
             style = "-fx-background-color: -tc-surface;"
             selectionModel.selectionMode = SelectionMode.MULTIPLE
             cellFactory = Callback {
                 object : TreeCell<DynamicMapOutlineNode>() {
+                    init {
+                        setOnContextMenuRequested { event ->
+                            if (!isEmpty && index >= 0 && !tree.selectionModel.isSelected(index)) {
+                                tree.selectionModel.clearAndSelect(index)
+                            }
+                            groupingContextMenu.show(this, event.screenX, event.screenY)
+                            event.consume()
+                        }
+                    }
+
                     override fun updateItem(item: DynamicMapOutlineNode?, empty: Boolean) {
                         super.updateItem(item, empty)
                         if (empty || item == null) {
@@ -57,13 +76,15 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 }
             }
         }
-        val createGroupButton = Button("Group Selected")
-        val removeGroupButton = Button("Remove Group")
+        tree.setOnContextMenuRequested { event ->
+            groupingContextMenu.show(tree, event.screenX, event.screenY)
+            event.consume()
+        }
         val removeSelectedButton = Button("Remove Selected")
         val toggleLightButton = Button("Disable Light")
         val clearSelectionButton = Button("Clear Selection")
         val footerLabel = Label(
-            "The outline shows every group, wall, and light in the current draft. Selecting a group selects all elements linked to it.",
+            "The outline shows every group, wall, and light in the current draft. Right-click the outline to group or ungroup selected entries.",
         ).apply {
             isWrapText = true
             style = "-fx-text-fill: -tc-text-muted;"
@@ -76,9 +97,9 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 ?.let { document.lightById(it.elementId) }
 
         fun refreshActionButtons() {
-            createGroupButton.isDisable = selections.isEmpty()
-            removeGroupButton.isDisable = selectedGroupIds.isEmpty()
-            removeGroupButton.text = if (selectedGroupIds.size > 1) "Remove Groups" else "Remove Group"
+            groupSelectedMenuItem.isDisable = selections.isEmpty()
+            removeGroupMenuItem.isDisable = selectedGroupIds.isEmpty()
+            removeGroupMenuItem.text = if (selectedGroupIds.size > 1) "Remove Groups" else "Remove Group"
             removeSelectedButton.isDisable = selections.isEmpty()
             val light = selectedLight()
             toggleLightButton.isDisable = light == null
@@ -242,12 +263,12 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             },
         )
 
-        createGroupButton.setOnAction {
+        groupSelectedMenuItem.setOnAction {
             val currentSelections = selections
             if (currentSelections.isEmpty()) return@setOnAction
             EventBus.publish(DynamicMapGroupCreationRequestedEvent(currentSelections))
         }
-        removeGroupButton.setOnAction {
+        removeGroupMenuItem.setOnAction {
             val currentGroupIds = selectedGroupIds
             if (currentGroupIds.isEmpty()) return@setOnAction
             selectedGroupIds = emptySet()
@@ -298,8 +319,6 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             Label("Builder outline"),
             summaryLabel,
             tree,
-            createGroupButton,
-            removeGroupButton,
             removeSelectedButton,
             toggleLightButton,
             clearSelectionButton,
@@ -308,8 +327,6 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             padding = Insets(8.0)
             style = "-fx-background-color: -tc-bg;"
             VBox.setVgrow(tree, Priority.ALWAYS)
-            createGroupButton.maxWidth = Double.MAX_VALUE
-            removeGroupButton.maxWidth = Double.MAX_VALUE
             removeSelectedButton.maxWidth = Double.MAX_VALUE
             toggleLightButton.maxWidth = Double.MAX_VALUE
             clearSelectionButton.maxWidth = Double.MAX_VALUE
