@@ -11,6 +11,7 @@ import javafx.application.Application
 import javafx.application.Platform
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
+import javafx.scene.Node
 import javafx.scene.Scene
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
@@ -26,6 +27,7 @@ import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
+import javafx.scene.layout.StackPane
 import javafx.scene.paint.Color
 import javafx.stage.Screen
 import javafx.stage.Stage
@@ -58,6 +60,9 @@ class App : Application() {
 
     /** Coordinates cross-plugin scene save/load actions. */
     private lateinit var sceneManager: SceneManager
+
+    /** Player-facing table views contributed by loaded plugins. */
+    private var tableViewOptions: List<TableViewOption> = emptyList()
 
     override fun start(primaryStage: Stage) {
         primaryStage.initStyle(StageStyle.UNDECORATED)
@@ -103,15 +108,22 @@ class App : Application() {
      * When no plugin contributes a table view, a placeholder label is shown instead.
      */
     private fun buildTableScene(plugins: List<DmPlugin>): Scene {
-        val tableViews = plugins.mapNotNull { it.createTableView() }
+        val tableViews = plugins.mapNotNull { plugin ->
+            plugin.createTableView()?.let { node -> TableViewOption(plugin.displayName, node) }
+        }
+        tableViewOptions = tableViews
         val root = BorderPane()
         root.center = if (tableViews.isEmpty()) {
             Label("Table View - no plugins providing content")
         } else {
-            if (tableViews.size > 1) {
-                println("WARNING: ${tableViews.size} plugins provide a table view; only the first will be displayed.")
+            selectTableView(tableViews.first())
+            if (tableViews.size == 1) {
+                tableViews.first().node
+            } else {
+                StackPane().apply {
+                    children.setAll(tableViews.map { it.node })
+                }
             }
-            tableViews.first()
         }
         return Scene(root, 1280.0, 720.0)
     }
@@ -199,6 +211,34 @@ class App : Application() {
         // cleanly on the DM panel. Selecting a real screen shows the table view.
         screenCombo.selectionModel.selectFirst()
 
+        val tableViewLabel = Label("Table content:").apply {
+            isVisible = tableViewOptions.size > 1
+            isManaged = tableViewOptions.size > 1
+            padding = Insets(0.0, 4.0, 0.0, 0.0)
+        }
+        val tableViewCombo = ComboBox<TableViewOption>().apply {
+            items.addAll(tableViewOptions)
+            converter = object : StringConverter<TableViewOption>() {
+                override fun toString(option: TableViewOption?): String = option?.displayName.orEmpty()
+                override fun fromString(string: String?): TableViewOption? = null
+            }
+            tooltip = Tooltip("Choose which plugin is shown on the player-facing table screen")
+            isVisible = tableViewOptions.size > 1
+            isManaged = tableViewOptions.size > 1
+            selectionModel.selectedItemProperty().addListener { _, _, option ->
+                if (option != null) {
+                    selectTableView(option)
+                }
+            }
+            if (tableViewOptions.isNotEmpty()) {
+                selectionModel.select(tableViewOptions.first())
+            }
+        }
+        val tableViewSeparator = Separator(Orientation.VERTICAL).apply {
+            isVisible = tableViewOptions.size > 1
+            isManaged = tableViewOptions.size > 1
+        }
+
         val themeButton = Button("Theme").apply {
             tooltip = Tooltip("Customise the application theme")
             setOnAction {
@@ -267,10 +307,21 @@ class App : Application() {
             workspaceToolbarSeparator,
             workspaceToolbarBox,
             spacer,
+            tableViewLabel,
+            tableViewCombo,
+            tableViewSeparator,
             screenLabel,
             screenCombo,
             moveButton,
         )
+    }
+
+    private fun selectTableView(selected: TableViewOption) {
+        tableViewOptions.forEach { option ->
+            val active = option == selected
+            option.node.isVisible = active
+            option.node.isManaged = active
+        }
     }
 
     private fun availableWorkspaces(plugins: List<DmPlugin>): List<DmWorkspaceId> =
@@ -530,3 +581,8 @@ internal fun toolbarViewsForWorkspace(
     plugins
         .filter { workspace in it.workspaceIds }
         .mapNotNull { it.createToolbarView(workspace) }
+
+private data class TableViewOption(
+    val displayName: String,
+    val node: Node,
+)
