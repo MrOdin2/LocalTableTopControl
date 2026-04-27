@@ -45,8 +45,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
     polygons are not drawn directly. Exported walls are still used as blockers for player-character
     sightlines and point-light bright cores.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
-    coordinates using the same opaque theme accent colour as the Dynamic Map Builder, and enabled
-    point lights are drawn as diagnostic halos with distinct bright and dim radius areas.
+    coordinates using the same wall-kind styles as the Dynamic Map Builder: soft walls are lighter
+    and dashed, while hard walls are stronger and solid. Enabled point lights are drawn as
+    diagnostic halos with distinct bright and dim radius areas.
     Exported sunlight/outside areas are drawn as translucent polygons for bundle verification.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden
   on the player-facing table view.

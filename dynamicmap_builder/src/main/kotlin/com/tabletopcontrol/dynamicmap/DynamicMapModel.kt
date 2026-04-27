@@ -38,8 +38,6 @@ enum class DynamicMapElementKind {
 enum class DynamicMapTool {
     WALL_LINE,
     WALL_RECT,
-    HARD_WALL_LINE,
-    HARD_WALL_RECT,
     LIGHT,
     SUNLIGHT_AREA,
 }

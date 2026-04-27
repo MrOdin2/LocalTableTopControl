@@ -178,7 +178,7 @@
         <tr><th>Feature</th><th>What it does in DynamicMap</th></tr>
         <tr><td>Minimap</td><td>Shows the loaded dynamic map, fog state, and token positions for the DM.</td></tr>
         <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. All walls block player-character sightlines and point-light bright cores. Dim light reaches softly through soft walls, but hard walls block dim light.</td></tr>
-        <tr><td>DebugMode</td><td>Shows exported walls in the same solid accent colour used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
+        <tr><td>DebugMode</td><td>Shows exported walls with the same soft/hard styling used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
         <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting or a PC has a light source. PC light sources move with the token. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, PC light sources, or PC darkvision keep sight-only visibility.</td></tr>
@@ -221,8 +221,8 @@
       </p>
       <p>
         In RenderMode, exported walls, light handles, and sunlight outlines are not drawn directly.
-        In DebugMode, walls are drawn as solid accent-colour guide lines, enabled point lights appear
-        as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
+        In DebugMode, soft walls are drawn as lighter dashed guide lines, hard walls are drawn as
+        stronger solid guide lines, enabled point lights appear as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
         lights remain visible to the DM as subdued markers in DebugMode, but player-facing light
         markers are hidden.
       </p>

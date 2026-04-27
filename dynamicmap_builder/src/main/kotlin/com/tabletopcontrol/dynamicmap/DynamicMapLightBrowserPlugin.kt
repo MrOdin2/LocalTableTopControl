@@ -41,8 +41,6 @@ class DynamicMapLightBrowserPlugin : DmPlugin {
                 DynamicMapTool.SUNLIGHT_AREA -> "Placement mode: sunlight area"
                 DynamicMapTool.WALL_LINE -> "Placement mode: wall line"
                 DynamicMapTool.WALL_RECT -> "Placement mode: wall rectangle"
-                DynamicMapTool.HARD_WALL_LINE -> "Placement mode: hard wall line"
-                DynamicMapTool.HARD_WALL_RECT -> "Placement mode: hard wall rectangle"
                 null -> "Placement mode: none"
             }
         }

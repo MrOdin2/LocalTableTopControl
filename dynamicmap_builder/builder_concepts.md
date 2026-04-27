@@ -54,17 +54,17 @@ Future decisions should be added here as well so the builder evolves from one co
 
 - Wall controls live in a dedicated `Wall Tools` pane instead of the main builder pane.
 - The wall pane currently owns:
-  - wall line mode
-  - wall rectangle mode
-  - hard wall line mode
-  - hard wall rectangle mode
+  - wall kind selection (`Soft` or `Hard`)
+  - wall drawing mode (`Line` or `Rect`)
   - stop editing
   - wall topology optimization
   - clear all walls
+- Wall kind and wall drawing mode are separate controls so future shapes can be added without duplicating every wall kind.
 - Wall editing remains shared with the same main builder canvas.
 - Builder walls have a wall kind:
   - `Soft Wall` is the default wall kind and matches the previous wall behavior.
-  - `Hard Wall` is authored with separate tools but behaves like a regular wall while editing.
+  - `Hard Wall` is authored by switching the wall kind selector and behaves like a regular wall while editing.
+- The builder canvas differentiates wall kinds visually: soft walls are drawn with a lighter dashed line, while hard walls are drawn as stronger solid lines.
 - Both wall kinds block player-character sightlines and bright light in the DynamicMap runtime.
 - Runtime dim light ignores soft walls for the cheap scattering approximation, but hard walls block dim light using the larger dim-light range.
 - Wall topology optimization merges touching or overlapping collinear wall segments with the same wall kind and removes zero-length wall stubs.

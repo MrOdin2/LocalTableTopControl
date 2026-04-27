@@ -13,6 +13,11 @@ data class DynamicMapLightPresetSelectedEvent(val presetId: String)
 data class DynamicMapToolSelectedEvent(val tool: DynamicMapTool?)
 
 /**
+ * Published when the wall tools pane changes the kind used for newly placed walls.
+ */
+data class DynamicMapWallKindSelectedEvent(val kind: DynamicMapWallKind)
+
+/**
  * Published when a side-pane requests bulk removal of all wall segments.
  */
 data object DynamicMapClearWallsRequestedEvent

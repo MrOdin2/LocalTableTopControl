@@ -12,6 +12,7 @@ import javafx.geometry.Insets
 import javafx.geometry.Orientation
 import javafx.scene.Node
 import javafx.scene.canvas.Canvas
+import javafx.scene.canvas.GraphicsContext
 import javafx.scene.control.Button
 import javafx.scene.control.CheckBox
 import javafx.scene.control.Label
@@ -51,6 +52,7 @@ class DynamicMapBuilderView(
     private var document: DynamicMapDocument = controller.currentDocument()
     private var preset: DynamicMapLightPreset = controller.currentPreset()
     private var activeTool: DynamicMapTool? = null
+    private var activeWallKind: DynamicMapWallKind = DynamicMapWallKind.SOFT
     private var snapEnabled: Boolean = true
     private var dragStart: DynamicMapPoint? = null
     private var dragCurrent: DynamicMapPoint? = null
@@ -262,8 +264,6 @@ class DynamicMapBuilderView(
 
                         DynamicMapTool.WALL_LINE,
                         DynamicMapTool.WALL_RECT,
-                        DynamicMapTool.HARD_WALL_LINE,
-                        DynamicMapTool.HARD_WALL_RECT,
                         -> {
                             val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
                                 ?: return@setOnMousePressed
@@ -340,26 +340,21 @@ class DynamicMapBuilderView(
             val start = dragStart ?: return@setOnMouseReleased
             val end = dragCurrent ?: start
             when (activeTool) {
-                DynamicMapTool.WALL_LINE,
-                DynamicMapTool.HARD_WALL_LINE,
-                -> {
+                DynamicMapTool.WALL_LINE -> {
                     if (start != end) {
-                        val kind = wallKindForTool(activeTool)
                         controller.addWall(
                             DynamicMapWall(
-                                label = kind.defaultLabel,
+                                label = activeWallKind.defaultLabel,
                                 start = start,
                                 end = end,
-                                kind = kind,
+                                kind = activeWallKind,
                             ),
                         )
                     }
                 }
 
-                DynamicMapTool.WALL_RECT,
-                DynamicMapTool.HARD_WALL_RECT,
-                -> {
-                    controller.addWalls(buildRectangleWalls(start, end, kind = wallKindForTool(activeTool)))
+                DynamicMapTool.WALL_RECT -> {
+                    controller.addWalls(buildRectangleWalls(start, end, kind = activeWallKind))
                 }
 
                 else -> Unit
@@ -433,6 +428,12 @@ class DynamicMapBuilderView(
             updateStatus(null)
         }
         disposers += { toolSubscription.unsubscribe() }
+        val wallKindSubscription = EventBus.subscribe<DynamicMapWallKindSelectedEvent> { event ->
+            activeWallKind = event.kind
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { wallKindSubscription.unsubscribe() }
         val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
             selectedElements = document.filterExistingSelections(event.selections)
             if (moveDrag != null) {
@@ -758,15 +759,8 @@ class DynamicMapBuilderView(
             }
         }
         if (document.visibility.walls) {
-            gc.stroke = accentColor
-            gc.lineWidth = (metrics.cellSize * 0.12).coerceAtLeast(2.0)
             document.walls.forEach { wall ->
-                gc.strokeLine(
-                    metrics.originX + wall.start.x * metrics.cellSize,
-                    metrics.originY + wall.start.y * metrics.cellSize,
-                    metrics.originX + wall.end.x * metrics.cellSize,
-                    metrics.originY + wall.end.y * metrics.cellSize,
-                )
+                drawBuilderWallSegment(gc, metrics, wall.start, wall.end, wall.kind, accentColor)
             }
             drawSelectedWallHighlight(gc, metrics, accentColor)
         }
@@ -775,45 +769,36 @@ class DynamicMapBuilderView(
         }
 
         if (dragStart != null && dragCurrent != null) {
-            gc.stroke = accentColor.deriveColor(0.0, 1.0, 1.0, 0.8)
-            gc.setLineDashes(8.0, 6.0)
-            gc.lineWidth = 2.0
             when (activeTool) {
                 DynamicMapTool.WALL_LINE -> {
                     val start = dragStart ?: return
                     val end = dragCurrent ?: return
-                    gc.strokeLine(
-                        metrics.originX + start.x * metrics.cellSize,
-                        metrics.originY + start.y * metrics.cellSize,
-                        metrics.originX + end.x * metrics.cellSize,
-                        metrics.originY + end.y * metrics.cellSize,
-                    )
-                }
-                DynamicMapTool.HARD_WALL_LINE -> {
-                    val start = dragStart ?: return
-                    val end = dragCurrent ?: return
-                    gc.strokeLine(
-                        metrics.originX + start.x * metrics.cellSize,
-                        metrics.originY + start.y * metrics.cellSize,
-                        metrics.originX + end.x * metrics.cellSize,
-                        metrics.originY + end.y * metrics.cellSize,
+                    drawBuilderWallSegment(
+                        gc = gc,
+                        metrics = metrics,
+                        start = start,
+                        end = end,
+                        kind = activeWallKind,
+                        accentColor = accentColor,
                     )
                 }
 
-                DynamicMapTool.WALL_RECT,
-                DynamicMapTool.HARD_WALL_RECT,
-                -> {
+                DynamicMapTool.WALL_RECT -> {
                     val start = dragStart ?: return
                     val end = dragCurrent ?: return
                     val minX = min(start.x, end.x)
                     val minY = min(start.y, end.y)
                     val widthCells = kotlin.math.abs(end.x - start.x)
                     val heightCells = kotlin.math.abs(end.y - start.y)
-                    gc.strokeRect(
-                        metrics.originX + minX * metrics.cellSize,
-                        metrics.originY + minY * metrics.cellSize,
-                        widthCells * metrics.cellSize,
-                        heightCells * metrics.cellSize,
+                    drawBuilderWallRect(
+                        gc = gc,
+                        metrics = metrics,
+                        minX = minX,
+                        minY = minY,
+                        widthCells = widthCells,
+                        heightCells = heightCells,
+                        kind = activeWallKind,
+                        accentColor = accentColor,
                     )
                 }
 
@@ -941,7 +926,7 @@ class DynamicMapBuilderView(
     }
 
     private fun drawLightMarkers(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         metrics: DynamicMapEditorMetrics,
         borderColor: Color,
         accentColor: Color,
@@ -995,8 +980,78 @@ class DynamicMapBuilderView(
         }
     }
 
+    private fun drawBuilderWallSegment(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        kind: DynamicMapWallKind,
+        accentColor: Color,
+        lineWidth: Double = builderWallLineWidth(metrics),
+    ) {
+        configureBuilderWallStroke(gc, metrics, kind, accentColor, lineWidth)
+        gc.strokeLine(
+            metrics.originX + start.x * metrics.cellSize,
+            metrics.originY + start.y * metrics.cellSize,
+            metrics.originX + end.x * metrics.cellSize,
+            metrics.originY + end.y * metrics.cellSize,
+        )
+        gc.setLineDashes()
+    }
+
+    private fun drawBuilderWallRect(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        minX: Double,
+        minY: Double,
+        widthCells: Double,
+        heightCells: Double,
+        kind: DynamicMapWallKind,
+        accentColor: Color,
+    ) {
+        configureBuilderWallStroke(gc, metrics, kind, accentColor, builderWallLineWidth(metrics))
+        gc.strokeRect(
+            metrics.originX + minX * metrics.cellSize,
+            metrics.originY + minY * metrics.cellSize,
+            widthCells * metrics.cellSize,
+            heightCells * metrics.cellSize,
+        )
+        gc.setLineDashes()
+    }
+
+    private fun configureBuilderWallStroke(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        kind: DynamicMapWallKind,
+        accentColor: Color,
+        lineWidth: Double,
+    ) {
+        gc.stroke = builderWallColor(kind, accentColor)
+        gc.lineWidth = when (kind) {
+            DynamicMapWallKind.SOFT -> lineWidth
+            DynamicMapWallKind.HARD -> lineWidth * 1.15
+        }
+        if (kind == DynamicMapWallKind.SOFT) {
+            gc.setLineDashes(
+                (metrics.cellSize * 0.18).coerceIn(5.0, 14.0),
+                (metrics.cellSize * 0.12).coerceIn(4.0, 10.0),
+            )
+        } else {
+            gc.setLineDashes()
+        }
+    }
+
+    private fun builderWallLineWidth(metrics: DynamicMapEditorMetrics): Double =
+        (metrics.cellSize * 0.12).coerceAtLeast(2.0)
+
+    private fun builderWallColor(kind: DynamicMapWallKind, accentColor: Color): Color =
+        when (kind) {
+            DynamicMapWallKind.SOFT -> accentColor.deriveColor(0.0, 0.55, 1.2, 0.72)
+            DynamicMapWallKind.HARD -> accentColor.deriveColor(0.0, 1.0, 0.95, 0.98)
+        }
+
     private fun drawSelectedWallHighlight(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         metrics: DynamicMapEditorMetrics,
         accentColor: Color,
     ) {
@@ -1017,9 +1072,15 @@ class DynamicMapBuilderView(
             gc.lineWidth = baseWidth * 2.0
             gc.strokeLine(startX, startY, endX, endY)
 
-            gc.stroke = accentColor
-            gc.lineWidth = baseWidth * 1.2
-            gc.strokeLine(startX, startY, endX, endY)
+            drawBuilderWallSegment(
+                gc = gc,
+                metrics = metrics,
+                start = selectedWall.start,
+                end = selectedWall.end,
+                kind = selectedWall.kind,
+                accentColor = accentColor,
+                lineWidth = baseWidth * 1.2,
+            )
         }
     }
 
@@ -1084,10 +1145,8 @@ class DynamicMapBuilderView(
 
     private fun updateStatus(mapPoint: DynamicMapPoint?) {
         val toolText = when (activeTool) {
-            DynamicMapTool.WALL_LINE -> "Tool: wall line"
-            DynamicMapTool.WALL_RECT -> "Tool: wall rectangle"
-            DynamicMapTool.HARD_WALL_LINE -> "Tool: hard wall line"
-            DynamicMapTool.HARD_WALL_RECT -> "Tool: hard wall rectangle"
+            DynamicMapTool.WALL_LINE -> "Tool: ${activeWallKind.statusText()} line"
+            DynamicMapTool.WALL_RECT -> "Tool: ${activeWallKind.statusText()} rectangle"
             DynamicMapTool.LIGHT -> "Tool: light placement"
             DynamicMapTool.SUNLIGHT_AREA -> {
                 val vertices = sunlightDraftPoints.size
@@ -1111,14 +1170,7 @@ class DynamicMapBuilderView(
 
 private fun DynamicMapTool?.isWallPlacementTool(): Boolean =
     this == DynamicMapTool.WALL_LINE ||
-        this == DynamicMapTool.WALL_RECT ||
-        this == DynamicMapTool.HARD_WALL_LINE ||
-        this == DynamicMapTool.HARD_WALL_RECT
+        this == DynamicMapTool.WALL_RECT
 
-private fun wallKindForTool(tool: DynamicMapTool?): DynamicMapWallKind =
-    when (tool) {
-        DynamicMapTool.HARD_WALL_LINE,
-        DynamicMapTool.HARD_WALL_RECT,
-        -> DynamicMapWallKind.HARD
-        else -> DynamicMapWallKind.SOFT
-    }
+private fun DynamicMapWallKind.statusText(): String =
+    displayName.lowercase()
