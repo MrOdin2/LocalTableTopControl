@@ -11,10 +11,35 @@ data class Actor(
     val ac: Int = 0,
     val initiative: Int? = null,
     val tokenSize: TokenSize = TokenSize.MEDIUM,
+    val actorType: ActorType = ActorType.NPC,
     var color: Color = Color.GRAY,
     val imageSettings: ActorImageSettings = ActorImageSettings(),
-){
+) {
     fun duplicateActor(): Actor = copy(id = UUID.randomUUID().toString())
+}
+
+enum class ActorType(
+    val shortLabel: String,
+    val displayName: String,
+) {
+    PC("PC", "Player Character"),
+    NPC("NPC", "Non-player Character"),
+    ;
+
+    val menuLabel: String
+        get() = "$shortLabel - $displayName"
+
+    companion object {
+        fun fromPersistence(value: String?): ActorType {
+            val normalized = value?.trim() ?: return NPC
+            return entries.firstOrNull { type ->
+                type.name.equals(normalized, ignoreCase = true) ||
+                    type.shortLabel.equals(normalized, ignoreCase = true) ||
+                    type.displayName.equals(normalized, ignoreCase = true) ||
+                    type.menuLabel.equals(normalized, ignoreCase = true)
+            } ?: NPC
+        }
+    }
 }
 
 data class ActorImageSettings(

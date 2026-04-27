@@ -9,6 +9,7 @@ import com.tabletopcontrol.core.ui.InputHelpers.Companion.integerField
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.ImageHandling.ImageHandling
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneCodec
@@ -212,7 +213,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             }
         }
 
-        val header = HBox(8.0, swatch, nameField, deleteButton, duplicateButton).apply {
+        val header = HBox(8.0, swatch, actorTypeBadge(actor), nameField, deleteButton, duplicateButton).apply {
             alignment = Pos.CENTER_LEFT
         }
 
@@ -239,16 +240,48 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
                 -fx-background-radius: 8;
             """.trimIndent().replace("\n", " ")
             maxWidth = Double.MAX_VALUE
-            Tooltip.install(this, Tooltip("Right-click to change token size. Current: ${actor.tokenSize.menuLabel}"))
+            Tooltip.install(
+                this,
+                Tooltip(
+                    "Right-click to change actor type or token size. " +
+                        "Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}",
+                ),
+            )
             setOnContextMenuRequested { event ->
-                buildTokenContextMenu(actor.id, actorList).show(this, event.screenX, event.screenY)
+                buildActorContextMenu(actor.id, actorList).show(this, event.screenX, event.screenY)
                 event.consume()
             }
         }
     }
 
-    private fun buildTokenContextMenu(actorId: String, actorList: VBox): ContextMenu {
+    private fun actorTypeBadge(actor: Actor): Label =
+        Label(actor.actorType.shortLabel).apply {
+            minWidth = 32.0
+            alignment = Pos.CENTER
+            style = """
+                -fx-text-fill: ${if (actor.actorType == ActorType.PC) "-tc-accent" else "-tc-text-muted"};
+                -fx-font-size: 11px;
+                -fx-font-weight: bold;
+            """.trimIndent().replace("\n", " ")
+            Tooltip.install(this, Tooltip(actor.actorType.displayName))
+        }
+
+    private fun buildActorContextMenu(actorId: String, actorList: VBox): ContextMenu {
         val actor = actorTracker.findActor(actorId) ?: return ContextMenu()
+        val typeGroup = ToggleGroup()
+        val typeItems = ActorType.entries.map { actorType ->
+            RadioMenuItem(actorType.menuLabel).apply {
+                toggleGroup = typeGroup
+                isSelected = actor.actorType == actorType
+                setOnAction {
+                    actorTracker.findActor(actorId)?.let { currentActor ->
+                        if (currentActor.actorType == actorType) return@let
+                        actorTracker.updateActor(currentActor.copy(actorType = actorType))
+                        refreshActorList(actorList)
+                    }
+                }
+            }
+        }
         val sizeGroup = ToggleGroup()
         val sizeItems = TokenSize.entries.map { size ->
             RadioMenuItem(size.menuLabel).apply {
@@ -264,10 +297,15 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             }
         }
         return ContextMenu(
+            MenuItem("Actor Type").apply { isDisable = true },
+            *typeItems.toTypedArray(),
+            SeparatorMenuItem(),
             MenuItem("Token Size").apply { isDisable = true },
             *sizeItems.toTypedArray(),
             SeparatorMenuItem(),
-            MenuItem("Current: ${actor.tokenSize.menuLabel}").apply { isDisable = true },
+            MenuItem("Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}").apply {
+                isDisable = true
+            },
         )
     }
 

@@ -2,6 +2,7 @@ package com.tabletopcontrol.new_tracker.preset
 
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -46,6 +47,7 @@ class PresetLibraryTest {
         assertTrue(preset.initiativeEnabled)
         assertEquals(0, preset.initiative)
         assertEquals(TokenSize.MEDIUM, preset.tokenSize)
+        assertEquals(ActorType.NPC, preset.actorType)
     }
 
     @Test
@@ -57,6 +59,7 @@ class PresetLibraryTest {
             initiative = 0,
             initiativeEnabled = false,
             tokenSize = TokenSize.LARGE,
+            actorType = ActorType.PC,
         )
 
         val roundTrip = PresetLibrary.deserialize(PresetLibrary.serialize(preset))
@@ -74,6 +77,7 @@ class PresetLibraryTest {
             initiativeEnabled = false,
             folder = "Bosses",
             tokenSize = TokenSize.HUGE,
+            actorType = ActorType.PC,
             imageUri = "file:///tokens/dragon.png",
             imageBase64 = "abc123==",
             imageScaleX = 1.5,
@@ -95,6 +99,7 @@ class PresetLibraryTest {
             ac = 12,
             initiative = 18,
             tokenSize = TokenSize.LARGE,
+            actorType = ActorType.PC,
             imageSettings = ActorImageSettings(
                 uri = "file:///ghost.png",
                 scaleX = 1.3,
@@ -110,11 +115,13 @@ class PresetLibraryTest {
         assertEquals(0, preset.initiative)
         assertEquals(false, preset.initiativeEnabled)
         assertEquals(TokenSize.LARGE, preset.tokenSize)
+        assertEquals(ActorType.PC, preset.actorType)
         assertNull(restoredActor.initiative)
         assertEquals(actor.name, restoredActor.name)
         assertEquals(actor.hp, restoredActor.hp)
         assertEquals(actor.ac, restoredActor.ac)
         assertEquals(actor.tokenSize, restoredActor.tokenSize)
+        assertEquals(actor.actorType, restoredActor.actorType)
         assertEquals(actor.imageSettings, restoredActor.imageSettings)
     }
 

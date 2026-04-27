@@ -3,6 +3,7 @@ package com.tabletopcontrol.new_tracker.scene
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import java.io.StringReader
 import java.io.StringWriter
@@ -16,7 +17,8 @@ internal data class TrackerSceneState(
 )
 
 internal object TrackerSceneCodec {
-    private const val VERSION = 2
+    private const val VERSION = 3
+    private const val PROPERTY_VERSION_WITHOUT_ACTOR_TYPE = 2
     private const val LEGACY_VERSION = 1
 
     fun serialize(state: TrackerSceneState): String {
@@ -33,6 +35,7 @@ internal object TrackerSceneCodec {
                 setProperty("$prefix.ac", actor.ac.toString())
                 actor.initiative?.let { setProperty("$prefix.initiative", it.toString()) }
                 setProperty("$prefix.tokenSize", actor.tokenSize.name)
+                setProperty("$prefix.actorType", actor.actorType.name)
                 setProperty("$prefix.color", ColorHexCodec.colorToHex(actor.color))
                 actor.imageSettings.uri?.let { setProperty("$prefix.imageUri", it) }
                 setProperty("$prefix.imageScaleX", actor.imageSettings.scaleX.toString())
@@ -59,7 +62,7 @@ internal object TrackerSceneCodec {
         }.getOrNull() ?: return null
 
         val version = props.getProperty("version")?.toIntOrNull() ?: return null
-        if (version != VERSION) return null
+        if (version !in PROPERTY_VERSION_WITHOUT_ACTOR_TYPE..VERSION) return null
 
         val actorCount = props.getProperty("actor.count")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val actors = buildList {
@@ -78,6 +81,7 @@ internal object TrackerSceneCodec {
                         tokenSize = runCatching {
                             TokenSize.valueOf(props.getProperty("$prefix.tokenSize"))
                         }.getOrDefault(TokenSize.MEDIUM),
+                        actorType = ActorType.fromPersistence(props.getProperty("$prefix.actorType")),
                         color = color,
                         imageSettings = ActorImageSettings(
                             uri = props.getProperty("$prefix.imageUri"),

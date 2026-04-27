@@ -6,6 +6,7 @@ import com.tabletopcontrol.core.persistence.ConfigFiles
 import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.persistence.SafeConfigIO
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorType
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -41,6 +42,7 @@ object PresetLibrary {
         val initiative: Int? = null,
         val initiativeEnabled: Boolean = true,
         val tokenSize: TokenSize = TokenSize.MEDIUM,
+        val actorType: ActorType = ActorType.NPC,
         val folder: String = "",
         val imageUri: String? = null,
         val imageBase64: String? = null,
@@ -216,6 +218,7 @@ object PresetLibrary {
             appendLine("initiativeEnabled=false")
         }
         appendLine("tokenSize=${preset.tokenSize.name}")
+        appendLine("actorType=${preset.actorType.name}")
         preset.imageUri?.let { appendLine("imageUri=$it") }
         appendLine("imageScaleX=${preset.imageScaleX}")
         appendLine("imageScaleY=${preset.imageScaleY}")
@@ -247,6 +250,7 @@ object PresetLibrary {
             initiative = initiative,
             initiativeEnabled = initiativeEnabled,
             tokenSize = TokenSize.fromPersistence(props["tokenSize"]),
+            actorType = ActorType.fromPersistence(props["actorType"]),
             imageUri = props["imageUri"]?.takeIf { it.isNotBlank() },
             imageBase64 = props["imageBase64"]?.takeIf { it.isNotBlank() },
             imageScaleX = props["imageScaleX"]?.toDoubleOrNull() ?: 1.0,
