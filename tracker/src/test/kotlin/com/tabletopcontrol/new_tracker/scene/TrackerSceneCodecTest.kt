@@ -2,8 +2,11 @@ package com.tabletopcontrol.new_tracker.scene
 
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorFeatures
 import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
+import com.tabletopcontrol.new_tracker.model.DistanceRange
+import com.tabletopcontrol.new_tracker.model.DistanceUnit
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -22,6 +25,10 @@ class TrackerSceneCodecTest {
                     initiative = 19,
                     tokenSize = TokenSize.LARGE,
                     actorType = ActorType.PC,
+                    features = ActorFeatures(
+                        darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
+                        movementRange = DistanceRange(9, DistanceUnit.METERS),
+                    ),
                     color = Color.DARKRED,
                     imageSettings = ActorImageSettings(
                         uri = "file:///tokens/goblin.png",
@@ -53,6 +60,10 @@ class TrackerSceneCodecTest {
                     initiative = 19,
                     tokenSize = TokenSize.LARGE,
                     actorType = ActorType.PC,
+                    features = ActorFeatures(
+                        darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
+                        movementRange = DistanceRange(9, DistanceUnit.METERS),
+                    ),
                     color = Color.DARKRED,
                     imageSettings = ActorImageSettings(uri = "file:///tokens/goblin.png"),
                 ),
@@ -63,9 +74,11 @@ class TrackerSceneCodecTest {
 
         val serialized = TrackerSceneCodec.serialize(state)
 
-        assertTrue(serialized.contains("version=3"))
+        assertTrue(serialized.contains("version=4"))
         assertTrue(serialized.contains("actor.0.name=Goblin Boss"))
         assertTrue(serialized.contains("actor.0.actorType=PC"))
+        assertTrue(serialized.contains("actor.0.darkvisionRange=60"))
+        assertTrue(serialized.contains("actor.0.movementUnit=METERS"))
         assertTrue(serialized.contains("actor.0.imageUri=file\\:///tokens/goblin.png"))
     }
 
@@ -92,6 +105,7 @@ class TrackerSceneCodecTest {
         val restored = requireNotNull(TrackerSceneCodec.deserialize(serialized))
 
         assertEquals(ActorType.NPC, restored.actors.single().actorType)
+        assertEquals(ActorFeatures(), restored.actors.single().features)
     }
 
     @Test

@@ -15,6 +15,7 @@ import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneCodec
 import com.tabletopcontrol.new_tracker.preset.ActorPresetService
 import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
+import com.tabletopcontrol.new_tracker.ui.ActorFeaturesDialog
 import com.tabletopcontrol.new_tracker.ui.AddActorDialog
 import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
 import javafx.geometry.Insets
@@ -49,6 +50,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     private val imageHandling = ImageHandling()
     private val presetService = ActorPresetService(actorTracker)
     private val addActorDialog = AddActorDialog(actorTracker)
+    private val actorFeaturesDialog = ActorFeaturesDialog()
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
     private val initiativeTieDialog = InitiativeTieDialog()
 
@@ -224,6 +226,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             InputHelpers.labeledField("Initiative", initiativeField),
             pictureButton,
             saveButton,
+            actorFeatureSummary(actor),
         ).apply {
             alignment = Pos.CENTER_LEFT
         }
@@ -243,12 +246,13 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             Tooltip.install(
                 this,
                 Tooltip(
-                    "Right-click to change actor type or token size. " +
-                        "Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}",
+                    "Right-click to change actor features, type, or token size. " +
+                        "Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}, " +
+                        actor.features.summaryText,
                 ),
             )
             setOnContextMenuRequested { event ->
-                buildActorContextMenu(actor.id, actorList).show(this, event.screenX, event.screenY)
+                buildActorContextMenu(actor.id, actorList, scene?.window).show(this, event.screenX, event.screenY)
                 event.consume()
             }
         }
@@ -266,8 +270,30 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             Tooltip.install(this, Tooltip(actor.actorType.displayName))
         }
 
-    private fun buildActorContextMenu(actorId: String, actorList: VBox): ContextMenu {
+    private fun actorFeatureSummary(actor: Actor): Label =
+        Label(actor.features.summaryText).apply {
+            isVisible = actor.features.hasAny
+            isManaged = actor.features.hasAny
+            style = "-fx-text-fill: -tc-text-muted;"
+            Tooltip.install(this, Tooltip(actor.features.summaryText))
+        }
+
+    private fun buildActorContextMenu(
+        actorId: String,
+        actorList: VBox,
+        owner: Window?,
+    ): ContextMenu {
         val actor = actorTracker.findActor(actorId) ?: return ContextMenu()
+        val featuresItem = MenuItem("Features...").apply {
+            setOnAction {
+                actorTracker.findActor(actorId)?.let { currentActor ->
+                    val updatedFeatures = actorFeaturesDialog.show(owner, currentActor) ?: return@let
+                    if (currentActor.features == updatedFeatures) return@let
+                    actorTracker.updateActor(currentActor.copy(features = updatedFeatures))
+                    refreshActorList(actorList)
+                }
+            }
+        }
         val typeGroup = ToggleGroup()
         val typeItems = ActorType.entries.map { actorType ->
             RadioMenuItem(actorType.menuLabel).apply {
@@ -297,15 +323,17 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             }
         }
         return ContextMenu(
+            featuresItem,
+            SeparatorMenuItem(),
             MenuItem("Actor Type").apply { isDisable = true },
             *typeItems.toTypedArray(),
             SeparatorMenuItem(),
             MenuItem("Token Size").apply { isDisable = true },
             *sizeItems.toTypedArray(),
             SeparatorMenuItem(),
-            MenuItem("Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}").apply {
-                isDisable = true
-            },
+            MenuItem(
+                "Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}, ${actor.features.summaryText}",
+            ).apply { isDisable = true },
         )
     }
 
