@@ -28,7 +28,6 @@ Always use the Gradle wrapper (`./gradlew`).
   - Separate UI construction and layout logic.
   - Isolate token synchronization with the `EventBus`.
   - Extract drag-and-drop reordering logic into reusable utilities.
-- **Dynamic Map Builder Decisions:** Before changing anything in `dynamicmap/`, inspect `dynamicmap/builder_concepts.md`. If you change the Dynamic Map Builder UX, pane responsibilities, or shared behavior, update that file in the same change.
 
 ## 📝 Documentation Mandate
 - **`UserDoc.html` Updates are Mandatory:** Every plugin (e.g., `audio`, `map`, `tracker`) contains a `UserDoc.html`. If you add a new feature, change a UI button, or modify a behavior, you MUST update the corresponding `UserDoc.html` file using user-centric language (what it does, not how it's coded!).

@@ -10,8 +10,6 @@ import com.tabletopcontrol.core.ui.dialog.DialogFlows
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.geometry.Insets
-import javafx.geometry.Orientation
-import javafx.scene.Node
 import javafx.scene.Scene
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
@@ -27,7 +25,6 @@ import javafx.scene.layout.GridPane
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
-import javafx.scene.layout.StackPane
 import javafx.scene.paint.Color
 import javafx.stage.Screen
 import javafx.stage.Stage
@@ -41,10 +38,10 @@ import kotlin.math.roundToInt
  *
  * Responsibilities:
  * 1. Discovering and loading plugins via [PluginLoader].
- * 2. Initialising the two-screen layout: a full-screen table view driven by plugin content
- *    and a DM control panel on a separate [Stage].
- * 3. Managing the DM panel split layout via [DmLayoutManager].
- * 4. Gracefully shutting down all plugins and persisting active layouts when the
+ * 2. Initialising the two-screen layout — a full-screen **table view** driven by
+ *    plugin-provided content and a **DM control panel** on a separate [Stage].
+ * 3. Managing the DM panel's recursive split-pane layout via [DmLayoutManager].
+ * 4. Gracefully shutting down all plugins and persisting the layout when the
  *    application exits.
  */
 class App : Application() {
@@ -55,18 +52,18 @@ class App : Application() {
     /** All loaded plugins; cached here so [stop] can shut them down cleanly. */
     private lateinit var plugins: List<DmPlugin>
 
-    /** Manages the currently active recursive split-pane layout of the DM panel. */
+    /** Manages the recursive split-pane layout of the DM panel. */
     private var dmLayoutManager: DmLayoutManager? = null
 
     /** Coordinates cross-plugin scene save/load actions. */
     private lateinit var sceneManager: SceneManager
 
-    /** Player-facing table views contributed by loaded plugins. */
-    private var tableViewOptions: List<TableViewOption> = emptyList()
-
     override fun start(primaryStage: Stage) {
+        // Set primaryStage style FIRST, before any other operations.
+        // In JavaFX, initStyle() must be called before the stage is shown or scene is set.
         primaryStage.initStyle(StageStyle.UNDECORATED)
 
+        // Discover plugins first so both scenes can reference them.
         plugins = PluginLoader.loadPlugins()
         plugins.forEach { plugin -> println("Loaded plugin: ${plugin.displayName}") }
         sceneManager = SceneManager(
@@ -74,21 +71,26 @@ class App : Application() {
             onSceneLoaded = { dmLayoutManager?.refreshViews() },
         )
 
+        // Build both scenes and register them with the ThemeManager BEFORE
+        // calling show() so the very first frame is already styled — avoids a
+        // visible flash of the default Modena theme on slower devices.
         val tableScene = buildTableScene(plugins)
         val dmScene = buildDmScene(plugins, primaryStage)
 
         ThemeManager.registerScene(tableScene)
         ThemeManager.registerScene(dmScene)
 
+        // Table screen — displayed on the external monitor / projector
         primaryStage.apply {
-            title = "TabletopControl - Table View"
+            title = "TabletopControl — Table View"
             scene = tableScene
             applyTablePresentationMode(Screen.getPrimary())
             setOnCloseRequest { dmStage.close() }
         }
 
+        // DM control panel — displayed on the DM's own monitor
         dmStage = Stage().apply {
-            title = "TabletopControl - DM Panel"
+            title = "TabletopControl — DM Panel"
             scene = dmScene
             setOnCloseRequest { primaryStage.close() }
             show()
@@ -96,7 +98,9 @@ class App : Application() {
     }
 
     override fun stop() {
+        // Persist the current split-pane layout before shutting down.
         dmLayoutManager?.saveLayout()
+        // Give every plugin the chance to release its resources.
         plugins.forEach { it.onShutdown() }
     }
 
@@ -108,22 +112,15 @@ class App : Application() {
      * When no plugin contributes a table view, a placeholder label is shown instead.
      */
     private fun buildTableScene(plugins: List<DmPlugin>): Scene {
-        val tableViews = plugins.mapNotNull { plugin ->
-            plugin.createTableView()?.let { node -> TableViewOption(plugin.displayName, node) }
-        }
-        tableViewOptions = tableViews
+        val tableViews = plugins.mapNotNull { it.createTableView() }
         val root = BorderPane()
         root.center = if (tableViews.isEmpty()) {
-            Label("Table View - no plugins providing content")
+            Label("Table View — no plugins providing content")
         } else {
-            selectTableView(tableViews.first())
-            if (tableViews.size == 1) {
-                tableViews.first().node
-            } else {
-                StackPane().apply {
-                    children.setAll(tableViews.map { it.node })
-                }
+            if (tableViews.size > 1) {
+                println("WARNING: ${tableViews.size} plugins provide a table view; only the first will be displayed.")
             }
+            tableViews.first()
         }
         return Scene(root, 1280.0, 720.0)
     }
@@ -132,21 +129,26 @@ class App : Application() {
      * Builds the DM panel [Scene].
      *
      * The panel uses a recursive split-pane layout managed by [DmLayoutManager].
-     * The toolbar also exposes workspace switching so specialized tool suites can
-     * keep their own independently saved pane arrangement.
+     * On the very first run the layout contains a single pane showing the first
+     * loaded plugin; subsequent runs restore the previously saved layout from disk.
+     *
+     * A toolbar at the top allows the DM to move the table view to any connected screen.
      */
     private fun buildDmScene(plugins: List<DmPlugin>, tableStage: Stage): Scene {
+        val layoutManager = DmLayoutManager(plugins).also { dmLayoutManager = it }
+
         val root = BorderPane()
-        root.top = buildDisplayToolbar(sceneManager, tableStage, plugins, root)
-        if (root.center == null) {
-            switchWorkspace(root, plugins, availableWorkspaces(plugins).first())
-        }
+        root.top = buildDisplayToolbar(tableStage, sceneManager)
+        root.center = layoutManager.container
+
         return Scene(root, 1280.0, 720.0)
     }
 
+
+
     /**
      * Builds a slim toolbar at the top of the DM panel that lets the DM choose
-     * which screen the Table View is shown on and move it there or switch workspaces.
+     * which screen the Table View is shown on and move it there.
      *
      * The first entry in the combo box is **None (hidden)** — selecting it hides
      * the table stage entirely so no map is displayed for players. Selecting any
@@ -160,15 +162,10 @@ class App : Application() {
      * switch between light/dark modes and customise the theme colour roles
      * (accent, background, surface, border).
      */
-    private fun buildDisplayToolbar(
-        sceneManager: SceneManager,
-        tableStage: Stage,
-        plugins: List<DmPlugin>,
-        dmRoot: BorderPane,
-    ): ToolBar {
+    private fun buildDisplayToolbar(tableStage: Stage, sceneManager: SceneManager): ToolBar {
         val screens = Screen.getScreens()
-        val workspaces = availableWorkspaces(plugins)
 
+        // null represents the "None (hidden)" option — no table view is shown.
         val screenCombo = ComboBox<Screen?>()
         screenCombo.items.add(null)
         screenCombo.items.addAll(screens)
@@ -176,16 +173,15 @@ class App : Application() {
             override fun toString(screen: Screen?): String {
                 if (screen == null) return "None (hidden)"
                 val idx = screens.indexOf(screen).coerceAtLeast(0)
-                val bounds = screen.bounds
+                val b = screen.bounds
                 return formatScreenLabel(
                     index = idx,
-                    logicalWidth = bounds.width,
-                    logicalHeight = bounds.height,
+                    logicalWidth = b.width,
+                    logicalHeight = b.height,
                     outputScaleX = screen.outputScaleX,
                     outputScaleY = screen.outputScaleY,
                 )
             }
-
             override fun fromString(string: String?): Screen? = null
         }
 
@@ -195,6 +191,8 @@ class App : Application() {
             moveTableStageToScreen(tableStage, selected)
         }
 
+        // Register the listener before setting the initial selection so the
+        // button's initial enabled/disabled state is driven by the same logic.
         screenCombo.selectionModel.selectedItemProperty().addListener { _, _, newScreen ->
             if (newScreen == null) {
                 tableStage.hide()
@@ -211,36 +209,9 @@ class App : Application() {
         // cleanly on the DM panel. Selecting a real screen shows the table view.
         screenCombo.selectionModel.selectFirst()
 
-        val tableViewLabel = Label("Table content:").apply {
-            isVisible = tableViewOptions.size > 1
-            isManaged = tableViewOptions.size > 1
-            padding = Insets(0.0, 4.0, 0.0, 0.0)
-        }
-        val tableViewCombo = ComboBox<TableViewOption>().apply {
-            items.addAll(tableViewOptions)
-            converter = object : StringConverter<TableViewOption>() {
-                override fun toString(option: TableViewOption?): String = option?.displayName.orEmpty()
-                override fun fromString(string: String?): TableViewOption? = null
-            }
-            tooltip = Tooltip("Choose which plugin is shown on the player-facing table screen")
-            isVisible = tableViewOptions.size > 1
-            isManaged = tableViewOptions.size > 1
-            selectionModel.selectedItemProperty().addListener { _, _, option ->
-                if (option != null) {
-                    selectTableView(option)
-                }
-            }
-            if (tableViewOptions.isNotEmpty()) {
-                selectionModel.select(tableViewOptions.first())
-            }
-        }
-        val tableViewSeparator = Separator(Orientation.VERTICAL).apply {
-            isVisible = tableViewOptions.size > 1
-            isManaged = tableViewOptions.size > 1
-        }
-
-        val themeButton = Button("Theme").apply {
-            tooltip = Tooltip("Customise the application theme")
+        // Theme button on the left — opens the theme customisation dialog.
+        val themeButton = Button("🎨 Theme").apply {
+            tooltip = Tooltip("Customise the application theme (light/dark mode and accent colours)")
             setOnAction {
                 val owner = scene?.window
                 if (owner is Stage) {
@@ -249,7 +220,8 @@ class App : Application() {
             }
         }
 
-        val helpButton = Button("Help").apply {
+        // Help button — extracts bundled docs and opens the index page in the system browser.
+        val helpButton = Button("❓ Help").apply {
             tooltip = Tooltip("Open the user documentation in your browser")
             setOnAction { HelpManager.openHelp(hostServices) }
         }
@@ -262,93 +234,27 @@ class App : Application() {
             }
         }
 
-        val workspaceToolbarBox = HBox(6.0)
-        val workspaceToolbarSeparator = Separator(Orientation.VERTICAL)
-        fun updateWorkspaceToolbar(workspace: DmWorkspaceId?) {
-            val toolbarViews = if (workspace == null) {
-                emptyList()
-            } else {
-                toolbarViewsForWorkspace(plugins, workspace)
-            }
-            workspaceToolbarBox.children.setAll(toolbarViews)
-            workspaceToolbarBox.isVisible = toolbarViews.isNotEmpty()
-            workspaceToolbarBox.isManaged = toolbarViews.isNotEmpty()
-            workspaceToolbarSeparator.isVisible = toolbarViews.isNotEmpty()
-            workspaceToolbarSeparator.isManaged = toolbarViews.isNotEmpty()
-        }
-
-        val workspaceCombo = ComboBox<DmWorkspaceId>().apply {
-            items.addAll(workspaces)
-            converter = object : StringConverter<DmWorkspaceId>() {
-                override fun toString(workspace: DmWorkspaceId?): String = workspace?.displayName.orEmpty()
-                override fun fromString(string: String?): DmWorkspaceId? = null
-            }
-            tooltip = Tooltip("Switch between independently saved DM workspaces")
-            selectionModel.selectedItemProperty().addListener { _, _, workspace ->
-                if (workspace != null) {
-                    switchWorkspace(dmRoot, plugins, workspace)
-                    updateWorkspaceToolbar(workspace)
-                }
-            }
-            selectionModel.select(workspaces.first())
-        }
-
         val spacer = Region().also { HBox.setHgrow(it, Priority.ALWAYS) }
-        val workspaceLabel = Label("Workspace:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
-        val screenLabel = Label("Table View screen:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
+        val label = Label("Table View screen:").apply { padding = Insets(0.0, 4.0, 0.0, 0.0) }
 
-        return ToolBar(
-            helpButton,
-            themeButton,
-            scenesButton,
-            Separator(Orientation.VERTICAL),
-            workspaceLabel,
-            workspaceCombo,
-            workspaceToolbarSeparator,
-            workspaceToolbarBox,
-            spacer,
-            tableViewLabel,
-            tableViewCombo,
-            tableViewSeparator,
-            screenLabel,
-            screenCombo,
-            moveButton,
-        )
+        return ToolBar(themeButton, scenesButton, helpButton, spacer, label, screenCombo, moveButton)
     }
 
-    private fun selectTableView(selected: TableViewOption) {
-        tableViewOptions.forEach { option ->
-            val active = option == selected
-            option.node.isVisible = active
-            option.node.isManaged = active
-        }
-    }
-
-    private fun availableWorkspaces(plugins: List<DmPlugin>): List<DmWorkspaceId> =
-        DmWorkspaceId.entries.filter { workspace ->
-            workspace == DmWorkspaceId.SESSION || plugins.any { workspace in it.workspaceIds }
-        }.ifEmpty { listOf(DmWorkspaceId.SESSION) }
-
-    private fun switchWorkspace(
-        root: BorderPane,
-        plugins: List<DmPlugin>,
-        workspace: DmWorkspaceId,
-    ) {
-        dmLayoutManager?.saveLayout()
-        val workspacePlugins = plugins.filter { workspace in it.workspaceIds }
-        val layoutManager = DmLayoutManager(
-            plugins = workspacePlugins,
-            layoutConfigName = workspace.layoutConfigName,
-        )
-        dmLayoutManager = layoutManager
-        root.center = layoutManager.container
-    }
     /**
      * Opens the theme customisation dialog.
+     *
+     * The dialog lets the DM:
+     * - Switch between **Light** and **Dark** mode.
+     * - Customise four concrete colour roles: **Button/Accent**, **Background**,
+     *   **Surface** (panels/cards), and **Border** (panel edges).
+     *
+     * Clicking **OK** immediately applies and persists the chosen theme.
+     * Clicking **Cancel** leaves the current theme unchanged.
      */
     private fun showThemeDialog(owner: Stage) {
         val current = ThemeManager.currentTheme
 
+        // Mode selection
         val lightBtn = RadioButton("Light")
         val darkBtn = RadioButton("Dark")
         val modeToggleGroup = ToggleGroup()
@@ -359,13 +265,13 @@ class App : Application() {
             else -> lightBtn.isSelected = true
         }
 
+        // Helper: parse a hex color string safely, falling back to [fallback] on error.
         fun parseColor(hex: String, fallback: String): Color {
             val safeFallback = ColorHexCodec.parseOrDefault(fallback, Color.GRAY)
             return ColorHexCodec.parseOrDefault(hex, safeFallback)
         }
 
-        val modeDefaults =
-            if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
+        val modeDefaults = if (current.mode == ThemeMode.DARK) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
 
         var accentColor = parseColor(current.accentColor, modeDefaults.accentColor)
         var bgColor = parseColor(current.bgColor, modeDefaults.bgColor)
@@ -426,6 +332,7 @@ class App : Application() {
             setColor = { borderColor = it },
         )
 
+        // Helper: reset dialog buttons to defaults for the currently selected mode.
         fun resetDefaults() {
             val defaults = if (darkBtn.isSelected) ThemeConfig.DARK_DEFAULTS else ThemeConfig.LIGHT_DEFAULTS
             accentColor = ColorHexCodec.hexToColor(defaults.accentColor)
@@ -438,9 +345,11 @@ class App : Application() {
             styleColorButton(borderButton, borderColor)
         }
 
+        // Update pickers to mode defaults whenever the mode radio changes.
         lightBtn.setOnAction { resetDefaults() }
         darkBtn.setOnAction { resetDefaults() }
 
+        // Layout using a GridPane with logical groupings.
         val grid = GridPane().apply {
             hgap = 10.0
             vgap = 8.0
@@ -448,11 +357,13 @@ class App : Application() {
         }
         var row = 0
 
+        // Mode row
         grid.add(Label("Mode:"), 0, row)
         grid.add(HBox(8.0, lightBtn, darkBtn), 1, row++)
 
         grid.add(Separator(), 0, row++, 2, 1)
 
+        // Group 1: Background & Surfaces
         grid.add(Label("Background:"), 0, row)
         grid.add(bgButton, 1, row++)
         grid.add(Label("Surface (Buttons):"), 0, row)
@@ -462,6 +373,7 @@ class App : Application() {
 
         grid.add(Separator(), 0, row++, 2, 1)
 
+        // Group 2: Interactive / Accent
         grid.add(Label("Accent:"), 0, row)
         grid.add(accentButton, 1, row++)
 
@@ -497,7 +409,7 @@ class App : Application() {
     }
 }
 
-/** JVM entry point - delegates to the JavaFX application launcher. */
+/** JVM entry point — delegates to the JavaFX application launcher. */
 fun main(args: Array<String>) = Application.launch(App::class.java, *args)
 
 private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
@@ -508,6 +420,8 @@ private fun moveTableStageToScreen(tableStage: Stage, screen: Screen) {
     }
     tableStage.toFront()
 
+    // Mixed-DPI Windows setups can report the correct screen in JavaFX but still
+    // leave the stage at its old windowed size for one pulse after moving.
     Platform.runLater {
         tableStage.applyTablePresentationMode(screen)
         Platform.runLater {
@@ -573,16 +487,3 @@ private fun scalePercent(outputScale: Double): Int {
     val safeScale = if (outputScale.isFinite() && outputScale > 0.0) outputScale else 1.0
     return (safeScale * 100.0).roundToInt()
 }
-
-internal fun toolbarViewsForWorkspace(
-    plugins: List<DmPlugin>,
-    workspace: DmWorkspaceId,
-): List<javafx.scene.Node> =
-    plugins
-        .filter { workspace in it.workspaceIds }
-        .mapNotNull { it.createToolbarView(workspace) }
-
-private data class TableViewOption(
-    val displayName: String,
-    val node: Node,
-)

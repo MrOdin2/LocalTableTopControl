@@ -27,7 +27,6 @@ object HelpManager {
         "userdocs/audio/UserDoc.html",
         "userdocs/tracker/UserDoc.html",
         "userdocs/light/UserDoc.html",
-        "userdocs/dynamicmap_builder/UserDoc.html",
     )
 
     /** Root directory where documentation files are extracted at runtime. */
