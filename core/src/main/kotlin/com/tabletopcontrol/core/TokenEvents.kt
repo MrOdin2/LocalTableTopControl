@@ -14,12 +14,14 @@ import javafx.scene.paint.Color
  * @property color fill colour for the token circle.
  * @property size  rendered footprint size of the token; defaults to [TokenSize.MEDIUM]
  *                 for legacy saves and older publishers.
+ * @property isPlayerCharacter whether this token belongs to an actor marked as a player character.
  */
 data class TokenAddedEvent(
     val id: String,
     val name: String,
     val color: Color,
     val size: TokenSize = TokenSize.MEDIUM,
+    val isPlayerCharacter: Boolean = false,
 )
 
 /**

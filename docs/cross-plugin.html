@@ -348,6 +348,11 @@
         synchronized through the shared event bus.
       </p>
       <p>
+        The tracker's <strong>PC</strong> marker also drives DynamicMap sightlines. Tokens belonging
+        to PC actors reveal the cells they can see through the exported wall geometry; NPC movement
+        does not recalculate that sight mask.
+      </p>
+      <p>
         When both Map and DynamicMap are available, use the toolbar's <strong>Table content</strong>
         selector to decide which one drives the player-facing table screen. The tracker can keep
         publishing token updates while you choose the map runtime that fits the current encounter.

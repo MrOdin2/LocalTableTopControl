@@ -1,6 +1,7 @@
 package com.tabletopcontrol.new_tracker.model
 
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenAddedEvent
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -65,6 +66,31 @@ class ActorTrackerTest {
             listOf("Alpha", "Delta", "Bravo", "Charlie"),
             tracker.actorList.map(Actor::name),
         )
+    }
+
+    @Test
+    fun `adding a pc actor marks its token as player controlled`() {
+        val tracker = ActorTracker()
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.addActor(Actor(name = "Hero", actorType = ActorType.PC))
+
+        assertEquals(true, tokenEvents.single().isPlayerCharacter)
+    }
+
+    @Test
+    fun `changing actor type republishes token metadata`() {
+        val tracker = ActorTracker()
+        val actor = Actor(name = "Hero")
+        tracker.addActor(actor)
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.updateActor(actor.copy(actorType = ActorType.PC, color = tracker.actorList.single().color))
+
+        assertEquals(1, tokenEvents.size)
+        assertEquals(true, tokenEvents.single().isPlayerCharacter)
     }
 
     private fun actor(name: String, initiative: Int?): Actor =

@@ -18,6 +18,7 @@ import javafx.scene.paint.Color
  * @property size        rendered footprint size on the grid; defaults to [TokenSize.MEDIUM]
  *                       for legacy saves and event publishers.
  * @property color       fill colour of the token circle; used as a fallback when no image is set.
+ * @property isPlayerCharacter whether this token belongs to an actor marked as a player character.
  * @property imageUri    URI of the picture to use for this token, or `null` to render a plain
  *                       filled circle using [color].  Typically a `file:` URI obtained via a
  *                       [javafx.stage.FileChooser].
@@ -35,6 +36,7 @@ data class Token(
     val row: Int,
     val size: TokenSize = TokenSize.MEDIUM,
     val color: Color,
+    val isPlayerCharacter: Boolean = false,
     val imageUri: String? = null,
     val imageScaleX: Double = 1.0,
     val imageScaleY: Double = 1.0,

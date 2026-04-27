@@ -42,14 +42,20 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Background calibration follows the exported builder data and remains tied to the grid.
 - The DM map settings expose two DynamicMap visualisation modes:
   - `RenderMode` is the normal play mode. Exported walls and lights are not drawn directly.
-    Until full dynamic lighting is implemented, they should only become visible through future
-    interaction with the background, line of sight, and each other.
+    Exported walls are still used as blockers for player-character sightlines.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same opaque theme accent colour as the Dynamic Map Builder, and enabled
     point lights are drawn as diagnostic halos with distinct bright and dim radius areas.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden
   on the player-facing table view.
 - Disabled lights appear as subdued DM markers in `DebugMode`.
+- Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. The runtime casts
+  line-of-sight from those token centres through the exported wall geometry and caches the resulting
+  grid-cell visibility mask.
+- The DynamicMap sightline mask is drawn with the same style as fog of war: fully opaque black on
+  the player-facing table view, and a transparent grey/black overlay on the DM minimap.
+- Sightline masks are recalculated when a PC token moves or when relevant bundle/PC token metadata
+  changes; normal redraws and NPC token movement reuse the cached mask.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.
@@ -78,9 +84,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ## Future Work Notes
 
-- Dynamic lighting and line-of-sight are not implemented yet; current lights are rendered as static halos.
-- Runtime visibility rules for walls, light occlusion, doors, and player vision should be documented here
-  before implementation.
+- Dynamic lighting and light occlusion are not implemented yet; current lights are rendered as static halos.
+- Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
+  PC sightline mask.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.
 - If DynamicMap gains public import back into the builder, keep the runtime format rules separate from
   builder construction-site persistence.
