@@ -191,9 +191,10 @@
         must remain aligned with the exported grid.
       </p>
       <p>
-        The sightline mask uses the same look as fog of war: hidden areas are fully black on the
-        player-facing table screen and softly greyed on the DM minimap. Moving an NPC token does not
-        recalculate sightlines; moving a PC token does.
+        The sightline layer uses the same look as fog of war: hidden areas are fully black on the
+        player-facing table screen and softly greyed on the DM minimap. Its visible area is drawn from
+        smooth triangle meshes instead of full grid tiles. Moving an NPC token does not recalculate
+        sightlines; moving a PC token does.
       </p>
     </section>
 

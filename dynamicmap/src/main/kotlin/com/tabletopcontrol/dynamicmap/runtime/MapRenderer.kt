@@ -17,7 +17,7 @@ import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
-import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMask
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMesh
 import com.tabletopcontrol.dynamicmap.runtime.logic.FogOfWarState
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridCalibration
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridConfig
@@ -46,8 +46,8 @@ import kotlin.math.sin
  * 2. Map image — scaled from the canvas centre according to [mapCalibration].
  * 3. Grid overlay — drawn when [gridConfig] is non-null and visible, using
  *    [gridCalibration] with the canvas centre as the scale origin.
- * 4. Fog-of-war and DynamicMap sightlines - unrevealed or unseen cells are covered with
- *    an overlay matching [fogOpacity].
+ * 4. Fog-of-war and DynamicMap sightlines - unrevealed or unseen areas are covered with
+ *    overlays matching their configured opacity.
  * 5. Calibration overlays — only visible while the respective calibration dialog is open:
  *    - **Grid calibration**: a yellow crosshair through the canvas centre.
  *    - **Map calibration**: a red dot at the canvas centre.
@@ -106,8 +106,8 @@ class MapRenderer(private val canvas: Canvas) {
     /** Fog-of-war cell state, or `null` when fog of war is not active. */
     var fogOfWar: FogOfWarState? = null
 
-    /** Cached DynamicMap player line-of-sight mask, or `null` when no dynamic bundle is loaded. */
-    private var dynamicSightlineMask: DynamicSightlineMask? = null
+    /** Cached DynamicMap player line-of-sight triangle mesh, or `null` when no dynamic bundle is loaded. */
+    private var dynamicSightlineMesh: DynamicSightlineMesh? = null
 
     /**
      * Opacity of unrevealed fog-of-war tiles, in the range [0.0, 1.0].
@@ -117,6 +117,15 @@ class MapRenderer(private val canvas: Canvas) {
      * remains visible beneath the fog.  Defaults to `1.0`.
      */
     var fogOpacity: Double = 1.0
+
+    /** Tint used by the DynamicMap sightline overlay. Defaults to black to match fog of war. */
+    var dynamicSightlineTint: Color = Color.BLACK
+
+    /**
+     * Opacity of the DynamicMap sightline overlay. When `null`, [fogOpacity] is used so the
+     * table view stays opaque and the DM minimap stays translucent by default.
+     */
+    var dynamicSightlineOpacity: Double? = null
 
     /** Grid-column offset: fog array column 0 corresponds to grid column [fogColOffset]. */
     private var fogColOffset: Int = 0
@@ -171,7 +180,7 @@ class MapRenderer(private val canvas: Canvas) {
 
     /**
      * When `true`, tokens whose grid cell is covered by unrevealed fog-of-war or
-     * outside the DynamicMap sightline mask are not drawn. Set this to `true` for
+     * whose centre is outside the DynamicMap sightline mesh are not drawn. Set this to `true` for
      * the player-facing table view; leave it at `false` (the default) for the DM
      * minimap so tokens remain visible and can be dragged regardless of visibility.
      */
@@ -344,7 +353,7 @@ class MapRenderer(private val canvas: Canvas) {
                 refreshSightlines = event.isPlayerCharacter
             }
             if (refreshSightlines) {
-                refreshDynamicSightlineMask()
+                refreshDynamicSightlineMesh()
             }
             redraw()
         }
@@ -357,7 +366,7 @@ class MapRenderer(private val canvas: Canvas) {
                 imageCache.remove(uri)
             }
             if (removed?.isPlayerCharacter == true) {
-                refreshDynamicSightlineMask()
+                refreshDynamicSightlineMesh()
             }
             redraw()
         }
@@ -367,7 +376,7 @@ class MapRenderer(private val canvas: Canvas) {
                 val previous = tokens[idx]
                 tokens[idx] = previous.copy(col = event.col, row = event.row)
                 if (previous.isPlayerCharacter) {
-                    refreshDynamicSightlineMask()
+                    refreshDynamicSightlineMesh()
                 }
                 redraw()
             }
@@ -380,7 +389,7 @@ class MapRenderer(private val canvas: Canvas) {
             tokens.clear()
             imageCache.clear()
             activeTokenId = null
-            refreshDynamicSightlineMask()
+            refreshDynamicSightlineMesh()
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenImageChangedEvent> { event ->
@@ -475,7 +484,7 @@ class MapRenderer(private val canvas: Canvas) {
         } else {
             dynamicMapBundle = null
             dynamicMapBackgroundImage = null
-            dynamicSightlineMask = null
+            dynamicSightlineMesh = null
             mapImage = image
             redraw()
             MapResult.success(Unit)
@@ -487,7 +496,7 @@ class MapRenderer(private val canvas: Canvas) {
         dynamicMapBackgroundImage = bundle.createBackgroundImage()
         mapImage = null
         mapRotationDegrees = 0
-        refreshDynamicSightlineMask()
+        refreshDynamicSightlineMesh()
         redraw()
         return MapResult.success(Unit)
     }
@@ -500,7 +509,7 @@ class MapRenderer(private val canvas: Canvas) {
         mapImage = null
         dynamicMapBundle = null
         dynamicMapBackgroundImage = null
-        dynamicSightlineMask = null
+        dynamicSightlineMesh = null
         redraw()
     }
 
@@ -544,7 +553,7 @@ class MapRenderer(private val canvas: Canvas) {
             drawDynamicMapWalls()
         }
         drawFogOfWar()
-        drawDynamicSightlineMask()
+        drawDynamicSightlineLayer()
         drawTokens()
         drawMeasurements()
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
@@ -718,12 +727,12 @@ class MapRenderer(private val canvas: Canvas) {
     private fun dynamicLightRingWidth(cellPx: Double): Double =
         (cellPx * DYNAMIC_LIGHT_RING_WIDTH_SCALE).coerceIn(1.0, 4.0)
 
-    private fun refreshDynamicSightlineMask() {
+    private fun refreshDynamicSightlineMesh() {
         val bundle = dynamicMapBundle
-        dynamicSightlineMask = if (bundle == null) {
+        dynamicSightlineMesh = if (bundle == null) {
             null
         } else {
-            DynamicSightlineMask.compute(
+            DynamicSightlineMesh.compute(
                 cols = bundle.cols,
                 rows = bundle.rows,
                 walls = bundle.walls,
@@ -842,35 +851,36 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
-     * Covers DynamicMap cells that are outside every PC token's current sightline.
+     * Covers DynamicMap areas that are outside every PC token's current sightline.
      *
-     * The mask itself is computed only when relevant token or bundle state changes;
-     * redraws simply paint the cached grid-cell visibility state with the same visual
-     * treatment as fog of war.
+     * The expensive raycast mesh and hidden geometry are computed only when relevant
+     * token or bundle state changes. Redraws paint only the cached hidden area.
      */
-    private fun drawDynamicSightlineMask() {
-        val mask = dynamicSightlineMask ?: return
+    private fun drawDynamicSightlineLayer() {
+        val mesh = dynamicSightlineMesh ?: return
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
         if (cellPx <= 0.0) return
-
-        gc.fill = Color.color(0.0, 0.0, 0.0, fogOpacity.coerceIn(0.0, 1.0))
-
         val originX = dynamicMapOriginX()
         val originY = dynamicMapOriginY()
-        val bounds = visibleWorldBounds()
-        val visXMin = bounds[0]; val visXMax = bounds[1]
-        val visYMin = bounds[2]; val visYMax = bounds[3]
 
-        for (col in 0 until mask.cols) {
-            val cellX = originX + col * cellPx
-            if (cellX + cellPx <= visXMin || cellX >= visXMax) continue
-            for (row in 0 until mask.rows) {
-                if (mask.isVisible(col, row)) continue
-                val cellY = originY + row * cellPx
-                if (cellY + cellPx <= visYMin || cellY >= visYMax) continue
-                gc.fillRect(cellX, cellY, cellPx, cellPx)
-            }
-        }
+        gc.fill = dynamicSightlineOverlayColor()
+        gc.beginPath()
+        mesh.drawHiddenArea(
+            moveTo = { point -> gc.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            lineTo = { point -> gc.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            closePath = { gc.closePath() },
+        )
+        gc.fill()
+    }
+
+    private fun dynamicSightlineOverlayColor(): Color {
+        val opacity = (dynamicSightlineOpacity ?: fogOpacity).coerceIn(0.0, 1.0)
+        return Color.color(
+            dynamicSightlineTint.red,
+            dynamicSightlineTint.green,
+            dynamicSightlineTint.blue,
+            opacity,
+        )
     }
 
     /**
@@ -963,16 +973,20 @@ class MapRenderer(private val canvas: Canvas) {
 
         val originX = canvas.width / 2.0 + gridCalibration.offsetX
         val originY = canvas.height / 2.0 + gridCalibration.offsetY
-        val filterPlayerVisibility = hideTokensInFog && (fogOfWar != null || dynamicSightlineMask != null)
+        val filterFogVisibility = hideTokensInFog && fogOfWar != null
+        val filterSightlineVisibility = hideTokensInFog && dynamicSightlineMesh != null
 
         if (showTokenNames) {
             gc.textAlign = TextAlignment.CENTER
         }
 
         for (token in tokensInDrawOrder()) {
+            if (filterSightlineVisibility && !isTokenVisibleInDynamicSightline(token)) {
+                continue
+            }
             val occupiedCells = tokenOccupiedCells(token)
-            val visibleCells = if (filterPlayerVisibility) {
-                occupiedCells.filter { (col, row) -> isPlayerVisibleCell(col, row) }
+            val visibleCells = if (filterFogVisibility) {
+                occupiedCells.filter { (col, row) -> isFogVisibleCell(col, row) }
             } else {
                 occupiedCells
             }
@@ -981,7 +995,7 @@ class MapRenderer(private val canvas: Canvas) {
             val drawBounds = tokenDrawBounds(token, originX, originY, cellPx)
             val activeOutlineWidth = (drawBounds.size * ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(1.0)
             val tokenOutlineWidth = (drawBounds.size * TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(0.5)
-            val isPartiallyHidden = filterPlayerVisibility && visibleCells.size < occupiedCells.size
+            val isPartiallyHidden = filterFogVisibility && visibleCells.size < occupiedCells.size
 
             if (isPartiallyHidden) {
                 gc.save()
@@ -1262,22 +1276,23 @@ class MapRenderer(private val canvas: Canvas) {
         return Pair(worldX, worldY)
     }
 
-    private fun isPlayerVisibleCell(col: Int, row: Int): Boolean {
-        val fow = fogOfWar
-        if (fow != null) {
-            val fogCol = col - fogColOffset
-            val fogRow = row - fogRowOffset
-            if (fogCol in 0 until fow.cols && fogRow in 0 until fow.rows && !fow.isRevealed(fogCol, fogRow)) {
-                return false
-            }
+    private fun isFogVisibleCell(col: Int, row: Int): Boolean {
+        val fow = fogOfWar ?: return true
+        val fogCol = col - fogColOffset
+        val fogRow = row - fogRowOffset
+        if (fogCol !in 0 until fow.cols || fogRow !in 0 until fow.rows) {
+            return true
         }
+        return fow.isRevealed(fogCol, fogRow)
+    }
 
-        val sightlineMask = dynamicSightlineMask
-        if (sightlineMask != null && !sightlineMask.isVisible(col, row)) {
-            return false
-        }
-
-        return true
+    private fun isTokenVisibleInDynamicSightline(token: Token): Boolean {
+        val mesh = dynamicSightlineMesh ?: return true
+        val span = token.size.gridSpanCells.toDouble()
+        return mesh.containsPoint(
+            x = token.col + span / 2.0,
+            y = token.row + span / 2.0,
+        )
     }
 
     private fun tokensInDrawOrder(): List<Token> =
