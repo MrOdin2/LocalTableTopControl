@@ -556,12 +556,9 @@ class MapRenderer(private val canvas: Canvas) {
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
             drawDynamicMapLightMarkers()
         }
-        drawGridCornerDots()
 
         gc.restore()
         drawTableViewportOutline()
-        drawGridCalibrationOverlay()
-        drawMapCalibrationOverlay()
     }
 
     // -------------------------------------------------------------------------
@@ -1139,41 +1136,6 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
-     * Draws a yellow crosshair through the canvas centre when grid calibration
-     * mode is active.  The intersection marks the scale origin for the grid, so
-     * the DM can align a grid line corner to a known physical reference.
-     */
-    private fun drawGridCalibrationOverlay() {
-        if (!gridCalibrationMode) return
-        val cx = canvas.width / 2.0
-        val cy = canvas.height / 2.0
-
-        gc.stroke = Color.YELLOW
-        gc.lineWidth = 1.5
-        gc.strokeLine(cx, 0.0, cx, canvas.height)  // vertical arm
-        gc.strokeLine(0.0, cy, canvas.width, cy)    // horizontal arm
-    }
-
-    /**
-     * Draws a red dot at the canvas centre when map calibration mode is active.
-     * The dot marks the scale origin so the DM can align a known reference point
-     * on the map image with the physical table centre.
-     *
-     * Grid corner dots are also drawn at every grid line intersection by
-     * [drawGridCornerDots]; this overlay draws the larger centre dot on top so it
-     * remains the most prominent marker.
-     */
-    private fun drawMapCalibrationOverlay() {
-        if (!mapCalibrationMode) return
-        val cx = canvas.width / 2.0
-        val cy = canvas.height / 2.0
-        val r = 6.0
-
-        gc.fill = Color.RED
-        gc.strokeOval(cx - r, cy - r, r * 2, r * 2)
-    }
-
-    /**
      * Draws a faint dashed rectangle on the DM minimap showing the current
      * player-facing table viewport.
      *
@@ -1205,46 +1167,6 @@ class MapRenderer(private val canvas: Canvas) {
         gc.restore()
     }
 
-    /**
-     * Draws a small red dot at every grid line intersection when map calibration
-     * mode is active.
-     *
-     * These markers let the DM spot scale or offset errors at the canvas edges
-     * without having to trace individual grid lines — any drift of the dots away
-     * from the underlying map's grid corners immediately reveals a mismatch.
-     * The dots are 1.5 px in radius in world space, so they grow proportionally
-     * when the DM zooms in for finer control.
-     *
-     * Dots are drawn whenever a [gridCalibration] is configured (regardless of
-     * whether the grid lines themselves are visible), so they can serve as a
-     * calibration aid even with the grid overlay hidden.
-     */
-    private fun drawGridCornerDots() {
-        if (!mapCalibrationMode) return
-        val cellPx = gridCalibration.effectiveCellSizeInPixels()
-        if (cellPx <= 0) return
-
-        val w = canvas.width
-        val h = canvas.height
-        val originX = w / 2.0 + gridCalibration.offsetX
-        val originY = h / 2.0 + gridCalibration.offsetY
-
-        val bounds = visibleWorldBounds()
-        val xMin = bounds[0]; val xMax = bounds[1]; val yMin = bounds[2]; val yMax = bounds[3]
-
-        val r = 1.5
-        gc.fill = Color.RED
-
-        var x = originX + kotlin.math.ceil((xMin - originX) / cellPx) * cellPx
-        while (x <= xMax) {
-            var y = originY + kotlin.math.ceil((yMin - originY) / cellPx) * cellPx
-            while (y <= yMax) {
-                gc.fillOval(x - r, y - r, r * 2, r * 2)
-                y += cellPx
-            }
-            x += cellPx
-        }
-    }
 
     /**
      * Converts a scene-space coordinate to canvas-space, applying this
