@@ -11,10 +11,84 @@ data class Actor(
     val ac: Int = 0,
     val initiative: Int? = null,
     val tokenSize: TokenSize = TokenSize.MEDIUM,
+    val actorType: ActorType = ActorType.NPC,
+    val features: ActorFeatures = ActorFeatures(),
     var color: Color = Color.GRAY,
     val imageSettings: ActorImageSettings = ActorImageSettings(),
-){
+) {
     fun duplicateActor(): Actor = copy(id = UUID.randomUUID().toString())
+}
+
+enum class ActorType(
+    val shortLabel: String,
+    val displayName: String,
+) {
+    PC("PC", "Player Character"),
+    NPC("NPC", "Non-player Character"),
+    ;
+
+    val menuLabel: String
+        get() = "$shortLabel - $displayName"
+
+    companion object {
+        fun fromPersistence(value: String?): ActorType {
+            val normalized = value?.trim() ?: return NPC
+            return entries.firstOrNull { type ->
+                type.name.equals(normalized, ignoreCase = true) ||
+                    type.shortLabel.equals(normalized, ignoreCase = true) ||
+                    type.displayName.equals(normalized, ignoreCase = true) ||
+                    type.menuLabel.equals(normalized, ignoreCase = true)
+            } ?: NPC
+        }
+    }
+}
+
+data class ActorFeatures(
+    val darkvisionRange: DistanceRange? = null,
+    val movementRange: DistanceRange? = null,
+) {
+    val hasAny: Boolean
+        get() = darkvisionRange != null || movementRange != null
+
+    val summaryText: String
+        get() = buildList {
+            darkvisionRange?.let { add("DV ${it.displayText}") }
+            movementRange?.let { add("Move ${it.displayText}") }
+        }.joinToString(" | ").ifBlank { "No features set" }
+}
+
+data class DistanceRange(
+    val amount: Int,
+    val unit: DistanceUnit = DistanceUnit.FEET,
+) {
+    init {
+        require(amount >= 0) { "Distance range cannot be negative." }
+    }
+
+    val displayText: String
+        get() = "$amount ${unit.abbreviation}"
+}
+
+enum class DistanceUnit(
+    val displayName: String,
+    val abbreviation: String,
+) {
+    FEET("Feet", "ft"),
+    METERS("Meters", "m"),
+    ;
+
+    override fun toString(): String = displayName
+
+    companion object {
+        fun fromPersistence(value: String?): DistanceUnit {
+            val normalized = value?.trim()?.lowercase() ?: return FEET
+            return when (normalized) {
+                "feet", "foot", "ft" -> FEET
+                "meters", "meter", "metres", "metre", "m" -> METERS
+                else -> entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) } ?: FEET
+            }
+        }
+    }
 }
 
 data class ActorImageSettings(

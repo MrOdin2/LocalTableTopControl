@@ -67,7 +67,7 @@
     <h2>Overview</h2>
     <p>
       New Tracker lets you keep a simple combat list with editable actor names, hit points,
-      armour class, initiative, and token pictures.
+      armour class, initiative, PC/NPC type, and token pictures.
     </p>
     <p>
       The active actor is highlighted, and the tracker updates the linked map token details
@@ -83,9 +83,20 @@
     <ul>
       <li>Edit the actor name directly in the card.</li>
       <li>Change HP, AC, and initiative values.</li>
+      <li>See whether the actor is marked as a PC or NPC.</li>
+      <li>See any configured darkvision or movement range at a glance.</li>
       <li>Duplicate or delete the actor.</li>
       <li>Assign a token picture and adjust its scale or offset.</li>
     </ul>
+    <p>
+      Right-click an actor card to mark that actor as a <strong>PC</strong> or
+      <strong>NPC</strong>, open <strong>Features...</strong>, or change the token size used on
+      the map.
+    </p>
+    <p>
+      The Features dialog lets you turn darkvision on or off, set its range, and record the
+      actor's movement range in feet or meters.
+    </p>
     <p>
       Use <strong>NEXT</strong> to advance to the next actor with an initiative value.
     </p>
@@ -103,7 +114,8 @@
     <h2>Preset Library</h2>
     <p>
       Use <strong>SAVE</strong> on any actor card to store that actor as a reusable preset.
-      The preset keeps the actor's name, HP, AC, and token picture settings.
+      The preset keeps the actor's name, HP, AC, PC/NPC type, darkvision and movement settings,
+      token size, and token picture settings.
     </p>
     <p>
       If you save using a name that already exists in the preset folder, New Tracker asks
@@ -146,7 +158,8 @@
     <p>
       Use <strong>Scenes...</strong> from the main toolbar to save the current encounter as a
       reusable scene. The tracker portion keeps the live actor list, including current HP, AC,
-      initiative, token size, token picture settings, and the active round.
+      initiative, PC/NPC type, darkvision and movement settings, token size, token picture
+      settings, and the active round.
     </p>
     <p>
       Loading a scene replaces the current tracker setup after a confirmation dialog, which makes
