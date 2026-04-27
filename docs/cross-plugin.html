@@ -152,6 +152,8 @@
             <li><a href="#token-names">Showing Token Names</a></li>
           </ul>
         </li>
+        <li><a href="#dynamicmap-runtime">DynamicMap Runtime</a></li>
+        <li><a href="#dynamicmap-builder">Dynamic Map Builder Panes</a></li>
         <li><a href="#workflow">Recommended Workflow</a></li>
       </ul>
     </div>
@@ -159,6 +161,7 @@
       <h2>Plugin Docs</h2>
       <ul>
         <li><a href="../map/UserDoc.html">🗺️ Map</a></li>
+        <li><a href="../dynamicmap/UserDoc.html">DynamicMap</a></li>
         <li><a href="../audio/UserDoc.html">🎵 Audio</a></li>
         <li><a href="../tracker/UserDoc.html">⚔️ Tracker</a></li>
         <li><a href="../light/UserDoc.html">💡 Lighting</a></li>
@@ -173,12 +176,12 @@
       <h2>Overview</h2>
       <p>
         While each plugin works independently, the <strong>Initiative Tracker</strong> and
-        <strong>Map</strong> plugins share information automatically so you don't have to manage
+        <strong>Map</strong> and <strong>DynamicMap</strong> plugins share information automatically so you don't have to manage
         tokens on the map separately from the combat tracker.
       </p>
       <p>
         The link between them is <strong>one-way</strong>: the Tracker publishes information
-        (combatant added, moved, image changed, removed) and the Map listens and updates the
+        (combatant added, moved, image changed, removed) and the active map runtime listens and updates the
         table screen accordingly. You control everything from the Tracker side.
       </p>
     </section>
@@ -337,6 +340,52 @@
       </p>
     </section>
 
+    <section id="dynamicmap-runtime">
+      <h2>DynamicMap Runtime</h2>
+      <p>
+        DynamicMap receives the same tracker token events as the standard Map plugin. Combatants,
+        token colours, token sizes, token images, active-turn highlighting, and token removal stay
+        synchronized through the shared event bus.
+      </p>
+      <p>
+        When both Map and DynamicMap are available, use the toolbar's <strong>Table content</strong>
+        selector to decide which one drives the player-facing table screen. The tracker can keep
+        publishing token updates while you choose the map runtime that fits the current encounter.
+      </p>
+      <p>
+        DynamicMap also participates in shared scenes under its own scene key, so a scene can restore
+        a dynamic bundle, fog state, token positions, and measurements independently from the
+        standard Map plugin.
+      </p>
+    </section>
+
+    <section id="dynamicmap-builder">
+      <h2>Dynamic Map Builder Pane Coordination</h2>
+      <p>
+        The <strong>Dynamic Map Builder</strong> workspace is made up of several cooperating panes
+        plus workspace-level toolbar controls rather than one monolithic editor. The construction-site
+        selector in the top toolbar chooses the active saved builder scene, and the same toolbar row
+        exports gameplay-ready <code>.dynamicmap</code> bundles without builder-only names or groups.
+        The main builder canvas, <strong>Wall Tools</strong>, <strong>Light Browser</strong>, and
+        <strong>Outline Browser</strong> all share the same draft map and stay in sync automatically.
+      </p>
+      <div class="flow">
+        <div class="step">Choose tool or preset in a side pane</div>
+        <div class="arrow">â†’</div>
+        <div class="step">Edit on the main builder canvas</div>
+        <div class="arrow">â†’</div>
+        <div class="step">Outline updates to reflect the new structure</div>
+      </div>
+      <p>
+        This coordination is what lets you pick a light preset in one pane, place it on the canvas,
+        then immediately manage that same light from the outline without switching workspaces.
+      </p>
+      <p>
+        Selecting an item in the outline highlights the same wall or light in the main builder view,
+        so the workspace behaves like one connected editor even though the tools live in separate panes.
+      </p>
+    </section>
+
     <section id="workflow">
       <h2>Recommended Workflow for a Session</h2>
       <ol>
@@ -372,6 +421,7 @@
   TabletopControl User Documentation &mdash;
   <a href="index.html">Home</a> &mdash;
   <a href="../map/UserDoc.html">Map Plugin</a> &mdash;
+  <a href="../dynamicmap/UserDoc.html">DynamicMap</a> &mdash;
   <a href="../tracker/UserDoc.html">Tracker Plugin</a>
 </footer>
 
