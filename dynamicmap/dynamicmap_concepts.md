@@ -57,6 +57,8 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   overlay on the DM minimap.
 - Sightline meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
   changes; normal redraws and NPC token movement reuse the cached mesh.
+- Player-facing NPC token visibility is based on intersection between the token's drawn circle and
+  the visible sightline mesh, so even a small exposed edge reveals the token.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.

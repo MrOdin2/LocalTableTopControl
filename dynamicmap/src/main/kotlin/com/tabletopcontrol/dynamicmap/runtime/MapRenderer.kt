@@ -48,9 +48,6 @@ import kotlin.math.sin
  *    [gridCalibration] with the canvas centre as the scale origin.
  * 4. Fog-of-war and DynamicMap sightlines - unrevealed or unseen areas are covered with
  *    overlays matching their configured opacity.
- * 5. Calibration overlays — only visible while the respective calibration dialog is open:
- *    - **Grid calibration**: a yellow crosshair through the canvas centre.
- *    - **Map calibration**: a red dot at the canvas centre.
  *
  * Both the grid and map image are calibrated independently and both use the canvas
  * centre as their scale origin, so the grid can be shown without any map image loaded.
@@ -553,8 +550,8 @@ class MapRenderer(private val canvas: Canvas) {
             drawDynamicMapWalls()
         }
         drawFogOfWar()
-        drawDynamicSightlineLayer()
         drawTokens()
+        drawDynamicSightlineLayer()
         drawMeasurements()
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
             drawDynamicMapLightMarkers()
@@ -1288,11 +1285,7 @@ class MapRenderer(private val canvas: Canvas) {
 
     private fun isTokenVisibleInDynamicSightline(token: Token): Boolean {
         val mesh = dynamicSightlineMesh ?: return true
-        val span = token.size.gridSpanCells.toDouble()
-        return mesh.containsPoint(
-            x = token.col + span / 2.0,
-            y = token.row + span / 2.0,
-        )
+        return mesh.intersectsToken(token)
     }
 
     private fun tokensInDrawOrder(): List<Token> =

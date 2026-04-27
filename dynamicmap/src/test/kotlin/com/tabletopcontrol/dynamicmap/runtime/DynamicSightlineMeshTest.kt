@@ -42,6 +42,31 @@ class DynamicSightlineMeshTest {
     }
 
     @Test
+    fun `token is visible when any part of its circle intersects the sight mesh`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.4, 0.0),
+            end = DynamicMapRuntimePoint(2.4, 3.0),
+        )
+        val tokenMostlyBehindWall = Token(
+            id = "npc",
+            name = "Guard",
+            col = 2,
+            row = 1,
+            color = Color.RED,
+        )
+
+        val mesh = DynamicSightlineMesh.compute(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+            tokens = listOf(pcToken(col = 0, row = 1)),
+        )
+
+        assertFalse(mesh.containsPoint(2.5, 1.5))
+        assertTrue(mesh.intersectsToken(tokenMostlyBehindWall))
+    }
+
+    @Test
     fun `multiple pc tokens combine their visible meshes`() {
         val wall = DynamicMapRuntimeWall(
             start = DynamicMapRuntimePoint(2.0, 0.0),

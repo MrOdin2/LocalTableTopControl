@@ -3,6 +3,7 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimePoint
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
 import java.awt.geom.Area
+import java.awt.geom.Ellipse2D
 import java.awt.geom.Path2D
 import java.awt.geom.PathIterator
 import java.awt.geom.Rectangle2D
@@ -40,6 +41,7 @@ internal class DynamicSightlineMesh private constructor(
     val cols: Int,
     val rows: Int,
     val triangles: List<DynamicSightTriangle>,
+    private val visibleArea: Area,
     private val hiddenArea: Area,
 ) {
     init {
@@ -51,6 +53,13 @@ internal class DynamicSightlineMesh private constructor(
         x in 0.0..cols.toDouble() &&
             y in 0.0..rows.toDouble() &&
             triangles.any { it.contains(DynamicSightPoint(x, y)) }
+
+    fun intersectsToken(token: Token): Boolean {
+        val bounds = tokenDrawBounds(token, originX = 0.0, originY = 0.0, cellPx = 1.0)
+        val tokenArea = Area(Ellipse2D.Double(bounds.left, bounds.top, bounds.size, bounds.size))
+        tokenArea.intersect(visibleArea)
+        return !tokenArea.isEmpty
+    }
 
     fun drawHiddenArea(
         moveTo: (DynamicSightPoint) -> Unit,
@@ -82,11 +91,18 @@ internal class DynamicSightlineMesh private constructor(
                 .map { it.sightOrigin() }
                 .filter { it.x in 0.0..cols.toDouble() && it.y in 0.0..rows.toDouble() }
                 .flatMap { origin -> triangulateVisibleArea(origin, segments) }
+            val visibleArea = visibleAreaFor(triangles)
             val hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())).apply {
-                subtract(visibleAreaFor(triangles))
+                subtract(visibleArea)
             }
 
-            return DynamicSightlineMesh(cols = cols, rows = rows, triangles = triangles, hiddenArea = hiddenArea)
+            return DynamicSightlineMesh(
+                cols = cols,
+                rows = rows,
+                triangles = triangles,
+                visibleArea = visibleArea,
+                hiddenArea = hiddenArea,
+            )
         }
     }
 }
