@@ -52,6 +52,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. A shared sightline
   service casts line-of-sight from those token centres through cached exported wall geometry and
   publishes one triangulated visibility mesh for all active DynamicMap renderers.
+- Each PC token's sightline contribution is cached independently by token position, size, and wall
+  topology. Moving one PC recomputes only that PC's contribution, then combines it with the other
+  cached PC contributions.
 - Sightline computation runs off the JavaFX thread. Renderers keep the last completed mesh visible
   while a newer PC move is being calculated, so token dragging does not block the UI thread.
 - The DynamicMap sightline mesh is composited as its own cached Canvas image layer, drawn with the

@@ -22,12 +22,15 @@ internal class MapDynamicSightlineService {
     private val tokens = linkedMapOf<String, Token>()
     private val subscriptions = mutableListOf<EventBus.Subscription>()
     private val revision = AtomicLong(0L)
+    private val contributionCacheLock = Any()
+    private val contributionCache = mutableMapOf<String, CachedPcSightlineContribution>()
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "DynamicMapSightline").apply { isDaemon = true }
     }
 
     private var currentBundle: DynamicMapBundle? = null
     private var currentGeometry: DynamicSightlineGeometry? = null
+    private var topologyVersion: Long = 0L
     @Volatile
     private var disposed: Boolean = false
 
@@ -50,6 +53,8 @@ internal class MapDynamicSightlineService {
                 rows = event.bundle.rows,
                 walls = event.bundle.walls,
             )
+            topologyVersion++
+            clearContributionCache()
             scheduleCompute()
         }
         subscriptions += EventBus.subscribe<MapLoadEvent> {
@@ -68,6 +73,9 @@ internal class MapDynamicSightlineService {
                     isPlayerCharacter = event.isPlayerCharacter,
                 )
                 if (previous.isPlayerCharacter || event.isPlayerCharacter) {
+                    if (!event.isPlayerCharacter) {
+                        removeContributionCacheEntry(event.id)
+                    }
                     scheduleCompute()
                 }
             } else {
@@ -89,6 +97,7 @@ internal class MapDynamicSightlineService {
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
             val removed = tokens.remove(event.id)
             if (removed?.isPlayerCharacter == true) {
+                removeContributionCacheEntry(event.id)
                 scheduleCompute()
             }
         }
@@ -103,6 +112,7 @@ internal class MapDynamicSightlineService {
             val hadPc = tokens.values.any { it.isPlayerCharacter }
             tokens.clear()
             if (hadPc) {
+                clearContributionCache()
                 scheduleCompute()
             }
         }
@@ -112,6 +122,8 @@ internal class MapDynamicSightlineService {
         if (disposed) return
         currentBundle = null
         currentGeometry = null
+        topologyVersion++
+        clearContributionCache()
         val nextRevision = revision.incrementAndGet()
         publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, null))
     }
@@ -119,19 +131,76 @@ internal class MapDynamicSightlineService {
     private fun scheduleCompute() {
         if (disposed) return
         val bundle = currentBundle ?: return
+        val snapshotTopologyVersion = topologyVersion
         val geometry = currentGeometry ?: DynamicSightlineGeometry.forMap(
             cols = bundle.cols,
             rows = bundle.rows,
             walls = bundle.walls,
         ).also { currentGeometry = it }
-        val tokenSnapshot = tokens.values.map { it.copy() }
+        val pcSnapshot = tokens.values
+            .filter { it.isPlayerCharacter }
+            .map { it.copy() }
         val nextRevision = revision.incrementAndGet()
 
         executor.execute {
             if (disposed || revision.get() != nextRevision) return@execute
-            val mesh = geometry.compute(tokenSnapshot)
+            val contributions = computeContributions(
+                geometry = geometry,
+                pcs = pcSnapshot,
+                topologyVersion = snapshotTopologyVersion,
+                expectedRevision = nextRevision,
+            ) ?: return@execute
+            val mesh = geometry.combine(contributions)
             if (disposed || revision.get() != nextRevision) return@execute
             publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, mesh))
+        }
+    }
+
+    private fun computeContributions(
+        geometry: DynamicSightlineGeometry,
+        pcs: List<Token>,
+        topologyVersion: Long,
+        expectedRevision: Long,
+    ): List<DynamicSightlineContribution>? {
+        val pcIds = pcs.mapTo(mutableSetOf()) { it.id }
+        val contributionsByToken = linkedMapOf<String, DynamicSightlineContribution>()
+
+        synchronized(contributionCacheLock) {
+            contributionCache.keys.retainAll(pcIds)
+            pcs.forEach { pc ->
+                val key = PcSightlineCacheKey.from(pc, topologyVersion)
+                contributionCache[pc.id]
+                    ?.takeIf { it.key == key }
+                    ?.let { contributionsByToken[pc.id] = it.contribution }
+            }
+        }
+
+        pcs.forEach { pc ->
+            if (disposed || revision.get() != expectedRevision) return null
+            if (contributionsByToken.containsKey(pc.id)) return@forEach
+
+            val key = PcSightlineCacheKey.from(pc, topologyVersion)
+            val contribution = geometry.computeContribution(pc) ?: DynamicSightlineContribution.empty()
+            if (disposed || revision.get() != expectedRevision) return null
+
+            synchronized(contributionCacheLock) {
+                contributionCache[pc.id] = CachedPcSightlineContribution(key, contribution)
+            }
+            contributionsByToken[pc.id] = contribution
+        }
+
+        return pcs.mapNotNull { pc -> contributionsByToken[pc.id] }
+    }
+
+    private fun clearContributionCache() {
+        synchronized(contributionCacheLock) {
+            contributionCache.clear()
+        }
+    }
+
+    private fun removeContributionCacheEntry(tokenId: String) {
+        synchronized(contributionCacheLock) {
+            contributionCache.remove(tokenId)
         }
     }
 
@@ -147,4 +216,28 @@ internal class MapDynamicSightlineService {
             }
         }
     }
+
+    private data class PcSightlineCacheKey(
+        val tokenId: String,
+        val col: Int,
+        val row: Int,
+        val sizeName: String,
+        val topologyVersion: Long,
+    ) {
+        companion object {
+            fun from(token: Token, topologyVersion: Long): PcSightlineCacheKey =
+                PcSightlineCacheKey(
+                    tokenId = token.id,
+                    col = token.col,
+                    row = token.row,
+                    sizeName = token.size.name,
+                    topologyVersion = topologyVersion,
+                )
+        }
+    }
+
+    private data class CachedPcSightlineContribution(
+        val key: PcSightlineCacheKey,
+        val contribution: DynamicSightlineContribution,
+    )
 }

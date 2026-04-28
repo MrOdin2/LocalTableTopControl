@@ -1,8 +1,10 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
 import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMesh
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineGeometry
 import com.tabletopcontrol.dynamicmap.runtime.logic.Token
 import javafx.scene.paint.Color
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -85,6 +87,36 @@ class DynamicSightlineMeshTest {
 
         assertTrue(mesh.containsPoint(1.5, 1.5))
         assertTrue(mesh.containsPoint(3.5, 1.5))
+    }
+
+    @Test
+    fun `combined per pc sightline contributions match full mesh computation`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 3.0),
+        )
+        val pcs = listOf(
+            pcToken(col = 0, row = 1),
+            pcToken(col = 4, row = 1),
+        )
+        val geometry = DynamicSightlineGeometry.forMap(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+        )
+
+        val combined = geometry.combine(pcs.mapNotNull(geometry::computeContribution))
+        val full = DynamicSightlineMesh.compute(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+            tokens = pcs,
+        )
+
+        assertEquals(full.triangles.size, combined.triangles.size)
+        assertEquals(full.containsPoint(1.5, 1.5), combined.containsPoint(1.5, 1.5))
+        assertEquals(full.containsPoint(3.5, 1.5), combined.containsPoint(3.5, 1.5))
+        assertEquals(full.containsPoint(2.5, 1.5), combined.containsPoint(2.5, 1.5))
     }
 
     @Test

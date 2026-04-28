@@ -45,6 +45,21 @@ internal data class DynamicSightTriangle(
         (a.x - c.x) * (b.y - c.y) - (b.x - c.x) * (a.y - c.y)
 }
 
+internal class DynamicSightlineContribution(
+    val triangles: List<DynamicSightTriangle>,
+    private val visibleArea: Area,
+) {
+    fun copyVisibleArea(): Area = Area(visibleArea)
+
+    companion object {
+        fun empty(): DynamicSightlineContribution =
+            DynamicSightlineContribution(
+                triangles = emptyList(),
+                visibleArea = Area(),
+            )
+    }
+}
+
 internal class DynamicSightlineMesh(
     val cols: Int,
     val rows: Int,
@@ -115,12 +130,29 @@ internal class DynamicSightlineGeometry private constructor(
     }
 
     fun compute(tokens: Iterable<Token>): DynamicSightlineMesh {
-        val triangles = tokens
-            .filter { it.isPlayerCharacter }
-            .map { it.sightOrigin() }
-            .filter { it.x in 0.0..cols.toDouble() && it.y in 0.0..rows.toDouble() }
-            .flatMap { origin -> triangulateVisibleArea(origin, segments) }
-        val visibleArea = visibleAreaFor(triangles)
+        val contributions = tokens.mapNotNull(::computeContribution)
+        return combine(contributions)
+    }
+
+    fun computeContribution(token: Token): DynamicSightlineContribution? {
+        if (!token.isPlayerCharacter) return null
+        val origin = token.sightOrigin()
+        if (origin.x !in 0.0..cols.toDouble() || origin.y !in 0.0..rows.toDouble()) {
+            return DynamicSightlineContribution.empty()
+        }
+        val triangles = triangulateVisibleArea(origin, segments)
+        return DynamicSightlineContribution(
+            triangles = triangles,
+            visibleArea = visibleAreaFor(triangles),
+        )
+    }
+
+    fun combine(contributions: Iterable<DynamicSightlineContribution>): DynamicSightlineMesh {
+        val contributionList = contributions.toList()
+        val triangles = contributionList.flatMap { it.triangles }
+        val visibleArea = Area().apply {
+            contributionList.forEach { contribution -> add(contribution.copyVisibleArea()) }
+        }
         val hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())).apply {
             subtract(visibleArea)
         }
