@@ -63,6 +63,33 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.
 
+### Renderer Backend Direction
+
+- DynamicMap rendering now has a backend-neutral snapshot model. Existing EventBus inputs, bundle
+  loading, tracker token sync, fog state, measurements, table offset, viewport state, and render/debug
+  settings are captured into a `DynamicMapRenderSnapshot` before any concrete backend draws a frame.
+- A LibGDX renderer backend consumes that snapshot and is designed for request-rendered, non-continuous
+  drawing rather than a permanent animation loop.
+- The LibGDX backend renders DynamicMap layers from the existing runtime data model: map background,
+  grid, debug walls/lights, fog, cached PC sightline triangles, tokens, active-token outlines,
+  measurements, and the DM table-viewport outline.
+- Sightline masking in the LibGDX backend is stencil-based: visible PC sightline triangles are written
+  into the stencil buffer, then the hidden-area overlay is drawn only outside that stencil.
+- JavaFX remains the DM control shell. The player-facing DynamicMap table view is exposed to the
+  existing JavaFX table-content selector as a placeholder node, but its visible pixels come from a
+  borderless LibGDX/LWJGL3 native window that follows the JavaFX table stage's screen position and size.
+- The LibGDX table window is lazy: it starts only when the DynamicMap table content is visible on a
+  selected table screen, hides when Table View is set to `None (hidden)` or another table-content plugin
+  is selected, and shuts down with the DynamicMap plugin.
+- The existing JavaFX Canvas renderer remains active for the DM minimap and as the EventBus-backed
+  state adapter that produces snapshots for the LibGDX table window.
+- The official LibGDX LWJGL3 backend creates GLFW windows and does not provide a direct JavaFX `Node`
+  canvas equivalent, so DynamicMap uses a synchronized native table window instead of embedding OpenGL
+  inside the JavaFX scene graph.
+- Any final hosted LibGDX surface must preserve request-render behavior: DynamicMap should submit a new
+  snapshot and request a frame only after map state, token state, fog state, viewport state, theme state,
+  or drag state changes.
+
 ### Standard Map Feature Parity
 
 - DynamicMap copies the standard Map plugin session controls for:

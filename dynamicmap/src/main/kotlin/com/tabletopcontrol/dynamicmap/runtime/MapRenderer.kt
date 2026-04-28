@@ -27,6 +27,17 @@ import com.tabletopcontrol.dynamicmap.runtime.logic.Token
 import com.tabletopcontrol.dynamicmap.runtime.logic.nextAvailableTokenPlacement
 import com.tabletopcontrol.dynamicmap.runtime.logic.tokenDrawBounds
 import com.tabletopcontrol.dynamicmap.runtime.logic.tokenOccupiedCells
+import com.tabletopcontrol.dynamicmap.runtime.rendering.DynamicMapRenderSnapshot
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderDynamicMap
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderGrid
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderGridCell
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderMeasurement
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderPoint
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderSightTriangle
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderSightlineMesh
+import com.tabletopcontrol.dynamicmap.runtime.rendering.RenderToken
+import com.tabletopcontrol.dynamicmap.runtime.rendering.toRenderColor
+import com.tabletopcontrol.dynamicmap.runtime.rendering.toRenderFogOfWar
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -217,6 +228,12 @@ class MapRenderer(private val canvas: Canvas) {
 
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
+
+    /**
+     * Optional callback used by alternative render backends to consume the latest
+     * renderer state after EventBus-driven updates have been applied.
+     */
+    internal var onRenderedStateChanged: (() -> Unit)? = null
 
     /** Latest grid colour, retained even while the visible grid is disabled. */
     private var lastGridColor: Color = GridConfig().color
@@ -457,6 +474,103 @@ class MapRenderer(private val canvas: Canvas) {
     fun dispose() {
         subscriptions.forEach { it.unsubscribe() }
         subscriptions.clear()
+        onRenderedStateChanged = null
+    }
+
+    /**
+     * Captures the current renderer input as backend-neutral state.
+     *
+     * LibGDX rendering consumes this snapshot instead of listening to EventBus
+     * directly, which keeps existing DynamicMap bundle and plugin contracts intact
+     * while allowing the drawing backend to change underneath.
+     */
+    internal fun snapshotForRenderer(): DynamicMapRenderSnapshot {
+        val sightlineOpacity = (dynamicSightlineOpacity ?: fogOpacity).coerceIn(0.0, 1.0)
+        return DynamicMapRenderSnapshot(
+            surfaceWidth = canvas.width,
+            surfaceHeight = canvas.height,
+            backgroundColor = backgroundColor.toRenderColor(),
+            gridCalibration = gridCalibration,
+            grid = gridConfig
+                ?.takeIf { it.visible }
+                ?.let { RenderGrid(color = it.color.toRenderColor(), lineWidth = it.lineWidth) },
+            dynamicMap = dynamicMapBundle?.let { bundle ->
+                RenderDynamicMap(
+                    cols = bundle.cols,
+                    rows = bundle.rows,
+                    backgroundBytes = bundle.backgroundBytes,
+                    backgroundCalibration = bundle.backgroundCalibration,
+                    walls = bundle.walls,
+                    lights = bundle.lights,
+                )
+            },
+            fogOfWar = fogOfWar?.toRenderFogOfWar(fogColOffset, fogRowOffset),
+            fogOpacity = fogOpacity.coerceIn(0.0, 1.0),
+            sightline = dynamicSightlineMesh?.let { mesh ->
+                RenderSightlineMesh(
+                    triangles = mesh.triangles.map { triangle ->
+                        RenderSightTriangle(
+                            origin = RenderPoint(triangle.origin.x, triangle.origin.y),
+                            first = RenderPoint(triangle.first.x, triangle.first.y),
+                            second = RenderPoint(triangle.second.x, triangle.second.y),
+                        )
+                    },
+                )
+            },
+            sightlineTint = dynamicSightlineTint.toRenderColor(),
+            sightlineOpacity = sightlineOpacity,
+            tokens = tokens.map { token ->
+                RenderToken(
+                    id = token.id,
+                    name = token.name,
+                    col = token.col,
+                    row = token.row,
+                    size = token.size,
+                    color = token.color.toRenderColor(),
+                    imagePath = LocalFiles.fileFromUriOrPath(token.imageUri)
+                        ?.takeIf { it.exists() && it.isFile }
+                        ?.absolutePath,
+                    imageScaleX = token.imageScaleX,
+                    imageScaleY = token.imageScaleY,
+                    imageOffsetX = token.imageOffsetX,
+                    imageOffsetY = token.imageOffsetY,
+                    visibleInSightline = dynamicSightlineMesh?.intersectsToken(token) ?: true,
+                    occupiedCells = tokenOccupiedCells(token).map { (col, row) -> RenderGridCell(col, row) },
+                )
+            },
+            activeTokenId = activeTokenId,
+            showTokenNames = showTokenNames,
+            hideTokensInFog = hideTokensInFog,
+            measurements = measurements.values.map { measurement ->
+                RenderMeasurement(
+                    id = measurement.id,
+                    type = measurement.type,
+                    startCol = measurement.startCol,
+                    startRow = measurement.startRow,
+                    endCol = measurement.endCol,
+                    endRow = measurement.endRow,
+                    coneAngleDegrees = measurement.coneAngleDegrees,
+                    mirroredToTable = measurement.mirroredToTable,
+                    unitLabel = measurement.unitLabel,
+                    unitsSuffix = measurement.unitsSuffix,
+                    color = measurement.color.toRenderColor(),
+                    dimensionText = measurement.dimensionText(DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS),
+                )
+            },
+            showDmOnlyMeasurements = showDmOnlyMeasurements,
+            dynamicMapRenderMode = dynamicMapRenderMode,
+            dynamicDebugWallColor = dynamicWallColor().toRenderColor(),
+            showDynamicLightMarkers = showDynamicLightMarkers,
+            tableMapOffset = tableMapOffset,
+            applyTableMapOffset = applyTableMapOffset,
+            viewportScale = viewportScale,
+            viewportOffsetX = viewportOffsetX,
+            viewportOffsetY = viewportOffsetY,
+            showTableViewportOutline = showTableViewportOutline,
+            tableViewportWidth = tableViewportWidth,
+            tableViewportHeight = tableViewportHeight,
+            tableViewportOutlineColor = tableViewportOutlineColor(lastGridColor).toRenderColor(),
+        )
     }
 
     /**
@@ -559,6 +673,7 @@ class MapRenderer(private val canvas: Canvas) {
 
         gc.restore()
         drawTableViewportOutline()
+        onRenderedStateChanged?.invoke()
     }
 
     // -------------------------------------------------------------------------

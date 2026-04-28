@@ -14,6 +14,7 @@ import com.tabletopcontrol.dynamicmap.runtime.logic.MapMeasurementService
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapSettingsService
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapTokenSyncService
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapViewportState
+import com.tabletopcontrol.dynamicmap.runtime.rendering.LibGdxDynamicMapTableView
 import com.tabletopcontrol.dynamicmap.runtime.ui.MapCalibrationDialogs
 import com.tabletopcontrol.dynamicmap.runtime.ui.MapMeasurementDialogs
 import javafx.geometry.Insets
@@ -53,31 +54,37 @@ class MapUiController {
     private val fogOfWarService = MapFogOfWarService()
     private val measurementService = MapMeasurementService()
     private val tokenSyncService = MapTokenSyncService()
+    private val tableHosts = mutableListOf<LibGdxDynamicMapTableView>()
 
     private var measurementUnitsComboBox: ComboBox<String>? = null
 
     fun createTableView(): Node {
-        val canvas = Canvas()
+        val canvas = Canvas(1.0, 1.0)
         val renderer = MapRenderer(canvas).apply {
             hideTokensInFog = true
             showDmOnlyMeasurements = false
             showDynamicLightMarkers = false
         }
-        hydrateRenderer(canvas, renderer)
-        return object : Pane() {
-            init {
-                children.add(canvas)
-            }
-
-            override fun layoutChildren() {
+        lateinit var host: LibGdxDynamicMapTableView
+        host = LibGdxDynamicMapTableView(
+            snapshotProvider = renderer::snapshotForRenderer,
+            onViewportChanged = { width, height ->
                 if (canvas.width != width || canvas.height != height) {
                     canvas.width = width
                     canvas.height = height
                     renderer.redraw()
                     EventBus.publish(TableViewportChangedEvent(width = width, height = height))
                 }
-            }
-        }
+            },
+            onDispose = {
+                renderer.dispose()
+                tableHosts.remove(host)
+            },
+        )
+        renderer.onRenderedStateChanged = { host.submitCurrentSnapshot() }
+        tableHosts += host
+        hydrateRendererState()
+        return host
     }
 
     fun createView(): Node {
@@ -93,6 +100,7 @@ class MapUiController {
     }
 
     fun onShutdown() {
+        tableHosts.toList().forEach { it.dispose() }
         tokenSyncService.dispose()
     }
 
@@ -136,6 +144,10 @@ class MapUiController {
                 renderer.dispose()
             }
         }
+        hydrateRendererState()
+    }
+
+    private fun hydrateRendererState() {
         settingsService.publishCurrentSettings()
         fogOfWarService.replayState()
         measurementService.replayState()

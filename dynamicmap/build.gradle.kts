@@ -11,6 +11,9 @@ javafx {
 dependencies {
     implementation(project(":core"))
     implementation(kotlin("stdlib"))
+    implementation("com.badlogicgames.gdx:gdx:1.14.0")
+    implementation("com.badlogicgames.gdx:gdx-backend-lwjgl3:1.14.0")
+    implementation("com.badlogicgames.gdx:gdx-platform:1.14.0:natives-desktop")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("io.mockk:mockk:1.13.10")
