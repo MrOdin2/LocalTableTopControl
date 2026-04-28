@@ -9,6 +9,7 @@ import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapCalibrationService
+import com.tabletopcontrol.dynamicmap.runtime.logic.MapDynamicSightlineService
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapFogOfWarService
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapMeasurementService
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapSettingsService
@@ -53,6 +54,7 @@ class MapUiController {
     private val fogOfWarService = MapFogOfWarService()
     private val measurementService = MapMeasurementService()
     private val tokenSyncService = MapTokenSyncService()
+    private val dynamicSightlineService = MapDynamicSightlineService()
 
     private var measurementUnitsComboBox: ComboBox<String>? = null
 
@@ -94,6 +96,7 @@ class MapUiController {
 
     fun onShutdown() {
         tokenSyncService.dispose()
+        dynamicSightlineService.dispose()
     }
 
     fun captureSceneState(): String =
