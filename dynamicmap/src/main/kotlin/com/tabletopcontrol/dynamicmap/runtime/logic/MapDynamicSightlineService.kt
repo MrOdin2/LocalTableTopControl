@@ -66,14 +66,15 @@ internal class MapDynamicSightlineService {
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             val previous = tokens[event.id]
             if (previous != null) {
-                tokens[event.id] = previous.copy(
+                val updated = previous.copy(
                     name = event.name,
                     color = event.color,
                     size = event.size,
                     isPlayerCharacter = event.isPlayerCharacter,
                 )
-                if (previous.isPlayerCharacter || event.isPlayerCharacter) {
-                    if (!event.isPlayerCharacter) {
+                tokens[event.id] = updated
+                if (shouldRefreshSightlineContribution(previous, updated)) {
+                    if (!updated.isPlayerCharacter) {
                         removeContributionCacheEntry(event.id)
                     }
                     scheduleCompute()
@@ -103,6 +104,7 @@ internal class MapDynamicSightlineService {
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
             val previous = tokens[event.id] ?: return@subscribe
+            if (previous.col == event.col && previous.row == event.row) return@subscribe
             tokens[event.id] = previous.copy(col = event.col, row = event.row)
             if (previous.isPlayerCharacter) {
                 scheduleCompute()
@@ -111,8 +113,8 @@ internal class MapDynamicSightlineService {
         subscriptions += EventBus.subscribe<TokensResetEvent> {
             val hadPc = tokens.values.any { it.isPlayerCharacter }
             tokens.clear()
+            clearContributionCache()
             if (hadPc) {
-                clearContributionCache()
                 scheduleCompute()
             }
         }
@@ -203,6 +205,10 @@ internal class MapDynamicSightlineService {
             contributionCache.remove(tokenId)
         }
     }
+
+    private fun shouldRefreshSightlineContribution(previous: Token, updated: Token): Boolean =
+        previous.isPlayerCharacter != updated.isPlayerCharacter ||
+            (updated.isPlayerCharacter && previous.size != updated.size)
 
     private fun publishOnFx(event: DynamicSightlineMeshUpdatedEvent) {
         if (disposed) return

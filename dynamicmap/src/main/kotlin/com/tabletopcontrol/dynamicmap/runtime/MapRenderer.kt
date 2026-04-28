@@ -392,6 +392,7 @@ class MapRenderer(private val canvas: Canvas) {
             val idx = tokens.indexOfFirst { it.id == event.id }
             if (idx >= 0) {
                 val previous = tokens[idx]
+                if (previous.col == event.col && previous.row == event.row) return@subscribe
                 tokens[idx] = previous.copy(col = event.col, row = event.row)
                 redraw()
             }
