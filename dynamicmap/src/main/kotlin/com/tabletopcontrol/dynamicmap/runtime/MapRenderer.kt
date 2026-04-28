@@ -108,11 +108,14 @@ class MapRenderer(private val canvas: Canvas) {
     /** Cached DynamicMap player line-of-sight triangle mesh, or `null` when no dynamic bundle is loaded. */
     private var dynamicSightlineMesh: DynamicSightlineMesh? = null
 
+    /** Accumulated DynamicMap areas that have been seen by PCs at least once. */
+    private var dynamicSeenSightlineMesh: DynamicSightlineMesh? = null
+
     private var fogLayerVersion: Long = 0L
     private var dynamicSightlineLayerVersion: Long = 0L
     private var dynamicMapBaseLayerCache: CachedLayer<DynamicMapBaseLayerKey>? = null
     private var fogLayerCache: CachedLayer<FogLayerKey>? = null
-    private var dynamicSightlineLayerCache: CachedLayer<DynamicSightlineLayerKey>? = null
+    private val dynamicSightlineLayerCaches = mutableMapOf<DynamicSightlineLayerRole, CachedLayer<DynamicSightlineLayerKey>>()
 
     /**
      * Opacity of unrevealed fog-of-war tiles, in the range [0.0, 1.0].
@@ -190,6 +193,14 @@ class MapRenderer(private val canvas: Canvas) {
      * minimap so tokens remain visible and can be dragged regardless of visibility.
      */
     var hideTokensInFog: Boolean = false
+
+    /**
+     * When `true`, player-facing DynamicMap sightlines remember previously seen terrain.
+     *
+     * This affects only the sightline mask rendering. Token visibility still uses
+     * [dynamicSightlineMesh], so players cannot see NPC movement in remembered areas.
+     */
+    var usePersistentVision: Boolean = false
 
     /**
      * When `true`, each token's display name is drawn below its circle so that
@@ -273,15 +284,19 @@ class MapRenderer(private val canvas: Canvas) {
             val mesh = event.mesh
             if (mesh == null) {
                 dynamicSightlineMesh = null
+                dynamicSeenSightlineMesh = null
                 dynamicSightlineLayerVersion++
-                dynamicSightlineLayerCache = null
+                dynamicSightlineLayerCaches.clear()
                 redraw()
             } else {
                 val bundle = dynamicMapBundle ?: return@subscribe
                 if (bundle.cols == mesh.cols && bundle.rows == mesh.rows) {
                     dynamicSightlineMesh = mesh
+                    dynamicSeenSightlineMesh = event.seenMesh?.takeIf {
+                        it.cols == bundle.cols && it.rows == bundle.rows
+                    }
                     dynamicSightlineLayerVersion++
-                    dynamicSightlineLayerCache = null
+                    dynamicSightlineLayerCaches.clear()
                     redraw()
                 }
             }
@@ -500,6 +515,7 @@ class MapRenderer(private val canvas: Canvas) {
             dynamicMapBundle = null
             dynamicMapBackgroundImage = null
             dynamicSightlineMesh = null
+            dynamicSeenSightlineMesh = null
             dynamicSightlineLayerVersion++
             clearLayerCaches()
             mapImage = image
@@ -514,6 +530,7 @@ class MapRenderer(private val canvas: Canvas) {
         mapImage = null
         mapRotationDegrees = 0
         dynamicSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
+        dynamicSeenSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
         dynamicSightlineLayerVersion++
         clearLayerCaches()
         redraw()
@@ -529,6 +546,7 @@ class MapRenderer(private val canvas: Canvas) {
         dynamicMapBundle = null
         dynamicMapBackgroundImage = null
         dynamicSightlineMesh = null
+        dynamicSeenSightlineMesh = null
         dynamicSightlineLayerVersion++
         clearLayerCaches()
         redraw()
@@ -970,7 +988,17 @@ class MapRenderer(private val canvas: Canvas) {
         if (cellPx <= 0.0) return
         val originX = dynamicMapOriginX()
         val originY = dynamicMapOriginY()
-        val image = dynamicSightlineLayerImage(mesh, cellPx)
+        if (usePersistentVision) {
+            drawPersistentVisionSightlineLayer(mesh, cellPx, originX, originY)
+            return
+        }
+
+        val image = dynamicSightlineLayerImage(
+            mesh = mesh,
+            cellPx = cellPx,
+            overlay = dynamicSightlineOverlayColor(),
+            role = DynamicSightlineLayerRole.CURRENT,
+        )
         if (image != null) {
             gc.drawImage(image, originX, originY)
             return
@@ -986,8 +1014,76 @@ class MapRenderer(private val canvas: Canvas) {
         gc.fill()
     }
 
-    private fun dynamicSightlineLayerImage(mesh: DynamicSightlineMesh, cellPx: Double): Image? {
-        val overlay = dynamicSightlineOverlayColor()
+    private fun drawPersistentVisionSightlineLayer(
+        currentMesh: DynamicSightlineMesh,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+    ) {
+        val seenMesh = dynamicSeenSightlineMesh
+        if (seenMesh == null) {
+            drawDynamicSightlineMask(
+                mesh = currentMesh,
+                cellPx = cellPx,
+                originX = originX,
+                originY = originY,
+                overlay = dynamicSightlineOverlayColor(),
+                role = DynamicSightlineLayerRole.CURRENT,
+            )
+            return
+        }
+
+        val rememberedOverlay = rememberedSightlineOverlayColor()
+        drawDynamicSightlineMask(
+            mesh = currentMesh,
+            cellPx = cellPx,
+            originX = originX,
+            originY = originY,
+            overlay = rememberedOverlay,
+            role = DynamicSightlineLayerRole.REMEMBERED,
+        )
+
+        drawDynamicSightlineMask(
+            mesh = seenMesh,
+            cellPx = cellPx,
+            originX = originX,
+            originY = originY,
+            overlay = dynamicSightlineOverlayColor(),
+            role = DynamicSightlineLayerRole.NEVER_SEEN,
+        )
+    }
+
+    private fun drawDynamicSightlineMask(
+        mesh: DynamicSightlineMesh,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+        overlay: Color,
+        role: DynamicSightlineLayerRole,
+    ) {
+        if (overlay.opacity <= 0.0) return
+        val image = dynamicSightlineLayerImage(mesh, cellPx, overlay, role)
+        if (image != null) {
+            gc.drawImage(image, originX, originY)
+            return
+        }
+
+        gc.fill = overlay
+        gc.beginPath()
+        mesh.drawHiddenArea(
+            moveTo = { point -> gc.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            lineTo = { point -> gc.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            closePath = { gc.closePath() },
+        )
+        gc.fill()
+    }
+
+    private fun dynamicSightlineLayerImage(
+        mesh: DynamicSightlineMesh,
+        cellPx: Double,
+        overlay: Color,
+        role: DynamicSightlineLayerRole,
+    ): Image? {
         if (overlay.opacity <= 0.0) return null
 
         val width = mesh.cols * cellPx
@@ -1000,8 +1096,9 @@ class MapRenderer(private val canvas: Canvas) {
             rows = mesh.rows,
             cellPx = cellPx,
             tint = overlay,
+            role = role,
         )
-        dynamicSightlineLayerCache?.takeIf { it.key == key }?.let { return it.image }
+        dynamicSightlineLayerCaches[role]?.takeIf { it.key == key }?.let { return it.image }
 
         val layerCanvas = Canvas(ceil(width), ceil(height))
         val layerGc = layerCanvas.graphicsContext2D
@@ -1014,7 +1111,7 @@ class MapRenderer(private val canvas: Canvas) {
         )
         layerGc.fill()
         val image = layerCanvas.snapshot(transparentSnapshotParameters(), null)
-        dynamicSightlineLayerCache = CachedLayer(key, image)
+        dynamicSightlineLayerCaches[role] = CachedLayer(key, image)
         return image
     }
 
@@ -1027,6 +1124,14 @@ class MapRenderer(private val canvas: Canvas) {
             opacity,
         )
     }
+
+    private fun rememberedSightlineOverlayColor(): Color =
+        Color.color(
+            dynamicSightlineTint.red,
+            dynamicSightlineTint.green,
+            dynamicSightlineTint.blue,
+            REMEMBERED_SIGHTLINE_OPACITY,
+        )
 
     /**
      * Converts canvas-space mouse coordinates to the corresponding grid cell indices,
@@ -1380,7 +1485,7 @@ class MapRenderer(private val canvas: Canvas) {
     private fun clearLayerCaches() {
         dynamicMapBaseLayerCache = null
         fogLayerCache = null
-        dynamicSightlineLayerCache = null
+        dynamicSightlineLayerCaches.clear()
     }
 
     private fun isCacheableLayerSize(width: Double, height: Double): Boolean =
@@ -1428,7 +1533,14 @@ class MapRenderer(private val canvas: Canvas) {
         val rows: Int,
         val cellPx: Double,
         val tint: Color,
+        val role: DynamicSightlineLayerRole,
     )
+
+    private enum class DynamicSightlineLayerRole {
+        CURRENT,
+        REMEMBERED,
+        NEVER_SEEN,
+    }
 
     companion object {
         /**
@@ -1472,6 +1584,7 @@ class MapRenderer(private val canvas: Canvas) {
         private const val DYNAMIC_LIGHT_RING_WIDTH_SCALE = 0.025
         private const val DYNAMIC_WALL_WIDTH_SCALE = 0.12
         private const val DYNAMIC_LIGHT_MARKER_SCALE = 0.18
+        private const val REMEMBERED_SIGHTLINE_OPACITY = 0.5
         private const val MAX_CACHED_LAYER_DIMENSION = 8192.0
         private const val MAX_CACHED_LAYER_PIXELS = 16_000_000.0
     }

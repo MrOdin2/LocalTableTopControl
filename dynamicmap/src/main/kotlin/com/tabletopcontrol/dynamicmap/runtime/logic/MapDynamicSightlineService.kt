@@ -10,6 +10,7 @@ import com.tabletopcontrol.dynamicmap.runtime.DynamicMapLoadEvent
 import com.tabletopcontrol.dynamicmap.runtime.DynamicSightlineMeshUpdatedEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapClearEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapLoadEvent
+import java.awt.geom.Area
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import javafx.application.Platform
@@ -24,6 +25,7 @@ internal class MapDynamicSightlineService {
     private val revision = AtomicLong(0L)
     private val contributionCacheLock = Any()
     private val contributionCache = mutableMapOf<String, CachedPcSightlineContribution>()
+    private val seenAreaLock = Any()
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "DynamicMapSightline").apply { isDaemon = true }
     }
@@ -31,6 +33,7 @@ internal class MapDynamicSightlineService {
     private var currentBundle: DynamicMapBundle? = null
     private var currentGeometry: DynamicSightlineGeometry? = null
     private var topologyVersion: Long = 0L
+    private var accumulatedSeenArea: Area? = null
     @Volatile
     private var disposed: Boolean = false
 
@@ -55,6 +58,7 @@ internal class MapDynamicSightlineService {
             )
             topologyVersion++
             clearContributionCache()
+            clearSeenArea()
             scheduleCompute()
         }
         subscriptions += EventBus.subscribe<MapLoadEvent> {
@@ -126,6 +130,7 @@ internal class MapDynamicSightlineService {
         currentGeometry = null
         topologyVersion++
         clearContributionCache()
+        clearSeenArea()
         val nextRevision = revision.incrementAndGet()
         publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, null))
     }
@@ -153,8 +158,9 @@ internal class MapDynamicSightlineService {
                 expectedRevision = nextRevision,
             ) ?: return@execute
             val mesh = geometry.combine(contributions)
+            val seenMesh = updateSeenMesh(geometry, mesh, nextRevision) ?: return@execute
             if (disposed || revision.get() != nextRevision) return@execute
-            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, mesh))
+            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, mesh, seenMesh))
         }
     }
 
@@ -200,6 +206,12 @@ internal class MapDynamicSightlineService {
         }
     }
 
+    private fun clearSeenArea() {
+        synchronized(seenAreaLock) {
+            accumulatedSeenArea = null
+        }
+    }
+
     private fun removeContributionCacheEntry(tokenId: String) {
         synchronized(contributionCacheLock) {
             contributionCache.remove(tokenId)
@@ -209,6 +221,19 @@ internal class MapDynamicSightlineService {
     private fun shouldRefreshSightlineContribution(previous: Token, updated: Token): Boolean =
         previous.isPlayerCharacter != updated.isPlayerCharacter ||
             (updated.isPlayerCharacter && previous.size != updated.size)
+
+    private fun updateSeenMesh(
+        geometry: DynamicSightlineGeometry,
+        currentMesh: DynamicSightlineMesh,
+        expectedRevision: Long,
+    ): DynamicSightlineMesh? =
+        synchronized(seenAreaLock) {
+            if (disposed || revision.get() != expectedRevision) return null
+            val nextSeenArea = accumulatedSeenArea?.let(::Area) ?: Area()
+            nextSeenArea.add(currentMesh.copyVisibleArea())
+            accumulatedSeenArea = Area(nextSeenArea)
+            geometry.meshFromVisibleArea(nextSeenArea)
+        }
 
     private fun publishOnFx(event: DynamicSightlineMeshUpdatedEvent) {
         if (disposed) return

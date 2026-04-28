@@ -6,6 +6,7 @@
 | Cache static DynamicMap raycast inputs per loaded bundle: wall segments, map border segments, wall endpoints, angle offsets | Medium | Low-Medium | Very high | High |         YES |
 | Cache each PC token's sightline contribution and recombine cached contributions after one PC moves | High with 3-5 PCs | Low-Medium | Very high | High |         YES |
 | Split renderer into cached layers: background/grid/static bundle layer, fog layer, sightline layer, token layer; redraw only dirty layers | High | Medium | Very high | High |     PARTIAL |
+| Keep a persistent seen-area mesh so the table view can render remembered terrain without changing current NPC visibility | Feature support | Low-Medium | Very high | High |         YES |
 | Replace `java.awt.geom.Area` union/subtract per PC move with direct Canvas even-odd fill: draw map bounds plus visible polygons as holes | Medium to high | Medium | High | Medium-High |          NO |
 | Store one merged visible polygon per PC instead of many triangles, then render/intersect against those polygons | Medium | Medium | High | High |          NO |
 | During drag, render a low-quality preview mesh; recompute exact mesh on release | High during drag | Medium | High | Medium |          NO |

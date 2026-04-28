@@ -64,6 +64,7 @@ internal class DynamicSightlineMesh(
     val cols: Int,
     val rows: Int,
     val triangles: List<DynamicSightTriangle>,
+    private val visibleArea: Area,
     private val hiddenArea: Area,
 ) {
     init {
@@ -82,6 +83,8 @@ internal class DynamicSightlineMesh(
         val radius = bounds.size / 2.0
         return triangles.any { it.intersectsCircle(center, radius) }
     }
+
+    fun copyVisibleArea(): Area = Area(visibleArea)
 
     fun drawHiddenArea(
         moveTo: (DynamicSightPoint) -> Unit,
@@ -106,8 +109,28 @@ internal class DynamicSightlineMesh(
                 cols = cols,
                 rows = rows,
                 triangles = emptyList(),
+                visibleArea = Area(),
                 hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())),
             )
+
+        fun fromVisibleArea(
+            cols: Int,
+            rows: Int,
+            visibleArea: Area,
+            triangles: List<DynamicSightTriangle> = emptyList(),
+        ): DynamicSightlineMesh {
+            val visibleAreaCopy = Area(visibleArea)
+            val hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())).apply {
+                subtract(visibleAreaCopy)
+            }
+            return DynamicSightlineMesh(
+                cols = cols,
+                rows = rows,
+                triangles = triangles,
+                visibleArea = visibleAreaCopy,
+                hiddenArea = hiddenArea,
+            )
+        }
 
         fun compute(
             cols: Int,
@@ -153,17 +176,20 @@ internal class DynamicSightlineGeometry private constructor(
         val visibleArea = Area().apply {
             contributionList.forEach { contribution -> add(contribution.copyVisibleArea()) }
         }
-        val hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())).apply {
-            subtract(visibleArea)
-        }
-
-        return DynamicSightlineMesh(
+        return DynamicSightlineMesh.fromVisibleArea(
             cols = cols,
             rows = rows,
+            visibleArea = visibleArea,
             triangles = triangles,
-            hiddenArea = hiddenArea,
         )
     }
+
+    fun meshFromVisibleArea(visibleArea: Area): DynamicSightlineMesh =
+        DynamicSightlineMesh.fromVisibleArea(
+            cols = cols,
+            rows = rows,
+            visibleArea = visibleArea,
+        )
 
     companion object {
         fun forMap(

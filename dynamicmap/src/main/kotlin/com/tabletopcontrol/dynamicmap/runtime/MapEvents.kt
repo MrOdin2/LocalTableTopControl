@@ -53,6 +53,7 @@ data class DynamicMapRenderModeEvent(val mode: DynamicMapRenderMode)
 internal data class DynamicSightlineMeshUpdatedEvent(
     val revision: Long,
     val mesh: DynamicSightlineMesh?,
+    val seenMesh: DynamicSightlineMesh? = null,
 )
 
 /**

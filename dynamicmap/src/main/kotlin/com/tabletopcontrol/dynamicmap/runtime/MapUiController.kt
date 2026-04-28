@@ -62,6 +62,7 @@ class MapUiController {
         val canvas = Canvas()
         val renderer = MapRenderer(canvas).apply {
             hideTokensInFog = true
+            usePersistentVision = true
             showDmOnlyMeasurements = false
             showDynamicLightMarkers = false
         }

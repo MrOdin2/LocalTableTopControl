@@ -60,12 +60,16 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - The DynamicMap sightline mesh is composited as its own cached Canvas image layer, drawn with the
   same style as fog of war: fully opaque black on the player-facing table view, and a transparent
   grey/black overlay on the DM minimap.
+- The player-facing table view keeps an accumulated seen-area mesh. Areas seen by PCs at least once
+  but not currently visible are covered with the same grey sightline tint used on the DM minimap;
+  areas never seen by PCs stay fully black.
 - Sightline meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
   changes; normal redraws, NPC token movement, and view pan/zoom reuse the last completed mesh.
 - DynamicMap base art, manual fog, and sightline overlays are cached as separate renderer layers
   when their pixel size is within the configured cache budget.
 - Player-facing NPC token visibility is based on intersection between the token's drawn circle and
-  the visible sightline mesh, so even a small exposed edge reveals the token.
+  the current visible sightline mesh, so even a small exposed edge reveals the token. Previously
+  seen areas do not reveal NPCs or their movement.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.

@@ -191,15 +191,16 @@
         must remain aligned with the exported grid.
       </p>
       <p>
-        The sightline layer uses the same look as fog of war: hidden areas are fully black on the
-        player-facing table screen and softly greyed on the DM minimap. Its visible area is drawn from
-        smooth triangle meshes instead of full grid tiles. Moving an NPC token does not recalculate
-        sightlines. When several PCs are active, moving one PC recalculates that PC's sightline in the
-        background and reuses the other PCs' cached sightlines.
+        The sightline layer uses the same look as fog of war. Areas that PCs have never seen are
+        fully black on the player-facing table screen; areas seen before but no longer in sight stay
+        softly greyed. The DM minimap remains visible to the DM. Moving an NPC token does not
+        recalculate sightlines. When several PCs are active, moving one PC recalculates that PC's
+        sightline in the background and reuses the other PCs' cached sightlines.
       </p>
       <p>
         NPC tokens appear on the table as soon as any part of their token circle enters a PC sightline,
-        even if the token centre is still behind a wall.
+        even if the token centre is still behind a wall. Previously seen grey areas do not reveal NPCs
+        or show their movement.
       </p>
     </section>
 

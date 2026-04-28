@@ -120,6 +120,38 @@ class DynamicSightlineMeshTest {
     }
 
     @Test
+    fun `mesh from accumulated visible area remembers previous pc sightlines`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 3.0),
+        )
+        val leftView = DynamicSightlineMesh.compute(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+            tokens = listOf(pcToken(col = 0, row = 1)),
+        )
+        val rightView = DynamicSightlineMesh.compute(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+            tokens = listOf(pcToken(col = 4, row = 1)),
+        )
+        val accumulatedVisible = leftView.copyVisibleArea().apply {
+            add(rightView.copyVisibleArea())
+        }
+
+        val remembered = DynamicSightlineMesh.fromVisibleArea(
+            cols = 5,
+            rows = 3,
+            visibleArea = accumulatedVisible,
+        )
+
+        assertTrue(remembered.copyVisibleArea().contains(1.5, 1.5))
+        assertTrue(remembered.copyVisibleArea().contains(3.5, 1.5))
+    }
+
+    @Test
     fun `npc tokens do not reveal sightline triangles`() {
         val mesh = DynamicSightlineMesh.compute(
             cols = 4,
