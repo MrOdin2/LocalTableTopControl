@@ -1,5 +1,6 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMesh
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridCalibration
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridConfig
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapCalibration
@@ -42,6 +43,17 @@ enum class DynamicMapRenderMode(val displayName: String) {
  * Event fired when the DM changes DynamicMap render/debug visualisation.
  */
 data class DynamicMapRenderModeEvent(val mode: DynamicMapRenderMode)
+
+/**
+ * Internal renderer event carrying the latest shared DynamicMap player sightline mesh.
+ *
+ * The mesh is computed once by [com.tabletopcontrol.dynamicmap.runtime.logic.MapDynamicSightlineService]
+ * and consumed by every active view renderer. `mesh == null` clears DynamicMap sightline state.
+ */
+internal data class DynamicSightlineMeshUpdatedEvent(
+    val revision: Long,
+    val mesh: DynamicSightlineMesh?,
+)
 
 /**
  * Event fired when the DM removes the current map image.

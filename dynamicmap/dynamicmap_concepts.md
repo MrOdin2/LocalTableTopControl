@@ -49,14 +49,18 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden
   on the player-facing table view.
 - Disabled lights appear as subdued DM markers in `DebugMode`.
-- Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. The runtime casts
-  line-of-sight from those token centres through the exported wall geometry and caches the resulting
-  triangulated visibility mesh.
-- The DynamicMap sightline mesh is composited as its own renderer layer, drawn with the same style
-  as fog of war: fully opaque black on the player-facing table view, and a transparent grey/black
-  overlay on the DM minimap.
+- Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. A shared sightline
+  service casts line-of-sight from those token centres through cached exported wall geometry and
+  publishes one triangulated visibility mesh for all active DynamicMap renderers.
+- Sightline computation runs off the JavaFX thread. Renderers keep the last completed mesh visible
+  while a newer PC move is being calculated, so token dragging does not block the UI thread.
+- The DynamicMap sightline mesh is composited as its own cached Canvas image layer, drawn with the
+  same style as fog of war: fully opaque black on the player-facing table view, and a transparent
+  grey/black overlay on the DM minimap.
 - Sightline meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
-  changes; normal redraws and NPC token movement reuse the cached mesh.
+  changes; normal redraws, NPC token movement, and view pan/zoom reuse the last completed mesh.
+- DynamicMap base art, manual fog, and sightline overlays are cached as separate renderer layers
+  when their pixel size is within the configured cache budget.
 - Player-facing NPC token visibility is based on intersection between the token's drawn circle and
   the visible sightline mesh, so even a small exposed edge reveals the token.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.

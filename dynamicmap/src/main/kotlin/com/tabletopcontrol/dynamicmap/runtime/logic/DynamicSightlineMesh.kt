@@ -3,7 +3,6 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimePoint
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
 import java.awt.geom.Area
-import java.awt.geom.Ellipse2D
 import java.awt.geom.Path2D
 import java.awt.geom.PathIterator
 import java.awt.geom.Rectangle2D
@@ -33,15 +32,23 @@ internal data class DynamicSightTriangle(
         return !(hasNegative && hasPositive)
     }
 
+    fun intersectsCircle(center: DynamicSightPoint, radius: Double): Boolean =
+        contains(center) ||
+            distance(origin, center) <= radius + EPSILON ||
+            distance(first, center) <= radius + EPSILON ||
+            distance(second, center) <= radius + EPSILON ||
+            distanceFromPointToSegment(center, origin, first) <= radius + EPSILON ||
+            distanceFromPointToSegment(center, first, second) <= radius + EPSILON ||
+            distanceFromPointToSegment(center, second, origin) <= radius + EPSILON
+
     private fun signedArea(a: DynamicSightPoint, b: DynamicSightPoint, c: DynamicSightPoint): Double =
         (a.x - c.x) * (b.y - c.y) - (b.x - c.x) * (a.y - c.y)
 }
 
-internal class DynamicSightlineMesh private constructor(
+internal class DynamicSightlineMesh(
     val cols: Int,
     val rows: Int,
     val triangles: List<DynamicSightTriangle>,
-    private val visibleArea: Area,
     private val hiddenArea: Area,
 ) {
     init {
@@ -56,9 +63,9 @@ internal class DynamicSightlineMesh private constructor(
 
     fun intersectsToken(token: Token): Boolean {
         val bounds = tokenDrawBounds(token, originX = 0.0, originY = 0.0, cellPx = 1.0)
-        val tokenArea = Area(Ellipse2D.Double(bounds.left, bounds.top, bounds.size, bounds.size))
-        tokenArea.intersect(visibleArea)
-        return !tokenArea.isEmpty
+        val center = DynamicSightPoint(bounds.centerX, bounds.centerY)
+        val radius = bounds.size / 2.0
+        return triangles.any { it.intersectsCircle(center, radius) }
     }
 
     fun drawHiddenArea(
@@ -79,31 +86,64 @@ internal class DynamicSightlineMesh private constructor(
     }
 
     companion object {
+        fun hidden(cols: Int, rows: Int): DynamicSightlineMesh =
+            DynamicSightlineMesh(
+                cols = cols,
+                rows = rows,
+                triangles = emptyList(),
+                hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())),
+            )
+
         fun compute(
             cols: Int,
             rows: Int,
             walls: List<DynamicMapRuntimeWall>,
             tokens: Iterable<Token>,
-        ): DynamicSightlineMesh {
-            val segments = buildSightSegments(cols, rows, walls)
-            val triangles = tokens
-                .filter { it.isPlayerCharacter }
-                .map { it.sightOrigin() }
-                .filter { it.x in 0.0..cols.toDouble() && it.y in 0.0..rows.toDouble() }
-                .flatMap { origin -> triangulateVisibleArea(origin, segments) }
-            val visibleArea = visibleAreaFor(triangles)
-            val hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())).apply {
-                subtract(visibleArea)
-            }
+        ): DynamicSightlineMesh =
+            DynamicSightlineGeometry.forMap(cols, rows, walls).compute(tokens)
+    }
+}
 
-            return DynamicSightlineMesh(
+internal class DynamicSightlineGeometry private constructor(
+    val cols: Int,
+    val rows: Int,
+    private val segments: List<SightSegment>,
+) {
+    init {
+        require(cols > 0) { "cols must be positive, was $cols" }
+        require(rows > 0) { "rows must be positive, was $rows" }
+    }
+
+    fun compute(tokens: Iterable<Token>): DynamicSightlineMesh {
+        val triangles = tokens
+            .filter { it.isPlayerCharacter }
+            .map { it.sightOrigin() }
+            .filter { it.x in 0.0..cols.toDouble() && it.y in 0.0..rows.toDouble() }
+            .flatMap { origin -> triangulateVisibleArea(origin, segments) }
+        val visibleArea = visibleAreaFor(triangles)
+        val hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())).apply {
+            subtract(visibleArea)
+        }
+
+        return DynamicSightlineMesh(
+            cols = cols,
+            rows = rows,
+            triangles = triangles,
+            hiddenArea = hiddenArea,
+        )
+    }
+
+    companion object {
+        fun forMap(
+            cols: Int,
+            rows: Int,
+            walls: List<DynamicMapRuntimeWall>,
+        ): DynamicSightlineGeometry =
+            DynamicSightlineGeometry(
                 cols = cols,
                 rows = rows,
-                triangles = triangles,
-                visibleArea = visibleArea,
-                hiddenArea = hiddenArea,
+                segments = buildSightSegments(cols, rows, walls),
             )
-        }
     }
 }
 
@@ -261,6 +301,25 @@ private fun cross(ax: Double, ay: Double, bx: Double, by: Double): Double = ax *
 
 private fun distance(first: DynamicSightPoint, second: DynamicSightPoint): Double =
     hypot(first.x - second.x, first.y - second.y)
+
+private fun distanceFromPointToSegment(
+    point: DynamicSightPoint,
+    start: DynamicSightPoint,
+    end: DynamicSightPoint,
+): Double {
+    val dx = end.x - start.x
+    val dy = end.y - start.y
+    val lengthSquared = dx * dx + dy * dy
+    if (lengthSquared < EPSILON) return distance(point, start)
+
+    val t = (((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared)
+        .coerceIn(0.0, 1.0)
+    val projected = DynamicSightPoint(
+        x = start.x + t * dx,
+        y = start.y + t * dy,
+    )
+    return distance(point, projected)
+}
 
 private fun triangleArea(a: DynamicSightPoint, b: DynamicSightPoint, c: DynamicSightPoint): Double =
     abs(cross(b.x - a.x, b.y - a.y, c.x - a.x, c.y - a.y)) / 2.0
