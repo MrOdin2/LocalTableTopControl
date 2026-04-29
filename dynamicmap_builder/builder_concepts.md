@@ -44,7 +44,11 @@ Future decisions should be added here as well so the builder evolves from one co
 - The `Light Browser` also owns light-specific session actions such as:
   - stopping placement mode
   - clearing all placed lights
-- Static point lights are the only implemented light type so far.
+  - starting sunlight/outside-area polygon placement
+  - clearing all sunlight/outside areas
+- Clearing all point lights or sunlight/outside areas must show a confirmation dialog before the clear event is published.
+- Static point lights and polygonal sunlight/outside areas are the implemented light-authoring types so far.
+- Sunlight/outside areas are placed as polygons on the shared builder canvas. Each primary click adds a vertex; clicking back near the first vertex or double-clicking completes a polygon with at least three vertices.
 
 ### Wall Workflow
 
@@ -65,6 +69,7 @@ Future decisions should be added here as well so the builder evolves from one co
 - It groups the current draft by user-defined groups and by element type, currently listing:
   - groups
   - lights
+  - sunlight/outside areas
   - walls
 - Selecting an outline item should highlight the same element on the main builder canvas.
 - Selecting a user-defined group should select every element linked to that group, using the normal shared element selection event.
@@ -75,6 +80,7 @@ Future decisions should be added here as well so the builder evolves from one co
   - remove group metadata without deleting grouped elements
 - Group and element naming also lives in the outline right-click menu.
 - Walls, lights, and groups all carry persisted labels in the internal builder draft.
+- Sunlight/outside areas also carry persisted labels in the internal builder draft.
 - The outline pane owns item-level management actions that are not tied to one placement tool, such as:
   - remove selected elements
   - enable or disable a selected light
@@ -107,10 +113,11 @@ Future decisions should be added here as well so the builder evolves from one co
   - background calibration
   - wall geometry
   - light geometry, ranges, colour, and enabled state
+  - sunlight/outside polygon geometry
 - Export always optimizes wall topology before writing wall geometry so runtime maps do not carry unnecessary split segments.
 - Export deliberately strips editor-only metadata:
   - construction-site name
-  - wall and light labels
+  - wall, light, and sunlight/outside-area labels
   - element ids
   - outline groups
   - editor layer visibility
@@ -122,8 +129,8 @@ Future decisions should be added here as well so the builder evolves from one co
 - The active placement/editing tool is shared across builder panes through Dynamic Map builder events.
 - The current builder document and current element selection are shared across builder panes through Dynamic Map builder events.
 - Blank-space right-click in the builder canvas should fall through to the normal DM pane layout context menu.
-- Right-click near a wall or light should show builder-specific remove actions for that element.
-- With no placement tool active, primary-drag on a selected wall or light moves the selected element set.
+- Right-click near a wall, light, or sunlight/outside area should show builder-specific remove actions for that element.
+- With no placement tool active, primary-drag on a selected wall, light, or sunlight/outside area moves the selected element set.
 - Primary-drag on empty canvas space still pans the workspace view.
 - Pressing `Escape` in the main builder pane should leave placement mode.
 - Quarter-grid snapping (`0.25`) remains available in the main builder pane because it affects general placement, not only one side-pane.
@@ -138,6 +145,7 @@ Future decisions should be added here as well so the builder evolves from one co
 - Mouse hit-testing and placement must inverse-transform through the workspace viewport before converting to map/grid space.
 - Primary-drag pans when no placement tool is active; middle-drag pans at any time; mouse wheel zooms the workspace view.
 - Disabled lights should remain visible in the editor as subdued markers so the outline and canvas stay in sync when lights are toggled off.
+- Sunlight/outside areas share the light layer visibility because they are part of the lighting workflow rather than wall topology.
 
 ### Background Texture Handling
 

@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test
 
 class DynamicMapModelTest {
     @Test
-    fun `document selection helpers resolve walls and lights`() {
+    fun `document selection helpers resolve walls lights and sunlight areas`() {
         val wall = DynamicMapWall(
             id = "wall-1",
             start = DynamicMapPoint(1.0, 2.0),
@@ -22,28 +22,42 @@ class DynamicMapModelTest {
             colorHex = "#ffb347",
             enabled = false,
         )
+        val sunlightArea = DynamicMapSunlightArea(
+            id = "sunlight-1",
+            label = "Courtyard",
+            points = listOf(
+                DynamicMapPoint(0.0, 0.0),
+                DynamicMapPoint(4.0, 0.0),
+                DynamicMapPoint(4.0, 3.0),
+            ),
+        )
         val document = DynamicMapDocument(
             walls = listOf(wall),
             lights = listOf(light),
+            sunlightAreas = listOf(sunlightArea),
         )
 
         val wallSelection = DynamicMapElementSelection(DynamicMapElementKind.WALL, wall.id)
         val lightSelection = DynamicMapElementSelection(DynamicMapElementKind.LIGHT, light.id)
+        val sunlightSelection = DynamicMapElementSelection(DynamicMapElementKind.SUNLIGHT_AREA, sunlightArea.id)
         val missingWallSelection = DynamicMapElementSelection(DynamicMapElementKind.WALL, "missing")
 
         assertTrue(document.containsSelection(wallSelection))
         assertTrue(document.containsSelection(lightSelection))
+        assertTrue(document.containsSelection(sunlightSelection))
         assertEquals(wall, document.wallById(wall.id))
         assertEquals(light, document.lightById(light.id))
+        assertEquals(sunlightArea, document.sunlightAreaById(sunlightArea.id))
         assertFalse(document.containsSelection(missingWallSelection))
         assertFalse(document.containsSelection(DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "missing")))
         assertEquals(
-            setOf(wallSelection, lightSelection),
+            setOf(wallSelection, lightSelection, sunlightSelection),
             document.filterExistingSelections(
                 setOf(
                     wallSelection,
                     DynamicMapElementSelection(DynamicMapElementKind.WALL, "missing"),
                     lightSelection,
+                    sunlightSelection,
                 ),
             ),
         )

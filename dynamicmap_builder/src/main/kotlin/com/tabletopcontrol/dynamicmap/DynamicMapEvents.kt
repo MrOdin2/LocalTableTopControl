@@ -28,6 +28,11 @@ data object DynamicMapOptimizeWallsRequestedEvent
 data object DynamicMapClearLightsRequestedEvent
 
 /**
+ * Published when a side-pane requests bulk removal of all sunlight/outside areas.
+ */
+data object DynamicMapClearSunlightAreasRequestedEvent
+
+/**
  * Published when a builder pane needs the current shared document snapshot.
  */
 data object DynamicMapDocumentSnapshotRequestedEvent

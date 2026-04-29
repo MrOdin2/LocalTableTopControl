@@ -35,7 +35,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ### Runtime Rendering
 
-- The loaded bundle provides map columns, rows, walls, lights, optional background texture,
+- The loaded bundle provides map columns, rows, walls, lights, sunlight/outside areas, optional background texture,
   and background calibration.
 - Loading a bundle centers the grid origin so exported cell coordinates run from `(0, 0)`
   at the top-left of the map bounds to `(cols, rows)` at the bottom-right.
@@ -46,6 +46,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same opaque theme accent colour as the Dynamic Map Builder, and enabled
     point lights are drawn as diagnostic halos with distinct bright and dim radius areas.
+    Exported sunlight/outside areas are drawn as translucent polygons for bundle verification.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden
   on the player-facing table view.
 - Disabled lights appear as subdued DM markers in `DebugMode`.
@@ -99,6 +100,8 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 ## Future Work Notes
 
 - Dynamic lighting and light occlusion are not implemented yet; current lights are rendered as static halos.
+  Sunlight/outside areas are loaded from gameplay bundles and visible in DebugMode, but they do not
+  affect player-facing visibility until the lighting solver consumes them.
 - Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
   PC sightline mesh.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.

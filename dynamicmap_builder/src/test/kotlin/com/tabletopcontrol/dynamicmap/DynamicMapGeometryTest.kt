@@ -1,6 +1,7 @@
 package com.tabletopcontrol.dynamicmap
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -43,7 +44,7 @@ class DynamicMapGeometryTest {
     }
 
     @Test
-    fun `move selections translates selected walls and lights together`() {
+    fun `move selections translates selected walls lights and sunlight areas together`() {
         val wall = DynamicMapWall(
             id = "wall-1",
             start = DynamicMapPoint(1.0, 2.0),
@@ -62,15 +63,26 @@ class DynamicMapGeometryTest {
             dimRadius = 8.0,
             colorHex = "#ffb347",
         )
+        val sunlightArea = DynamicMapSunlightArea(
+            id = "sunlight-1",
+            label = "Courtyard",
+            points = listOf(
+                DynamicMapPoint(1.0, 1.0),
+                DynamicMapPoint(3.0, 1.0),
+                DynamicMapPoint(2.0, 3.0),
+            ),
+        )
         val document = DynamicMapDocument(
             walls = listOf(wall, otherWall),
             lights = listOf(light),
+            sunlightAreas = listOf(sunlightArea),
         )
 
         val moved = document.moveSelections(
             selections = setOf(
                 DynamicMapElementSelection(DynamicMapElementKind.WALL, wall.id),
                 DynamicMapElementSelection(DynamicMapElementKind.LIGHT, light.id),
+                DynamicMapElementSelection(DynamicMapElementKind.SUNLIGHT_AREA, sunlightArea.id),
             ),
             delta = DynamicMapPoint(0.5, -1.0),
         )
@@ -79,6 +91,45 @@ class DynamicMapGeometryTest {
         assertEquals(DynamicMapPoint(3.5, 1.0), moved.walls[0].end)
         assertEquals(otherWall, moved.walls[1])
         assertEquals(DynamicMapPoint(4.5, 3.0), moved.lights[0].position)
+        assertEquals(
+            listOf(
+                DynamicMapPoint(1.5, 0.0),
+                DynamicMapPoint(3.5, 0.0),
+                DynamicMapPoint(2.5, 2.0),
+            ),
+            moved.sunlightAreas.single().points,
+        )
+    }
+
+    @Test
+    fun `sunlight polygon helpers validate and hit test polygon areas`() {
+        val polygon = listOf(
+            DynamicMapPoint(1.0, 1.0),
+            DynamicMapPoint(5.0, 1.0),
+            DynamicMapPoint(5.0, 4.0),
+            DynamicMapPoint(1.0, 4.0),
+            DynamicMapPoint(1.0, 1.0),
+        )
+        val area = DynamicMapSunlightArea(
+            id = "sunlight-1",
+            points = polygon,
+        )
+
+        assertTrue(isValidSunlightPolygon(polygon))
+        assertEquals(4, sanitizedSunlightPolygon(polygon).size)
+        assertTrue(isPointInSunlightPolygon(DynamicMapPoint(2.0, 2.0), polygon))
+        assertFalse(isPointInSunlightPolygon(DynamicMapPoint(6.0, 2.0), polygon))
+        assertEquals(0.0, distanceToSunlightArea(DynamicMapPoint(2.0, 2.0), area), 0.0000001)
+        assertEquals(1.0, distanceToSunlightArea(DynamicMapPoint(6.0, 2.0), area), 0.0000001)
+        assertFalse(
+            isValidSunlightPolygon(
+                listOf(
+                    DynamicMapPoint(1.0, 1.0),
+                    DynamicMapPoint(2.0, 2.0),
+                    DynamicMapPoint(3.0, 3.0),
+                ),
+            ),
+        )
     }
 
     @Test

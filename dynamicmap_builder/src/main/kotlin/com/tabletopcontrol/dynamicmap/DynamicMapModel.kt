@@ -11,6 +11,7 @@ data class DynamicMapDocument(
     val visibility: DynamicMapLayerVisibility = DynamicMapLayerVisibility(),
     val walls: List<DynamicMapWall> = emptyList(),
     val lights: List<DynamicMapLight> = emptyList(),
+    val sunlightAreas: List<DynamicMapSunlightArea> = emptyList(),
     val groups: List<DynamicMapElementGroup> = emptyList(),
 )
 
@@ -31,12 +32,14 @@ enum class DynamicMapLayer {
 enum class DynamicMapElementKind {
     WALL,
     LIGHT,
+    SUNLIGHT_AREA,
 }
 
 enum class DynamicMapTool {
     WALL_LINE,
     WALL_RECT,
     LIGHT,
+    SUNLIGHT_AREA,
 }
 
 data class DynamicMapPoint(
@@ -59,6 +62,12 @@ data class DynamicMapLight(
     val dimRadius: Double,
     val colorHex: String,
     val enabled: Boolean = true,
+)
+
+data class DynamicMapSunlightArea(
+    val id: String = UUID.randomUUID().toString(),
+    val label: String = "Sunlight Area",
+    val points: List<DynamicMapPoint>,
 )
 
 data class DynamicMapElementGroup(
@@ -85,6 +94,7 @@ fun DynamicMapDocument.containsSelection(selection: DynamicMapElementSelection):
     when (selection.kind) {
         DynamicMapElementKind.WALL -> walls.any { it.id == selection.elementId }
         DynamicMapElementKind.LIGHT -> lights.any { it.id == selection.elementId }
+        DynamicMapElementKind.SUNLIGHT_AREA -> sunlightAreas.any { it.id == selection.elementId }
     }
 
 fun DynamicMapDocument.filterExistingSelections(selections: Set<DynamicMapElementSelection>): Set<DynamicMapElementSelection> =
@@ -107,6 +117,9 @@ fun DynamicMapDocument.wallById(id: String): DynamicMapWall? =
 
 fun DynamicMapDocument.lightById(id: String): DynamicMapLight? =
     lights.firstOrNull { it.id == id }
+
+fun DynamicMapDocument.sunlightAreaById(id: String): DynamicMapSunlightArea? =
+    sunlightAreas.firstOrNull { it.id == id }
 
 fun DynamicMapDocument.groupById(id: String): DynamicMapElementGroup? =
     groups.firstOrNull { it.id == id }

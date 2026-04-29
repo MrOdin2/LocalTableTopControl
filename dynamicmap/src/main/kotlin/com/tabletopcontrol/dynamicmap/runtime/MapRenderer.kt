@@ -581,6 +581,7 @@ class MapRenderer(private val canvas: Canvas) {
         if (dynamicMapBundle != null) {
             drawDynamicMapBaseLayer()
             if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
+                drawDynamicMapSunlightAreas()
                 drawDynamicMapLightHalos()
             }
         } else {
@@ -765,6 +766,28 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.lineWidth = dynamicLightRingWidth(cellPx)
                 gc.strokeOval(centerX - brightRadius, centerY - brightRadius, brightRadius * 2.0, brightRadius * 2.0)
             }
+        }
+    }
+
+    private fun drawDynamicMapSunlightAreas() {
+        val bundle = dynamicMapBundle ?: return
+        if (bundle.sunlightAreas.isEmpty()) return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+        val originX = dynamicMapOriginX()
+        val originY = dynamicMapOriginY()
+        val baseColor = dynamicWallColor().deriveColor(35.0, 0.6, 1.2, 1.0)
+
+        bundle.sunlightAreas.forEach { area ->
+            if (area.points.size < 3) return@forEach
+            val xs = DoubleArray(area.points.size) { index -> originX + area.points[index].x * cellPx }
+            val ys = DoubleArray(area.points.size) { index -> originY + area.points[index].y * cellPx }
+
+            gc.fill = baseColor.deriveColor(0.0, 1.0, 1.0, DYNAMIC_SUNLIGHT_AREA_FILL_OPACITY)
+            gc.fillPolygon(xs, ys, area.points.size)
+            gc.stroke = baseColor.deriveColor(0.0, 1.0, 1.0, DYNAMIC_SUNLIGHT_AREA_STROKE_OPACITY)
+            gc.lineWidth = dynamicLightRingWidth(cellPx)
+            gc.strokePolygon(xs, ys, area.points.size)
         }
     }
 
@@ -1584,6 +1607,8 @@ class MapRenderer(private val canvas: Canvas) {
         private const val DYNAMIC_LIGHT_RING_WIDTH_SCALE = 0.025
         private const val DYNAMIC_WALL_WIDTH_SCALE = 0.12
         private const val DYNAMIC_LIGHT_MARKER_SCALE = 0.18
+        private const val DYNAMIC_SUNLIGHT_AREA_FILL_OPACITY = 0.16
+        private const val DYNAMIC_SUNLIGHT_AREA_STROKE_OPACITY = 0.82
         private const val REMEMBERED_SIGHTLINE_OPACITY = 0.5
         private const val MAX_CACHED_LAYER_DIMENSION = 8192.0
         private const val MAX_CACHED_LAYER_PIXELS = 16_000_000.0

@@ -39,6 +39,14 @@ class DynamicMapBundleLoaderTest {
                 light.0.dimRadius=8.0
                 light.0.colorHex=\#ff8a65
                 light.0.enabled=true
+                sunlightAreas.count=1
+                sunlightArea.0.points.count=3
+                sunlightArea.0.point.0.x=1.0
+                sunlightArea.0.point.0.y=1.0
+                sunlightArea.0.point.1.x=6.0
+                sunlightArea.0.point.1.y=1.0
+                sunlightArea.0.point.2.x=6.0
+                sunlightArea.0.point.2.y=4.0
                 """.trimIndent().toByteArray(StandardCharsets.UTF_8),
             )
             zip.closeEntry()
@@ -58,6 +66,8 @@ class DynamicMapBundleLoaderTest {
         assertEquals(1, bundle.walls.size)
         assertEquals(1, bundle.lights.size)
         assertEquals("#ff8a65", bundle.lights.first().colorHex)
+        assertEquals(1, bundle.sunlightAreas.size)
+        assertEquals(DynamicMapRuntimePoint(6.0, 4.0), bundle.sunlightAreas.first().points[2])
     }
 
     @Test

@@ -37,6 +37,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
                 DynamicMapTool.WALL_LINE -> "Active tool: wall line"
                 DynamicMapTool.WALL_RECT -> "Active tool: wall rectangle"
                 DynamicMapTool.LIGHT -> "Active tool: light placement"
+                DynamicMapTool.SUNLIGHT_AREA -> "Active tool: sunlight area"
                 null -> "Active tool: none"
             }
         }
