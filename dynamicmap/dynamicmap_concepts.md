@@ -43,7 +43,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - The DM map settings expose two DynamicMap visualisation modes:
   - `RenderMode` is the normal play mode. Exported walls, light handles, and sunlight/outside
     polygons are not drawn directly. Exported walls are still used as blockers for player-character
-    sightlines and static point lights.
+    sightlines and static point-light bright cores.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same opaque theme accent colour as the Dynamic Map Builder, and enabled
     point lights are drawn as diagnostic halos with distinct bright and dim radius areas.
@@ -56,8 +56,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   publishes one triangulated visibility mesh for all active DynamicMap renderers.
 - When a bundle contains authored lighting, the shared sightline service also builds a static light
   mask from enabled point lights and sunlight/outside polygons. Point lights use their exported dim
-  radius and are occluded by exported walls; sunlight/outside polygons are treated as always-lit
-  authored areas. The current player-visible mesh is `PC sight AND authored light`.
+  radius as an unblocked soft reach, while their bright radius is occluded by exported walls.
+  Sunlight/outside polygons are treated as always-lit authored areas. The current player-visible mesh
+  is `PC sight AND authored light`.
 - Bundles without authored lights or sunlight/outside polygons keep the previous sight-only
   behavior for backward compatibility and for maps that are not ready to use lighting yet.
 - Each PC token's sightline contribution is cached independently by token position, size, and wall
@@ -107,7 +108,8 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 ## Future Work Notes
 
 - Current lighting is the first static runtime slice: builder-authored point lights and sunlight/outside
-  polygons are fixed to the grid, wall-occluded where appropriate, and combined with PC sight.
+  polygons are fixed to the grid and combined with PC sight. Point-light bright cores are wall-occluded,
+  while dim light intentionally ignores walls as a cheap soft-light approximation.
   Bright/dim display channels, token-carried lights, PC darkvision, moving lights, and typed light-blocker
   rules are still future work.
 - Future door/opening rules should extend the wall-blocker model rather than bypassing the cached

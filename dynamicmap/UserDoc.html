@@ -177,7 +177,7 @@
       <table>
         <tr><th>Feature</th><th>What it does in DynamicMap</th></tr>
         <tr><td>Minimap</td><td>Shows the loaded dynamic map, fog state, and token positions for the DM.</td></tr>
-        <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. Walls still block player-character sightlines and point-light reach, while authored lights and sunlight areas decide which parts of PC sight are lit.</td></tr>
+        <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. Walls still block player-character sightlines and point-light bright cores, while dim light reaches softly through nearby spaces.</td></tr>
         <tr><td>DebugMode</td><td>Shows exported walls in the same solid accent colour used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
@@ -222,10 +222,11 @@
         markers are hidden.
       </p>
       <p>
-        Wall geometry controls player-character sightlines during play and also blocks point lights.
-        Enabled point lights illuminate out to their dim radius, sunlight areas are always lit, and
-        the player-facing view shows the intersection of PC sight and authored light. If a bundle has
-        no lights or sunlight areas, DynamicMap keeps the older sight-only behavior.
+        Wall geometry controls player-character sightlines during play and also blocks each point
+        light's bright core. Enabled point lights illuminate softly out to their dim radius even
+        around wall corners, sunlight areas are always lit, and the player-facing view shows the
+        intersection of PC sight and authored light. If a bundle has no lights or sunlight areas,
+        DynamicMap keeps the older sight-only behavior.
       </p>
     </section>
 

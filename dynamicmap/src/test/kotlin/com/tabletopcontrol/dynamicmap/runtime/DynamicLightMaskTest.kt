@@ -31,7 +31,7 @@ class DynamicLightMaskTest {
     }
 
     @Test
-    fun `walls occlude point light`() {
+    fun `walls occlude bright light but dim light leaks softly`() {
         val wall = DynamicMapRuntimeWall(
             start = DynamicMapRuntimePoint(2.0, 0.0),
             end = DynamicMapRuntimePoint(2.0, 5.0),
@@ -52,7 +52,9 @@ class DynamicLightMaskTest {
         val mask = lightMask(bundle)
 
         assertTrue(mask.containsPoint(1.5, 2.0))
-        assertFalse(mask.containsPoint(3.0, 2.0))
+        assertTrue(mask.containsPoint(3.0, 2.0))
+        assertTrue(mask.containsBrightPoint(1.5, 2.0))
+        assertFalse(mask.containsBrightPoint(3.0, 2.0))
     }
 
     @Test
