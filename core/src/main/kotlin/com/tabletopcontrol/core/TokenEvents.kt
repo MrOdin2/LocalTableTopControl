@@ -15,6 +15,7 @@ import javafx.scene.paint.Color
  * @property size  rendered footprint size of the token; defaults to [TokenSize.MEDIUM]
  *                 for legacy saves and older publishers.
  * @property isPlayerCharacter whether this token belongs to an actor marked as a player character.
+ * @property darkvisionRangeCells optional darkvision radius measured in grid cells.
  */
 data class TokenAddedEvent(
     val id: String,
@@ -22,6 +23,7 @@ data class TokenAddedEvent(
     val color: Color,
     val size: TokenSize = TokenSize.MEDIUM,
     val isPlayerCharacter: Boolean = false,
+    val darkvisionRangeCells: Double? = null,
 )
 
 /**

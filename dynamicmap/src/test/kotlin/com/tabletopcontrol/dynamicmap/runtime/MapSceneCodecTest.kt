@@ -43,6 +43,7 @@ class MapSceneCodecTest {
                     size = TokenSize.LARGE,
                     color = Color.CORNFLOWERBLUE,
                     isPlayerCharacter = true,
+                    darkvisionRangeCells = 12.0,
                     imageUri = "file:///tokens/hero.png",
                     imageScaleX = 1.3,
                     imageScaleY = 1.0,
@@ -58,6 +59,7 @@ class MapSceneCodecTest {
 
         assertEquals(state, restored)
         assertTrue(MapSceneCodec.serialize(state).contains("token.0.isPlayerCharacter=true"))
+        assertTrue(MapSceneCodec.serialize(state).contains("token.0.darkvisionRangeCells=12.0"))
     }
 
     @Test

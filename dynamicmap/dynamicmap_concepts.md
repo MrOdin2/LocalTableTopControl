@@ -58,13 +58,19 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   mask from enabled point lights and sunlight/outside polygons. Point lights use their exported dim
   radius as an unblocked soft reach, while their bright radius is occluded by exported walls.
   Sunlight/outside polygons are treated as always-lit authored areas. The current player-visible mesh
-  is `PC sight AND authored light`.
+  is `PC sight AND authored light`, plus any PC darkvision area.
+- Tracker darkvision ranges are published as token metadata in grid cells. The sightline service treats
+  each PC's darkvision as another wall-blocked light contribution from that PC's token centre, reusing
+  the cached PC sight contribution and clipping it to the darkvision radius rather than raycasting again.
 - Renderers receive the shared static light mask together with the visible mesh and use each enabled
   light's exported colour to draw a cached tint layer. The tint is clipped to the current visible mesh,
   drawn with screen blending, and kept separate from sunlight/outside areas, which reveal visibility
   without adding a colour cast.
-- Bundles without authored lights or sunlight/outside polygons keep the previous sight-only
-  behavior for backward compatibility and for maps that are not ready to use lighting yet.
+- Renderers also receive a darkvision-only mesh. That layer redraws the current map art in grayscale
+  before the black sightline overlay is applied, so terrain revealed only by darkvision appears black
+  and white instead of using normal light colour.
+- Bundles without authored lights, sunlight/outside polygons, or PC darkvision keep the previous
+  sight-only behavior for backward compatibility and for maps that are not ready to use lighting yet.
 - Each PC token's sightline contribution is cached independently by token position, size, and wall
   topology. Moving one PC recomputes only that PC's contribution, then combines it with the other
   cached PC contributions.
@@ -114,8 +120,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Current lighting is the first static runtime slice: builder-authored point lights and sunlight/outside
   polygons are fixed to the grid and combined with PC sight. Point-light bright cores are wall-occluded,
   while dim light intentionally ignores walls as a cheap soft-light approximation.
-  Light colour tint is rendered for visible point-light areas. Token-carried lights, PC darkvision,
-  moving lights, and typed light-blocker rules are still future work.
+  Light colour tint is rendered for visible point-light areas. PC darkvision is supported as a
+  wall-blocked grayscale reveal from the token centre. Token-carried lights, moving lights, and typed
+  light-blocker rules are still future work.
 - Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
   PC sightline mesh.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.

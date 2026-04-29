@@ -19,6 +19,7 @@ import javafx.scene.paint.Color
  *                       for legacy saves and event publishers.
  * @property color       fill colour of the token circle; used as a fallback when no image is set.
  * @property isPlayerCharacter whether this token belongs to an actor marked as a player character.
+ * @property darkvisionRangeCells optional darkvision radius measured in grid cells.
  * @property imageUri    URI of the picture to use for this token, or `null` to render a plain
  *                       filled circle using [color].  Typically a `file:` URI obtained via a
  *                       [javafx.stage.FileChooser].
@@ -37,6 +38,7 @@ data class Token(
     val size: TokenSize = TokenSize.MEDIUM,
     val color: Color,
     val isPlayerCharacter: Boolean = false,
+    val darkvisionRangeCells: Double? = null,
     val imageUri: String? = null,
     val imageScaleX: Double = 1.0,
     val imageScaleY: Double = 1.0,

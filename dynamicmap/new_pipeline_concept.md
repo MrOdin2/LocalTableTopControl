@@ -242,8 +242,9 @@ Current bridge implementation:
 - Static point lights are fixed to the grid. Their bright radius uses the same exported wall blockers as PC sight, while their dim radius is a cheap unblocked soft reach for player visibility.
 - The renderer draws each point light's exported colour as a cached tint layer clipped to the current visible mask, using screen blending so tint brightens the map instead of muddying it.
 - Sunlight/outside polygons are treated as always-lit authored regions.
-- Bundles with no authored lighting remain sight-only until the DM opts into lighting data.
-- Token-carried lights, PC darkvision, moving lights, and typed light-blocker rules remain future pipeline work.
+- PC darkvision is treated as a token-origin light contribution clipped from the cached PC sight area, then rendered as a grayscale-only reveal.
+- Bundles with no authored lighting and no PC darkvision remain sight-only until the DM opts into lighting data.
+- Token-carried lights, moving lights, and typed light-blocker rules remain future pipeline work.
 
 ## Persistence of Vision
 

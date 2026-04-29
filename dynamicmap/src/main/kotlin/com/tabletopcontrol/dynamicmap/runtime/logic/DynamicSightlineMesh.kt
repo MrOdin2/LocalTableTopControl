@@ -266,7 +266,7 @@ private data class RayHit(
     val distance: Double,
 )
 
-private fun Token.sightOrigin(): DynamicSightPoint {
+internal fun Token.sightOrigin(): DynamicSightPoint {
     val span = size.gridSpanCells.toDouble()
     return DynamicSightPoint(
         x = col + span / 2.0,

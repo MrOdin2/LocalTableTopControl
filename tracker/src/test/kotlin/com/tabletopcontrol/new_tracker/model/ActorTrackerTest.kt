@@ -80,6 +80,45 @@ class ActorTrackerTest {
     }
 
     @Test
+    fun `adding an actor publishes darkvision range in grid cells`() {
+        val tracker = ActorTracker()
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.addActor(
+            Actor(
+                name = "Scout",
+                features = ActorFeatures(
+                    darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
+                ),
+            ),
+        )
+
+        assertEquals(12.0, tokenEvents.single().darkvisionRangeCells)
+    }
+
+    @Test
+    fun `changing darkvision republishes token metadata`() {
+        val tracker = ActorTracker()
+        val actor = Actor(name = "Scout")
+        tracker.addActor(actor)
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.updateActor(
+            actor.copy(
+                color = tracker.actorList.single().color,
+                features = ActorFeatures(
+                    darkvisionRange = DistanceRange(9, DistanceUnit.METERS),
+                ),
+            ),
+        )
+
+        assertEquals(1, tokenEvents.size)
+        assertEquals(6.0, tokenEvents.single().darkvisionRangeCells)
+    }
+
+    @Test
     fun `changing actor type republishes token metadata`() {
         val tracker = ActorTracker()
         val actor = Actor(name = "Hero")

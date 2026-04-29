@@ -84,6 +84,7 @@ internal object MapSceneCodec {
                 setProperty("$prefix.size", token.size.name)
                 setProperty("$prefix.color", ColorHexCodec.colorToHex(token.color))
                 setProperty("$prefix.isPlayerCharacter", token.isPlayerCharacter.toString())
+                token.darkvisionRangeCells?.let { setProperty("$prefix.darkvisionRangeCells", it.toString()) }
                 token.imageUri?.let { setProperty("$prefix.imageUri", it) }
                 setProperty("$prefix.imageScaleX", token.imageScaleX.toString())
                 setProperty("$prefix.imageScaleY", token.imageScaleY.toString())
@@ -163,6 +164,9 @@ internal object MapSceneCodec {
                         isPlayerCharacter = props.getProperty("$prefix.isPlayerCharacter")
                             ?.toBooleanStrictOrNull()
                             ?: false,
+                        darkvisionRangeCells = props.getProperty("$prefix.darkvisionRangeCells")
+                            ?.toDoubleOrNull()
+                            ?.takeIf { it.isFinite() && it > 0.0 },
                         imageUri = props.getProperty("$prefix.imageUri"),
                         imageScaleX = props.getProperty("$prefix.imageScaleX")?.toDoubleOrNull() ?: 1.0,
                         imageScaleY = props.getProperty("$prefix.imageScaleY")?.toDoubleOrNull() ?: 1.0,

@@ -78,6 +78,7 @@ internal class MapDynamicSightlineService {
                     color = event.color,
                     size = event.size,
                     isPlayerCharacter = event.isPlayerCharacter,
+                    darkvisionRangeCells = event.darkvisionRangeCells,
                 )
                 tokens[event.id] = updated
                 if (shouldRefreshSightlineContribution(previous, updated)) {
@@ -96,6 +97,7 @@ internal class MapDynamicSightlineService {
                     size = event.size,
                     color = event.color,
                     isPlayerCharacter = event.isPlayerCharacter,
+                    darkvisionRangeCells = event.darkvisionRangeCells,
                 )
                 if (event.isPlayerCharacter) {
                     scheduleCompute()
@@ -156,31 +158,69 @@ internal class MapDynamicSightlineService {
 
         executor.execute {
             if (disposed || revision.get() != nextRevision) return@execute
-            val contributions = computeContributions(
+            val pcSightlines = computeContributions(
                 geometry = geometry,
                 pcs = pcSnapshot,
                 topologyVersion = snapshotTopologyVersion,
                 expectedRevision = nextRevision,
             ) ?: return@execute
-            val sightMesh = geometry.combine(contributions)
-            val visibleMesh = applyStaticLighting(
+            val sightMesh = geometry.combine(pcSightlines.map { it.contribution })
+            val darkvisionMesh = geometry.darkvisionMeshFrom(pcSightlines)
+            val visibilityMeshes = applyStaticLightingAndDarkvision(
                 geometry = geometry,
                 sightMesh = sightMesh,
+                darkvisionMesh = darkvisionMesh,
                 lightMask = lightMask,
             )
-            val seenMesh = updateSeenMesh(geometry, visibleMesh, nextRevision) ?: return@execute
+            val seenMesh = updateSeenMesh(geometry, visibilityMeshes.visibleMesh, nextRevision) ?: return@execute
             if (disposed || revision.get() != nextRevision) return@execute
-            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, visibleMesh, seenMesh, lightMask))
+            publishOnFx(
+                DynamicSightlineMeshUpdatedEvent(
+                    revision = nextRevision,
+                    mesh = visibilityMeshes.visibleMesh,
+                    seenMesh = seenMesh,
+                    lightMask = lightMask,
+                    darkvisionMesh = visibilityMeshes.darkvisionOnlyMesh,
+                ),
+            )
         }
     }
 
-    private fun applyStaticLighting(
+    private fun applyStaticLightingAndDarkvision(
         geometry: DynamicSightlineGeometry,
         sightMesh: DynamicSightlineMesh,
+        darkvisionMesh: DynamicSightlineMesh,
         lightMask: DynamicLightMask?,
-    ): DynamicSightlineMesh {
-        val activeLightMask = lightMask?.takeIf { it.lightingActive } ?: return sightMesh
-        return activeLightMask.applyToSightMesh(geometry, sightMesh)
+    ): VisibilityMeshes {
+        val activeLightMask = lightMask?.takeIf { it.lightingActive }
+        val hasDarkvision = darkvisionMesh.hasVisibleArea()
+        if (activeLightMask == null && !hasDarkvision) {
+            return VisibilityMeshes(visibleMesh = sightMesh, darkvisionOnlyMesh = null)
+        }
+
+        val litVisibleArea = Area()
+        if (activeLightMask != null) {
+            litVisibleArea.add(
+                sightMesh.copyVisibleArea().apply {
+                    intersect(activeLightMask.copyLitArea())
+                },
+            )
+        }
+
+        val darkvisionArea = darkvisionMesh.copyVisibleArea()
+        val visibleArea = Area(litVisibleArea).apply {
+            add(darkvisionArea)
+        }
+        val darkvisionOnlyArea = Area(darkvisionArea).apply {
+            subtract(litVisibleArea)
+        }
+        val darkvisionOnlyMesh = geometry.meshFromVisibleArea(darkvisionOnlyArea)
+            .takeIf { it.hasVisibleArea() }
+
+        return VisibilityMeshes(
+            visibleMesh = geometry.meshFromVisibleArea(visibleArea),
+            darkvisionOnlyMesh = darkvisionOnlyMesh,
+        )
     }
 
     private fun computeContributions(
@@ -188,7 +228,7 @@ internal class MapDynamicSightlineService {
         pcs: List<Token>,
         topologyVersion: Long,
         expectedRevision: Long,
-    ): List<DynamicSightlineContribution>? {
+    ): List<DynamicPcSightlineContribution>? {
         val pcIds = pcs.mapTo(mutableSetOf()) { it.id }
         val contributionsByToken = linkedMapOf<String, DynamicSightlineContribution>()
 
@@ -216,7 +256,14 @@ internal class MapDynamicSightlineService {
             contributionsByToken[pc.id] = contribution
         }
 
-        return pcs.mapNotNull { pc -> contributionsByToken[pc.id] }
+        return pcs.mapNotNull { pc ->
+            contributionsByToken[pc.id]?.let { contribution ->
+                DynamicPcSightlineContribution(
+                    token = pc,
+                    contribution = contribution,
+                )
+            }
+        }
     }
 
     private fun clearContributionCache() {
@@ -239,7 +286,10 @@ internal class MapDynamicSightlineService {
 
     private fun shouldRefreshSightlineContribution(previous: Token, updated: Token): Boolean =
         previous.isPlayerCharacter != updated.isPlayerCharacter ||
-            (updated.isPlayerCharacter && previous.size != updated.size)
+            (
+                updated.isPlayerCharacter &&
+                    (previous.size != updated.size || previous.darkvisionRangeCells != updated.darkvisionRangeCells)
+                )
 
     private fun updateSeenMesh(
         geometry: DynamicSightlineGeometry,
@@ -289,5 +339,10 @@ internal class MapDynamicSightlineService {
     private data class CachedPcSightlineContribution(
         val key: PcSightlineCacheKey,
         val contribution: DynamicSightlineContribution,
+    )
+
+    private data class VisibilityMeshes(
+        val visibleMesh: DynamicSightlineMesh,
+        val darkvisionOnlyMesh: DynamicSightlineMesh?,
     )
 }

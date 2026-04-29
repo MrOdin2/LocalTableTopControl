@@ -41,6 +41,7 @@ class ActorTracker(
                 actor.color,
                 actor.tokenSize,
                 isPlayerCharacter = actor.actorType == ActorType.PC,
+                darkvisionRangeCells = actor.darkvisionRangeCells(),
             ),
         )
         if (actor.imageSettings.uri != null) {
@@ -86,7 +87,8 @@ class ActorTracker(
                 previousActor.name != updatedActor.name ||
                 previousActor.color != updatedActor.color ||
                 previousActor.tokenSize != updatedActor.tokenSize ||
-                previousActor.actorType != updatedActor.actorType
+                previousActor.actorType != updatedActor.actorType ||
+                previousActor.features.darkvisionRange != updatedActor.features.darkvisionRange
             ) {
                 EventBus.publish(
                     TokenAddedEvent(
@@ -95,6 +97,7 @@ class ActorTracker(
                         updatedActor.color,
                         updatedActor.tokenSize,
                         isPlayerCharacter = updatedActor.actorType == ActorType.PC,
+                        darkvisionRangeCells = updatedActor.darkvisionRangeCells(),
                     ),
                 )
             }
@@ -154,6 +157,7 @@ class ActorTracker(
                     actor.color,
                     actor.tokenSize,
                     isPlayerCharacter = actor.actorType == ActorType.PC,
+                    darkvisionRangeCells = actor.darkvisionRangeCells(),
                 ),
             )
             if (actor.imageSettings.uri != null) {
@@ -278,6 +282,17 @@ class ActorTracker(
         )
     }
 
+    private fun Actor.darkvisionRangeCells(): Double? =
+        features.darkvisionRange
+            ?.toGridCells()
+            ?.takeIf { it.isFinite() && it > 0.0 }
+
+    private fun DistanceRange.toGridCells(): Double =
+        when (unit) {
+            DistanceUnit.FEET -> amount / FEET_PER_GRID_CELL
+            DistanceUnit.METERS -> amount / METERS_PER_GRID_CELL
+        }
+
     private val TOKEN_COLORS: List<Color> = run {
         val hues = List(16) { it * 22.5 }
         val variants = listOf(
@@ -287,6 +302,11 @@ class ActorTracker(
             Pair(0.45, 0.80),   // muted
         )
         List(64) { i -> Color.hsb(hues[i % 16], variants[i / 16].first, variants[i / 16].second) }
+    }
+
+    private companion object {
+        const val FEET_PER_GRID_CELL = 5.0
+        const val METERS_PER_GRID_CELL = 1.5
     }
 }
 
