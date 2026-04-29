@@ -240,9 +240,10 @@ Current bridge implementation:
 - Runtime bundle format `1` already consumes builder-authored static point lights and sunlight/outside areas.
 - The existing async sightline service builds an AWT-area light mask on bundle load and intersects it with PC sight.
 - Static point lights are fixed to the grid. Their bright radius uses the same exported wall blockers as PC sight, while their dim radius is a cheap unblocked soft reach for player visibility.
+- The renderer draws each point light's exported colour as a cached tint layer clipped to the current visible mask, using screen blending so tint brightens the map instead of muddying it.
 - Sunlight/outside polygons are treated as always-lit authored regions.
 - Bundles with no authored lighting remain sight-only until the DM opts into lighting data.
-- Token-carried lights, PC darkvision, bright/dim presentation, moving lights, and typed light-blocker rules remain future pipeline work.
+- Token-carried lights, PC darkvision, moving lights, and typed light-blocker rules remain future pipeline work.
 
 ## Persistence of Vision
 

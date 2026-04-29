@@ -170,7 +170,7 @@ internal class MapDynamicSightlineService {
             )
             val seenMesh = updateSeenMesh(geometry, visibleMesh, nextRevision) ?: return@execute
             if (disposed || revision.get() != nextRevision) return@execute
-            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, visibleMesh, seenMesh))
+            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, visibleMesh, seenMesh, lightMask))
         }
     }
 

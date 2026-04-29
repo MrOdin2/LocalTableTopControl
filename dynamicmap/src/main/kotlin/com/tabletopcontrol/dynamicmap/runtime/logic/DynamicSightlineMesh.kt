@@ -87,21 +87,22 @@ internal class DynamicSightlineMesh(
 
     fun copyVisibleArea(): Area = Area(visibleArea)
 
+    fun hasVisibleArea(): Boolean = !visibleArea.isEmpty
+
+    fun drawVisibleArea(
+        moveTo: (DynamicSightPoint) -> Unit,
+        lineTo: (DynamicSightPoint) -> Unit,
+        closePath: () -> Unit,
+    ) {
+        drawDynamicAreaPath(visibleArea, moveTo, lineTo, closePath)
+    }
+
     fun drawHiddenArea(
         moveTo: (DynamicSightPoint) -> Unit,
         lineTo: (DynamicSightPoint) -> Unit,
         closePath: () -> Unit,
     ) {
-        val pathIterator = hiddenArea.getPathIterator(null, PATH_FLATNESS)
-        val coords = DoubleArray(6)
-        while (!pathIterator.isDone) {
-            when (pathIterator.currentSegment(coords)) {
-                PathIterator.SEG_MOVETO -> moveTo(DynamicSightPoint(coords[0], coords[1]))
-                PathIterator.SEG_LINETO -> lineTo(DynamicSightPoint(coords[0], coords[1]))
-                PathIterator.SEG_CLOSE -> closePath()
-            }
-            pathIterator.next()
-        }
+        drawDynamicAreaPath(hiddenArea, moveTo, lineTo, closePath)
     }
 
     companion object {
@@ -140,6 +141,24 @@ internal class DynamicSightlineMesh(
             tokens: Iterable<Token>,
         ): DynamicSightlineMesh =
             DynamicSightlineGeometry.forMap(cols, rows, walls).compute(tokens)
+    }
+}
+
+internal fun drawDynamicAreaPath(
+    area: Area,
+    moveTo: (DynamicSightPoint) -> Unit,
+    lineTo: (DynamicSightPoint) -> Unit,
+    closePath: () -> Unit,
+) {
+    val pathIterator = area.getPathIterator(null, PATH_FLATNESS)
+    val coords = DoubleArray(6)
+    while (!pathIterator.isDone) {
+        when (pathIterator.currentSegment(coords)) {
+            PathIterator.SEG_MOVETO -> moveTo(DynamicSightPoint(coords[0], coords[1]))
+            PathIterator.SEG_LINETO -> lineTo(DynamicSightPoint(coords[0], coords[1]))
+            PathIterator.SEG_CLOSE -> closePath()
+        }
+        pathIterator.next()
     }
 }
 

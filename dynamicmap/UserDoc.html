@@ -194,7 +194,8 @@
         The sightline layer uses the same look as fog of war. Areas that PCs have never seen are
         fully black on the player-facing table screen; areas seen before but no longer visible stay
         softly greyed. When the bundle contains authored lighting, current visibility is limited to
-        places that are both seen by a PC and lit by a point light or sunlight area. The DM minimap
+        places that are both seen by a PC and lit by a point light or sunlight area. Point lights
+        also tint the currently visible map with the colour chosen in the builder. The DM minimap
         remains visible to the DM. Moving an NPC token does not recalculate sightlines. When several
         PCs are active, moving one PC recalculates that PC's sightline in the background and reuses
         the other PCs' cached sightlines.
@@ -224,9 +225,9 @@
       <p>
         Wall geometry controls player-character sightlines during play and also blocks each point
         light's bright core. Enabled point lights illuminate softly out to their dim radius even
-        around wall corners, sunlight areas are always lit, and the player-facing view shows the
-        intersection of PC sight and authored light. If a bundle has no lights or sunlight areas,
-        DynamicMap keeps the older sight-only behavior.
+        around wall corners, tint visible areas with their builder colour, sunlight areas are always
+        lit, and the player-facing view shows the intersection of PC sight and authored light. If a
+        bundle has no lights or sunlight areas, DynamicMap keeps the older sight-only behavior.
       </p>
     </section>
 

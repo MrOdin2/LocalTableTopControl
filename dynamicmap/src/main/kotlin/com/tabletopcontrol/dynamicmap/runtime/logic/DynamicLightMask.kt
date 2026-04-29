@@ -12,6 +12,7 @@ internal class DynamicLightMask(
     val rows: Int,
     private val litArea: Area,
     private val brightArea: Area,
+    val tintContributions: List<DynamicLightTintContribution>,
     val lightingActive: Boolean,
 ) {
     init {
@@ -52,22 +53,37 @@ internal class DynamicLightMask(
             val mapBounds = Area(Rectangle2D.Double(0.0, 0.0, bundle.cols.toDouble(), bundle.rows.toDouble()))
             val litArea = Area()
             val brightArea = Area()
+            val tintContributions = mutableListOf<DynamicLightTintContribution>()
             val hasAuthoredLighting = bundle.lights.isNotEmpty() || bundle.sunlightAreas.isNotEmpty()
 
             bundle.lights
                 .filter { it.enabled }
                 .forEach { light ->
-                    if (light.dimRadius > 0.0) {
-                        litArea.add(circleArea(light.position.x, light.position.y, light.dimRadius))
-                    }
-                    if (light.brightRadius > 0.0) {
-                        val brightContribution = geometry.visibleAreaFromPoint(
+                    val dimContribution = circleArea(light.position.x, light.position.y, light.dimRadius)
+                    val brightContribution = if (light.brightRadius > 0.0) {
+                        geometry.visibleAreaFromPoint(
                             x = light.position.x,
                             y = light.position.y,
                             radius = light.brightRadius,
                         )
+                    } else {
+                        Area()
+                    }
+                    if (light.dimRadius > 0.0) {
+                        litArea.add(dimContribution)
+                    }
+                    if (!brightContribution.isEmpty) {
                         brightArea.add(brightContribution)
                         litArea.add(brightContribution)
+                    }
+                    if (!dimContribution.isEmpty || !brightContribution.isEmpty) {
+                        tintContributions += DynamicLightTintContribution(
+                            colorHex = light.colorHex,
+                            x = light.position.x,
+                            y = light.position.y,
+                            dimRadius = light.dimRadius,
+                            brightArea = brightContribution,
+                        )
                     }
                 }
 
@@ -83,9 +99,34 @@ internal class DynamicLightMask(
                 rows = bundle.rows,
                 litArea = litArea,
                 brightArea = brightArea,
+                tintContributions = tintContributions,
                 lightingActive = hasAuthoredLighting,
             )
         }
+    }
+}
+
+internal class DynamicLightTintContribution(
+    val colorHex: String,
+    val x: Double,
+    val y: Double,
+    val dimRadius: Double,
+    private val brightArea: Area,
+) {
+    val hasDimTint: Boolean
+        get() = x.isFinite() && y.isFinite() && dimRadius.isFinite() && dimRadius > 0.0
+
+    val hasBrightTint: Boolean
+        get() = !brightArea.isEmpty
+
+    fun containsBrightPoint(x: Double, y: Double): Boolean = brightArea.contains(x, y)
+
+    fun drawBrightArea(
+        moveTo: (DynamicSightPoint) -> Unit,
+        lineTo: (DynamicSightPoint) -> Unit,
+        closePath: () -> Unit,
+    ) {
+        drawDynamicAreaPath(brightArea, moveTo, lineTo, closePath)
     }
 }
 

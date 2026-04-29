@@ -4,6 +4,7 @@ import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicLightMask
 import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineGeometry
 import com.tabletopcontrol.dynamicmap.runtime.logic.Token
 import javafx.scene.paint.Color
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -43,7 +44,7 @@ class DynamicLightMaskTest {
                     position = DynamicMapRuntimePoint(1.0, 2.0),
                     brightRadius = 1.0,
                     dimRadius = 5.0,
-                    colorHex = "#ffffff",
+                    colorHex = "#ff8800",
                     enabled = true,
                 ),
             ),
@@ -55,6 +56,10 @@ class DynamicLightMaskTest {
         assertTrue(mask.containsPoint(3.0, 2.0))
         assertTrue(mask.containsBrightPoint(1.5, 2.0))
         assertFalse(mask.containsBrightPoint(3.0, 2.0))
+        assertEquals("#ff8800", mask.tintContributions.single().colorHex)
+        assertTrue(mask.tintContributions.single().hasDimTint)
+        assertTrue(mask.tintContributions.single().hasBrightTint)
+        assertFalse(mask.tintContributions.single().containsBrightPoint(3.0, 2.0))
     }
 
     @Test
