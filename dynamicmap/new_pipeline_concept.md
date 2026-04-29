@@ -235,6 +235,15 @@ Extensions:
 
 This model avoids mixing light rendering with wall debug halos.
 
+Current bridge implementation:
+
+- Runtime bundle format `1` already consumes builder-authored static point lights and sunlight/outside areas.
+- The existing async sightline service builds an AWT-area light mask on bundle load and intersects it with PC sight.
+- Static point lights are fixed to the grid, use their dim radius for player visibility, and are blocked by the same exported walls as PC sight.
+- Sunlight/outside polygons are treated as always-lit authored regions.
+- Bundles with no authored lighting remain sight-only until the DM opts into lighting data.
+- Token-carried lights, PC darkvision, bright/dim presentation, moving lights, and typed light-blocker rules remain future pipeline work.
+
 ## Persistence of Vision
 
 Maintain an accumulated seen mask:

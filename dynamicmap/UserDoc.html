@@ -132,7 +132,7 @@
       <p>DynamicMap can show:</p>
       <ul>
         <li>The bundled background texture and its builder calibration.</li>
-        <li>Exported wall geometry for player-character sightlines, plus static point lights and sunlight areas in DebugMode.</li>
+        <li>Exported wall geometry for player-character sightlines, static point lights, and sunlight areas.</li>
         <li>Grid overlay, fog of war, tracker tokens, token names, and measurement overlays.</li>
       </ul>
     </section>
@@ -177,11 +177,11 @@
       <table>
         <tr><th>Feature</th><th>What it does in DynamicMap</th></tr>
         <tr><td>Minimap</td><td>Shows the loaded dynamic map, fog state, and token positions for the DM.</td></tr>
-        <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls and lights are hidden, but walls still block player-character sightlines.</td></tr>
+        <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. Walls still block player-character sightlines and point-light reach, while authored lights and sunlight areas decide which parts of PC sight are lit.</td></tr>
         <tr><td>DebugMode</td><td>Shows exported walls in the same solid accent colour used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
-        <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only the cells they can see through exported walls.</td></tr>
+        <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting. Bundles without lights or sunlight areas keep sight-only visibility.</td></tr>
         <tr><td>Measurements</td><td>Line, cone, rectangle, and circle overlays can be DM-only or mirrored to the table screen.</td></tr>
         <tr><td>Table movement</td><td>The whole rendered table map can be nudged or re-centered without editing the exported bundle.</td></tr>
       </table>
@@ -192,10 +192,12 @@
       </p>
       <p>
         The sightline layer uses the same look as fog of war. Areas that PCs have never seen are
-        fully black on the player-facing table screen; areas seen before but no longer in sight stay
-        softly greyed. The DM minimap remains visible to the DM. Moving an NPC token does not
-        recalculate sightlines. When several PCs are active, moving one PC recalculates that PC's
-        sightline in the background and reuses the other PCs' cached sightlines.
+        fully black on the player-facing table screen; areas seen before but no longer visible stay
+        softly greyed. When the bundle contains authored lighting, current visibility is limited to
+        places that are both seen by a PC and lit by a point light or sunlight area. The DM minimap
+        remains visible to the DM. Moving an NPC token does not recalculate sightlines. When several
+        PCs are active, moving one PC recalculates that PC's sightline in the background and reuses
+        the other PCs' cached sightlines.
       </p>
       <p>
         NPC tokens appear on the table as soon as any part of their token circle enters a PC sightline,
@@ -213,14 +215,17 @@
         during play.
       </p>
       <p>
-        In RenderMode, exported walls and lights are not drawn directly. In DebugMode, walls are drawn
-        as solid accent-colour guide lines, enabled point lights appear as two-radius coloured halos,
-        and sunlight areas appear as translucent polygons. Disabled lights remain visible to the DM as
-        subdued markers in DebugMode, but player-facing light markers are hidden.
+        In RenderMode, exported walls, light handles, and sunlight outlines are not drawn directly.
+        In DebugMode, walls are drawn as solid accent-colour guide lines, enabled point lights appear
+        as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
+        lights remain visible to the DM as subdued markers in DebugMode, but player-facing light
+        markers are hidden.
       </p>
       <p>
-        Wall geometry also controls player-character sightlines during play. Lights and sunlight areas are
-        currently diagnostic markers only; they do not reveal or hide areas by themselves.
+        Wall geometry controls player-character sightlines during play and also blocks point lights.
+        Enabled point lights illuminate out to their dim radius, sunlight areas are always lit, and
+        the player-facing view shows the intersection of PC sight and authored light. If a bundle has
+        no lights or sunlight areas, DynamicMap keeps the older sight-only behavior.
       </p>
     </section>
 

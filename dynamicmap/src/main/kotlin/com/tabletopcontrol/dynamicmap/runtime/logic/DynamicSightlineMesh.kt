@@ -3,6 +3,7 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimePoint
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
 import java.awt.geom.Area
+import java.awt.geom.Ellipse2D
 import java.awt.geom.Path2D
 import java.awt.geom.PathIterator
 import java.awt.geom.Rectangle2D
@@ -75,13 +76,13 @@ internal class DynamicSightlineMesh(
     fun containsPoint(x: Double, y: Double): Boolean =
         x in 0.0..cols.toDouble() &&
             y in 0.0..rows.toDouble() &&
-            triangles.any { it.contains(DynamicSightPoint(x, y)) }
+            visibleArea.contains(x, y)
 
     fun intersectsToken(token: Token): Boolean {
         val bounds = tokenDrawBounds(token, originX = 0.0, originY = 0.0, cellPx = 1.0)
-        val center = DynamicSightPoint(bounds.centerX, bounds.centerY)
-        val radius = bounds.size / 2.0
-        return triangles.any { it.intersectsCircle(center, radius) }
+        val tokenArea = Area(Ellipse2D.Double(bounds.left, bounds.top, bounds.size, bounds.size))
+        tokenArea.intersect(visibleArea)
+        return !tokenArea.isEmpty
     }
 
     fun copyVisibleArea(): Area = Area(visibleArea)
@@ -190,6 +191,33 @@ internal class DynamicSightlineGeometry private constructor(
             rows = rows,
             visibleArea = visibleArea,
         )
+
+    fun visibleAreaFromPoint(
+        x: Double,
+        y: Double,
+        radius: Double? = null,
+    ): Area {
+        if (x !in 0.0..cols.toDouble() || y !in 0.0..rows.toDouble()) {
+            return Area()
+        }
+        val origin = DynamicSightPoint(x, y)
+        val triangles = triangulateVisibleArea(origin, segments)
+        val area = visibleAreaFor(triangles)
+        if (radius != null) {
+            if (!radius.isFinite() || radius <= 0.0) return Area()
+            area.intersect(
+                Area(
+                    Ellipse2D.Double(
+                        x - radius,
+                        y - radius,
+                        radius * 2.0,
+                        radius * 2.0,
+                    ),
+                ),
+            )
+        }
+        return area
+    }
 
     companion object {
         fun forMap(

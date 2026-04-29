@@ -32,6 +32,7 @@ internal class MapDynamicSightlineService {
 
     private var currentBundle: DynamicMapBundle? = null
     private var currentGeometry: DynamicSightlineGeometry? = null
+    private var currentLightMask: DynamicLightMask? = null
     private var topologyVersion: Long = 0L
     private var accumulatedSeenArea: Area? = null
     @Volatile
@@ -50,12 +51,14 @@ internal class MapDynamicSightlineService {
 
     private fun attachToEventBus() {
         subscriptions += EventBus.subscribe<DynamicMapLoadEvent> { event ->
-            currentBundle = event.bundle
-            currentGeometry = DynamicSightlineGeometry.forMap(
+            val geometry = DynamicSightlineGeometry.forMap(
                 cols = event.bundle.cols,
                 rows = event.bundle.rows,
                 walls = event.bundle.walls,
             )
+            currentBundle = event.bundle
+            currentGeometry = geometry
+            currentLightMask = DynamicLightMask.fromBundle(event.bundle, geometry)
             topologyVersion++
             clearContributionCache()
             clearSeenArea()
@@ -128,6 +131,7 @@ internal class MapDynamicSightlineService {
         if (disposed) return
         currentBundle = null
         currentGeometry = null
+        currentLightMask = null
         topologyVersion++
         clearContributionCache()
         clearSeenArea()
@@ -147,6 +151,7 @@ internal class MapDynamicSightlineService {
         val pcSnapshot = tokens.values
             .filter { it.isPlayerCharacter }
             .map { it.copy() }
+        val lightMask = currentLightMask
         val nextRevision = revision.incrementAndGet()
 
         executor.execute {
@@ -157,11 +162,25 @@ internal class MapDynamicSightlineService {
                 topologyVersion = snapshotTopologyVersion,
                 expectedRevision = nextRevision,
             ) ?: return@execute
-            val mesh = geometry.combine(contributions)
-            val seenMesh = updateSeenMesh(geometry, mesh, nextRevision) ?: return@execute
+            val sightMesh = geometry.combine(contributions)
+            val visibleMesh = applyStaticLighting(
+                geometry = geometry,
+                sightMesh = sightMesh,
+                lightMask = lightMask,
+            )
+            val seenMesh = updateSeenMesh(geometry, visibleMesh, nextRevision) ?: return@execute
             if (disposed || revision.get() != nextRevision) return@execute
-            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, mesh, seenMesh))
+            publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, visibleMesh, seenMesh))
         }
+    }
+
+    private fun applyStaticLighting(
+        geometry: DynamicSightlineGeometry,
+        sightMesh: DynamicSightlineMesh,
+        lightMask: DynamicLightMask?,
+    ): DynamicSightlineMesh {
+        val activeLightMask = lightMask?.takeIf { it.lightingActive } ?: return sightMesh
+        return activeLightMask.applyToSightMesh(geometry, sightMesh)
     }
 
     private fun computeContributions(
