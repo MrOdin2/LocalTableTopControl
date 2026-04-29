@@ -27,7 +27,7 @@ class MapTokenSyncServiceTest {
     fun `replay republishes tracked token state`() {
         val service = MapTokenSyncService()
 
-        EventBus.publish(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE))
+        EventBus.publish(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE, isPlayerCharacter = true))
         EventBus.publish(TokenMovedEvent("1", "Goblin", 4, 6))
         EventBus.publish(
             TokenImageChangedEvent(
@@ -51,7 +51,10 @@ class MapTokenSyncServiceTest {
         service.dispose()
 
         assertEquals(4, replayedEvents.size)
-        assertEquals(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE), replayedEvents[0])
+        assertEquals(
+            TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE, isPlayerCharacter = true),
+            replayedEvents[0],
+        )
         assertEquals(TokenMovedEvent("1", "Goblin", 4, 6), replayedEvents[1])
         assertEquals(
             TokenImageChangedEvent(
@@ -127,6 +130,7 @@ class MapTokenSyncServiceTest {
                 row = 6,
                 size = TokenSize.LARGE,
                 color = Color.RED,
+                isPlayerCharacter = true,
                 imageUri = existingImageUri,
                 imageScaleX = 1.2,
                 imageScaleY = 0.8,
@@ -142,7 +146,10 @@ class MapTokenSyncServiceTest {
         assertEquals("1", service.snapshotActiveTokenId())
         assertEquals(5, replayedEvents.size)
         assertTrue(replayedEvents[0] is TokensResetEvent)
-        assertEquals(TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE), replayedEvents[1])
+        assertEquals(
+            TokenAddedEvent("1", "Goblin", Color.RED, TokenSize.LARGE, isPlayerCharacter = true),
+            replayedEvents[1],
+        )
         assertEquals(TokenMovedEvent("1", "Goblin", 4, 6), replayedEvents[2])
         assertEquals(
             TokenImageChangedEvent(

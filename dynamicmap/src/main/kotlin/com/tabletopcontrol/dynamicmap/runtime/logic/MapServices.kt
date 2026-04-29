@@ -812,7 +812,15 @@ class MapTokenSyncService {
 
     fun replayState() {
         tokens.values.forEach { token ->
-            EventBus.publish(TokenAddedEvent(token.id, token.name, token.color, token.size))
+            EventBus.publish(
+                TokenAddedEvent(
+                    token.id,
+                    token.name,
+                    token.color,
+                    token.size,
+                    isPlayerCharacter = token.isPlayerCharacter,
+                ),
+            )
             EventBus.publish(TokenMovedEvent(token.id, token.name, token.col, token.row))
             EventBus.publish(
                 TokenImageChangedEvent(
@@ -846,15 +854,18 @@ class MapTokenSyncService {
     }
 
     private fun mergeRestoredToken(previous: Token?, restored: Token): Token {
+        val restoredWithTrackerMetadata = restored.copy(
+            isPlayerCharacter = restored.isPlayerCharacter || previous?.isPlayerCharacter == true,
+        )
         val restoredHasUsableImage = LocalFiles.exists(restored.imageUri)
         val previousHasUsableImage = LocalFiles.exists(previous?.imageUri)
 
         if (restoredHasUsableImage || !previousHasUsableImage) {
-            return restored.copy()
+            return restoredWithTrackerMetadata
         }
 
-        val previousToken = previous ?: return restored.copy()
-        return restored.copy(
+        val previousToken = previous ?: return restoredWithTrackerMetadata
+        return restoredWithTrackerMetadata.copy(
             imageUri = previousToken.imageUri,
             imageScaleX = previousToken.imageScaleX,
             imageScaleY = previousToken.imageScaleY,
@@ -871,7 +882,12 @@ class MapTokenSyncService {
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             val existing = tokens[event.id]
             if (existing != null) {
-                tokens[event.id] = existing.copy(name = event.name, color = event.color, size = event.size)
+                tokens[event.id] = existing.copy(
+                    name = event.name,
+                    color = event.color,
+                    size = event.size,
+                    isPlayerCharacter = event.isPlayerCharacter,
+                )
             } else {
                 val (nextTokenCol, nextTokenRow) = nextAvailableTokenPlacement(tokens.values, event.size)
 
@@ -882,6 +898,7 @@ class MapTokenSyncService {
                     row = nextTokenRow,
                     size = event.size,
                     color = event.color,
+                    isPlayerCharacter = event.isPlayerCharacter,
                 )
             }
         }

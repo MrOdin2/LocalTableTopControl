@@ -42,6 +42,7 @@ class MapSceneCodecTest {
                     row = 5,
                     size = TokenSize.LARGE,
                     color = Color.CORNFLOWERBLUE,
+                    isPlayerCharacter = true,
                     imageUri = "file:///tokens/hero.png",
                     imageScaleX = 1.3,
                     imageScaleY = 1.0,
@@ -56,6 +57,7 @@ class MapSceneCodecTest {
         val restored = MapSceneCodec.deserialize(MapSceneCodec.serialize(state))
 
         assertEquals(state, restored)
+        assertTrue(MapSceneCodec.serialize(state).contains("token.0.isPlayerCharacter=true"))
     }
 
     @Test

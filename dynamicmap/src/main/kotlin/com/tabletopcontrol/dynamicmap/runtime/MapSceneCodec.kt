@@ -83,6 +83,7 @@ internal object MapSceneCodec {
                 setProperty("$prefix.row", token.row.toString())
                 setProperty("$prefix.size", token.size.name)
                 setProperty("$prefix.color", ColorHexCodec.colorToHex(token.color))
+                setProperty("$prefix.isPlayerCharacter", token.isPlayerCharacter.toString())
                 token.imageUri?.let { setProperty("$prefix.imageUri", it) }
                 setProperty("$prefix.imageScaleX", token.imageScaleX.toString())
                 setProperty("$prefix.imageScaleY", token.imageScaleY.toString())
@@ -159,6 +160,9 @@ internal object MapSceneCodec {
                             com.tabletopcontrol.core.TokenSize.valueOf(props.getProperty("$prefix.size"))
                         }.getOrDefault(com.tabletopcontrol.core.TokenSize.MEDIUM),
                         color = color,
+                        isPlayerCharacter = props.getProperty("$prefix.isPlayerCharacter")
+                            ?.toBooleanStrictOrNull()
+                            ?: false,
                         imageUri = props.getProperty("$prefix.imageUri"),
                         imageScaleX = props.getProperty("$prefix.imageScaleX")?.toDoubleOrNull() ?: 1.0,
                         imageScaleY = props.getProperty("$prefix.imageScaleY")?.toDoubleOrNull() ?: 1.0,
