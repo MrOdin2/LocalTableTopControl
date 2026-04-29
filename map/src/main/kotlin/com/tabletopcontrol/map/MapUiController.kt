@@ -93,6 +93,34 @@ class MapUiController {
         tokenSyncService.dispose()
     }
 
+    fun captureSceneState(): String =
+        MapSceneCodec.serialize(
+            MapSceneState(
+                mapImageUri = settingsService.currentMapImageUri,
+                mapDisplayPath = settingsService.currentMapDisplayPath,
+                mapCalibration = settingsService.mapCalibration,
+                gridCalibration = settingsService.gridCalibration,
+                gridColor = settingsService.gridColor,
+                backgroundColor = settingsService.backgroundColor,
+                mapRotation = settingsService.mapRotation,
+                tableMapOffset = settingsService.tableMapOffset,
+                gridVisible = settingsService.currentGridConfig != null,
+                showTokenNames = settingsService.showTokenNames,
+                fog = fogOfWarService.snapshot(),
+                tokens = tokenSyncService.snapshotTokens(),
+                activeTokenId = tokenSyncService.snapshotActiveTokenId(),
+            ),
+        )
+
+    fun applySceneState(payload: String) {
+        val state = requireNotNull(MapSceneCodec.deserialize(payload)) {
+            "Invalid map scene payload"
+        }
+        settingsService.applySceneState(state)
+        fogOfWarService.applySnapshot(state.fog)
+        tokenSyncService.replaceState(state.tokens, state.activeTokenId)
+    }
+
     private fun hydrateRenderer(canvas: Canvas, renderer: MapRenderer) {
         canvas.sceneProperty().addListener { _, _, newScene ->
             if (newScene == null) {

@@ -14,17 +14,22 @@ import java.nio.file.Files
 class PresetLibraryTest {
 
     private lateinit var tempDir: java.nio.file.Path
+    private lateinit var cacheDir: java.nio.file.Path
 
     @BeforeEach
     fun setUp() {
         tempDir = Files.createTempDirectory("new-tracker-presets")
+        cacheDir = Files.createTempDirectory("new-tracker-preset-cache")
         PresetLibrary.presetsDirForTest = tempDir.toFile()
+        PresetLibrary.presetImageCacheDirForTest = cacheDir.toFile()
     }
 
     @AfterEach
     fun tearDown() {
         PresetLibrary.presetsDirForTest = null
+        PresetLibrary.presetImageCacheDirForTest = null
         tempDir.toFile().deleteRecursively()
+        cacheDir.toFile().deleteRecursively()
     }
 
     @Test
@@ -128,5 +133,49 @@ class PresetLibraryTest {
         assertEquals(14, preset.initiative)
         assertEquals(true, preset.initiativeEnabled)
         assertNull(restoredActor.initiative)
+    }
+
+    @Test
+    fun `base64ToCachedUri writes preset images into persistent cache`() {
+        val cachedUri = requireNotNull(PresetLibrary.base64ToCachedUri(SINGLE_PIXEL_PNG_BASE64))
+
+        val cachedFile = java.io.File(java.net.URI(cachedUri))
+        assertTrue(cachedFile.exists())
+        assertTrue(cachedFile.parentFile.canonicalPath.startsWith(cacheDir.toFile().canonicalPath))
+    }
+
+    @Test
+    fun `recoverImageUriFor rebuilds missing preset image files from embedded preset art`() {
+        val preset = PresetLibrary.Preset(
+            name = "Goblin",
+            hp = 7,
+            ac = 15,
+            tokenSize = TokenSize.MEDIUM,
+            imageUri = "file:///missing/tc-preset.png",
+            imageBase64 = SINGLE_PIXEL_PNG_BASE64,
+            imageScaleX = 1.0,
+            imageScaleY = 1.0,
+            imageOffsetX = 0.0,
+            imageOffsetY = 0.0,
+        )
+        PresetLibrary.savePreset(preset)
+
+        val actor = Actor(
+            name = "Goblin",
+            hp = 7,
+            ac = 15,
+            tokenSize = TokenSize.MEDIUM,
+            imageSettings = ActorImageSettings(uri = "file:///missing/tc-preset.png"),
+        )
+
+        val recoveredUri = requireNotNull(PresetLibrary.recoverImageUriFor(actor))
+
+        assertTrue(java.io.File(java.net.URI(recoveredUri)).exists())
+        assertTrue(recoveredUri.contains("preset-image-cache") || java.io.File(java.net.URI(recoveredUri)).parentFile.exists())
+    }
+
+    private companion object {
+        const val SINGLE_PIXEL_PNG_BASE64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+iM3cAAAAASUVORK5CYII="
     }
 }

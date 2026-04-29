@@ -1,6 +1,7 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.DragDropContext
 import com.tabletopcontrol.core.ui.DragDropSupport
@@ -26,10 +27,13 @@ import javafx.scene.layout.VBox
  * owns slot lifecycle, persistence, and playback result flows.
  */
 class SoundboardPlugin(
-) : DmPlugin {
+) : DmPlugin, SceneParticipant {
     private val slotService = SoundboardSlotService()
 
     override val displayName: String = "Soundboard"
+    override val sceneKey: String = "soundboard"
+    override val sceneDisplayName: String = displayName
+    override val sceneLoadOrder: Int = 400
 
     companion object {
         /** Default number of soundboard buttons. */
@@ -143,6 +147,15 @@ class SoundboardPlugin(
         slotButtons.clear()
         slotService.listener = null
         slotService.shutdown()
+    }
+
+    override fun captureSceneState(): String = SoundboardSettingsCodec.serialize(slotService.exportSlots())
+
+    override fun applySceneState(payload: String) {
+        val slots = requireNotNull(SoundboardSettingsCodec.parse(payload)) {
+            "Invalid soundboard scene payload"
+        }
+        slotService.replaceSlots(slots)
     }
 
     private fun renderButtons() {

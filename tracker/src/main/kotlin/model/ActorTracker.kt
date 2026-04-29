@@ -6,6 +6,7 @@ import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.scene.paint.Color
 
 typealias InitiativeTieResolver = (
@@ -116,6 +117,33 @@ class ActorTracker(
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
+
+    internal fun snapshot(): TrackerSceneState =
+        TrackerSceneState(
+            actors = actorList.map { actor -> actor.copy() },
+            activeActorId = getCurrentActor()?.id,
+            roundCount = roundCount,
+        )
+
+    internal fun replaceAllActors(sceneState: TrackerSceneState) {
+        removeAllActors()
+        actorList.clear()
+        actorList.addAll(sceneState.actors.map { actor -> actor.copy() })
+        activeActors = actorList.count { it.initiative != null }
+        roundCount = sceneState.roundCount.coerceAtLeast(0)
+        currentlyActive = sceneState.activeActorId
+            ?.let { actorId -> actorList.indexOfFirst { it.id == actorId } }
+            ?.takeIf { it in 0 until activeActors }
+            ?: 0
+
+        actorList.forEach { actor ->
+            EventBus.publish(TokenAddedEvent(actor.id, actor.name, actor.color, actor.tokenSize))
+            if (actor.imageSettings.uri != null) {
+                publishImageEvent(actor)
+            }
+        }
+        EventBus.publish(ActiveTokenChangedEvent(getCurrentActor()?.id, getCurrentActor()?.name))
+    }
 
     private fun sortActorsByInitiative(
         actorId: String,
