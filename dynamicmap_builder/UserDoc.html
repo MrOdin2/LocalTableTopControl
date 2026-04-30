@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dynamic Map Builder - TabletopControl User Docs</title>
+  <style>
+    :root {
+      --accent: #1565c0;
+      --accent-light: #e3f0fb;
+      --bg: #f4f4f4;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #212121;
+      --text-muted: #666666;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 2rem;
+    }
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { font-size: 0.9rem; opacity: 0.85; margin-top: 0.15rem; }
+    nav.breadcrumb {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 2rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    nav.breadcrumb a:hover { text-decoration: underline; }
+    .layout { display: flex; max-width: 1100px; margin: 2rem auto; gap: 2rem; padding: 0 1.5rem; }
+    aside { width: 220px; flex-shrink: 0; }
+    aside .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      position: sticky;
+      top: 1rem;
+    }
+    aside .toc h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; }
+    aside .toc ul { list-style: none; }
+    aside .toc ul li { margin-bottom: 0.35rem; }
+    aside .toc ul li a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    aside .toc ul li a:hover { text-decoration: underline; }
+    main { flex: 1; min-width: 0; }
+    section { margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.35rem;
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 0.3rem;
+      margin-bottom: 1rem;
+    }
+    h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; color: #333; }
+    p { margin-bottom: 0.8rem; }
+    ul, ol { margin-left: 1.5rem; margin-bottom: 0.8rem; }
+    li { margin-bottom: 0.3rem; }
+    a { color: var(--accent); }
+    a:hover { text-decoration: underline; }
+    .tip {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    .warning {
+      background: #fff8e1;
+      border-left: 4px solid #f9a825;
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem 0;
+      font-size: 0.92rem;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+    th { background: var(--accent); color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: var(--accent-light); }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Dynamic Map Builder</h1>
+  <p>TabletopControl User Documentation</p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="../docs/index.html">Home</a> &rsaquo; Dynamic Map Builder
+</nav>
+
+<div class="layout">
+  <aside>
+    <div class="toc">
+      <h2>On this page</h2>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#workspace">Builder Workspace</a></li>
+        <li><a href="#editing">Editing Tools</a></li>
+        <li><a href="#view">Zoom &amp; Pan</a></li>
+        <li><a href="#calibration">Texture Calibration</a></li>
+        <li><a href="#walls">Wall Tools</a></li>
+        <li><a href="#lights">Light Browser</a></li>
+        <li><a href="#outline">Outline Browser</a></li>
+        <li><a href="#sites">Construction Sites</a></li>
+        <li><a href="#persistence">Builder Persistence</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main>
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>
+        The Dynamic Map Builder is a dedicated workspace for constructing the new Dynamic Map format.
+        It runs alongside the existing Map plugin instead of replacing it.
+      </p>
+      <p>
+        This first version focuses on the map-building basics: grid-sized map bounds, a background
+        texture, paintable wall geometry, static point lights with reusable presets, and
+        sunlight/outside areas drawn as polygons.
+      </p>
+    </section>
+
+    <section id="workspace">
+      <h2>Builder Workspace</h2>
+      <p>
+        Use the <strong>Workspace</strong> selector in the DM toolbar and choose
+        <strong>Dynamic Map Builder</strong>. That opens a separate pane layout just for builder tools.
+      </p>
+      <p>
+        The builder layout is saved independently from your regular session layout, so you can keep a
+        focused editing setup without disturbing the main DM workspace.
+      </p>
+      <p>
+        While the Dynamic Map Builder workspace is active, the top DM toolbar also shows the
+        construction-site selector, save controls, and gameplay export button. These controls
+        disappear again when you switch back to the regular Session workspace.
+      </p>
+      <table>
+        <tr><th>Workspace</th><th>Saved layout file</th></tr>
+        <tr><td>Session</td><td><code>~/.tabletopcontrol/dm-layout.conf</code></td></tr>
+        <tr><td>Dynamic Map Builder</td><td><code>~/.tabletopcontrol/dynamic-map-builder-layout.conf</code></td></tr>
+      </table>
+    </section>
+
+    <section id="editing">
+      <h2>Editing Tools</h2>
+      <p>
+        The main <strong>Dynamic Map Builder</strong> pane shows the whole map draft on a fitted grid.
+        It now focuses on document-wide controls such as map size, layer visibility, background texture
+        loading, and calibration.
+      </p>
+      <table>
+        <tr><th>Main builder control</th><th>What it does</th></tr>
+        <tr><td>Load / Clear Texture</td><td>Load a background texture or remove it from the current draft.</td></tr>
+        <tr><td>Calibrate Texture...</td><td>Open numeric texture calibration with live preview.</td></tr>
+        <tr><td>Guided Calibration...</td><td>Open the two-step guided texture calibration flow.</td></tr>
+        <tr><td>Map size</td><td>Change the logical map width and height in grid cells.</td></tr>
+        <tr><td>Layer toggles</td><td>Temporarily show or hide the background, walls, lights and sunlight areas, or grid.</td></tr>
+      </table>
+      <p>
+        Turn <strong>Snap 0.25</strong> on to align new content to quarter-cell increments. This keeps
+        the draft grid-friendly while still allowing more detail than full-cell snapping. The same
+        snap setting is also used when moving selected walls or lights.
+      </p>
+      <div class="tip">
+        The main builder pane is intentionally lean. Use the builder toolbar for construction-site
+        loading and saving, and supporting builder panes such as <strong>Wall Tools</strong>,
+        <strong>Light Browser</strong>, and <strong>Outline Browser</strong> for editing workflows.
+      </div>
+      <p>
+        The layer toggles let you temporarily hide the background texture, walls, lights and sunlight
+        areas, or grid while
+        editing. Hiding a layer does not delete it.
+      </p>
+      <p>
+        Right-click <strong>near a wall, light, or sunlight area</strong> to remove that specific element. Right-click
+        empty builder space to open the normal pane layout menu, so you can still split panes or switch
+        to the Light Browser while staying in the builder workspace.
+      </p>
+      <p>
+        With no placement tool active, drag a selected wall, light, or sunlight area directly on the builder canvas to
+        move it. If several outline items are selected, dragging any selected item moves the whole
+        selection together. Drag empty canvas space to pan the workspace as before.
+      </p>
+      <p>
+        Arrow keys also nudge the selected items when the main builder pane has focus:
+        plain arrows move by a quarter tile, <strong>Shift</strong> plus arrows move by one tile, and
+        <strong>Ctrl</strong> plus arrows make a fine screen-pixel adjustment.
+      </p>
+      <p>
+        Press <strong>Escape</strong> in the builder pane to leave the current placement mode.
+      </p>
+    </section>
+
+    <section id="view">
+      <h2>Zoom &amp; Pan</h2>
+      <p>
+        The builder canvas supports view-only zoom and pan so you can inspect details without changing
+        the map grid or any placed content.
+      </p>
+      <table>
+        <tr><th>Action</th><th>What it does</th></tr>
+        <tr><td>Mouse wheel</td><td>Zooms the builder workspace in or out.</td></tr>
+        <tr><td>Drag empty space with no active tool</td><td>Pans around the workspace.</td></tr>
+        <tr><td>Drag a selected wall, light, or sunlight area with no active tool</td><td>Moves the selected element or selected group on the grid.</td></tr>
+        <tr><td>Arrow keys</td><td>Nudge selected elements by 0.25 tile.</td></tr>
+        <tr><td>Shift + Arrow keys</td><td>Nudge selected elements by 1 tile.</td></tr>
+        <tr><td>Ctrl + Arrow keys</td><td>Nudge selected elements by a fine screen-pixel step.</td></tr>
+        <tr><td>Middle mouse drag</td><td>Pans even while a placement tool is selected.</td></tr>
+        <tr><td>Reset View</td><td>Returns zoom and pan to the fitted default view.</td></tr>
+      </table>
+      <p>
+        Zoom and pan affect only your editor view. Snapping, wall drawing, light placement, and texture
+        calibration continue to use the same grid coordinates.
+      </p>
+    </section>
+
+    <section id="calibration">
+      <h2>Texture Calibration</h2>
+      <p>
+        Background textures are no longer just stretched to the map bounds. Use
+        <strong>Calibrate Texture...</strong> for direct numeric alignment or
+        <strong>Guided Calibration...</strong> for the same two-step helper flow used by the standard
+        Map plugin.
+      </p>
+      <table>
+        <tr><th>Action</th><th>What it does</th></tr>
+        <tr><td>Calibrate Texture...</td><td>Fine-tune the texture scale and offset with live preview values.</td></tr>
+        <tr><td>Guided Calibration...</td><td>Pick a centre reference point, then pick the next horizontal or vertical tile boundary to lock the texture to the grid.</td></tr>
+      </table>
+      <p>
+        The builder stores texture calibration relative to the map grid, so the alignment stays stable
+        even if you later resize the DM pane.
+      </p>
+      <p>
+        In the manual calibration dialog, the small <strong>+</strong> and <strong>-</strong> buttons
+        nudge offsets by a few pixels, while the arrow buttons beside them move the texture by exactly
+        one current grid tile. Use the tile arrows when the image is scaled correctly but shifted by
+        one or more squares.
+      </p>
+    </section>
+
+    <section id="walls">
+      <h2>Wall Tools</h2>
+      <p>
+        Open a second pane with <strong>Wall Tools</strong> to control wall editing. This pane now owns
+        the wall-specific placement modes instead of the main builder toolbar.
+      </p>
+      <table>
+        <tr><th>Wall Tools action</th><th>What it does</th></tr>
+        <tr><td>Wall Line</td><td>Click and drag in the builder pane to place one straight wall segment.</td></tr>
+        <tr><td>Wall Rect</td><td>Click and drag in the builder pane to place a rectangular ring of four wall segments.</td></tr>
+        <tr><td>Stop Editing</td><td>Leave wall or light placement mode without changing the draft.</td></tr>
+        <tr><td>Optimize Walls</td><td>Merges touching or overlapping straight wall segments that lie on the same line, and removes zero-length wall stubs.</td></tr>
+        <tr><td>Clear All Walls</td><td>Remove every wall segment from the current builder draft.</td></tr>
+      </table>
+      <p>
+        Use <strong>Optimize Walls</strong> after drawing or moving several wall pieces that should
+        behave like one continuous wall. The builder clears the current selection after optimization
+        and remaps groups onto the merged wall where possible.
+      </p>
+    </section>
+
+    <section id="lights">
+      <h2>Light Browser</h2>
+      <p>
+        Open a second pane with <strong>Light Browser</strong> to pick from ready-made point-light presets
+        such as Torch, Lantern, Campfire, or Moonbeam. After you press <strong>Use</strong> on a preset,
+        the main builder pane immediately switches into light placement mode.
+      </p>
+      <p>
+        Every newly placed light uses that selected range and colour until you choose another preset.
+        The Light Browser also lets you stop placement mode or clear all lights without going back to
+        the main builder pane. Clearing all lights asks for confirmation before anything is removed.
+      </p>
+      <p>
+        Use <strong>Draw Sunlight Area</strong> in the Light Browser to mark outside or naturally lit
+        regions. Click the builder canvas to add polygon vertices, then click back near the first
+        vertex or double-click to finish the area. Sunlight areas are saved with the draft and exported
+        with gameplay bundles for the Dynamic Map lighting workflow.
+      </p>
+      <p>
+        <strong>Clear Sunlight Areas</strong> removes every sunlight polygon from the current draft
+        after a confirmation dialog.
+      </p>
+    </section>
+
+    <section id="outline">
+      <h2>Outline Browser</h2>
+      <p>
+        Open another pane with <strong>Outline Browser</strong> for a Blender-style overview of the
+        current draft. It shows user-created <strong>groups</strong> plus all placed
+        <strong>lights</strong>, <strong>sunlight areas</strong>, and <strong>walls</strong> in one browser, so you can inspect the
+        whole structure without hunting across the canvas.
+      </p>
+      <table>
+        <tr><th>Outline Browser action</th><th>What it does</th></tr>
+        <tr><td>Select an item</td><td>Highlights that wall, light, or sunlight area in the main builder canvas.</td></tr>
+        <tr><td>Select a group</td><td>Selects every wall, light, or sunlight area linked to that group.</td></tr>
+        <tr><td>Ctrl-click another item</td><td>Adds or removes that item from the current outline selection.</td></tr>
+        <tr><td>Right-click &gt; Rename</td><td>Renames one selected group, wall, or light.</td></tr>
+        <tr><td>Right-click &gt; Group Selected</td><td>Creates a saved group from the currently selected walls and lights.</td></tr>
+        <tr><td>Right-click a group &gt; Remove Group</td><td>Removes the selected group entry but keeps its walls and lights on the map.</td></tr>
+        <tr><td>Remove Selected</td><td>Deletes every currently selected wall, light, or sunlight area.</td></tr>
+        <tr><td>Disable / Enable Light</td><td>Turns one selected light source off or back on without deleting it.</td></tr>
+        <tr><td>Clear Selection</td><td>Leaves the outline item list intact but removes the current highlights.</td></tr>
+      </table>
+      <p>
+        Naming and grouping controls live in the outline right-click menu so the pane stays compact
+        during normal editing.
+      </p>
+      <p>
+        Disabled lights stay in the outline and appear as subdued markers in the builder canvas, so
+        you can still keep track of them and switch them back on later.
+      </p>
+      <p>
+        Groups are saved with the builder draft. If grouped walls, lights, or sunlight areas are deleted later, the
+        group automatically forgets those missing elements.
+      </p>
+      <p>
+        As new Dynamic Map Builder element types are added in future updates, they are expected to
+        appear in this outline pane as well.
+      </p>
+    </section>
+
+    <section id="sites">
+      <h2>Construction Sites</h2>
+      <p>
+        Use the <strong>Site</strong> controls in the top DM toolbar to manage named builder scenes.
+        These controls are visible only while the <strong>Dynamic Map Builder</strong> workspace is
+        selected. A construction site is a saved Dynamic Map Builder work-in-progress that can be
+        loaded later.
+      </p>
+      <table>
+        <tr><th>Toolbar action</th><th>What it does</th></tr>
+        <tr><td>Site selector</td><td>Shows saved construction sites. Choosing one loads it into the builder.</td></tr>
+        <tr><td>New...</td><td>Creates a new empty construction site and makes it active.</td></tr>
+        <tr><td>Save</td><td>Saves the current builder document to the active construction site.</td></tr>
+        <tr><td>Save As...</td><td>Saves the current builder document under a new construction-site name.</td></tr>
+        <tr><td>Delete</td><td>Deletes the selected saved construction-site file after confirmation.</td></tr>
+        <tr><td>Export...</td><td>Writes the current builder document as a gameplay-ready Dynamic Map bundle.</td></tr>
+      </table>
+      <p>
+        When a construction site is active, builder edits autosave back to that site so you can close
+        the app and continue later. Loading another construction site clears the current outline
+        selection and shows the loaded walls, lights, groups, and texture calibration.
+      </p>
+      <p>
+        <strong>Export...</strong> creates a <code>.dynamicmap</code> bundle for gameplay use. The
+        bundle includes the map size, background texture when the source image is available, texture
+        calibration, walls, lights, and sunlight areas. It leaves out builder-only details such as construction-site
+        names, wall, light, and sunlight-area labels, element ids, outline groups, and temporary layer visibility.
+        Wall topology is optimized automatically during export, so touching wall pieces on the same
+        line are combined in the gameplay bundle even if you have not pressed <strong>Optimize Walls</strong>
+        manually.
+      </p>
+    </section>
+
+    <section id="persistence">
+      <h2>Builder Persistence</h2>
+      <p>
+        Named construction sites are stored in
+        <code>~/.tabletopcontrol/dynamic-map-construction-sites/</code>.
+        The currently active site is remembered in
+        <code>~/.tabletopcontrol/dynamic-map-builder-active-site.properties</code>.
+      </p>
+      <p>
+        If no named construction site is active, the builder still keeps a scratch autosave draft in
+        <code>~/.tabletopcontrol/dynamic-map-builder-draft.properties</code>.
+      </p>
+      <p>
+        Use <strong>Export...</strong> in the builder toolbar when you want a gameplay bundle. The
+        editable construction-site files stay separate from exported <code>.dynamicmap</code> bundles,
+        so you can keep your working notes and groups in the builder without exposing them during play.
+      </p>
+      <div class="warning">
+        Gameplay bundle import is still future work. Construction sites remain the editable working
+        format for the builder.
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  TabletopControl User Documentation &mdash;
+  <a href="../docs/index.html">Home</a>
+</footer>
+
+</body>
+</html>
