@@ -41,6 +41,18 @@ class DynamicMapDraftSerializerTest {
                     colorHex = "#ffb347",
                 ),
             ),
+            sunlightAreas = listOf(
+                DynamicMapSunlightArea(
+                    id = "sunlight-1",
+                    label = "Courtyard",
+                    points = listOf(
+                        DynamicMapPoint(2.0, 3.0),
+                        DynamicMapPoint(10.0, 3.0),
+                        DynamicMapPoint(9.0, 8.0),
+                        DynamicMapPoint(2.0, 7.0),
+                    ),
+                ),
+            ),
             groups = listOf(
                 DynamicMapElementGroup(
                     id = "group-1",
@@ -48,6 +60,7 @@ class DynamicMapDraftSerializerTest {
                     elements = setOf(
                         DynamicMapElementSelection(DynamicMapElementKind.WALL, "wall-1"),
                         DynamicMapElementSelection(DynamicMapElementKind.LIGHT, "light-1"),
+                        DynamicMapElementSelection(DynamicMapElementKind.SUNLIGHT_AREA, "sunlight-1"),
                     ),
                 ),
             ),

@@ -62,6 +62,18 @@ class DynamicMapGameplayExporterTest {
                     enabled = false,
                 ),
             ),
+            sunlightAreas = listOf(
+                DynamicMapSunlightArea(
+                    id = "secret-sunlight-id",
+                    label = "Hidden Courtyard Name",
+                    points = listOf(
+                        DynamicMapPoint(1.0, 1.0),
+                        DynamicMapPoint(8.0, 1.0),
+                        DynamicMapPoint(8.0, 4.0),
+                        DynamicMapPoint(1.0, 4.0),
+                    ),
+                ),
+            ),
             groups = listOf(
                 DynamicMapElementGroup(
                     id = "secret-group-id",
@@ -84,9 +96,11 @@ class DynamicMapGameplayExporterTest {
         assertFalse(manifest.contains("Boss Gate"))
         assertFalse(manifest.contains("Ambush Torch"))
         assertFalse(manifest.contains("Ambush Group"))
+        assertFalse(manifest.contains("Hidden Courtyard Name"))
         assertFalse(manifest.contains("secret-wall-id"))
         assertFalse(manifest.contains("secret-wall-id-2"))
         assertFalse(manifest.contains("secret-light-id"))
+        assertFalse(manifest.contains("secret-sunlight-id"))
         assertFalse(manifest.contains("secret-group-id"))
         assertFalse(manifest.contains("visibility."))
         assertFalse(manifest.contains("label"))
@@ -106,6 +120,10 @@ class DynamicMapGameplayExporterTest {
         assertEquals("4.0", props.getProperty("light.0.posX"))
         assertEquals("#ffb347", props.getProperty("light.0.colorHex"))
         assertEquals("false", props.getProperty("light.0.enabled"))
+        assertEquals("1", props.getProperty("sunlightAreas.count"))
+        assertEquals("4", props.getProperty("sunlightArea.0.points.count"))
+        assertEquals("1.0", props.getProperty("sunlightArea.0.point.0.x"))
+        assertEquals("4.0", props.getProperty("sunlightArea.0.point.3.y"))
     }
 
     @Test

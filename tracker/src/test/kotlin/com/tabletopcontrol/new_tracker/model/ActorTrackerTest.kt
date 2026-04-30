@@ -2,6 +2,7 @@ package com.tabletopcontrol.new_tracker.model
 
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -77,6 +78,99 @@ class ActorTrackerTest {
         tracker.addActor(Actor(name = "Hero", actorType = ActorType.PC))
 
         assertEquals(true, tokenEvents.single().isPlayerCharacter)
+    }
+
+    @Test
+    fun `adding an actor publishes darkvision range in grid cells`() {
+        val tracker = ActorTracker()
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.addActor(
+            Actor(
+                name = "Scout",
+                features = ActorFeatures(
+                    darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
+                ),
+            ),
+        )
+
+        assertEquals(12.0, tokenEvents.single().darkvisionRangeCells)
+    }
+
+    @Test
+    fun `changing darkvision republishes token metadata`() {
+        val tracker = ActorTracker()
+        val actor = Actor(name = "Scout")
+        tracker.addActor(actor)
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.updateActor(
+            actor.copy(
+                color = tracker.actorList.single().color,
+                features = ActorFeatures(
+                    darkvisionRange = DistanceRange(9, DistanceUnit.METERS),
+                ),
+            ),
+        )
+
+        assertEquals(1, tokenEvents.size)
+        assertEquals(6.0, tokenEvents.single().darkvisionRangeCells)
+    }
+
+    @Test
+    fun `adding an actor publishes light source ranges in grid cells`() {
+        val tracker = ActorTracker()
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.addActor(
+            Actor(
+                name = "Torchbearer",
+                actorType = ActorType.PC,
+                features = ActorFeatures(
+                    lightSource = ActorLightSource(
+                        brightRange = DistanceRange(20, DistanceUnit.FEET),
+                        dimRange = DistanceRange(9, DistanceUnit.METERS),
+                        color = Color.web("#FFD37A"),
+                    ),
+                ),
+            ),
+        )
+
+        val lightSource = requireNotNull(tokenEvents.single().lightSource)
+        assertEquals(4.0, lightSource.brightRangeCells)
+        assertEquals(6.0, lightSource.dimRangeCells)
+        assertEquals("#FFD37A", lightSource.colorHex)
+    }
+
+    @Test
+    fun `changing light source republishes token metadata`() {
+        val tracker = ActorTracker()
+        val actor = Actor(name = "Torchbearer", actorType = ActorType.PC)
+        tracker.addActor(actor)
+        val tokenEvents = mutableListOf<TokenAddedEvent>()
+        EventBus.subscribe<TokenAddedEvent> { tokenEvents += it }
+
+        tracker.updateActor(
+            actor.copy(
+                color = tracker.actorList.single().color,
+                features = ActorFeatures(
+                    lightSource = ActorLightSource(
+                        brightRange = DistanceRange(15, DistanceUnit.FEET),
+                        dimRange = DistanceRange(30, DistanceUnit.FEET),
+                        color = Color.web("#88CCFF"),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(1, tokenEvents.size)
+        val lightSource = requireNotNull(tokenEvents.single().lightSource)
+        assertEquals(3.0, lightSource.brightRangeCells)
+        assertEquals(6.0, lightSource.dimRangeCells)
+        assertEquals("#88CCFF", lightSource.colorHex)
     }
 
     @Test

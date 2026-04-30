@@ -235,6 +235,19 @@ Extensions:
 
 This model avoids mixing light rendering with wall debug halos.
 
+Current bridge implementation:
+
+- Runtime bundle format `1` already consumes builder-authored static point lights and sunlight/outside areas.
+- The existing async sightline service builds an AWT-area light mask on bundle load and intersects it with PC sight.
+- Static point lights are fixed to the grid. Their bright radius uses the same exported wall blockers as PC sight, while their dim radius is a cheap unblocked soft reach for player visibility.
+- The renderer draws each point light's exported colour as a cached tint layer clipped to the current visible mask, using screen blending so tint brightens the map instead of muddying it.
+- Sunlight/outside polygons are treated as always-lit authored regions.
+- PC darkvision is treated as a token-origin light contribution clipped from the cached PC sight area, then rendered as a grayscale-only reveal.
+- Tracker PC light sources are treated as token-origin point lights. Their dim radius is unblocked, their bright radius is clipped from the cached PC sight area, and their tint joins the same cached light-tint layer as authored point lights.
+- Persistent-vision memory redraws remembered-only terrain from the grayscale static map cache before applying the grey memory overlay, so remembered areas never leak colour information.
+- Bundles with no authored lighting, no PC light sources, and no PC darkvision remain sight-only until the DM opts into lighting data.
+- NPC-carried lights, inventory automation, and typed light-blocker rules remain future pipeline work.
+
 ## Persistence of Vision
 
 Maintain an accumulated seen mask:

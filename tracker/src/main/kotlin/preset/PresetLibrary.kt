@@ -5,9 +5,12 @@ import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.ConfigFiles
 import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.persistence.SafeConfigIO
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
 import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.DEFAULT_LIGHT_SOURCE_COLOR
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
 import java.awt.RenderingHints
@@ -231,6 +234,13 @@ object PresetLibrary {
             appendLine("movementRange=${range.amount}")
             appendLine("movementUnit=${range.unit.name}")
         }
+        preset.features.lightSource?.let { source ->
+            appendLine("lightBrightRange=${source.brightRange.amount}")
+            appendLine("lightBrightUnit=${source.brightRange.unit.name}")
+            appendLine("lightDimRange=${source.dimRange.amount}")
+            appendLine("lightDimUnit=${source.dimRange.unit.name}")
+            appendLine("lightColor=${ColorHexCodec.colorToHex(source.color)}")
+        }
         preset.imageUri?.let { appendLine("imageUri=$it") }
         appendLine("imageScaleX=${preset.imageScaleX}")
         appendLine("imageScaleY=${preset.imageScaleY}")
@@ -266,6 +276,7 @@ object PresetLibrary {
             features = ActorFeatures(
                 darkvisionRange = readDistanceRange(props, "darkvision"),
                 movementRange = readDistanceRange(props, "movement"),
+                lightSource = readLightSource(props),
             ),
             imageUri = props["imageUri"]?.takeIf { it.isNotBlank() },
             imageBase64 = props["imageBase64"]?.takeIf { it.isNotBlank() },
@@ -273,6 +284,19 @@ object PresetLibrary {
             imageScaleY = props["imageScaleY"]?.toDoubleOrNull() ?: 1.0,
             imageOffsetX = props["imageOffsetX"]?.toDoubleOrNull() ?: 0.0,
             imageOffsetY = props["imageOffsetY"]?.toDoubleOrNull() ?: 0.0,
+        )
+    }
+
+    private fun readLightSource(props: Map<String, String>): ActorLightSource? {
+        val brightRange = readDistanceRange(props, "lightBright") ?: return null
+        val dimRange = readDistanceRange(props, "lightDim") ?: return null
+        return ActorLightSource(
+            brightRange = brightRange,
+            dimRange = dimRange,
+            color = ColorHexCodec.parseOrDefault(
+                props["lightColor"],
+                DEFAULT_LIGHT_SOURCE_COLOR,
+            ),
         )
     }
 

@@ -1,5 +1,6 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
+import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridCalibration
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridConfig
@@ -84,6 +85,12 @@ internal object MapSceneCodec {
                 setProperty("$prefix.size", token.size.name)
                 setProperty("$prefix.color", ColorHexCodec.colorToHex(token.color))
                 setProperty("$prefix.isPlayerCharacter", token.isPlayerCharacter.toString())
+                token.darkvisionRangeCells?.let { setProperty("$prefix.darkvisionRangeCells", it.toString()) }
+                token.lightSource?.let { source ->
+                    setProperty("$prefix.lightBrightRangeCells", source.brightRangeCells.toString())
+                    setProperty("$prefix.lightDimRangeCells", source.dimRangeCells.toString())
+                    setProperty("$prefix.lightColor", source.colorHex)
+                }
                 token.imageUri?.let { setProperty("$prefix.imageUri", it) }
                 setProperty("$prefix.imageScaleX", token.imageScaleX.toString())
                 setProperty("$prefix.imageScaleY", token.imageScaleY.toString())
@@ -163,6 +170,10 @@ internal object MapSceneCodec {
                         isPlayerCharacter = props.getProperty("$prefix.isPlayerCharacter")
                             ?.toBooleanStrictOrNull()
                             ?: false,
+                        darkvisionRangeCells = props.getProperty("$prefix.darkvisionRangeCells")
+                            ?.toDoubleOrNull()
+                            ?.takeIf { it.isFinite() && it > 0.0 },
+                        lightSource = readTokenLightSource(props, prefix),
                         imageUri = props.getProperty("$prefix.imageUri"),
                         imageScaleX = props.getProperty("$prefix.imageScaleX")?.toDoubleOrNull() ?: 1.0,
                         imageScaleY = props.getProperty("$prefix.imageScaleY")?.toDoubleOrNull() ?: 1.0,
@@ -229,6 +240,29 @@ internal object MapSceneCodec {
             tokens = tokens,
             activeTokenId = props.getProperty("tokens.active"),
             dynamicMapRenderMode = dynamicMapRenderMode,
+        )
+    }
+
+    private fun readTokenLightSource(
+        props: Properties,
+        prefix: String,
+    ): TokenLightSource? {
+        val brightRange = props.getProperty("$prefix.lightBrightRangeCells")
+            ?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+            ?: return null
+        val dimRange = props.getProperty("$prefix.lightDimRangeCells")
+            ?.toDoubleOrNull()
+            ?.takeIf { it.isFinite() && it >= 0.0 }
+            ?: return null
+        if (brightRange <= 0.0 && dimRange <= 0.0) return null
+        val colorHex = props.getProperty("$prefix.lightColor")
+            ?.takeIf { ColorHexCodec.parseOrNull(it) != null }
+            ?: "#FFFFFF"
+        return TokenLightSource(
+            brightRangeCells = brightRange,
+            dimRangeCells = maxOf(dimRange, brightRange),
+            colorHex = colorHex,
         )
     }
 }

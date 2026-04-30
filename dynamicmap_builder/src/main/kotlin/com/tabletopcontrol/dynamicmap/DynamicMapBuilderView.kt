@@ -36,6 +36,7 @@ private const val BACKGROUND_HISTORY_KEY = "dynamicmap_builder.background"
 private const val SNAP_STEP = 0.25
 private const val KEYBOARD_NUDGE_STEP = 0.25
 private const val KEYBOARD_SHIFT_NUDGE_STEP = 1.0
+private const val SUNLIGHT_CLOSE_VERTEX_TOLERANCE_PX = 12.0
 
 private data class DynamicMapMoveDrag(
     val startPoint: DynamicMapPoint,
@@ -53,6 +54,8 @@ class DynamicMapBuilderView(
     private var snapEnabled: Boolean = true
     private var dragStart: DynamicMapPoint? = null
     private var dragCurrent: DynamicMapPoint? = null
+    private var sunlightDraftPoints: List<DynamicMapPoint> = emptyList()
+    private var sunlightHoverPoint: DynamicMapPoint? = null
     private var cachedBackgroundUri: String? = null
     private var cachedBackgroundImage: Image? = null
     private var isPanning: Boolean = false
@@ -192,6 +195,7 @@ class DynamicMapBuilderView(
             setOnKeyPressed { event ->
                 when {
                     event.code == KeyCode.ESCAPE && activeTool != null -> {
+                        clearSunlightDraft()
                         EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
                         event.consume()
                     }
@@ -244,6 +248,16 @@ class DynamicMapBuilderView(
                             val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
                                 ?: return@setOnMousePressed
                             controller.addLight(normalizePoint(point))
+                        }
+
+                        DynamicMapTool.SUNLIGHT_AREA -> {
+                            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
+                                ?: return@setOnMousePressed
+                            handleSunlightAreaClick(
+                                point = normalizePoint(point),
+                                clickCount = event.clickCount,
+                            )
+                            event.consume()
                         }
 
                         DynamicMapTool.WALL_LINE,
@@ -342,7 +356,12 @@ class DynamicMapBuilderView(
         }
 
         canvas.setOnMouseMoved { event ->
-            updateStatus(mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint))
+            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint)
+            if (activeTool == DynamicMapTool.SUNLIGHT_AREA && sunlightDraftPoints.isNotEmpty()) {
+                sunlightHoverPoint = point
+                redraw()
+            }
+            updateStatus(point)
         }
 
         canvas.setOnMouseExited {
@@ -387,6 +406,12 @@ class DynamicMapBuilderView(
             updateStatus(null)
         }
         val toolSubscription = EventBus.subscribe<DynamicMapToolSelectedEvent> { event ->
+            if (event.tool != DynamicMapTool.SUNLIGHT_AREA) {
+                clearSunlightDraft()
+            } else if (activeTool != DynamicMapTool.SUNLIGHT_AREA) {
+                sunlightDraftPoints = emptyList()
+                sunlightHoverPoint = null
+            }
             activeTool = event.tool
             dragStart = null
             dragCurrent = null
@@ -548,6 +573,50 @@ class DynamicMapBuilderView(
         }
     }
 
+    private fun handleSunlightAreaClick(
+        point: DynamicMapPoint,
+        clickCount: Int,
+    ) {
+        if (sunlightDraftPoints.size >= 3 && isNearFirstSunlightDraftPoint(point)) {
+            finishSunlightArea(sunlightDraftPoints)
+            return
+        }
+
+        val nextPoints = if (sunlightDraftPoints.lastOrNull() == point) {
+            sunlightDraftPoints
+        } else {
+            sunlightDraftPoints + point
+        }
+        if (clickCount >= 2 && nextPoints.size >= 3) {
+            finishSunlightArea(nextPoints)
+            return
+        }
+
+        sunlightDraftPoints = nextPoints
+        sunlightHoverPoint = point
+        redraw()
+        updateStatus(point)
+    }
+
+    private fun finishSunlightArea(points: List<DynamicMapPoint>) {
+        controller.addSunlightArea(points)
+        clearSunlightDraft()
+        redraw()
+        updateStatus(null)
+    }
+
+    private fun clearSunlightDraft() {
+        sunlightDraftPoints = emptyList()
+        sunlightHoverPoint = null
+    }
+
+    private fun isNearFirstSunlightDraftPoint(point: DynamicMapPoint): Boolean {
+        val first = sunlightDraftPoints.firstOrNull() ?: return false
+        val metrics = currentMetrics() ?: return false
+        val tolerance = SUNLIGHT_CLOSE_VERTEX_TOLERANCE_PX / (metrics.cellSize * viewport.scale)
+        return distanceToSegment(point, first, first) <= tolerance
+    }
+
     private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double): Boolean {
         val actions = mutableListOf<MenuAction>()
         val chosenSelection = selectionAtCanvas(canvasX, canvasY)
@@ -557,6 +626,9 @@ class DynamicMapBuilderView(
         val chosenWall = chosenSelection
             ?.takeIf { it.kind == DynamicMapElementKind.WALL }
             ?.let { document.wallById(it.elementId) }
+        val chosenSunlightArea = chosenSelection
+            ?.takeIf { it.kind == DynamicMapElementKind.SUNLIGHT_AREA }
+            ?.let { document.sunlightAreaById(it.elementId) }
 
         chosenSelection?.let {
             EventBus.publish(DynamicMapSelectionChangedEvent(it))
@@ -578,6 +650,14 @@ class DynamicMapBuilderView(
                 onAction = { controller.removeWall(chosenWall.id) },
             )
         }
+        if (chosenSunlightArea != null) {
+            actions += MenuAction(
+                id = "dynamicmap_builder.remove-sunlight-area",
+                label = "Remove ${chosenSunlightArea.label}",
+                section = MenuSection.DANGER_ZONE,
+                onAction = { controller.removeSunlightArea(chosenSunlightArea.id) },
+            )
+        }
         if (actions.isEmpty()) return false
         ContextMenuRenderer.build(actions).show(canvas, screenX, screenY)
         return true
@@ -596,6 +676,9 @@ class DynamicMapBuilderView(
             .map { wall -> wall to distanceToWall(point, wall) }
             .filter { (_, distance) -> distance <= tolerance }
             .minByOrNull { it.second }
+        val chosenSunlightArea = document.sunlightAreas
+            .asReversed()
+            .firstOrNull { area -> distanceToSunlightArea(point, area) <= tolerance }
 
         val chosenLight = nearestLight
             ?.takeIf { nearestWall == null || it.second <= nearestWall.second }
@@ -607,6 +690,10 @@ class DynamicMapBuilderView(
         return when {
             chosenLight != null -> DynamicMapElementSelection(DynamicMapElementKind.LIGHT, chosenLight.id)
             chosenWall != null -> DynamicMapElementSelection(DynamicMapElementKind.WALL, chosenWall.id)
+            chosenSunlightArea != null -> DynamicMapElementSelection(
+                DynamicMapElementKind.SUNLIGHT_AREA,
+                chosenSunlightArea.id,
+            )
             else -> null
         }
     }
@@ -641,6 +728,7 @@ class DynamicMapBuilderView(
         }
 
         if (document.visibility.lights) {
+            drawSunlightAreas(gc, metrics, accentColor)
             drawLightHalos(gc, metrics)
         }
         if (document.visibility.grid) {
@@ -707,6 +795,9 @@ class DynamicMapBuilderView(
             }
             gc.setLineDashes()
         }
+        if (activeTool == DynamicMapTool.SUNLIGHT_AREA && sunlightDraftPoints.isNotEmpty()) {
+            drawSunlightDraft(gc, metrics, accentColor)
+        }
 
         gc.stroke = borderColor
         gc.lineWidth = 2.0
@@ -722,6 +813,86 @@ class DynamicMapBuilderView(
         gc.translate(centerX + viewport.offsetX, centerY + viewport.offsetY)
         gc.scale(viewport.scale, viewport.scale)
         gc.translate(-centerX, -centerY)
+    }
+
+    private fun drawSunlightAreas(
+        gc: javafx.scene.canvas.GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        accentColor: Color,
+    ) {
+        document.sunlightAreas.forEach { area ->
+            val points = sanitizedSunlightPolygon(area.points)
+            if (points.size < 3) return@forEach
+            val xs = DoubleArray(points.size) { index -> metrics.originX + points[index].x * metrics.cellSize }
+            val ys = DoubleArray(points.size) { index -> metrics.originY + points[index].y * metrics.cellSize }
+            val selected = selectedElements.any {
+                it.kind == DynamicMapElementKind.SUNLIGHT_AREA && it.elementId == area.id
+            }
+
+            gc.fill = accentColor.deriveColor(35.0, 0.6, 1.2, 0.16)
+            gc.fillPolygon(xs, ys, points.size)
+            gc.stroke = accentColor.deriveColor(35.0, 0.8, 1.2, 0.82)
+            gc.lineWidth = 2.0
+            gc.strokePolygon(xs, ys, points.size)
+
+            if (selected) {
+                gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+                gc.lineWidth = 5.0
+                gc.strokePolygon(xs, ys, points.size)
+                gc.stroke = accentColor
+                gc.lineWidth = 2.5
+                gc.strokePolygon(xs, ys, points.size)
+            }
+        }
+    }
+
+    private fun drawSunlightDraft(
+        gc: javafx.scene.canvas.GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        accentColor: Color,
+    ) {
+        val hover = sunlightHoverPoint
+        val points = if (hover != null && hover != sunlightDraftPoints.lastOrNull()) {
+            sunlightDraftPoints + hover
+        } else {
+            sunlightDraftPoints
+        }
+        if (points.isEmpty()) return
+
+        val xs = DoubleArray(points.size) { index -> metrics.originX + points[index].x * metrics.cellSize }
+        val ys = DoubleArray(points.size) { index -> metrics.originY + points[index].y * metrics.cellSize }
+
+        if (points.size >= 3) {
+            gc.fill = accentColor.deriveColor(35.0, 0.6, 1.2, 0.10)
+            gc.fillPolygon(xs, ys, points.size)
+        }
+
+        if (points.size >= 2) {
+            gc.stroke = accentColor
+            gc.lineWidth = 2.0
+            gc.strokePolyline(xs, ys, points.size)
+
+            if (points.size >= 3) {
+                gc.setLineDashes(6.0, 6.0)
+                gc.strokeLine(xs.last(), ys.last(), xs.first(), ys.first())
+                gc.setLineDashes()
+            }
+        }
+
+        val markerRadius = (metrics.cellSize * 0.12).coerceIn(3.0, 7.0)
+        sunlightDraftPoints.forEachIndexed { index, point ->
+            val x = metrics.originX + point.x * metrics.cellSize
+            val y = metrics.originY + point.y * metrics.cellSize
+            gc.fill = if (index == 0) {
+                accentColor.deriveColor(35.0, 0.8, 1.25, 0.95)
+            } else {
+                accentColor
+            }
+            gc.fillOval(x - markerRadius, y - markerRadius, markerRadius * 2.0, markerRadius * 2.0)
+            gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+            gc.lineWidth = 1.0
+            gc.strokeOval(x - markerRadius, y - markerRadius, markerRadius * 2.0, markerRadius * 2.0)
+        }
     }
 
     private fun drawLightHalos(
@@ -890,6 +1061,10 @@ class DynamicMapBuilderView(
             DynamicMapTool.WALL_LINE -> "Tool: wall line"
             DynamicMapTool.WALL_RECT -> "Tool: wall rectangle"
             DynamicMapTool.LIGHT -> "Tool: light placement"
+            DynamicMapTool.SUNLIGHT_AREA -> {
+                val vertices = sunlightDraftPoints.size
+                if (vertices == 0) "Tool: sunlight area" else "Tool: sunlight area ($vertices vertices)"
+            }
             null -> moveDrag?.let { "Tool: moving ${it.selections.size} selected" } ?: "Tool: none"
         }
         val pointerText = mapPoint?.let {
@@ -897,7 +1072,8 @@ class DynamicMapBuilderView(
         } ?: "Pointer off map"
         statusLabel.text =
             "$toolText | Preset: ${preset.displayName} | Walls: ${document.walls.size} | " +
-                "Lights: ${document.lights.size} | View: ${(viewport.scale * 100).toInt()}% | $pointerText"
+                "Lights: ${document.lights.size} | Sunlight: ${document.sunlightAreas.size} | " +
+                "View: ${(viewport.scale * 100).toInt()}% | $pointerText"
         statusLabel.style = "-fx-text-fill: -tc-text-muted;"
     }
 

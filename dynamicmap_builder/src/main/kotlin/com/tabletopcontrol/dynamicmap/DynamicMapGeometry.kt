@@ -8,6 +8,7 @@ import kotlin.math.round
 
 private const val MAX_FINE_NUDGE_TILES = 0.05
 private const val WALL_TOPOLOGY_EPSILON = 0.0000001
+private const val POLYGON_EPSILON = 0.0000001
 
 data class DynamicMapBounds(
     val minX: Double,
@@ -71,6 +72,69 @@ fun buildRectangleWalls(
 fun distanceToWall(point: DynamicMapPoint, wall: DynamicMapWall): Double =
     distanceToSegment(point, wall.start, wall.end)
 
+fun sanitizedSunlightPolygon(points: List<DynamicMapPoint>): List<DynamicMapPoint> {
+    val cleaned = points.fold(mutableListOf<DynamicMapPoint>()) { acc, point ->
+        if (acc.lastOrNull() != point) {
+            acc += point
+        }
+        acc
+    }
+    if (cleaned.size > 1 && cleaned.first() == cleaned.last()) {
+        cleaned.removeAt(cleaned.lastIndex)
+    }
+    return cleaned
+}
+
+fun isValidSunlightPolygon(points: List<DynamicMapPoint>): Boolean {
+    val cleaned = sanitizedSunlightPolygon(points)
+    return cleaned.size >= 3 && polygonArea(cleaned) > POLYGON_EPSILON
+}
+
+fun distanceToSunlightArea(point: DynamicMapPoint, area: DynamicMapSunlightArea): Double {
+    val points = sanitizedSunlightPolygon(area.points)
+    if (points.isEmpty()) return Double.POSITIVE_INFINITY
+    if (isPointInSunlightPolygon(point, points)) return 0.0
+
+    return points.indices.minOf { index ->
+        val start = points[index]
+        val end = points[(index + 1) % points.size]
+        distanceToSegment(point, start, end)
+    }
+}
+
+fun isPointInSunlightPolygon(
+    point: DynamicMapPoint,
+    polygon: List<DynamicMapPoint>,
+): Boolean {
+    val points = sanitizedSunlightPolygon(polygon)
+    if (points.size < 3) return false
+    if (points.indices.any { index ->
+            val start = points[index]
+            val end = points[(index + 1) % points.size]
+            distanceToSegment(point, start, end) <= POLYGON_EPSILON
+        }
+    ) {
+        return true
+    }
+
+    var inside = false
+    var previousIndex = points.lastIndex
+    for (index in points.indices) {
+        val current = points[index]
+        val previous = points[previousIndex]
+        val crossesHorizontalRay = (current.y > point.y) != (previous.y > point.y)
+        if (crossesHorizontalRay) {
+            val intersectionX =
+                (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x
+            if (point.x < intersectionX) {
+                inside = !inside
+            }
+        }
+        previousIndex = index
+    }
+    return inside
+}
+
 fun DynamicMapDocument.moveSelections(
     selections: Set<DynamicMapElementSelection>,
     delta: DynamicMapPoint,
@@ -82,6 +146,9 @@ fun DynamicMapDocument.moveSelections(
         .mapTo(mutableSetOf()) { it.elementId }
     val selectedLightIds = selections
         .filter { it.kind == DynamicMapElementKind.LIGHT }
+        .mapTo(mutableSetOf()) { it.elementId }
+    val selectedSunlightAreaIds = selections
+        .filter { it.kind == DynamicMapElementKind.SUNLIGHT_AREA }
         .mapTo(mutableSetOf()) { it.elementId }
 
     return copy(
@@ -100,6 +167,13 @@ fun DynamicMapDocument.moveSelections(
                 light.copy(position = light.position + delta)
             } else {
                 light
+            }
+        },
+        sunlightAreas = sunlightAreas.map { area ->
+            if (area.id in selectedSunlightAreaIds) {
+                area.copy(points = area.points.map { point -> point + delta })
+            } else {
+                area
             }
         },
     )
@@ -130,6 +204,7 @@ fun DynamicMapDocument.optimizeWallTopology(): DynamicMapDocument {
                     DynamicMapElementSelection(DynamicMapElementKind.WALL, wallId)
                 }
                 DynamicMapElementKind.LIGHT -> selection
+                DynamicMapElementKind.SUNLIGHT_AREA -> selection
             }
         }
         if (optimizedElements.isEmpty()) {
@@ -152,6 +227,9 @@ fun DynamicMapDocument.boundsForSelections(selections: Set<DynamicMapElementSele
     val selectedLightIds = selections
         .filter { it.kind == DynamicMapElementKind.LIGHT }
         .mapTo(mutableSetOf()) { it.elementId }
+    val selectedSunlightAreaIds = selections
+        .filter { it.kind == DynamicMapElementKind.SUNLIGHT_AREA }
+        .mapTo(mutableSetOf()) { it.elementId }
 
     val points = buildList {
         walls.filter { it.id in selectedWallIds }.forEach { wall ->
@@ -160,6 +238,9 @@ fun DynamicMapDocument.boundsForSelections(selections: Set<DynamicMapElementSele
         }
         lights.filter { it.id in selectedLightIds }.forEach { light ->
             add(light.position)
+        }
+        sunlightAreas.filter { it.id in selectedSunlightAreaIds }.forEach { area ->
+            addAll(area.points)
         }
     }
     if (points.isEmpty()) return null
@@ -195,6 +276,16 @@ private operator fun DynamicMapPoint.plus(delta: DynamicMapPoint): DynamicMapPoi
         x = x + delta.x,
         y = y + delta.y,
     )
+
+private fun polygonArea(points: List<DynamicMapPoint>): Double {
+    if (points.size < 3) return 0.0
+    val signedArea = points.indices.sumOf { index ->
+        val current = points[index]
+        val next = points[(index + 1) % points.size]
+        current.x * next.y - next.x * current.y
+    } / 2.0
+    return abs(signedArea)
+}
 
 private data class DynamicMapWallTopologyCandidate(
     val id: String,

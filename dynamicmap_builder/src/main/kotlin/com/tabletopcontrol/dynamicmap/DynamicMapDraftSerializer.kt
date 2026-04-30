@@ -56,6 +56,19 @@ object DynamicMapDraftSerializer {
             props.setProperty("$prefix.enabled", light.enabled.toString())
         }
 
+        props.setProperty("sunlightAreas.count", document.sunlightAreas.size.toString())
+        document.sunlightAreas.forEachIndexed { index, area ->
+            val prefix = "sunlightArea.$index"
+            props.setProperty("$prefix.id", area.id)
+            props.setProperty("$prefix.label", area.label)
+            props.setProperty("$prefix.points.count", area.points.size.toString())
+            area.points.forEachIndexed { pointIndex, point ->
+                val pointPrefix = "$prefix.point.$pointIndex"
+                props.setProperty("$pointPrefix.x", point.x.toString())
+                props.setProperty("$pointPrefix.y", point.y.toString())
+            }
+        }
+
         props.setProperty("groups.count", document.groups.size.toString())
         document.groups.forEachIndexed { index, group ->
             val prefix = "group.$index"
@@ -134,6 +147,32 @@ object DynamicMapDraftSerializer {
                 }
             }
 
+            val sunlightAreas = buildList {
+                val count = props.getProperty("sunlightAreas.count")?.toIntOrNull() ?: 0
+                repeat(count) { index ->
+                    val prefix = "sunlightArea.$index"
+                    val pointCount = props.getProperty("$prefix.points.count")?.toIntOrNull() ?: return@repeat
+                    val points = buildList {
+                        repeat(pointCount) { pointIndex ->
+                            val pointPrefix = "$prefix.point.$pointIndex"
+                            val x = props.getProperty("$pointPrefix.x")?.toDoubleOrNull() ?: return@repeat
+                            val y = props.getProperty("$pointPrefix.y")?.toDoubleOrNull() ?: return@repeat
+                            add(DynamicMapPoint(x, y))
+                        }
+                    }
+                    val polygon = sanitizedSunlightPolygon(points)
+                    if (isValidSunlightPolygon(polygon)) {
+                        add(
+                            DynamicMapSunlightArea(
+                                id = props.getProperty("$prefix.id") ?: "sunlight-area-$index",
+                                label = props.getProperty("$prefix.label") ?: "Sunlight Area ${index + 1}",
+                                points = polygon,
+                            ),
+                        )
+                    }
+                }
+            }
+
             val groups = buildList {
                 val count = props.getProperty("groups.count")?.toIntOrNull() ?: 0
                 repeat(count) { index ->
@@ -169,6 +208,7 @@ object DynamicMapDraftSerializer {
                 visibility = visibility,
                 walls = walls,
                 lights = lights,
+                sunlightAreas = sunlightAreas,
                 groups = groups,
             ).pruneInvalidGroups()
         } catch (_: Exception) {

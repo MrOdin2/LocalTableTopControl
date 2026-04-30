@@ -137,7 +137,8 @@
       </p>
       <p>
         This first version focuses on the map-building basics: grid-sized map bounds, a background
-        texture, paintable wall geometry, and static point lights with reusable presets.
+        texture, paintable wall geometry, static point lights with reusable presets, and
+        sunlight/outside areas drawn as polygons.
       </p>
     </section>
 
@@ -176,7 +177,7 @@
         <tr><td>Calibrate Texture...</td><td>Open numeric texture calibration with live preview.</td></tr>
         <tr><td>Guided Calibration...</td><td>Open the two-step guided texture calibration flow.</td></tr>
         <tr><td>Map size</td><td>Change the logical map width and height in grid cells.</td></tr>
-        <tr><td>Layer toggles</td><td>Temporarily show or hide the background, walls, lights, or grid.</td></tr>
+        <tr><td>Layer toggles</td><td>Temporarily show or hide the background, walls, lights and sunlight areas, or grid.</td></tr>
       </table>
       <p>
         Turn <strong>Snap 0.25</strong> on to align new content to quarter-cell increments. This keeps
@@ -189,16 +190,17 @@
         <strong>Light Browser</strong>, and <strong>Outline Browser</strong> for editing workflows.
       </div>
       <p>
-        The layer toggles let you temporarily hide the background texture, walls, lights, or grid while
+        The layer toggles let you temporarily hide the background texture, walls, lights and sunlight
+        areas, or grid while
         editing. Hiding a layer does not delete it.
       </p>
       <p>
-        Right-click <strong>near a wall or light</strong> to remove that specific element. Right-click
+        Right-click <strong>near a wall, light, or sunlight area</strong> to remove that specific element. Right-click
         empty builder space to open the normal pane layout menu, so you can still split panes or switch
         to the Light Browser while staying in the builder workspace.
       </p>
       <p>
-        With no placement tool active, drag a selected wall or light directly on the builder canvas to
+        With no placement tool active, drag a selected wall, light, or sunlight area directly on the builder canvas to
         move it. If several outline items are selected, dragging any selected item moves the whole
         selection together. Drag empty canvas space to pan the workspace as before.
       </p>
@@ -222,7 +224,7 @@
         <tr><th>Action</th><th>What it does</th></tr>
         <tr><td>Mouse wheel</td><td>Zooms the builder workspace in or out.</td></tr>
         <tr><td>Drag empty space with no active tool</td><td>Pans around the workspace.</td></tr>
-        <tr><td>Drag a selected wall or light with no active tool</td><td>Moves the selected element or selected group on the grid.</td></tr>
+        <tr><td>Drag a selected wall, light, or sunlight area with no active tool</td><td>Moves the selected element or selected group on the grid.</td></tr>
         <tr><td>Arrow keys</td><td>Nudge selected elements by 0.25 tile.</td></tr>
         <tr><td>Shift + Arrow keys</td><td>Nudge selected elements by 1 tile.</td></tr>
         <tr><td>Ctrl + Arrow keys</td><td>Nudge selected elements by a fine screen-pixel step.</td></tr>
@@ -291,7 +293,17 @@
       <p>
         Every newly placed light uses that selected range and colour until you choose another preset.
         The Light Browser also lets you stop placement mode or clear all lights without going back to
-        the main builder pane.
+        the main builder pane. Clearing all lights asks for confirmation before anything is removed.
+      </p>
+      <p>
+        Use <strong>Draw Sunlight Area</strong> in the Light Browser to mark outside or naturally lit
+        regions. Click the builder canvas to add polygon vertices, then click back near the first
+        vertex or double-click to finish the area. Sunlight areas are saved with the draft and exported
+        with gameplay bundles for the Dynamic Map lighting workflow.
+      </p>
+      <p>
+        <strong>Clear Sunlight Areas</strong> removes every sunlight polygon from the current draft
+        after a confirmation dialog.
       </p>
     </section>
 
@@ -300,18 +312,18 @@
       <p>
         Open another pane with <strong>Outline Browser</strong> for a Blender-style overview of the
         current draft. It shows user-created <strong>groups</strong> plus all placed
-        <strong>lights</strong> and <strong>walls</strong> in one browser, so you can inspect the
+        <strong>lights</strong>, <strong>sunlight areas</strong>, and <strong>walls</strong> in one browser, so you can inspect the
         whole structure without hunting across the canvas.
       </p>
       <table>
         <tr><th>Outline Browser action</th><th>What it does</th></tr>
-        <tr><td>Select an item</td><td>Highlights that wall or light in the main builder canvas.</td></tr>
-        <tr><td>Select a group</td><td>Selects every wall or light linked to that group.</td></tr>
+        <tr><td>Select an item</td><td>Highlights that wall, light, or sunlight area in the main builder canvas.</td></tr>
+        <tr><td>Select a group</td><td>Selects every wall, light, or sunlight area linked to that group.</td></tr>
         <tr><td>Ctrl-click another item</td><td>Adds or removes that item from the current outline selection.</td></tr>
         <tr><td>Right-click &gt; Rename</td><td>Renames one selected group, wall, or light.</td></tr>
         <tr><td>Right-click &gt; Group Selected</td><td>Creates a saved group from the currently selected walls and lights.</td></tr>
         <tr><td>Right-click a group &gt; Remove Group</td><td>Removes the selected group entry but keeps its walls and lights on the map.</td></tr>
-        <tr><td>Remove Selected</td><td>Deletes every currently selected wall or light.</td></tr>
+        <tr><td>Remove Selected</td><td>Deletes every currently selected wall, light, or sunlight area.</td></tr>
         <tr><td>Disable / Enable Light</td><td>Turns one selected light source off or back on without deleting it.</td></tr>
         <tr><td>Clear Selection</td><td>Leaves the outline item list intact but removes the current highlights.</td></tr>
       </table>
@@ -324,7 +336,7 @@
         you can still keep track of them and switch them back on later.
       </p>
       <p>
-        Groups are saved with the builder draft. If grouped walls or lights are deleted later, the
+        Groups are saved with the builder draft. If grouped walls, lights, or sunlight areas are deleted later, the
         group automatically forgets those missing elements.
       </p>
       <p>
@@ -358,8 +370,8 @@
       <p>
         <strong>Export...</strong> creates a <code>.dynamicmap</code> bundle for gameplay use. The
         bundle includes the map size, background texture when the source image is available, texture
-        calibration, walls, and lights. It leaves out builder-only details such as construction-site
-        names, wall and light labels, element ids, outline groups, and temporary layer visibility.
+        calibration, walls, lights, and sunlight areas. It leaves out builder-only details such as construction-site
+        names, wall, light, and sunlight-area labels, element ids, outline groups, and temporary layer visibility.
         Wall topology is optimized automatically during export, so touching wall pieces on the same
         line are combined in the gameplay bundle even if you have not pressed <strong>Optimize Walls</strong>
         manually.

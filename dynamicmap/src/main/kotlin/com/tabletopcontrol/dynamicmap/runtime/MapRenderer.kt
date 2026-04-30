@@ -3,6 +3,8 @@ package com.tabletopcontrol.dynamicmap.runtime
 import javafx.scene.SnapshotParameters
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
+import javafx.scene.effect.BlendMode
+import javafx.scene.effect.ColorAdjust
 import javafx.scene.image.Image
 import javafx.scene.paint.Color
 import javafx.scene.text.Font
@@ -18,6 +20,8 @@ import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicLightMask
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicLightTintContribution
 import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMesh
 import com.tabletopcontrol.dynamicmap.runtime.logic.FogOfWarState
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridCalibration
@@ -111,11 +115,19 @@ class MapRenderer(private val canvas: Canvas) {
     /** Accumulated DynamicMap areas that have been seen by PCs at least once. */
     private var dynamicSeenSightlineMesh: DynamicSightlineMesh? = null
 
+    /** Static authored light mask used for visibility clipping and visible light tint. */
+    private var dynamicLightMask: DynamicLightMask? = null
+
+    /** Currently visible terrain that is revealed only through PC darkvision. */
+    private var dynamicDarkvisionMesh: DynamicSightlineMesh? = null
+
     private var fogLayerVersion: Long = 0L
     private var dynamicSightlineLayerVersion: Long = 0L
     private var dynamicMapBaseLayerCache: CachedLayer<DynamicMapBaseLayerKey>? = null
+    private var dynamicMapGrayscaleLayerCache: CachedLayer<DynamicMapBaseLayerKey>? = null
     private var fogLayerCache: CachedLayer<FogLayerKey>? = null
     private val dynamicSightlineLayerCaches = mutableMapOf<DynamicSightlineLayerRole, CachedLayer<DynamicSightlineLayerKey>>()
+    private var dynamicLightTintLayerCache: CachedLayer<DynamicLightTintLayerKey>? = null
 
     /**
      * Opacity of unrevealed fog-of-war tiles, in the range [0.0, 1.0].
@@ -285,8 +297,11 @@ class MapRenderer(private val canvas: Canvas) {
             if (mesh == null) {
                 dynamicSightlineMesh = null
                 dynamicSeenSightlineMesh = null
+                dynamicLightMask = null
+                dynamicDarkvisionMesh = null
                 dynamicSightlineLayerVersion++
                 dynamicSightlineLayerCaches.clear()
+                dynamicLightTintLayerCache = null
                 redraw()
             } else {
                 val bundle = dynamicMapBundle ?: return@subscribe
@@ -295,8 +310,15 @@ class MapRenderer(private val canvas: Canvas) {
                     dynamicSeenSightlineMesh = event.seenMesh?.takeIf {
                         it.cols == bundle.cols && it.rows == bundle.rows
                     }
+                    dynamicLightMask = event.lightMask?.takeIf {
+                        it.cols == bundle.cols && it.rows == bundle.rows
+                    }
+                    dynamicDarkvisionMesh = event.darkvisionMesh?.takeIf {
+                        it.cols == bundle.cols && it.rows == bundle.rows
+                    }
                     dynamicSightlineLayerVersion++
                     dynamicSightlineLayerCaches.clear()
+                    dynamicLightTintLayerCache = null
                     redraw()
                 }
             }
@@ -376,6 +398,8 @@ class MapRenderer(private val canvas: Canvas) {
                     color = event.color,
                     size = event.size,
                     isPlayerCharacter = event.isPlayerCharacter,
+                    darkvisionRangeCells = event.darkvisionRangeCells,
+                    lightSource = event.lightSource,
                 )
             } else {
                 val (nextTokenCol, nextTokenRow) = nextAvailableTokenPlacement(tokens, event.size)
@@ -388,6 +412,8 @@ class MapRenderer(private val canvas: Canvas) {
                         event.size,
                         event.color,
                         isPlayerCharacter = event.isPlayerCharacter,
+                        darkvisionRangeCells = event.darkvisionRangeCells,
+                        lightSource = event.lightSource,
                     ),
                 )
             }
@@ -516,6 +542,8 @@ class MapRenderer(private val canvas: Canvas) {
             dynamicMapBackgroundImage = null
             dynamicSightlineMesh = null
             dynamicSeenSightlineMesh = null
+            dynamicLightMask = null
+            dynamicDarkvisionMesh = null
             dynamicSightlineLayerVersion++
             clearLayerCaches()
             mapImage = image
@@ -531,6 +559,8 @@ class MapRenderer(private val canvas: Canvas) {
         mapRotationDegrees = 0
         dynamicSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
         dynamicSeenSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
+        dynamicLightMask = null
+        dynamicDarkvisionMesh = null
         dynamicSightlineLayerVersion++
         clearLayerCaches()
         redraw()
@@ -547,6 +577,8 @@ class MapRenderer(private val canvas: Canvas) {
         dynamicMapBackgroundImage = null
         dynamicSightlineMesh = null
         dynamicSeenSightlineMesh = null
+        dynamicLightMask = null
+        dynamicDarkvisionMesh = null
         dynamicSightlineLayerVersion++
         clearLayerCaches()
         redraw()
@@ -580,7 +612,10 @@ class MapRenderer(private val canvas: Canvas) {
 
         if (dynamicMapBundle != null) {
             drawDynamicMapBaseLayer()
+            drawDynamicDarkvisionLayer()
+            drawDynamicRememberedBaseLayer()
             if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
+                drawDynamicMapSunlightAreas()
                 drawDynamicMapLightHalos()
             }
         } else {
@@ -590,6 +625,7 @@ class MapRenderer(private val canvas: Canvas) {
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
             drawDynamicMapWalls()
         }
+        drawDynamicLightTintLayer()
         drawFogOfWar()
         drawTokens()
         drawDynamicSightlineLayer()
@@ -660,8 +696,40 @@ class MapRenderer(private val canvas: Canvas) {
         val height = bundle.rows * cellPx
         if (!isCacheableLayerSize(width, height)) return null
 
+        val key = dynamicMapBaseLayerKey(bundle, cellPx)
+        dynamicMapBaseLayerCache?.takeIf { it.key == key }?.let { return it.image }
+
+        val layerCanvas = Canvas(ceil(width), ceil(height))
+        val layerGc = layerCanvas.graphicsContext2D
+        drawDynamicMapSurface(layerGc, bundle, cellPx, originX = 0.0, originY = 0.0)
+        drawDynamicMapBackground(layerGc, bundle, dynamicMapBackgroundImage, cellPx, originX = 0.0, originY = 0.0)
+        val image = layerCanvas.snapshot(transparentSnapshotParameters(), null)
+        dynamicMapBaseLayerCache = CachedLayer(key, image)
+        return image
+    }
+
+    private fun dynamicMapGrayscaleLayerImage(bundle: DynamicMapBundle, cellPx: Double): Image? {
+        val width = bundle.cols * cellPx
+        val height = bundle.rows * cellPx
+        if (!isCacheableLayerSize(width, height)) return null
+
+        val key = dynamicMapBaseLayerKey(bundle, cellPx)
+        dynamicMapGrayscaleLayerCache?.takeIf { it.key == key }?.let { return it.image }
+
+        val layerCanvas = Canvas(ceil(width), ceil(height))
+        val layerGc = layerCanvas.graphicsContext2D
+        layerGc.setEffect(GRAYSCALE_EFFECT)
+        drawDynamicMapSurface(layerGc, bundle, cellPx, originX = 0.0, originY = 0.0)
+        drawDynamicMapBackground(layerGc, bundle, dynamicMapBackgroundImage, cellPx, originX = 0.0, originY = 0.0)
+        layerGc.setEffect(null)
+        val image = layerCanvas.snapshot(transparentSnapshotParameters(), null)
+        dynamicMapGrayscaleLayerCache = CachedLayer(key, image)
+        return image
+    }
+
+    private fun dynamicMapBaseLayerKey(bundle: DynamicMapBundle, cellPx: Double): DynamicMapBaseLayerKey {
         val backgroundImage = dynamicMapBackgroundImage
-        val key = DynamicMapBaseLayerKey(
+        return DynamicMapBaseLayerKey(
             sourcePath = bundle.sourcePath,
             cols = bundle.cols,
             rows = bundle.rows,
@@ -674,15 +742,68 @@ class MapRenderer(private val canvas: Canvas) {
             cellPx = cellPx,
             backgroundColor = backgroundColor,
         )
-        dynamicMapBaseLayerCache?.takeIf { it.key == key }?.let { return it.image }
+    }
 
-        val layerCanvas = Canvas(ceil(width), ceil(height))
-        val layerGc = layerCanvas.graphicsContext2D
-        drawDynamicMapSurface(layerGc, bundle, cellPx, originX = 0.0, originY = 0.0)
-        drawDynamicMapBackground(layerGc, bundle, backgroundImage, cellPx, originX = 0.0, originY = 0.0)
-        val image = layerCanvas.snapshot(transparentSnapshotParameters(), null)
-        dynamicMapBaseLayerCache = CachedLayer(key, image)
-        return image
+    private fun drawDynamicDarkvisionLayer() {
+        val bundle = dynamicMapBundle ?: return
+        val mesh = dynamicDarkvisionMesh ?: return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+
+        drawDynamicGrayscaleBaseLayer(
+            bundle = bundle,
+            mesh = mesh,
+            cellPx = cellPx,
+            originX = dynamicMapOriginX(),
+            originY = dynamicMapOriginY(),
+        )
+    }
+
+    private fun drawDynamicRememberedBaseLayer() {
+        if (!usePersistentVision) return
+        val bundle = dynamicMapBundle ?: return
+        val currentMesh = dynamicSightlineMesh ?: return
+        val seenMesh = dynamicSeenSightlineMesh ?: return
+        val rememberedMesh = rememberedSightlineMesh(currentMesh, seenMesh) ?: return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+
+        drawDynamicGrayscaleBaseLayer(
+            bundle = bundle,
+            mesh = rememberedMesh,
+            cellPx = cellPx,
+            originX = dynamicMapOriginX(),
+            originY = dynamicMapOriginY(),
+        )
+    }
+
+    private fun drawDynamicGrayscaleBaseLayer(
+        bundle: DynamicMapBundle,
+        mesh: DynamicSightlineMesh,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+    ) {
+        if (!mesh.hasVisibleArea()) return
+        gc.save()
+        gc.beginPath()
+        mesh.drawVisibleArea(
+            moveTo = { point -> gc.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            lineTo = { point -> gc.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            closePath = { gc.closePath() },
+        )
+        gc.clip()
+
+        val grayscaleImage = dynamicMapGrayscaleLayerImage(bundle, cellPx)
+        if (grayscaleImage != null) {
+            gc.drawImage(grayscaleImage, originX, originY)
+        } else {
+            gc.setEffect(GRAYSCALE_EFFECT)
+            drawDynamicMapSurface(gc, bundle, cellPx, originX, originY)
+            drawDynamicMapBackground(gc, bundle, dynamicMapBackgroundImage, cellPx, originX, originY)
+            gc.setEffect(null)
+        }
+        gc.restore()
     }
 
     private fun drawDynamicMapSurface() {
@@ -765,6 +886,148 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.lineWidth = dynamicLightRingWidth(cellPx)
                 gc.strokeOval(centerX - brightRadius, centerY - brightRadius, brightRadius * 2.0, brightRadius * 2.0)
             }
+        }
+    }
+
+    private fun drawDynamicMapSunlightAreas() {
+        val bundle = dynamicMapBundle ?: return
+        if (bundle.sunlightAreas.isEmpty()) return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+        val originX = dynamicMapOriginX()
+        val originY = dynamicMapOriginY()
+        val baseColor = dynamicWallColor().deriveColor(35.0, 0.6, 1.2, 1.0)
+
+        bundle.sunlightAreas.forEach { area ->
+            if (area.points.size < 3) return@forEach
+            val xs = DoubleArray(area.points.size) { index -> originX + area.points[index].x * cellPx }
+            val ys = DoubleArray(area.points.size) { index -> originY + area.points[index].y * cellPx }
+
+            gc.fill = baseColor.deriveColor(0.0, 1.0, 1.0, DYNAMIC_SUNLIGHT_AREA_FILL_OPACITY)
+            gc.fillPolygon(xs, ys, area.points.size)
+            gc.stroke = baseColor.deriveColor(0.0, 1.0, 1.0, DYNAMIC_SUNLIGHT_AREA_STROKE_OPACITY)
+            gc.lineWidth = dynamicLightRingWidth(cellPx)
+            gc.strokePolygon(xs, ys, area.points.size)
+        }
+    }
+
+    private fun drawDynamicLightTintLayer() {
+        val bundle = dynamicMapBundle ?: return
+        val mesh = dynamicSightlineMesh ?: return
+        val lightMask = dynamicLightMask ?: return
+        if (!lightMask.lightingActive || lightMask.tintContributions.isEmpty() || !mesh.hasVisibleArea()) return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+        val originX = dynamicMapOriginX()
+        val originY = dynamicMapOriginY()
+
+        val image = dynamicLightTintLayerImage(bundle, mesh, lightMask, cellPx)
+        if (image != null) {
+            gc.save()
+            gc.globalBlendMode = BlendMode.SCREEN
+            gc.drawImage(image, originX, originY)
+            gc.restore()
+            return
+        }
+
+        drawDynamicLightTintLayer(
+            target = gc,
+            mesh = mesh,
+            lightMask = lightMask,
+            cellPx = cellPx,
+            originX = originX,
+            originY = originY,
+            screenBlend = true,
+        )
+    }
+
+    private fun dynamicLightTintLayerImage(
+        bundle: DynamicMapBundle,
+        mesh: DynamicSightlineMesh,
+        lightMask: DynamicLightMask,
+        cellPx: Double,
+    ): Image? {
+        val width = bundle.cols * cellPx
+        val height = bundle.rows * cellPx
+        if (!isCacheableLayerSize(width, height)) return null
+
+        val key = DynamicLightTintLayerKey(
+            version = dynamicSightlineLayerVersion,
+            cols = bundle.cols,
+            rows = bundle.rows,
+            cellPx = cellPx,
+            lightMaskId = System.identityHashCode(lightMask),
+        )
+        dynamicLightTintLayerCache?.takeIf { it.key == key }?.let { return it.image }
+
+        val layerCanvas = Canvas(ceil(width), ceil(height))
+        val layerGc = layerCanvas.graphicsContext2D
+        drawDynamicLightTintLayer(
+            target = layerGc,
+            mesh = mesh,
+            lightMask = lightMask,
+            cellPx = cellPx,
+            originX = 0.0,
+            originY = 0.0,
+            screenBlend = false,
+        )
+        val image = layerCanvas.snapshot(transparentSnapshotParameters(), null)
+        dynamicLightTintLayerCache = CachedLayer(key, image)
+        return image
+    }
+
+    private fun drawDynamicLightTintLayer(
+        target: GraphicsContext,
+        mesh: DynamicSightlineMesh,
+        lightMask: DynamicLightMask,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+        screenBlend: Boolean,
+    ) {
+        target.save()
+        if (screenBlend) {
+            target.globalBlendMode = BlendMode.SCREEN
+        }
+        target.beginPath()
+        mesh.drawVisibleArea(
+            moveTo = { point -> target.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            lineTo = { point -> target.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+            closePath = { target.closePath() },
+        )
+        target.clip()
+
+        lightMask.tintContributions.forEach { contribution ->
+            drawDynamicLightTintContribution(target, contribution, cellPx, originX, originY)
+        }
+        target.restore()
+    }
+
+    private fun drawDynamicLightTintContribution(
+        target: GraphicsContext,
+        contribution: DynamicLightTintContribution,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+    ) {
+        val color = ColorHexCodec.parseOrDefault(contribution.colorHex, Color.WHITE)
+        if (contribution.hasDimTint) {
+            val radius = contribution.dimRadius * cellPx
+            val centerX = originX + contribution.x * cellPx
+            val centerY = originY + contribution.y * cellPx
+            target.fill = color.withOpacity(DYNAMIC_LIGHT_TINT_DIM_OPACITY)
+            target.fillOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
+        }
+
+        if (contribution.hasBrightTint) {
+            target.fill = color.withOpacity(DYNAMIC_LIGHT_TINT_BRIGHT_OPACITY)
+            target.beginPath()
+            contribution.drawBrightArea(
+                moveTo = { point -> target.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+                lineTo = { point -> target.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+                closePath = { target.closePath() },
+            )
+            target.fill()
         }
     }
 
@@ -1133,6 +1396,9 @@ class MapRenderer(private val canvas: Canvas) {
             REMEMBERED_SIGHTLINE_OPACITY,
         )
 
+    private fun Color.withOpacity(opacity: Double): Color =
+        Color.color(red, green, blue, opacity.coerceIn(0.0, 1.0))
+
     /**
      * Converts canvas-space mouse coordinates to the corresponding grid cell indices,
      * accounting for the current viewport transform.
@@ -1484,8 +1750,10 @@ class MapRenderer(private val canvas: Canvas) {
 
     private fun clearLayerCaches() {
         dynamicMapBaseLayerCache = null
+        dynamicMapGrayscaleLayerCache = null
         fogLayerCache = null
         dynamicSightlineLayerCaches.clear()
+        dynamicLightTintLayerCache = null
     }
 
     private fun isCacheableLayerSize(width: Double, height: Double): Boolean =
@@ -1536,6 +1804,14 @@ class MapRenderer(private val canvas: Canvas) {
         val role: DynamicSightlineLayerRole,
     )
 
+    private data class DynamicLightTintLayerKey(
+        val version: Long,
+        val cols: Int,
+        val rows: Int,
+        val cellPx: Double,
+        val lightMaskId: Int,
+    )
+
     private enum class DynamicSightlineLayerRole {
         CURRENT,
         REMEMBERED,
@@ -1584,10 +1860,33 @@ class MapRenderer(private val canvas: Canvas) {
         private const val DYNAMIC_LIGHT_RING_WIDTH_SCALE = 0.025
         private const val DYNAMIC_WALL_WIDTH_SCALE = 0.12
         private const val DYNAMIC_LIGHT_MARKER_SCALE = 0.18
+        private const val DYNAMIC_SUNLIGHT_AREA_FILL_OPACITY = 0.16
+        private const val DYNAMIC_SUNLIGHT_AREA_STROKE_OPACITY = 0.82
+        private const val DYNAMIC_LIGHT_TINT_DIM_OPACITY = 0.16
+        private const val DYNAMIC_LIGHT_TINT_BRIGHT_OPACITY = 0.24
         private const val REMEMBERED_SIGHTLINE_OPACITY = 0.5
         private const val MAX_CACHED_LAYER_DIMENSION = 8192.0
         private const val MAX_CACHED_LAYER_PIXELS = 16_000_000.0
+        private val GRAYSCALE_EFFECT = ColorAdjust(0.0, -1.0, 0.0, 0.0)
     }
+}
+
+internal fun rememberedSightlineMesh(
+    currentMesh: DynamicSightlineMesh,
+    seenMesh: DynamicSightlineMesh,
+): DynamicSightlineMesh? {
+    if (currentMesh.cols != seenMesh.cols || currentMesh.rows != seenMesh.rows) return null
+
+    val rememberedArea = seenMesh.copyVisibleArea().apply {
+        subtract(currentMesh.copyVisibleArea())
+    }
+    if (rememberedArea.isEmpty) return null
+
+    return DynamicSightlineMesh.fromVisibleArea(
+        cols = seenMesh.cols,
+        rows = seenMesh.rows,
+        visibleArea = rememberedArea,
+    )
 }
 
 internal fun cacheTokenImageWhenReady(

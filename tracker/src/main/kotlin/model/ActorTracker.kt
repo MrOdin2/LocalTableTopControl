@@ -4,8 +4,10 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
+import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.scene.paint.Color
 
@@ -41,6 +43,8 @@ class ActorTracker(
                 actor.color,
                 actor.tokenSize,
                 isPlayerCharacter = actor.actorType == ActorType.PC,
+                darkvisionRangeCells = actor.darkvisionRangeCells(),
+                lightSource = actor.tokenLightSource(),
             ),
         )
         if (actor.imageSettings.uri != null) {
@@ -86,7 +90,9 @@ class ActorTracker(
                 previousActor.name != updatedActor.name ||
                 previousActor.color != updatedActor.color ||
                 previousActor.tokenSize != updatedActor.tokenSize ||
-                previousActor.actorType != updatedActor.actorType
+                previousActor.actorType != updatedActor.actorType ||
+                previousActor.features.darkvisionRange != updatedActor.features.darkvisionRange ||
+                previousActor.features.lightSource != updatedActor.features.lightSource
             ) {
                 EventBus.publish(
                     TokenAddedEvent(
@@ -95,6 +101,8 @@ class ActorTracker(
                         updatedActor.color,
                         updatedActor.tokenSize,
                         isPlayerCharacter = updatedActor.actorType == ActorType.PC,
+                        darkvisionRangeCells = updatedActor.darkvisionRangeCells(),
+                        lightSource = updatedActor.tokenLightSource(),
                     ),
                 )
             }
@@ -154,6 +162,8 @@ class ActorTracker(
                     actor.color,
                     actor.tokenSize,
                     isPlayerCharacter = actor.actorType == ActorType.PC,
+                    darkvisionRangeCells = actor.darkvisionRangeCells(),
+                    lightSource = actor.tokenLightSource(),
                 ),
             )
             if (actor.imageSettings.uri != null) {
@@ -278,6 +288,34 @@ class ActorTracker(
         )
     }
 
+    private fun Actor.darkvisionRangeCells(): Double? =
+        features.darkvisionRange
+            ?.toGridCells()
+            ?.takeIf { it.isFinite() && it > 0.0 }
+
+    private fun Actor.tokenLightSource(): TokenLightSource? {
+        val source = features.lightSource ?: return null
+        val brightRangeCells = source.brightRange.toGridCells()
+            .takeIf { it.isFinite() && it > 0.0 }
+            ?: 0.0
+        val dimRangeCells = source.dimRange.toGridCells()
+            .takeIf { it.isFinite() && it > 0.0 }
+            ?: 0.0
+        if (brightRangeCells <= 0.0 && dimRangeCells <= 0.0) return null
+
+        return TokenLightSource(
+            brightRangeCells = brightRangeCells,
+            dimRangeCells = maxOf(dimRangeCells, brightRangeCells),
+            colorHex = ColorHexCodec.colorToHex(source.color),
+        )
+    }
+
+    private fun DistanceRange.toGridCells(): Double =
+        when (unit) {
+            DistanceUnit.FEET -> amount / FEET_PER_GRID_CELL
+            DistanceUnit.METERS -> amount / METERS_PER_GRID_CELL
+        }
+
     private val TOKEN_COLORS: List<Color> = run {
         val hues = List(16) { it * 22.5 }
         val variants = listOf(
@@ -287,6 +325,11 @@ class ActorTracker(
             Pair(0.45, 0.80),   // muted
         )
         List(64) { i -> Color.hsb(hues[i % 16], variants[i / 16].first, variants[i / 16].second) }
+    }
+
+    private companion object {
+        const val FEET_PER_GRID_CELL = 5.0
+        const val METERS_PER_GRID_CELL = 1.5
     }
 }
 

@@ -23,6 +23,9 @@ class DynamicMapBuilderController {
     private val clearLightsSubscription = EventBus.subscribe<DynamicMapClearLightsRequestedEvent> {
         clearLights()
     }
+    private val clearSunlightAreasSubscription = EventBus.subscribe<DynamicMapClearSunlightAreasRequestedEvent> {
+        clearSunlightAreas()
+    }
     private val snapshotSubscription = EventBus.subscribe<DynamicMapDocumentSnapshotRequestedEvent> {
         publishDocumentChanged()
     }
@@ -30,6 +33,7 @@ class DynamicMapBuilderController {
         when (event.selection.kind) {
             DynamicMapElementKind.WALL -> removeWall(event.selection.elementId)
             DynamicMapElementKind.LIGHT -> removeLight(event.selection.elementId)
+            DynamicMapElementKind.SUNLIGHT_AREA -> removeSunlightArea(event.selection.elementId)
         }
     }
     private val lightEnabledSubscription = EventBus.subscribe<DynamicMapLightEnabledRequestedEvent> { event ->
@@ -191,6 +195,20 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(lights = it.lights.filterNot { light -> light.id == id }) }
     }
 
+    fun addSunlightArea(points: List<DynamicMapPoint>) {
+        val polygon = sanitizedSunlightPolygon(points)
+        if (!isValidSunlightPolygon(polygon)) return
+        val area = DynamicMapSunlightArea(
+            label = nextSunlightAreaLabel(document.sunlightAreas),
+            points = polygon,
+        )
+        updateDocument { it.copy(sunlightAreas = it.sunlightAreas + area) }
+    }
+
+    fun removeSunlightArea(id: String) {
+        updateDocument { it.copy(sunlightAreas = it.sunlightAreas.filterNot { area -> area.id == id }) }
+    }
+
     fun moveSelections(
         selections: Set<DynamicMapElementSelection>,
         delta: DynamicMapPoint,
@@ -216,6 +234,10 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(lights = emptyList()) }
     }
 
+    fun clearSunlightAreas() {
+        updateDocument { it.copy(sunlightAreas = emptyList()) }
+    }
+
     fun renameElement(selection: DynamicMapElementSelection, label: String) {
         val cleanedLabel = cleanBuilderLabel(label) ?: return
         updateDocument { current ->
@@ -228,6 +250,11 @@ class DynamicMapBuilderController {
                 DynamicMapElementKind.LIGHT -> current.copy(
                     lights = current.lights.map { light ->
                         if (light.id == selection.elementId) light.copy(label = cleanedLabel) else light
+                    },
+                )
+                DynamicMapElementKind.SUNLIGHT_AREA -> current.copy(
+                    sunlightAreas = current.sunlightAreas.map { area ->
+                        if (area.id == selection.elementId) area.copy(label = cleanedLabel) else area
                     },
                 )
             }
@@ -322,6 +349,7 @@ class DynamicMapBuilderController {
         clearWallsSubscription.unsubscribe()
         optimizeWallsSubscription.unsubscribe()
         clearLightsSubscription.unsubscribe()
+        clearSunlightAreasSubscription.unsubscribe()
         snapshotSubscription.unsubscribe()
         removalSubscription.unsubscribe()
         lightEnabledSubscription.unsubscribe()
@@ -437,6 +465,16 @@ private fun nextGroupLabel(groups: List<DynamicMapElementGroup>): String {
     var index = 1
     while (true) {
         val candidate = "Group $index"
+        if (candidate !in usedLabels) return candidate
+        index += 1
+    }
+}
+
+private fun nextSunlightAreaLabel(areas: List<DynamicMapSunlightArea>): String {
+    val usedLabels = areas.mapTo(mutableSetOf()) { it.label }
+    var index = 1
+    while (true) {
+        val candidate = "Sunlight Area $index"
         if (candidate !in usedLabels) return candidate
         index += 1
     }

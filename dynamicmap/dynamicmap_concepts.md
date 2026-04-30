@@ -35,41 +35,65 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ### Runtime Rendering
 
-- The loaded bundle provides map columns, rows, walls, lights, optional background texture,
+- The loaded bundle provides map columns, rows, walls, lights, sunlight/outside areas, optional background texture,
   and background calibration.
 - Loading a bundle centers the grid origin so exported cell coordinates run from `(0, 0)`
   at the top-left of the map bounds to `(cols, rows)` at the bottom-right.
 - Background calibration follows the exported builder data and remains tied to the grid.
 - The DM map settings expose two DynamicMap visualisation modes:
-  - `RenderMode` is the normal play mode. Exported walls and lights are not drawn directly.
-    Exported walls are still used as blockers for player-character sightlines.
+  - `RenderMode` is the normal play mode. Exported walls, light handles, and sunlight/outside
+    polygons are not drawn directly. Exported walls are still used as blockers for player-character
+    sightlines and static point-light bright cores.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same opaque theme accent colour as the Dynamic Map Builder, and enabled
     point lights are drawn as diagnostic halos with distinct bright and dim radius areas.
+    Exported sunlight/outside areas are drawn as translucent polygons for bundle verification.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden
   on the player-facing table view.
 - Disabled lights appear as subdued DM markers in `DebugMode`.
 - Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. A shared sightline
   service casts line-of-sight from those token centres through cached exported wall geometry and
   publishes one triangulated visibility mesh for all active DynamicMap renderers.
+- When authored or PC-carried lighting is active, the shared sightline service builds a light mask
+  from enabled point lights, sunlight/outside polygons, and PC token light sources. Point lights use
+  their dim radius as an unblocked soft reach, while their bright radius is occluded by exported walls.
+  Sunlight/outside polygons are treated as always-lit authored areas. The current player-visible mesh
+  is `PC sight AND light`, plus any PC darkvision area.
+- Tracker light-source ranges are published as token metadata in grid cells. DynamicMap consumes
+  them only for PC tokens. The PC token centre is used as the light origin; the dim radius ignores
+  walls, and the bright radius reuses the cached PC sight contribution clipped to the bright range.
+- Tracker darkvision ranges are published as token metadata in grid cells. The sightline service treats
+  each PC's darkvision as another wall-blocked light contribution from that PC's token centre, reusing
+  the cached PC sight contribution and clipping it to the darkvision radius rather than raycasting again.
+- Renderers receive the shared light mask together with the visible mesh and use each enabled
+  light's colour to draw a cached tint layer. The tint is clipped to the current visible mesh, drawn
+  with screen blending, and kept separate from sunlight/outside areas, which reveal visibility without
+  adding a colour cast.
+- Renderers also receive a darkvision-only mesh. That layer redraws the current map art in grayscale
+  before the black sightline overlay is applied, so terrain revealed only by darkvision appears black
+  and white instead of using normal light colour.
+- Bundles without authored lights, sunlight/outside polygons, PC light sources, or PC darkvision keep
+  the previous sight-only behavior for backward compatibility and for maps that are not ready to use
+  lighting yet.
 - Each PC token's sightline contribution is cached independently by token position, size, and wall
   topology. Moving one PC recomputes only that PC's contribution, then combines it with the other
   cached PC contributions.
 - Sightline computation runs off the JavaFX thread. Renderers keep the last completed mesh visible
   while a newer PC move is being calculated, so token dragging does not block the UI thread.
-- The DynamicMap sightline mesh is composited as its own cached Canvas image layer, drawn with the
+- The DynamicMap visible mesh is composited as its own cached Canvas image layer, drawn with the
   same style as fog of war: fully opaque black on the player-facing table view, and a transparent
   grey/black overlay on the DM minimap.
 - The player-facing table view keeps an accumulated seen-area mesh. Areas seen by PCs at least once
-  but not currently visible are covered with the same grey sightline tint used on the DM minimap;
-  areas never seen by PCs stay fully black.
-- Sightline meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
-  changes; normal redraws, NPC token movement, and view pan/zoom reuse the last completed mesh.
+  but not currently visible are redrawn from the grayscale map cache and covered with the same grey
+  sightline tint used on the DM minimap; areas never seen by PCs stay fully black.
+- Visible meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
+  changes, including darkvision and light-source settings; normal redraws, NPC token movement, and
+  view pan/zoom reuse the last completed mesh.
 - DynamicMap base art, manual fog, and sightline overlays are cached as separate renderer layers
   when their pixel size is within the configured cache budget.
 - Player-facing NPC token visibility is based on intersection between the token's drawn circle and
-  the current visible sightline mesh, so even a small exposed edge reveals the token. Previously
-  seen areas do not reveal NPCs or their movement.
+  the current visible mesh, including authored lighting when active, so even a small exposed edge
+  reveals the token. Previously seen areas do not reveal NPCs or their movement.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.
@@ -98,7 +122,12 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ## Future Work Notes
 
-- Dynamic lighting and light occlusion are not implemented yet; current lights are rendered as static halos.
+- Current lighting supports builder-authored point lights, sunlight/outside polygons, and PC-carried
+  tracker light sources. Authored lights are fixed to the grid; PC-carried lights follow the PC token.
+  Bright cores are wall-occluded, while dim light intentionally ignores walls as a cheap soft-light
+  approximation. Light colour tint is rendered for visible point-light areas. PC darkvision is supported
+  as a wall-blocked grayscale reveal from the token centre. NPC-carried lights, inventory automation,
+  and typed light-blocker rules are still future work.
 - Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
   PC sightline mesh.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.

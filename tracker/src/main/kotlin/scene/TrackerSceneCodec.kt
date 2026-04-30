@@ -4,7 +4,9 @@ import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
 import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.DEFAULT_LIGHT_SOURCE_COLOR
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
@@ -20,7 +22,7 @@ internal data class TrackerSceneState(
 )
 
 internal object TrackerSceneCodec {
-    private const val VERSION = 4
+    private const val VERSION = 5
     private const val PROPERTY_VERSION_WITHOUT_ACTOR_TYPE = 2
     private const val LEGACY_VERSION = 1
 
@@ -46,6 +48,13 @@ internal object TrackerSceneCodec {
                 actor.features.movementRange?.let { range ->
                     setProperty("$prefix.movementRange", range.amount.toString())
                     setProperty("$prefix.movementUnit", range.unit.name)
+                }
+                actor.features.lightSource?.let { source ->
+                    setProperty("$prefix.lightBrightRange", source.brightRange.amount.toString())
+                    setProperty("$prefix.lightBrightUnit", source.brightRange.unit.name)
+                    setProperty("$prefix.lightDimRange", source.dimRange.amount.toString())
+                    setProperty("$prefix.lightDimUnit", source.dimRange.unit.name)
+                    setProperty("$prefix.lightColor", ColorHexCodec.colorToHex(source.color))
                 }
                 setProperty("$prefix.color", ColorHexCodec.colorToHex(actor.color))
                 actor.imageSettings.uri?.let { setProperty("$prefix.imageUri", it) }
@@ -96,6 +105,7 @@ internal object TrackerSceneCodec {
                         features = ActorFeatures(
                             darkvisionRange = readDistanceRange(props, prefix, "darkvision"),
                             movementRange = readDistanceRange(props, prefix, "movement"),
+                            lightSource = readLightSource(props, prefix),
                         ),
                         color = color,
                         imageSettings = ActorImageSettings(
@@ -114,6 +124,22 @@ internal object TrackerSceneCodec {
             actors = actors,
             activeActorId = props.getProperty("activeActorId"),
             roundCount = props.getProperty("roundCount")?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    private fun readLightSource(
+        props: Properties,
+        prefix: String,
+    ): ActorLightSource? {
+        val brightRange = readDistanceRange(props, prefix, "lightBright") ?: return null
+        val dimRange = readDistanceRange(props, prefix, "lightDim") ?: return null
+        return ActorLightSource(
+            brightRange = brightRange,
+            dimRange = dimRange,
+            color = ColorHexCodec.parseOrDefault(
+                props.getProperty("$prefix.lightColor"),
+                DEFAULT_LIGHT_SOURCE_COLOR,
+            ),
         )
     }
 

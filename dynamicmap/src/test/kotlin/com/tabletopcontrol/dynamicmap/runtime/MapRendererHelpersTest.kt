@@ -1,8 +1,12 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMesh
 import com.tabletopcontrol.dynamicmap.runtime.logic.TableMapOffset
 import javafx.scene.paint.Color
+import java.awt.geom.Area
+import java.awt.geom.Rectangle2D
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -46,5 +50,25 @@ class MapRendererHelpersTest {
         assertNotEquals(base.hue, outline.hue)
         assertTrue(outline.opacity < base.opacity)
         assertTrue(outline.opacity in 0.22..0.5)
+    }
+
+    @Test
+    fun `remembered sightline mesh contains seen but not currently visible terrain`() {
+        val current = DynamicSightlineMesh.fromVisibleArea(
+            cols = 4,
+            rows = 2,
+            visibleArea = Area(Rectangle2D.Double(0.0, 0.0, 2.0, 2.0)),
+        )
+        val seen = DynamicSightlineMesh.fromVisibleArea(
+            cols = 4,
+            rows = 2,
+            visibleArea = Area(Rectangle2D.Double(0.0, 0.0, 4.0, 2.0)),
+        )
+
+        val remembered = rememberedSightlineMesh(current, seen)
+
+        assertNotNull(remembered)
+        assertFalse(remembered!!.containsPoint(1.0, 1.0))
+        assertTrue(remembered.containsPoint(3.0, 1.0))
     }
 }

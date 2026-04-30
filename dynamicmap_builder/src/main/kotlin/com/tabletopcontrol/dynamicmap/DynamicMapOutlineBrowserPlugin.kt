@@ -89,7 +89,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
         val toggleLightButton = Button("Disable Light")
         val clearSelectionButton = Button("Clear Selection")
         val footerLabel = Label(
-            "The outline shows every group, wall, and light in the current draft. Right-click entries to rename, group, or ungroup them.",
+            "The outline shows every group, light, sunlight area, and wall in the current draft. Right-click entries to rename, group, or ungroup them.",
         ).apply {
             isWrapText = true
             style = "-fx-text-fill: -tc-text-muted;"
@@ -243,6 +243,30 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 }
             }
 
+            val sunlightAreasNode = TreeItem<DynamicMapOutlineNode>(
+                DynamicMapOutlineGroupNode("Sunlight Areas (${document.sunlightAreas.size})"),
+            ).apply { isExpanded = true }
+            if (document.sunlightAreas.isEmpty()) {
+                sunlightAreasNode.children += TreeItem<DynamicMapOutlineNode>(
+                    DynamicMapOutlineHintNode("No sunlight areas drawn yet"),
+                )
+            } else {
+                document.sunlightAreas.forEachIndexed { itemIndex, area ->
+                    val itemSelection = DynamicMapElementSelection(
+                        kind = DynamicMapElementKind.SUNLIGHT_AREA,
+                        elementId = area.id,
+                    )
+                    val item = TreeItem<DynamicMapOutlineNode>(
+                        DynamicMapOutlineElementNode(
+                            selection = itemSelection,
+                            label = buildSunlightAreaOutlineLabel(itemIndex, area),
+                        ),
+                    )
+                    sunlightAreasNode.children += item
+                    index[itemSelection] = item
+                }
+            }
+
             val wallsNode = TreeItem<DynamicMapOutlineNode>(
                 DynamicMapOutlineGroupNode("Walls (${document.walls.size})"),
             ).apply { isExpanded = true }
@@ -267,7 +291,7 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
                 }
             }
 
-            root.children.setAll(groupsNode, lightsNode, wallsNode)
+            root.children.setAll(groupsNode, lightsNode, sunlightAreasNode, wallsNode)
             itemBySelection = index
             itemByGroupId = groupIndex
             selectedGroupIds = selectedGroupIds.filterTo(linkedSetOf()) { document.groupById(it) != null }
@@ -275,7 +299,8 @@ class DynamicMapOutlineBrowserPlugin : DmPlugin {
             tree.root = root
             isApplyingSelection = false
             summaryLabel.text =
-                "Groups: ${document.groups.size} | Lights: ${document.lights.count { it.enabled }}/${document.lights.size} enabled | Walls: ${document.walls.size}"
+                "Groups: ${document.groups.size} | Lights: ${document.lights.count { it.enabled }}/${document.lights.size} enabled | " +
+                    "Sunlight: ${document.sunlightAreas.size} | Walls: ${document.walls.size}"
             val existingSelections = document.filterExistingSelections(selections)
             if (existingSelections != selections) {
                 EventBus.publish(DynamicMapSelectionChangedEvent(existingSelections))
@@ -439,6 +464,7 @@ private sealed interface DynamicMapOutlineRenameTarget {
         override val displayKind: String = when (selection.kind) {
             DynamicMapElementKind.WALL -> "wall"
             DynamicMapElementKind.LIGHT -> "light"
+            DynamicMapElementKind.SUNLIGHT_AREA -> "sunlight area"
         }
     }
 }
@@ -452,6 +478,9 @@ private fun buildLightOutlineLabel(index: Int, light: DynamicMapLight): String {
 private fun buildWallOutlineLabel(index: Int, wall: DynamicMapWall): String =
     "${index + 1}. ${wall.label} @ ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
         "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
+
+private fun buildSunlightAreaOutlineLabel(index: Int, area: DynamicMapSunlightArea): String =
+    "${index + 1}. ${area.label} (${area.points.size} vertices)"
 
 private fun buildGroupMemberOutlineNode(
     selection: DynamicMapElementSelection,
@@ -467,6 +496,9 @@ private fun buildGroupMemberOutlineNode(
             "Wall: ${wall.label} @ ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
                 "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
         }
+        DynamicMapElementKind.SUNLIGHT_AREA -> document.sunlightAreaById(selection.elementId)?.let { area ->
+            "Sunlight Area: ${area.label} (${area.points.size} vertices)"
+        }
     } ?: return null
 
     return DynamicMapOutlineElementNode(selection = selection, label = label)
@@ -476,6 +508,7 @@ private fun DynamicMapDocument.labelForSelection(selection: DynamicMapElementSel
     when (selection.kind) {
         DynamicMapElementKind.WALL -> wallById(selection.elementId)?.label
         DynamicMapElementKind.LIGHT -> lightById(selection.elementId)?.label
+        DynamicMapElementKind.SUNLIGHT_AREA -> sunlightAreaById(selection.elementId)?.label
     }
 
 private fun formatOutlineCoordinate(value: Double): String =

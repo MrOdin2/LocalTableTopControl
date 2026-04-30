@@ -46,15 +46,26 @@ enum class ActorType(
 data class ActorFeatures(
     val darkvisionRange: DistanceRange? = null,
     val movementRange: DistanceRange? = null,
+    val lightSource: ActorLightSource? = null,
 ) {
     val hasAny: Boolean
-        get() = darkvisionRange != null || movementRange != null
+        get() = darkvisionRange != null || movementRange != null || lightSource != null
 
     val summaryText: String
         get() = buildList {
             darkvisionRange?.let { add("DV ${it.displayText}") }
             movementRange?.let { add("Move ${it.displayText}") }
+            lightSource?.let { add("Light ${it.displayText}") }
         }.joinToString(" | ").ifBlank { "No features set" }
+}
+
+data class ActorLightSource(
+    val brightRange: DistanceRange,
+    val dimRange: DistanceRange,
+    val color: Color = DEFAULT_LIGHT_SOURCE_COLOR,
+) {
+    val displayText: String
+        get() = "${brightRange.displayText}/${dimRange.displayText}"
 }
 
 data class DistanceRange(
@@ -90,6 +101,8 @@ enum class DistanceUnit(
         }
     }
 }
+
+val DEFAULT_LIGHT_SOURCE_COLOR: Color = Color.web("#FFD37A")
 
 data class ActorImageSettings(
     val uri: String? = null,

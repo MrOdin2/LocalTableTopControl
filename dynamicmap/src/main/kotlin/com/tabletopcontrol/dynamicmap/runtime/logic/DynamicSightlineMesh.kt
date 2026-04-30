@@ -3,6 +3,7 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimePoint
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
 import java.awt.geom.Area
+import java.awt.geom.Ellipse2D
 import java.awt.geom.Path2D
 import java.awt.geom.PathIterator
 import java.awt.geom.Rectangle2D
@@ -75,32 +76,33 @@ internal class DynamicSightlineMesh(
     fun containsPoint(x: Double, y: Double): Boolean =
         x in 0.0..cols.toDouble() &&
             y in 0.0..rows.toDouble() &&
-            triangles.any { it.contains(DynamicSightPoint(x, y)) }
+            visibleArea.contains(x, y)
 
     fun intersectsToken(token: Token): Boolean {
         val bounds = tokenDrawBounds(token, originX = 0.0, originY = 0.0, cellPx = 1.0)
-        val center = DynamicSightPoint(bounds.centerX, bounds.centerY)
-        val radius = bounds.size / 2.0
-        return triangles.any { it.intersectsCircle(center, radius) }
+        val tokenArea = Area(Ellipse2D.Double(bounds.left, bounds.top, bounds.size, bounds.size))
+        tokenArea.intersect(visibleArea)
+        return !tokenArea.isEmpty
     }
 
     fun copyVisibleArea(): Area = Area(visibleArea)
+
+    fun hasVisibleArea(): Boolean = !visibleArea.isEmpty
+
+    fun drawVisibleArea(
+        moveTo: (DynamicSightPoint) -> Unit,
+        lineTo: (DynamicSightPoint) -> Unit,
+        closePath: () -> Unit,
+    ) {
+        drawDynamicAreaPath(visibleArea, moveTo, lineTo, closePath)
+    }
 
     fun drawHiddenArea(
         moveTo: (DynamicSightPoint) -> Unit,
         lineTo: (DynamicSightPoint) -> Unit,
         closePath: () -> Unit,
     ) {
-        val pathIterator = hiddenArea.getPathIterator(null, PATH_FLATNESS)
-        val coords = DoubleArray(6)
-        while (!pathIterator.isDone) {
-            when (pathIterator.currentSegment(coords)) {
-                PathIterator.SEG_MOVETO -> moveTo(DynamicSightPoint(coords[0], coords[1]))
-                PathIterator.SEG_LINETO -> lineTo(DynamicSightPoint(coords[0], coords[1]))
-                PathIterator.SEG_CLOSE -> closePath()
-            }
-            pathIterator.next()
-        }
+        drawDynamicAreaPath(hiddenArea, moveTo, lineTo, closePath)
     }
 
     companion object {
@@ -139,6 +141,24 @@ internal class DynamicSightlineMesh(
             tokens: Iterable<Token>,
         ): DynamicSightlineMesh =
             DynamicSightlineGeometry.forMap(cols, rows, walls).compute(tokens)
+    }
+}
+
+internal fun drawDynamicAreaPath(
+    area: Area,
+    moveTo: (DynamicSightPoint) -> Unit,
+    lineTo: (DynamicSightPoint) -> Unit,
+    closePath: () -> Unit,
+) {
+    val pathIterator = area.getPathIterator(null, PATH_FLATNESS)
+    val coords = DoubleArray(6)
+    while (!pathIterator.isDone) {
+        when (pathIterator.currentSegment(coords)) {
+            PathIterator.SEG_MOVETO -> moveTo(DynamicSightPoint(coords[0], coords[1]))
+            PathIterator.SEG_LINETO -> lineTo(DynamicSightPoint(coords[0], coords[1]))
+            PathIterator.SEG_CLOSE -> closePath()
+        }
+        pathIterator.next()
     }
 }
 
@@ -191,6 +211,33 @@ internal class DynamicSightlineGeometry private constructor(
             visibleArea = visibleArea,
         )
 
+    fun visibleAreaFromPoint(
+        x: Double,
+        y: Double,
+        radius: Double? = null,
+    ): Area {
+        if (x !in 0.0..cols.toDouble() || y !in 0.0..rows.toDouble()) {
+            return Area()
+        }
+        val origin = DynamicSightPoint(x, y)
+        val triangles = triangulateVisibleArea(origin, segments)
+        val area = visibleAreaFor(triangles)
+        if (radius != null) {
+            if (!radius.isFinite() || radius <= 0.0) return Area()
+            area.intersect(
+                Area(
+                    Ellipse2D.Double(
+                        x - radius,
+                        y - radius,
+                        radius * 2.0,
+                        radius * 2.0,
+                    ),
+                ),
+            )
+        }
+        return area
+    }
+
     companion object {
         fun forMap(
             cols: Int,
@@ -219,7 +266,7 @@ private data class RayHit(
     val distance: Double,
 )
 
-private fun Token.sightOrigin(): DynamicSightPoint {
+internal fun Token.sightOrigin(): DynamicSightPoint {
     val span = size.gridSpanCells.toDouble()
     return DynamicSightPoint(
         x = col + span / 2.0,

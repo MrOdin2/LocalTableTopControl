@@ -106,6 +106,17 @@ object DynamicMapGameplayExportSerializer {
             props.setProperty("$prefix.enabled", light.enabled.toString())
         }
 
+        props.setProperty("sunlightAreas.count", document.sunlightAreas.size.toString())
+        document.sunlightAreas.forEachIndexed { index, area ->
+            val prefix = "sunlightArea.$index"
+            props.setProperty("$prefix.points.count", area.points.size.toString())
+            area.points.forEachIndexed { pointIndex, point ->
+                val pointPrefix = "$prefix.point.$pointIndex"
+                props.setProperty("$pointPrefix.x", point.x.toString())
+                props.setProperty("$pointPrefix.y", point.y.toString())
+            }
+        }
+
         val writer = StringWriter()
         props.store(writer, "Dynamic Map gameplay export")
         return writer.toString()

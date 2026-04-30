@@ -18,6 +18,7 @@ data class DynamicMapBundle(
     val backgroundCalibration: DynamicMapRuntimeBackgroundCalibration,
     val walls: List<DynamicMapRuntimeWall>,
     val lights: List<DynamicMapRuntimeLight>,
+    val sunlightAreas: List<DynamicMapRuntimeSunlightArea>,
 ) {
     fun createBackgroundImage(): Image? {
         val bytes = backgroundBytes ?: return null
@@ -53,6 +54,10 @@ data class DynamicMapRuntimeLight(
     val dimRadius: Double,
     val colorHex: String,
     val enabled: Boolean,
+)
+
+data class DynamicMapRuntimeSunlightArea(
+    val points: List<DynamicMapRuntimePoint>,
 )
 
 object DynamicMapBundleLoader {
@@ -136,6 +141,7 @@ object DynamicMapBundleLoader {
                 backgroundCalibration = backgroundCalibration,
                 walls = parseWalls(props),
                 lights = parseLights(props),
+                sunlightAreas = parseSunlightAreas(props),
             ),
         )
     }
@@ -176,6 +182,26 @@ object DynamicMapBundleLoader {
                         enabled = props.getProperty("$prefix.enabled")?.toBooleanStrictOrNull() ?: true,
                     ),
                 )
+            }
+        }
+
+    private fun parseSunlightAreas(props: Properties): List<DynamicMapRuntimeSunlightArea> =
+        buildList {
+            val count = props.nonNegativeInt("sunlightAreas.count") ?: 0
+            repeat(count) { index ->
+                val prefix = "sunlightArea.$index"
+                val pointCount = props.nonNegativeInt("$prefix.points.count") ?: return@repeat
+                val points = buildList {
+                    repeat(pointCount) { pointIndex ->
+                        val pointPrefix = "$prefix.point.$pointIndex"
+                        val x = props.double("$pointPrefix.x") ?: return@repeat
+                        val y = props.double("$pointPrefix.y") ?: return@repeat
+                        add(DynamicMapRuntimePoint(x, y))
+                    }
+                }
+                if (points.size >= 3) {
+                    add(DynamicMapRuntimeSunlightArea(points = points))
+                }
             }
         }
 

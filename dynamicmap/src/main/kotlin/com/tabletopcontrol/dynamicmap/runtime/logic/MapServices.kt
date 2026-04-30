@@ -819,6 +819,8 @@ class MapTokenSyncService {
                     token.color,
                     token.size,
                     isPlayerCharacter = token.isPlayerCharacter,
+                    darkvisionRangeCells = token.darkvisionRangeCells,
+                    lightSource = token.lightSource,
                 ),
             )
             EventBus.publish(TokenMovedEvent(token.id, token.name, token.col, token.row))
@@ -856,6 +858,8 @@ class MapTokenSyncService {
     private fun mergeRestoredToken(previous: Token?, restored: Token): Token {
         val restoredWithTrackerMetadata = restored.copy(
             isPlayerCharacter = restored.isPlayerCharacter || previous?.isPlayerCharacter == true,
+            darkvisionRangeCells = restored.darkvisionRangeCells ?: previous?.darkvisionRangeCells,
+            lightSource = restored.lightSource ?: previous?.lightSource,
         )
         val restoredHasUsableImage = LocalFiles.exists(restored.imageUri)
         val previousHasUsableImage = LocalFiles.exists(previous?.imageUri)
@@ -887,6 +891,8 @@ class MapTokenSyncService {
                     color = event.color,
                     size = event.size,
                     isPlayerCharacter = event.isPlayerCharacter,
+                    darkvisionRangeCells = event.darkvisionRangeCells,
+                    lightSource = event.lightSource,
                 )
             } else {
                 val (nextTokenCol, nextTokenRow) = nextAvailableTokenPlacement(tokens.values, event.size)
@@ -899,6 +905,8 @@ class MapTokenSyncService {
                     size = event.size,
                     color = event.color,
                     isPlayerCharacter = event.isPlayerCharacter,
+                    darkvisionRangeCells = event.darkvisionRangeCells,
+                    lightSource = event.lightSource,
                 )
             }
         }
