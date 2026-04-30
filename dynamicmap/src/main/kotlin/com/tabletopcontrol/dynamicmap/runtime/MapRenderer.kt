@@ -611,6 +611,7 @@ class MapRenderer(private val canvas: Canvas) {
         if (dynamicMapBundle != null) {
             drawDynamicMapBaseLayer()
             drawDynamicDarkvisionLayer()
+            drawDynamicRememberedBaseLayer()
             if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
                 drawDynamicMapSunlightAreas()
                 drawDynamicMapLightHalos()
@@ -744,12 +745,44 @@ class MapRenderer(private val canvas: Canvas) {
     private fun drawDynamicDarkvisionLayer() {
         val bundle = dynamicMapBundle ?: return
         val mesh = dynamicDarkvisionMesh ?: return
-        if (!mesh.hasVisibleArea()) return
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
         if (cellPx <= 0.0) return
-        val originX = dynamicMapOriginX()
-        val originY = dynamicMapOriginY()
 
+        drawDynamicGrayscaleBaseLayer(
+            bundle = bundle,
+            mesh = mesh,
+            cellPx = cellPx,
+            originX = dynamicMapOriginX(),
+            originY = dynamicMapOriginY(),
+        )
+    }
+
+    private fun drawDynamicRememberedBaseLayer() {
+        if (!usePersistentVision) return
+        val bundle = dynamicMapBundle ?: return
+        val currentMesh = dynamicSightlineMesh ?: return
+        val seenMesh = dynamicSeenSightlineMesh ?: return
+        val rememberedMesh = rememberedSightlineMesh(currentMesh, seenMesh) ?: return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+
+        drawDynamicGrayscaleBaseLayer(
+            bundle = bundle,
+            mesh = rememberedMesh,
+            cellPx = cellPx,
+            originX = dynamicMapOriginX(),
+            originY = dynamicMapOriginY(),
+        )
+    }
+
+    private fun drawDynamicGrayscaleBaseLayer(
+        bundle: DynamicMapBundle,
+        mesh: DynamicSightlineMesh,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+    ) {
+        if (!mesh.hasVisibleArea()) return
         gc.save()
         gc.beginPath()
         mesh.drawVisibleArea(
@@ -764,7 +797,8 @@ class MapRenderer(private val canvas: Canvas) {
             gc.drawImage(grayscaleImage, originX, originY)
         } else {
             gc.setEffect(GRAYSCALE_EFFECT)
-            drawDynamicMapBaseLayer()
+            drawDynamicMapSurface(gc, bundle, cellPx, originX, originY)
+            drawDynamicMapBackground(gc, bundle, dynamicMapBackgroundImage, cellPx, originX, originY)
             gc.setEffect(null)
         }
         gc.restore()
@@ -1833,6 +1867,24 @@ class MapRenderer(private val canvas: Canvas) {
         private const val MAX_CACHED_LAYER_PIXELS = 16_000_000.0
         private val GRAYSCALE_EFFECT = ColorAdjust(0.0, -1.0, 0.0, 0.0)
     }
+}
+
+internal fun rememberedSightlineMesh(
+    currentMesh: DynamicSightlineMesh,
+    seenMesh: DynamicSightlineMesh,
+): DynamicSightlineMesh? {
+    if (currentMesh.cols != seenMesh.cols || currentMesh.rows != seenMesh.rows) return null
+
+    val rememberedArea = seenMesh.copyVisibleArea().apply {
+        subtract(currentMesh.copyVisibleArea())
+    }
+    if (rememberedArea.isEmpty) return null
+
+    return DynamicSightlineMesh.fromVisibleArea(
+        cols = seenMesh.cols,
+        rows = seenMesh.rows,
+        visibleArea = rememberedArea,
+    )
 }
 
 internal fun cacheTokenImageWhenReady(

@@ -80,8 +80,8 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   same style as fog of war: fully opaque black on the player-facing table view, and a transparent
   grey/black overlay on the DM minimap.
 - The player-facing table view keeps an accumulated seen-area mesh. Areas seen by PCs at least once
-  but not currently visible are covered with the same grey sightline tint used on the DM minimap;
-  areas never seen by PCs stay fully black.
+  but not currently visible are redrawn from the grayscale map cache and covered with the same grey
+  sightline tint used on the DM minimap; areas never seen by PCs stay fully black.
 - Visible meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
   changes; normal redraws, NPC token movement, and view pan/zoom reuse the last completed mesh.
 - DynamicMap base art, manual fog, and sightline overlays are cached as separate renderer layers
