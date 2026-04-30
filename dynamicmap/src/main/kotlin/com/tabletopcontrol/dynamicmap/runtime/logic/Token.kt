@@ -1,5 +1,6 @@
 package com.tabletopcontrol.dynamicmap.runtime.logic
 
+import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.core.TokenSize
 import javafx.scene.paint.Color
 
@@ -20,6 +21,7 @@ import javafx.scene.paint.Color
  * @property color       fill colour of the token circle; used as a fallback when no image is set.
  * @property isPlayerCharacter whether this token belongs to an actor marked as a player character.
  * @property darkvisionRangeCells optional darkvision radius measured in grid cells.
+ * @property lightSource optional token-attached light source measured in grid cells.
  * @property imageUri    URI of the picture to use for this token, or `null` to render a plain
  *                       filled circle using [color].  Typically a `file:` URI obtained via a
  *                       [javafx.stage.FileChooser].
@@ -39,6 +41,7 @@ data class Token(
     val color: Color,
     val isPlayerCharacter: Boolean = false,
     val darkvisionRangeCells: Double? = null,
+    val lightSource: TokenLightSource? = null,
     val imageUri: String? = null,
     val imageScaleX: Double = 1.0,
     val imageScaleY: Double = 1.0,

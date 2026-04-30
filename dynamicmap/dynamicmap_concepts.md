@@ -54,23 +54,27 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. A shared sightline
   service casts line-of-sight from those token centres through cached exported wall geometry and
   publishes one triangulated visibility mesh for all active DynamicMap renderers.
-- When a bundle contains authored lighting, the shared sightline service also builds a static light
-  mask from enabled point lights and sunlight/outside polygons. Point lights use their exported dim
-  radius as an unblocked soft reach, while their bright radius is occluded by exported walls.
+- When authored or PC-carried lighting is active, the shared sightline service builds a light mask
+  from enabled point lights, sunlight/outside polygons, and PC token light sources. Point lights use
+  their dim radius as an unblocked soft reach, while their bright radius is occluded by exported walls.
   Sunlight/outside polygons are treated as always-lit authored areas. The current player-visible mesh
-  is `PC sight AND authored light`, plus any PC darkvision area.
+  is `PC sight AND light`, plus any PC darkvision area.
+- Tracker light-source ranges are published as token metadata in grid cells. DynamicMap consumes
+  them only for PC tokens. The PC token centre is used as the light origin; the dim radius ignores
+  walls, and the bright radius reuses the cached PC sight contribution clipped to the bright range.
 - Tracker darkvision ranges are published as token metadata in grid cells. The sightline service treats
   each PC's darkvision as another wall-blocked light contribution from that PC's token centre, reusing
   the cached PC sight contribution and clipping it to the darkvision radius rather than raycasting again.
-- Renderers receive the shared static light mask together with the visible mesh and use each enabled
-  light's exported colour to draw a cached tint layer. The tint is clipped to the current visible mesh,
-  drawn with screen blending, and kept separate from sunlight/outside areas, which reveal visibility
-  without adding a colour cast.
+- Renderers receive the shared light mask together with the visible mesh and use each enabled
+  light's colour to draw a cached tint layer. The tint is clipped to the current visible mesh, drawn
+  with screen blending, and kept separate from sunlight/outside areas, which reveal visibility without
+  adding a colour cast.
 - Renderers also receive a darkvision-only mesh. That layer redraws the current map art in grayscale
   before the black sightline overlay is applied, so terrain revealed only by darkvision appears black
   and white instead of using normal light colour.
-- Bundles without authored lights, sunlight/outside polygons, or PC darkvision keep the previous
-  sight-only behavior for backward compatibility and for maps that are not ready to use lighting yet.
+- Bundles without authored lights, sunlight/outside polygons, PC light sources, or PC darkvision keep
+  the previous sight-only behavior for backward compatibility and for maps that are not ready to use
+  lighting yet.
 - Each PC token's sightline contribution is cached independently by token position, size, and wall
   topology. Moving one PC recomputes only that PC's contribution, then combines it with the other
   cached PC contributions.
@@ -83,7 +87,8 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   but not currently visible are redrawn from the grayscale map cache and covered with the same grey
   sightline tint used on the DM minimap; areas never seen by PCs stay fully black.
 - Visible meshes are recalculated when a PC token moves or when relevant bundle/PC token metadata
-  changes; normal redraws, NPC token movement, and view pan/zoom reuse the last completed mesh.
+  changes, including darkvision and light-source settings; normal redraws, NPC token movement, and
+  view pan/zoom reuse the last completed mesh.
 - DynamicMap base art, manual fog, and sightline overlays are cached as separate renderer layers
   when their pixel size is within the configured cache budget.
 - Player-facing NPC token visibility is based on intersection between the token's drawn circle and
@@ -117,12 +122,12 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ## Future Work Notes
 
-- Current lighting is the first static runtime slice: builder-authored point lights and sunlight/outside
-  polygons are fixed to the grid and combined with PC sight. Point-light bright cores are wall-occluded,
-  while dim light intentionally ignores walls as a cheap soft-light approximation.
-  Light colour tint is rendered for visible point-light areas. PC darkvision is supported as a
-  wall-blocked grayscale reveal from the token centre. Token-carried lights, moving lights, and typed
-  light-blocker rules are still future work.
+- Current lighting supports builder-authored point lights, sunlight/outside polygons, and PC-carried
+  tracker light sources. Authored lights are fixed to the grid; PC-carried lights follow the PC token.
+  Bright cores are wall-occluded, while dim light intentionally ignores walls as a cheap soft-light
+  approximation. Light colour tint is rendered for visible point-light areas. PC darkvision is supported
+  as a wall-blocked grayscale reveal from the token centre. NPC-carried lights, inventory automation,
+  and typed light-blocker rules are still future work.
 - Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
   PC sightline mesh.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.

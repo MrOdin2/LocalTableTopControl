@@ -79,6 +79,7 @@ internal class MapDynamicSightlineService {
                     size = event.size,
                     isPlayerCharacter = event.isPlayerCharacter,
                     darkvisionRangeCells = event.darkvisionRangeCells,
+                    lightSource = event.lightSource,
                 )
                 tokens[event.id] = updated
                 if (shouldRefreshSightlineContribution(previous, updated)) {
@@ -98,6 +99,7 @@ internal class MapDynamicSightlineService {
                     color = event.color,
                     isPlayerCharacter = event.isPlayerCharacter,
                     darkvisionRangeCells = event.darkvisionRangeCells,
+                    lightSource = event.lightSource,
                 )
                 if (event.isPlayerCharacter) {
                     scheduleCompute()
@@ -166,11 +168,17 @@ internal class MapDynamicSightlineService {
             ) ?: return@execute
             val sightMesh = geometry.combine(pcSightlines.map { it.contribution })
             val darkvisionMesh = geometry.darkvisionMeshFrom(pcSightlines)
+            val tokenLightMask = DynamicLightMask.fromPcTokenLights(bundle, pcSightlines)
+            val lightMaskForRevision = DynamicLightMask.combine(
+                cols = bundle.cols,
+                rows = bundle.rows,
+                masks = listOf(lightMask, tokenLightMask),
+            )
             val visibilityMeshes = applyStaticLightingAndDarkvision(
                 geometry = geometry,
                 sightMesh = sightMesh,
                 darkvisionMesh = darkvisionMesh,
-                lightMask = lightMask,
+                lightMask = lightMaskForRevision,
             )
             val seenMesh = updateSeenMesh(geometry, visibilityMeshes.visibleMesh, nextRevision) ?: return@execute
             if (disposed || revision.get() != nextRevision) return@execute
@@ -179,7 +187,7 @@ internal class MapDynamicSightlineService {
                     revision = nextRevision,
                     mesh = visibilityMeshes.visibleMesh,
                     seenMesh = seenMesh,
-                    lightMask = lightMask,
+                    lightMask = lightMaskForRevision,
                     darkvisionMesh = visibilityMeshes.darkvisionOnlyMesh,
                 ),
             )
@@ -288,7 +296,11 @@ internal class MapDynamicSightlineService {
         previous.isPlayerCharacter != updated.isPlayerCharacter ||
             (
                 updated.isPlayerCharacter &&
-                    (previous.size != updated.size || previous.darkvisionRangeCells != updated.darkvisionRangeCells)
+                    (
+                        previous.size != updated.size ||
+                            previous.darkvisionRangeCells != updated.darkvisionRangeCells ||
+                            previous.lightSource != updated.lightSource
+                        )
                 )
 
     private fun updateSeenMesh(

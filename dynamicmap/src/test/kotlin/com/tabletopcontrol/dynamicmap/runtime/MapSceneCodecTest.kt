@@ -1,5 +1,6 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
+import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.dynamicmap.runtime.logic.GridCalibration
 import com.tabletopcontrol.dynamicmap.runtime.logic.MapCalibration
@@ -44,6 +45,11 @@ class MapSceneCodecTest {
                     color = Color.CORNFLOWERBLUE,
                     isPlayerCharacter = true,
                     darkvisionRangeCells = 12.0,
+                    lightSource = TokenLightSource(
+                        brightRangeCells = 4.0,
+                        dimRangeCells = 8.0,
+                        colorHex = "#FFD37A",
+                    ),
                     imageUri = "file:///tokens/hero.png",
                     imageScaleX = 1.3,
                     imageScaleY = 1.0,
@@ -55,11 +61,14 @@ class MapSceneCodecTest {
             dynamicMapRenderMode = DynamicMapRenderMode.DEBUG,
         )
 
-        val restored = MapSceneCodec.deserialize(MapSceneCodec.serialize(state))
+        val serialized = MapSceneCodec.serialize(state)
+        val restored = MapSceneCodec.deserialize(serialized)
 
         assertEquals(state, restored)
-        assertTrue(MapSceneCodec.serialize(state).contains("token.0.isPlayerCharacter=true"))
-        assertTrue(MapSceneCodec.serialize(state).contains("token.0.darkvisionRangeCells=12.0"))
+        assertTrue(serialized.contains("token.0.isPlayerCharacter=true"))
+        assertTrue(serialized.contains("token.0.darkvisionRangeCells=12.0"))
+        assertTrue(serialized.contains("token.0.lightBrightRangeCells=4.0"))
+        assertTrue(serialized.contains("token.0.lightColor=\\#FFD37A"))
     }
 
     @Test

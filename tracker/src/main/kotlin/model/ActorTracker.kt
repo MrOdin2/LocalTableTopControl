@@ -4,8 +4,10 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
+import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.scene.paint.Color
 
@@ -42,6 +44,7 @@ class ActorTracker(
                 actor.tokenSize,
                 isPlayerCharacter = actor.actorType == ActorType.PC,
                 darkvisionRangeCells = actor.darkvisionRangeCells(),
+                lightSource = actor.tokenLightSource(),
             ),
         )
         if (actor.imageSettings.uri != null) {
@@ -88,7 +91,8 @@ class ActorTracker(
                 previousActor.color != updatedActor.color ||
                 previousActor.tokenSize != updatedActor.tokenSize ||
                 previousActor.actorType != updatedActor.actorType ||
-                previousActor.features.darkvisionRange != updatedActor.features.darkvisionRange
+                previousActor.features.darkvisionRange != updatedActor.features.darkvisionRange ||
+                previousActor.features.lightSource != updatedActor.features.lightSource
             ) {
                 EventBus.publish(
                     TokenAddedEvent(
@@ -98,6 +102,7 @@ class ActorTracker(
                         updatedActor.tokenSize,
                         isPlayerCharacter = updatedActor.actorType == ActorType.PC,
                         darkvisionRangeCells = updatedActor.darkvisionRangeCells(),
+                        lightSource = updatedActor.tokenLightSource(),
                     ),
                 )
             }
@@ -158,6 +163,7 @@ class ActorTracker(
                     actor.tokenSize,
                     isPlayerCharacter = actor.actorType == ActorType.PC,
                     darkvisionRangeCells = actor.darkvisionRangeCells(),
+                    lightSource = actor.tokenLightSource(),
                 ),
             )
             if (actor.imageSettings.uri != null) {
@@ -286,6 +292,23 @@ class ActorTracker(
         features.darkvisionRange
             ?.toGridCells()
             ?.takeIf { it.isFinite() && it > 0.0 }
+
+    private fun Actor.tokenLightSource(): TokenLightSource? {
+        val source = features.lightSource ?: return null
+        val brightRangeCells = source.brightRange.toGridCells()
+            .takeIf { it.isFinite() && it > 0.0 }
+            ?: 0.0
+        val dimRangeCells = source.dimRange.toGridCells()
+            .takeIf { it.isFinite() && it > 0.0 }
+            ?: 0.0
+        if (brightRangeCells <= 0.0 && dimRangeCells <= 0.0) return null
+
+        return TokenLightSource(
+            brightRangeCells = brightRangeCells,
+            dimRangeCells = maxOf(dimRangeCells, brightRangeCells),
+            colorHex = ColorHexCodec.colorToHex(source.color),
+        )
+    }
 
     private fun DistanceRange.toGridCells(): Double =
         when (unit) {

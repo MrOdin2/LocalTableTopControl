@@ -351,10 +351,12 @@
         The tracker's <strong>PC</strong> marker also drives DynamicMap sightlines. Tokens belonging
         to PC actors reveal the areas they can see through the exported wall geometry. When the
         loaded dynamic bundle contains authored lights or sunlight areas, those PC sightlines are
-        also limited to lit areas. A PC actor's darkvision range acts as a grayscale reveal from
-        that token's position. If terrain is no longer currently visible and only remembered,
-        DynamicMap keeps it grayscale so the table shows layout information without colour detail.
-        NPC movement does not recalculate that visibility layer.
+        also limited to lit areas. A PC actor's light source in the tracker acts as a moving point
+        light attached to that token, with separate bright and dim ranges and its chosen tint colour.
+        A PC actor's darkvision range acts as a grayscale reveal from that token's position. If terrain
+        is no longer currently visible and only remembered, DynamicMap keeps it grayscale so the table
+        shows layout information without colour detail. NPC movement does not recalculate that
+        visibility layer.
       </p>
       <p>
         When both Map and DynamicMap are available, use the toolbar's <strong>Table content</strong>

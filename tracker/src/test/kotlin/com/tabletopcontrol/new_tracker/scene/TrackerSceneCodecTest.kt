@@ -3,6 +3,7 @@ package com.tabletopcontrol.new_tracker.scene
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
 import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import com.tabletopcontrol.new_tracker.model.DistanceRange
@@ -28,6 +29,11 @@ class TrackerSceneCodecTest {
                     features = ActorFeatures(
                         darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
                         movementRange = DistanceRange(9, DistanceUnit.METERS),
+                        lightSource = ActorLightSource(
+                            brightRange = DistanceRange(20, DistanceUnit.FEET),
+                            dimRange = DistanceRange(12, DistanceUnit.METERS),
+                            color = Color.web("#FFD37A"),
+                        ),
                     ),
                     color = Color.DARKRED,
                     imageSettings = ActorImageSettings(
@@ -63,6 +69,11 @@ class TrackerSceneCodecTest {
                     features = ActorFeatures(
                         darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
                         movementRange = DistanceRange(9, DistanceUnit.METERS),
+                        lightSource = ActorLightSource(
+                            brightRange = DistanceRange(20, DistanceUnit.FEET),
+                            dimRange = DistanceRange(12, DistanceUnit.METERS),
+                            color = Color.web("#FFD37A"),
+                        ),
                     ),
                     color = Color.DARKRED,
                     imageSettings = ActorImageSettings(uri = "file:///tokens/goblin.png"),
@@ -74,11 +85,14 @@ class TrackerSceneCodecTest {
 
         val serialized = TrackerSceneCodec.serialize(state)
 
-        assertTrue(serialized.contains("version=4"))
+        assertTrue(serialized.contains("version=5"))
         assertTrue(serialized.contains("actor.0.name=Goblin Boss"))
         assertTrue(serialized.contains("actor.0.actorType=PC"))
         assertTrue(serialized.contains("actor.0.darkvisionRange=60"))
         assertTrue(serialized.contains("actor.0.movementUnit=METERS"))
+        assertTrue(serialized.contains("actor.0.lightBrightRange=20"))
+        assertTrue(serialized.contains("actor.0.lightDimUnit=METERS"))
+        assertTrue(serialized.contains("actor.0.lightColor=\\#FFD37A"))
         assertTrue(serialized.contains("actor.0.imageUri=file\\:///tokens/goblin.png"))
     }
 

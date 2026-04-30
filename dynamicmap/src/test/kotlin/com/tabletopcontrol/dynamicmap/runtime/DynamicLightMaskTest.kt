@@ -1,6 +1,8 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
+import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicLightMask
+import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicPcSightlineContribution
 import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineGeometry
 import com.tabletopcontrol.dynamicmap.runtime.logic.Token
 import javafx.scene.paint.Color
@@ -127,6 +129,45 @@ class DynamicLightMaskTest {
         assertTrue(sightMesh.containsPoint(4.0, 2.0))
         assertFalse(visibleMesh.containsPoint(4.0, 2.0))
         assertTrue(visibleMesh.containsPoint(1.25, 2.0))
+    }
+
+    @Test
+    fun `pc token light contributes moving dim and wall occluded bright light`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 5.0),
+        )
+        val bundle = bundle(walls = listOf(wall))
+        val geometry = DynamicSightlineGeometry.forMap(
+            cols = bundle.cols,
+            rows = bundle.rows,
+            walls = bundle.walls,
+        )
+        val pc = Token(
+            id = "pc",
+            name = "Lantern",
+            col = 0,
+            row = 1,
+            color = Color.BLUE,
+            isPlayerCharacter = true,
+            lightSource = TokenLightSource(
+                brightRangeCells = 5.0,
+                dimRangeCells = 5.0,
+                colorHex = "#ffcc66",
+            ),
+        )
+        val contribution = requireNotNull(geometry.computeContribution(pc))
+
+        val mask = DynamicLightMask.fromPcTokenLights(
+            bundle = bundle,
+            pcSightlines = listOf(DynamicPcSightlineContribution(pc, contribution)),
+        )
+
+        assertTrue(mask.lightingActive)
+        assertTrue(mask.containsPoint(3.0, 1.5))
+        assertTrue(mask.containsBrightPoint(1.5, 1.5))
+        assertFalse(mask.containsBrightPoint(3.0, 1.5))
+        assertEquals("#ffcc66", mask.tintContributions.single().colorHex)
     }
 
     private fun lightMask(bundle: DynamicMapBundle): DynamicLightMask =

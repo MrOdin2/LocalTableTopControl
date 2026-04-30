@@ -48,7 +48,7 @@ data class DynamicMapRenderModeEvent(val mode: DynamicMapRenderMode)
 /**
  * Internal renderer event carrying the latest shared DynamicMap player-visible mesh.
  *
- * The mesh, optional static light mask, and optional darkvision-only mesh are computed once by
+ * The mesh, optional light mask, and optional darkvision-only mesh are computed once by
  * [com.tabletopcontrol.dynamicmap.runtime.logic.MapDynamicSightlineService] and consumed by every
  * active view renderer. `mesh == null` clears DynamicMap sightline state.
  */

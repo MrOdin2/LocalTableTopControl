@@ -181,7 +181,7 @@
         <tr><td>DebugMode</td><td>Shows exported walls in the same solid accent colour used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
-        <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, or PC darkvision keep sight-only visibility.</td></tr>
+        <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting or a PC has a light source. PC light sources move with the token. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, PC light sources, or PC darkvision keep sight-only visibility.</td></tr>
         <tr><td>Measurements</td><td>Line, cone, rectangle, and circle overlays can be DM-only or mirrored to the table screen.</td></tr>
         <tr><td>Table movement</td><td>The whole rendered table map can be nudged or re-centered without editing the exported bundle.</td></tr>
       </table>
@@ -195,8 +195,9 @@
         fully black on the player-facing table screen; areas seen before but no longer visible are
         shown in black and white with a soft grey cover. When the bundle contains authored lighting,
         current visibility is limited to
-        places that are both seen by a PC and lit by a point light or sunlight area, plus any area
-        revealed by a PC's darkvision. Point lights also tint the currently visible map with the
+        places that are both seen by a PC and lit by a point light, sunlight area, or PC-carried
+        light source, plus any area revealed by a PC's darkvision. Point lights also tint the
+        currently visible map with the
         colour chosen in the builder. Terrain seen only through darkvision is shown in black and
         white. The DM minimap remains visible to the DM. Moving an NPC token does not recalculate
         sightlines. When several PCs are active, moving one PC recalculates that PC's sightline in
@@ -227,10 +228,10 @@
       <p>
         Wall geometry controls player-character sightlines during play and also blocks each point
         light's bright core. Enabled point lights illuminate softly out to their dim radius even
-        around wall corners, tint visible areas with their builder colour, sunlight areas are always
-        lit, and PC darkvision reveals wall-blocked grayscale terrain from that PC's token. If a
-        bundle has no lights, sunlight areas, or PC darkvision, DynamicMap keeps the older sight-only
-        behavior.
+        around wall corners, tint visible areas with their chosen colour, sunlight areas are always
+        lit, PC light sources follow their token, and PC darkvision reveals wall-blocked grayscale
+        terrain from that PC's token. If a bundle has no lights, sunlight areas, PC light sources,
+        or PC darkvision, DynamicMap keeps the older sight-only behavior.
       </p>
     </section>
 

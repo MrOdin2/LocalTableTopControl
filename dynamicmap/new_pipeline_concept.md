@@ -243,9 +243,10 @@ Current bridge implementation:
 - The renderer draws each point light's exported colour as a cached tint layer clipped to the current visible mask, using screen blending so tint brightens the map instead of muddying it.
 - Sunlight/outside polygons are treated as always-lit authored regions.
 - PC darkvision is treated as a token-origin light contribution clipped from the cached PC sight area, then rendered as a grayscale-only reveal.
+- Tracker PC light sources are treated as token-origin point lights. Their dim radius is unblocked, their bright radius is clipped from the cached PC sight area, and their tint joins the same cached light-tint layer as authored point lights.
 - Persistent-vision memory redraws remembered-only terrain from the grayscale static map cache before applying the grey memory overlay, so remembered areas never leak colour information.
-- Bundles with no authored lighting and no PC darkvision remain sight-only until the DM opts into lighting data.
-- Token-carried lights, moving lights, and typed light-blocker rules remain future pipeline work.
+- Bundles with no authored lighting, no PC light sources, and no PC darkvision remain sight-only until the DM opts into lighting data.
+- NPC-carried lights, inventory automation, and typed light-blocker rules remain future pipeline work.
 
 ## Persistence of Vision
 

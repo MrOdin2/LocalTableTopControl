@@ -399,6 +399,7 @@ class MapRenderer(private val canvas: Canvas) {
                     size = event.size,
                     isPlayerCharacter = event.isPlayerCharacter,
                     darkvisionRangeCells = event.darkvisionRangeCells,
+                    lightSource = event.lightSource,
                 )
             } else {
                 val (nextTokenCol, nextTokenRow) = nextAvailableTokenPlacement(tokens, event.size)
@@ -412,6 +413,7 @@ class MapRenderer(private val canvas: Canvas) {
                         event.color,
                         isPlayerCharacter = event.isPlayerCharacter,
                         darkvisionRangeCells = event.darkvisionRangeCells,
+                        lightSource = event.lightSource,
                     ),
                 )
             }

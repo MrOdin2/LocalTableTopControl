@@ -59,7 +59,6 @@ internal class DynamicLightMask(
             bundle.lights
                 .filter { it.enabled }
                 .forEach { light ->
-                    val dimContribution = circleArea(light.position.x, light.position.y, light.dimRadius)
                     val brightContribution = if (light.brightRadius > 0.0) {
                         geometry.visibleAreaFromPoint(
                             x = light.position.x,
@@ -69,22 +68,16 @@ internal class DynamicLightMask(
                     } else {
                         Area()
                     }
-                    if (light.dimRadius > 0.0) {
-                        litArea.add(dimContribution)
-                    }
-                    if (!brightContribution.isEmpty) {
-                        brightArea.add(brightContribution)
-                        litArea.add(brightContribution)
-                    }
-                    if (!dimContribution.isEmpty || !brightContribution.isEmpty) {
-                        tintContributions += DynamicLightTintContribution(
-                            colorHex = light.colorHex,
-                            x = light.position.x,
-                            y = light.position.y,
-                            dimRadius = light.dimRadius,
-                            brightArea = brightContribution,
-                        )
-                    }
+                    addPointLightContribution(
+                        litArea = litArea,
+                        brightArea = brightArea,
+                        tintContributions = tintContributions,
+                        colorHex = light.colorHex,
+                        x = light.position.x,
+                        y = light.position.y,
+                        dimRadius = light.dimRadius,
+                        brightContribution = brightContribution,
+                    )
                 }
 
             bundle.sunlightAreas
@@ -103,6 +96,122 @@ internal class DynamicLightMask(
                 lightingActive = hasAuthoredLighting,
             )
         }
+
+        fun fromPcTokenLights(
+            bundle: DynamicMapBundle,
+            pcSightlines: Iterable<DynamicPcSightlineContribution>,
+        ): DynamicLightMask {
+            val mapBounds = Area(Rectangle2D.Double(0.0, 0.0, bundle.cols.toDouble(), bundle.rows.toDouble()))
+            val litArea = Area()
+            val brightArea = Area()
+            val tintContributions = mutableListOf<DynamicLightTintContribution>()
+            var hasTokenLighting = false
+
+            pcSightlines.forEach { snapshot ->
+                val source = snapshot.token.lightSource ?: return@forEach
+                val origin = snapshot.token.sightOrigin()
+                val brightRadius = source.brightRangeCells.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+                val dimRadius = maxOf(
+                    source.dimRangeCells.takeIf { it.isFinite() && it > 0.0 } ?: 0.0,
+                    brightRadius,
+                )
+                if (brightRadius <= 0.0 && dimRadius <= 0.0) return@forEach
+
+                hasTokenLighting = true
+                val brightContribution = if (brightRadius > 0.0) {
+                    snapshot.contribution.copyVisibleArea().apply {
+                        intersect(circleArea(origin.x, origin.y, brightRadius))
+                    }
+                } else {
+                    Area()
+                }
+                addPointLightContribution(
+                    litArea = litArea,
+                    brightArea = brightArea,
+                    tintContributions = tintContributions,
+                    colorHex = source.colorHex,
+                    x = origin.x,
+                    y = origin.y,
+                    dimRadius = dimRadius,
+                    brightContribution = brightContribution,
+                )
+            }
+
+            litArea.intersect(mapBounds)
+            brightArea.intersect(mapBounds)
+
+            return DynamicLightMask(
+                cols = bundle.cols,
+                rows = bundle.rows,
+                litArea = litArea,
+                brightArea = brightArea,
+                tintContributions = tintContributions,
+                lightingActive = hasTokenLighting,
+            )
+        }
+
+        fun combine(
+            cols: Int,
+            rows: Int,
+            masks: Iterable<DynamicLightMask?>,
+        ): DynamicLightMask {
+            val mapBounds = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble()))
+            val litArea = Area()
+            val brightArea = Area()
+            val tintContributions = mutableListOf<DynamicLightTintContribution>()
+            var lightingActive = false
+
+            masks.filterNotNull().forEach { mask ->
+                require(mask.cols == cols && mask.rows == rows) {
+                    "Cannot combine light masks with different dimensions."
+                }
+                litArea.add(mask.copyLitArea())
+                brightArea.add(mask.copyBrightArea())
+                tintContributions += mask.tintContributions
+                lightingActive = lightingActive || mask.lightingActive
+            }
+
+            litArea.intersect(mapBounds)
+            brightArea.intersect(mapBounds)
+
+            return DynamicLightMask(
+                cols = cols,
+                rows = rows,
+                litArea = litArea,
+                brightArea = brightArea,
+                tintContributions = tintContributions,
+                lightingActive = lightingActive,
+            )
+        }
+    }
+}
+
+private fun addPointLightContribution(
+    litArea: Area,
+    brightArea: Area,
+    tintContributions: MutableList<DynamicLightTintContribution>,
+    colorHex: String,
+    x: Double,
+    y: Double,
+    dimRadius: Double,
+    brightContribution: Area,
+) {
+    val dimContribution = circleArea(x, y, dimRadius)
+    if (dimRadius > 0.0) {
+        litArea.add(dimContribution)
+    }
+    if (!brightContribution.isEmpty) {
+        brightArea.add(brightContribution)
+        litArea.add(brightContribution)
+    }
+    if (!dimContribution.isEmpty || !brightContribution.isEmpty) {
+        tintContributions += DynamicLightTintContribution(
+            colorHex = colorHex,
+            x = x,
+            y = y,
+            dimRadius = dimRadius,
+            brightArea = brightContribution,
+        )
     }
 }
 

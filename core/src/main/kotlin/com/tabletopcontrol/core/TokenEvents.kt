@@ -16,6 +16,7 @@ import javafx.scene.paint.Color
  *                 for legacy saves and older publishers.
  * @property isPlayerCharacter whether this token belongs to an actor marked as a player character.
  * @property darkvisionRangeCells optional darkvision radius measured in grid cells.
+ * @property lightSource optional token-attached light source measured in grid cells.
  */
 data class TokenAddedEvent(
     val id: String,
@@ -24,7 +25,33 @@ data class TokenAddedEvent(
     val size: TokenSize = TokenSize.MEDIUM,
     val isPlayerCharacter: Boolean = false,
     val darkvisionRangeCells: Double? = null,
+    val lightSource: TokenLightSource? = null,
 )
+
+/**
+ * Token-attached light metadata published by tracker-like plugins.
+ *
+ * DynamicMap currently consumes this only for PC tokens. The ranges are measured
+ * in grid cells so renderers do not need to know the actor's preferred distance unit.
+ *
+ * @property brightRangeCells wall-occluded bright-light radius in grid cells.
+ * @property dimRangeCells soft dim-light radius in grid cells.
+ * @property colorHex light tint encoded as `#RRGGBB`.
+ */
+data class TokenLightSource(
+    val brightRangeCells: Double,
+    val dimRangeCells: Double,
+    val colorHex: String,
+) {
+    init {
+        require(brightRangeCells.isFinite() && brightRangeCells >= 0.0) {
+            "Bright light range cannot be negative or non-finite."
+        }
+        require(dimRangeCells.isFinite() && dimRangeCells >= 0.0) {
+            "Dim light range cannot be negative or non-finite."
+        }
+    }
+}
 
 /**
  * Event published when a combatant is removed from the initiative tracker,

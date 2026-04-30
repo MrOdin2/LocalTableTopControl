@@ -3,10 +3,12 @@ package com.tabletopcontrol.new_tracker.preset
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
 import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
+import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -67,6 +69,11 @@ class PresetLibraryTest {
             features = ActorFeatures(
                 darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
                 movementRange = DistanceRange(9, DistanceUnit.METERS),
+                lightSource = ActorLightSource(
+                    brightRange = DistanceRange(20, DistanceUnit.FEET),
+                    dimRange = DistanceRange(12, DistanceUnit.METERS),
+                    color = Color.web("#FFD37A"),
+                ),
             ),
         )
 
@@ -89,6 +96,11 @@ class PresetLibraryTest {
             features = ActorFeatures(
                 darkvisionRange = DistanceRange(120, DistanceUnit.FEET),
                 movementRange = DistanceRange(12, DistanceUnit.METERS),
+                lightSource = ActorLightSource(
+                    brightRange = DistanceRange(30, DistanceUnit.FEET),
+                    dimRange = DistanceRange(60, DistanceUnit.FEET),
+                    color = Color.web("#88CCFF"),
+                ),
             ),
             imageUri = "file:///tokens/dragon.png",
             imageBase64 = "abc123==",
@@ -115,6 +127,11 @@ class PresetLibraryTest {
             features = ActorFeatures(
                 darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
                 movementRange = DistanceRange(30, DistanceUnit.FEET),
+                lightSource = ActorLightSource(
+                    brightRange = DistanceRange(20, DistanceUnit.FEET),
+                    dimRange = DistanceRange(40, DistanceUnit.FEET),
+                    color = Color.web("#FFD37A"),
+                ),
             ),
             imageSettings = ActorImageSettings(
                 uri = "file:///ghost.png",
