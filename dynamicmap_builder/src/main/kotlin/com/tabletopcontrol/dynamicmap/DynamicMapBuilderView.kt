@@ -262,6 +262,8 @@ class DynamicMapBuilderView(
 
                         DynamicMapTool.WALL_LINE,
                         DynamicMapTool.WALL_RECT,
+                        DynamicMapTool.HARD_WALL_LINE,
+                        DynamicMapTool.HARD_WALL_RECT,
                         -> {
                             val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
                                 ?: return@setOnMousePressed
@@ -314,7 +316,7 @@ class DynamicMapBuilderView(
                 return@setOnMouseDragged
             }
             if (!event.isPrimaryButtonDown) return@setOnMouseDragged
-            if (activeTool == DynamicMapTool.WALL_LINE || activeTool == DynamicMapTool.WALL_RECT) {
+            if (activeTool.isWallPlacementTool()) {
                 val point = mapPointFromCanvas(event.x, event.y, clampToBounds = true) ?: return@setOnMouseDragged
                 dragCurrent = normalizePoint(point)
                 redraw()
@@ -338,14 +340,26 @@ class DynamicMapBuilderView(
             val start = dragStart ?: return@setOnMouseReleased
             val end = dragCurrent ?: start
             when (activeTool) {
-                DynamicMapTool.WALL_LINE -> {
+                DynamicMapTool.WALL_LINE,
+                DynamicMapTool.HARD_WALL_LINE,
+                -> {
                     if (start != end) {
-                        controller.addWall(DynamicMapWall(start = start, end = end))
+                        val kind = wallKindForTool(activeTool)
+                        controller.addWall(
+                            DynamicMapWall(
+                                label = kind.defaultLabel,
+                                start = start,
+                                end = end,
+                                kind = kind,
+                            ),
+                        )
                     }
                 }
 
-                DynamicMapTool.WALL_RECT -> {
-                    controller.addWalls(buildRectangleWalls(start, end))
+                DynamicMapTool.WALL_RECT,
+                DynamicMapTool.HARD_WALL_RECT,
+                -> {
+                    controller.addWalls(buildRectangleWalls(start, end, kind = wallKindForTool(activeTool)))
                 }
 
                 else -> Unit
@@ -775,8 +789,20 @@ class DynamicMapBuilderView(
                         metrics.originY + end.y * metrics.cellSize,
                     )
                 }
+                DynamicMapTool.HARD_WALL_LINE -> {
+                    val start = dragStart ?: return
+                    val end = dragCurrent ?: return
+                    gc.strokeLine(
+                        metrics.originX + start.x * metrics.cellSize,
+                        metrics.originY + start.y * metrics.cellSize,
+                        metrics.originX + end.x * metrics.cellSize,
+                        metrics.originY + end.y * metrics.cellSize,
+                    )
+                }
 
-                DynamicMapTool.WALL_RECT -> {
+                DynamicMapTool.WALL_RECT,
+                DynamicMapTool.HARD_WALL_RECT,
+                -> {
                     val start = dragStart ?: return
                     val end = dragCurrent ?: return
                     val minX = min(start.x, end.x)
@@ -1060,6 +1086,8 @@ class DynamicMapBuilderView(
         val toolText = when (activeTool) {
             DynamicMapTool.WALL_LINE -> "Tool: wall line"
             DynamicMapTool.WALL_RECT -> "Tool: wall rectangle"
+            DynamicMapTool.HARD_WALL_LINE -> "Tool: hard wall line"
+            DynamicMapTool.HARD_WALL_RECT -> "Tool: hard wall rectangle"
             DynamicMapTool.LIGHT -> "Tool: light placement"
             DynamicMapTool.SUNLIGHT_AREA -> {
                 val vertices = sunlightDraftPoints.size
@@ -1080,3 +1108,17 @@ class DynamicMapBuilderView(
     private fun formatGrid(value: Double): String =
         String.format(Locale.US, "%.2f", value)
 }
+
+private fun DynamicMapTool?.isWallPlacementTool(): Boolean =
+    this == DynamicMapTool.WALL_LINE ||
+        this == DynamicMapTool.WALL_RECT ||
+        this == DynamicMapTool.HARD_WALL_LINE ||
+        this == DynamicMapTool.HARD_WALL_RECT
+
+private fun wallKindForTool(tool: DynamicMapTool?): DynamicMapWallKind =
+    when (tool) {
+        DynamicMapTool.HARD_WALL_LINE,
+        DynamicMapTool.HARD_WALL_RECT,
+        -> DynamicMapWallKind.HARD
+        else -> DynamicMapWallKind.SOFT
+    }

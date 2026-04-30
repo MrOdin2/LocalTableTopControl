@@ -26,6 +26,8 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         }
         val lineButton = ToggleButton("Wall Line")
         val rectButton = ToggleButton("Wall Rect")
+        val hardLineButton = ToggleButton("Hard Wall Line")
+        val hardRectButton = ToggleButton("Hard Wall Rect")
         val stopButton = Button("Stop Editing")
         val optimizeWallsButton = Button("Optimize Walls")
         val clearWallsButton = Button("Clear All Walls")
@@ -33,9 +35,13 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         fun refreshToolUi() {
             lineButton.isSelected = activeTool == DynamicMapTool.WALL_LINE
             rectButton.isSelected = activeTool == DynamicMapTool.WALL_RECT
+            hardLineButton.isSelected = activeTool == DynamicMapTool.HARD_WALL_LINE
+            hardRectButton.isSelected = activeTool == DynamicMapTool.HARD_WALL_RECT
             modeLabel.text = when (activeTool) {
                 DynamicMapTool.WALL_LINE -> "Active tool: wall line"
                 DynamicMapTool.WALL_RECT -> "Active tool: wall rectangle"
+                DynamicMapTool.HARD_WALL_LINE -> "Active tool: hard wall line"
+                DynamicMapTool.HARD_WALL_RECT -> "Active tool: hard wall rectangle"
                 DynamicMapTool.LIGHT -> "Active tool: light placement"
                 DynamicMapTool.SUNLIGHT_AREA -> "Active tool: sunlight area"
                 null -> "Active tool: none"
@@ -53,6 +59,20 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             EventBus.publish(
                 DynamicMapToolSelectedEvent(
                     tool = if (rectButton.isSelected) DynamicMapTool.WALL_RECT else null,
+                ),
+            )
+        }
+        hardLineButton.setOnAction {
+            EventBus.publish(
+                DynamicMapToolSelectedEvent(
+                    tool = if (hardLineButton.isSelected) DynamicMapTool.HARD_WALL_LINE else null,
+                ),
+            )
+        }
+        hardRectButton.setOnAction {
+            EventBus.publish(
+                DynamicMapToolSelectedEvent(
+                    tool = if (hardRectButton.isSelected) DynamicMapTool.HARD_WALL_RECT else null,
                 ),
             )
         }
@@ -80,6 +100,8 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             Separator(),
             lineButton,
             rectButton,
+            hardLineButton,
+            hardRectButton,
             stopButton,
             optimizeWallsButton,
             Region().also { VBox.setVgrow(it, Priority.ALWAYS) },

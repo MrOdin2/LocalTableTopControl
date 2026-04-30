@@ -11,9 +11,11 @@ class DynamicMapGeometryTest {
         val walls = buildRectangleWalls(
             start = DynamicMapPoint(1.0, 2.0),
             end = DynamicMapPoint(4.0, 6.0),
+            kind = DynamicMapWallKind.HARD,
         )
 
         assertEquals(4, walls.size)
+        assertTrue(walls.all { it.kind == DynamicMapWallKind.HARD })
         assertEquals(DynamicMapPoint(1.0, 2.0), walls[0].start)
         assertEquals(DynamicMapPoint(4.0, 2.0), walls[0].end)
         assertEquals(DynamicMapPoint(4.0, 6.0), walls[1].end)
@@ -255,6 +257,34 @@ class DynamicMapGeometryTest {
             ),
             optimized.groups.single().elements,
         )
+    }
+
+    @Test
+    fun `wall topology optimization keeps soft and hard walls separate`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "soft-wall",
+                    label = "Curtain",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                    kind = DynamicMapWallKind.SOFT,
+                ),
+                DynamicMapWall(
+                    id = "hard-wall",
+                    label = "Stone",
+                    start = DynamicMapPoint(1.0, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.HARD,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+
+        assertEquals(2, optimized.walls.size)
+        assertEquals(DynamicMapWallKind.SOFT, optimized.walls[0].kind)
+        assertEquals(DynamicMapWallKind.HARD, optimized.walls[1].kind)
     }
 
     @Test

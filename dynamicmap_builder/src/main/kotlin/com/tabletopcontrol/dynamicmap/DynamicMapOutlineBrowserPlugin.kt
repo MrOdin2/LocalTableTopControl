@@ -476,7 +476,8 @@ private fun buildLightOutlineLabel(index: Int, light: DynamicMapLight): String {
 }
 
 private fun buildWallOutlineLabel(index: Int, wall: DynamicMapWall): String =
-    "${index + 1}. ${wall.label} @ ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
+    "${index + 1}. ${wall.label} (${wall.kind.displayName}) @ " +
+        "${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
         "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
 
 private fun buildSunlightAreaOutlineLabel(index: Int, area: DynamicMapSunlightArea): String =
@@ -493,7 +494,8 @@ private fun buildGroupMemberOutlineNode(
                 formatOutlineCoordinate(light.position.y)
         }
         DynamicMapElementKind.WALL -> document.wallById(selection.elementId)?.let { wall ->
-            "Wall: ${wall.label} @ ${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
+            "Wall: ${wall.label} (${wall.kind.displayName}) @ " +
+                "${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
                 "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
         }
         DynamicMapElementKind.SUNLIGHT_AREA -> document.sunlightAreaById(selection.elementId)?.let { area ->

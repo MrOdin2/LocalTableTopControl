@@ -35,7 +35,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ### Runtime Rendering
 
-- The loaded bundle provides map columns, rows, walls, lights, sunlight/outside areas, optional background texture,
+- The loaded bundle provides map columns, rows, soft or hard walls, lights, sunlight/outside areas, optional background texture,
   and background calibration.
 - Loading a bundle centers the grid origin so exported cell coordinates run from `(0, 0)`
   at the top-left of the map bounds to `(cols, rows)` at the bottom-right.
@@ -43,7 +43,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - The DM map settings expose two DynamicMap visualisation modes:
   - `RenderMode` is the normal play mode. Exported walls, light handles, and sunlight/outside
     polygons are not drawn directly. Exported walls are still used as blockers for player-character
-    sightlines and static point-light bright cores.
+    sightlines and point-light bright cores.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same opaque theme accent colour as the Dynamic Map Builder, and enabled
     point lights are drawn as diagnostic halos with distinct bright and dim radius areas.
@@ -54,14 +54,18 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. A shared sightline
   service casts line-of-sight from those token centres through cached exported wall geometry and
   publishes one triangulated visibility mesh for all active DynamicMap renderers.
+- Exported walls carry a wall kind. Soft walls match the original wall behavior: they block PC
+  sightlines and bright light, while dim light can bleed through them. Hard walls also block dim light.
 - When authored or PC-carried lighting is active, the shared sightline service builds a light mask
   from enabled point lights, sunlight/outside polygons, and PC token light sources. Point lights use
-  their dim radius as an unblocked soft reach, while their bright radius is occluded by exported walls.
+  their dim radius as a soft reach through soft walls, while their bright radius is occluded by all
+  exported walls. Hard walls occlude both bright and dim light, with dim light using the larger dim range.
   Sunlight/outside polygons are treated as always-lit authored areas. The current player-visible mesh
   is `PC sight AND light`, plus any PC darkvision area.
 - Tracker light-source ranges are published as token metadata in grid cells. DynamicMap consumes
   them only for PC tokens. The PC token centre is used as the light origin; the dim radius ignores
-  walls, and the bright radius reuses the cached PC sight contribution clipped to the bright range.
+  soft walls but is clipped by hard walls, and the bright radius reuses the cached PC sight
+  contribution clipped to the bright range.
 - Tracker darkvision ranges are published as token metadata in grid cells. The sightline service treats
   each PC's darkvision as another wall-blocked light contribution from that PC's token centre, reusing
   the cached PC sight contribution and clipping it to the darkvision radius rather than raycasting again.
@@ -124,10 +128,10 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 - Current lighting supports builder-authored point lights, sunlight/outside polygons, and PC-carried
   tracker light sources. Authored lights are fixed to the grid; PC-carried lights follow the PC token.
-  Bright cores are wall-occluded, while dim light intentionally ignores walls as a cheap soft-light
-  approximation. Light colour tint is rendered for visible point-light areas. PC darkvision is supported
+  Bright cores are wall-occluded, while dim light intentionally ignores soft walls as a cheap soft-light
+  approximation and is blocked by hard walls when authored. Light colour tint is rendered for visible point-light areas. PC darkvision is supported
   as a wall-blocked grayscale reveal from the token centre. NPC-carried lights, inventory automation,
-  and typed light-blocker rules are still future work.
+  and door or opening rules are still future work.
 - Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
   PC sightline mesh.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.

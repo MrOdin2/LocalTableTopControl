@@ -1012,11 +1012,14 @@ class MapRenderer(private val canvas: Canvas) {
     ) {
         val color = ColorHexCodec.parseOrDefault(contribution.colorHex, Color.WHITE)
         if (contribution.hasDimTint) {
-            val radius = contribution.dimRadius * cellPx
-            val centerX = originX + contribution.x * cellPx
-            val centerY = originY + contribution.y * cellPx
             target.fill = color.withOpacity(DYNAMIC_LIGHT_TINT_DIM_OPACITY)
-            target.fillOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
+            target.beginPath()
+            contribution.drawDimArea(
+                moveTo = { point -> target.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+                lineTo = { point -> target.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+                closePath = { target.closePath() },
+            )
+            target.fill()
         }
 
         if (contribution.hasBrightTint) {

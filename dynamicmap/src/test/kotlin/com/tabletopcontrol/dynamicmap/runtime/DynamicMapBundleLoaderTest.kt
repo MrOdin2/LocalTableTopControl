@@ -32,6 +32,7 @@ class DynamicMapBundleLoaderTest {
                 wall.0.startY=2.0
                 wall.0.endX=3.0
                 wall.0.endY=4.0
+                wall.0.kind=HARD
                 lights.count=1
                 light.0.posX=5.0
                 light.0.posY=6.0
@@ -64,6 +65,7 @@ class DynamicMapBundleLoaderTest {
         assertEquals("background/background.png", bundle.backgroundEntry)
         assertArrayEquals(backgroundBytes, bundle.backgroundBytes)
         assertEquals(1, bundle.walls.size)
+        assertEquals(DynamicMapRuntimeWallKind.HARD, bundle.walls.first().kind)
         assertEquals(1, bundle.lights.size)
         assertEquals("#ff8a65", bundle.lights.first().colorHex)
         assertEquals(1, bundle.sunlightAreas.size)

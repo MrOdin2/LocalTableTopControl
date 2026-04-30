@@ -56,11 +56,18 @@ Future decisions should be added here as well so the builder evolves from one co
 - The wall pane currently owns:
   - wall line mode
   - wall rectangle mode
+  - hard wall line mode
+  - hard wall rectangle mode
   - stop editing
   - wall topology optimization
   - clear all walls
 - Wall editing remains shared with the same main builder canvas.
-- Wall topology optimization merges touching or overlapping collinear wall segments and removes zero-length wall stubs.
+- Builder walls have a wall kind:
+  - `Soft Wall` is the default wall kind and matches the previous wall behavior.
+  - `Hard Wall` is authored with separate tools but behaves like a regular wall while editing.
+- Both wall kinds block player-character sightlines and bright light in the DynamicMap runtime.
+- Runtime dim light ignores soft walls for the cheap scattering approximation, but hard walls block dim light using the larger dim-light range.
+- Wall topology optimization merges touching or overlapping collinear wall segments with the same wall kind and removes zero-length wall stubs.
 - Manual wall optimization updates the editable builder document, clears the current selection, and remaps group membership onto the remaining merged wall ids where possible.
 
 ### Outline Workflow
@@ -111,10 +118,11 @@ Future decisions should be added here as well so the builder evolves from one co
   - map dimensions
   - bundled background texture when the source image is available
   - background calibration
-  - wall geometry
+  - wall geometry and wall kind
   - light geometry, ranges, colour, and enabled state
   - sunlight/outside polygon geometry
 - Export always optimizes wall topology before writing wall geometry so runtime maps do not carry unnecessary split segments.
+  Soft and hard walls stay separate during optimization so their lighting behavior is preserved.
 - Export deliberately strips editor-only metadata:
   - construction-site name
   - wall, light, and sunlight/outside-area labels

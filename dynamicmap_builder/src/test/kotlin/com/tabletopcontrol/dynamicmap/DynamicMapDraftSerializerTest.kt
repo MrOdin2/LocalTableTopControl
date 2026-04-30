@@ -29,6 +29,7 @@ class DynamicMapDraftSerializerTest {
                     label = "Outer Gate",
                     start = DynamicMapPoint(1.0, 2.0),
                     end = DynamicMapPoint(5.0, 2.0),
+                    kind = DynamicMapWallKind.HARD,
                 ),
             ),
             lights = listOf(
@@ -93,5 +94,6 @@ class DynamicMapDraftSerializerTest {
 
         assertNotNull(restored)
         assertEquals("Wall 1", restored?.walls?.single()?.label)
+        assertEquals(DynamicMapWallKind.SOFT, restored?.walls?.single()?.kind)
     }
 }

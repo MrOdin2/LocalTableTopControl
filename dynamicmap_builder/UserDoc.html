@@ -137,7 +137,7 @@
       </p>
       <p>
         This first version focuses on the map-building basics: grid-sized map bounds, a background
-        texture, paintable wall geometry, static point lights with reusable presets, and
+        texture, paintable soft and hard wall geometry, static point lights with reusable presets, and
         sunlight/outside areas drawn as polygons.
       </p>
     </section>
@@ -272,14 +272,27 @@
         <tr><th>Wall Tools action</th><th>What it does</th></tr>
         <tr><td>Wall Line</td><td>Click and drag in the builder pane to place one straight wall segment.</td></tr>
         <tr><td>Wall Rect</td><td>Click and drag in the builder pane to place a rectangular ring of four wall segments.</td></tr>
+        <tr><td>Hard Wall Line</td><td>Click and drag in the builder pane to place one straight hard wall segment.</td></tr>
+        <tr><td>Hard Wall Rect</td><td>Click and drag in the builder pane to place a rectangular ring of four hard wall segments.</td></tr>
         <tr><td>Stop Editing</td><td>Leave wall or light placement mode without changing the draft.</td></tr>
         <tr><td>Optimize Walls</td><td>Merges touching or overlapping straight wall segments that lie on the same line, and removes zero-length wall stubs.</td></tr>
         <tr><td>Clear All Walls</td><td>Remove every wall segment from the current builder draft.</td></tr>
       </table>
       <p>
+        Regular wall tools create <strong>soft walls</strong>. Hard Wall tools create
+        <strong>hard walls</strong>. Both kinds behave the same while you edit: they can be selected,
+        moved, renamed, grouped, optimized, and exported like any other wall segment.
+      </p>
+      <p>
+        The difference appears during play in DynamicMap. Both wall kinds block player-character
+        sightlines and bright light. Soft walls let dim light spread through them for a softer
+        scattering look, while hard walls also block dim light.
+      </p>
+      <p>
         Use <strong>Optimize Walls</strong> after drawing or moving several wall pieces that should
         behave like one continuous wall. The builder clears the current selection after optimization
-        and remaps groups onto the merged wall where possible.
+        and remaps groups onto the merged wall where possible. Soft walls and hard walls are kept
+        separate during optimization so their lighting behavior is preserved.
       </p>
     </section>
 
@@ -370,10 +383,10 @@
       <p>
         <strong>Export...</strong> creates a <code>.dynamicmap</code> bundle for gameplay use. The
         bundle includes the map size, background texture when the source image is available, texture
-        calibration, walls, lights, and sunlight areas. It leaves out builder-only details such as construction-site
+        calibration, walls with their soft or hard wall kind, lights, and sunlight areas. It leaves out builder-only details such as construction-site
         names, wall, light, and sunlight-area labels, element ids, outline groups, and temporary layer visibility.
-        Wall topology is optimized automatically during export, so touching wall pieces on the same
-        line are combined in the gameplay bundle even if you have not pressed <strong>Optimize Walls</strong>
+        Wall topology is optimized automatically during export, so touching wall pieces of the same
+        kind on the same line are combined in the gameplay bundle even if you have not pressed <strong>Optimize Walls</strong>
         manually.
       </p>
     </section>
