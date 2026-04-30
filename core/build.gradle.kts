@@ -30,8 +30,6 @@ dependencies {
     runtimeOnly(project(":audio"))
     runtimeOnly(project(":light"))
     runtimeOnly(project(":tracker"))
-    runtimeOnly(project(":dynamicmap"))
-    runtimeOnly(project(":dynamicmap_builder"))
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("io.mockk:mockk:1.13.10")
@@ -47,7 +45,7 @@ tasks.test {
 // HelpManager can extract them to disk and the browser can resolve inter-file hrefs.
 tasks.processResources {
     from(rootProject.file("docs")) { into("userdocs/docs") }
-    listOf("map", "audio", "tracker", "light", "dynamicmap", "dynamicmap_builder").forEach { module ->
+    listOf("map", "audio", "tracker", "light").forEach { module ->
         from(rootProject.file("$module/UserDoc.html")) { into("userdocs/$module") }
     }
 }

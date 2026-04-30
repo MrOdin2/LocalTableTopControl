@@ -16,14 +16,14 @@ import javafx.geometry.Orientation
  *
  * Plugin names may contain any character except an unbalanced `)`. Commas are allowed.
  *
- * The default session config file is stored at `~/.tabletopcontrol/dm-layout.conf`.
+ * The config file is stored at `~/.tabletopcontrol/dm-layout.conf`.
  */
 object LayoutSerializer {
 
-    internal const val DEFAULT_CONFIG_NAME = "dm-layout.conf"
-    internal const val CONFIG_NAME = DEFAULT_CONFIG_NAME
+    internal const val CONFIG_NAME = "dm-layout.conf"
 
-    private fun configFile(configName: String) = AppConfigPaths.configFile(configName)
+    private val configFile
+        get() = AppConfigPaths.configFile(CONFIG_NAME)
 
     // ── Serialisation ────────────────────────────────────────────────────────
 
@@ -65,8 +65,8 @@ object LayoutSerializer {
      * Writes [node] to [configFile]. I/O failures are silently swallowed so that a
      * missing or read-only config directory never crashes the application.
      */
-    fun save(node: PaneNode, configName: String = DEFAULT_CONFIG_NAME) {
-        SafeConfigIO.writeText(configFile(configName), serialize(node))
+    fun save(node: PaneNode) {
+        SafeConfigIO.writeText(configFile, serialize(node))
     }
 
     /**
@@ -74,8 +74,7 @@ object LayoutSerializer {
      *
      * @return The saved layout tree, or `null` if the file is absent or unparseable.
      */
-    fun load(configName: String = DEFAULT_CONFIG_NAME): PaneNode? =
-        SafeConfigIO.readOrElse(null) { deserialize(configFile(configName).readText()) }
+    fun load(): PaneNode? = SafeConfigIO.readOrElse(null) { deserialize(configFile.readText()) }
 
     // ── Internal parser ──────────────────────────────────────────────────────
 
