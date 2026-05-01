@@ -146,6 +146,7 @@ class MapUiController {
                 activeTokenId = tokenSyncService.snapshotActiveTokenId(),
                 dynamicMapRenderMode = settingsService.dynamicMapRenderMode,
                 openDynamicDoorIds = openDynamicDoorIds.toSet(),
+                forcePcTokensVisible = settingsService.forcePcTokensVisible,
             ),
         )
 
@@ -613,6 +614,11 @@ class MapUiController {
             tooltip = Tooltip("Show token names on the table view")
             setOnAction { settingsService.setShowTokenNames(isSelected) }
         }
+        val forcePcTokensCheck = CheckBox("Force PCs").apply {
+            isSelected = settingsService.forcePcTokensVisible
+            tooltip = Tooltip("Always show PC tokens on the table, ignoring fog and DynamicMap visibility")
+            setOnAction { settingsService.setForcePcTokensVisible(isSelected) }
+        }
 
         val backgroundColorButton = Button("BG Color").apply {
             prefWidth = 88.0
@@ -638,6 +644,8 @@ class MapUiController {
             pathField.text = settingsService.currentDynamicMapDisplayPath.orEmpty()
             removeMapButton.isDisable = !hasLoadedMap
             visibleCheck.isSelected = settingsService.currentGridConfig != null
+            showNamesCheck.isSelected = settingsService.showTokenNames
+            forcePcTokensCheck.isSelected = settingsService.forcePcTokensVisible
             syncRenderModeButtons()
         }
 
@@ -705,6 +713,7 @@ class MapUiController {
             hideAllButton,
             Separator(Orientation.VERTICAL),
             showNamesCheck,
+            forcePcTokensCheck,
         )
 
         return VBox(4.0, mapRow, gridRow)

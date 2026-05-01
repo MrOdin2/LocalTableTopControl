@@ -16,6 +16,7 @@ import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRenderModeEvent
 import com.tabletopcontrol.dynamicmap.runtime.FogOfWarCellEvent
 import com.tabletopcontrol.dynamicmap.runtime.FogOfWarResetEvent
 import com.tabletopcontrol.dynamicmap.runtime.FogOfWarSetupEvent
+import com.tabletopcontrol.dynamicmap.runtime.ForcePcTokensVisibleEvent
 import com.tabletopcontrol.dynamicmap.runtime.GridCalibrationEvent
 import com.tabletopcontrol.dynamicmap.runtime.GridCalibrationModeEvent
 import com.tabletopcontrol.dynamicmap.runtime.GridUpdateEvent
@@ -72,6 +73,9 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
     var showTokenNames: Boolean = false
         private set
 
+    var forcePcTokensVisible: Boolean = false
+        private set
+
     var currentMapImageUri: String? = null
         private set
 
@@ -101,6 +105,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         EventBus.publish(TableMapOffsetEvent(tableMapOffset))
         EventBus.publish(DynamicMapRenderModeEvent(dynamicMapRenderMode))
         EventBus.publish(ShowTokenNamesEvent(showTokenNames))
+        EventBus.publish(ForcePcTokensVisibleEvent(forcePcTokensVisible))
     }
 
     internal fun applySceneState(sceneState: MapSceneState) {
@@ -117,6 +122,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         tableMapOffset = sceneState.tableMapOffset
         dynamicMapRenderMode = sceneState.dynamicMapRenderMode
         showTokenNames = sceneState.showTokenNames
+        forcePcTokensVisible = sceneState.forcePcTokensVisible
         currentGridConfig = if (sceneState.gridVisible) GridConfig(color = gridColor) else null
 
         val dynamicMapPath = currentDynamicMapBundlePath
@@ -143,6 +149,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
         EventBus.publish(TableMapOffsetEvent(tableMapOffset))
         EventBus.publish(DynamicMapRenderModeEvent(dynamicMapRenderMode))
         EventBus.publish(ShowTokenNamesEvent(showTokenNames))
+        EventBus.publish(ForcePcTokensVisibleEvent(forcePcTokensVisible))
         save()
     }
 
@@ -261,6 +268,11 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
     fun setShowTokenNames(show: Boolean) {
         showTokenNames = show
         EventBus.publish(ShowTokenNamesEvent(show))
+    }
+
+    fun setForcePcTokensVisible(force: Boolean) {
+        forcePcTokensVisible = force
+        EventBus.publish(ForcePcTokensVisibleEvent(force))
     }
 
     private fun save() {

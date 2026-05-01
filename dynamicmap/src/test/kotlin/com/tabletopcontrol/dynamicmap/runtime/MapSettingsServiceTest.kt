@@ -67,6 +67,25 @@ class MapSettingsServiceTest {
         assertEquals(listOf(DynamicMapRenderModeEvent(DynamicMapRenderMode.DEBUG)), events)
     }
 
+    @Test
+    fun `force PC token visibility publishes setting event`() {
+        val service = MapSettingsService(savedSettings = emptySavedSettings())
+        val events = mutableListOf<ForcePcTokensVisibleEvent>()
+        EventBus.subscribe<ForcePcTokensVisibleEvent> { events += it }
+
+        service.setForcePcTokensVisible(true)
+        service.publishCurrentSettings()
+
+        assertTrue(service.forcePcTokensVisible)
+        assertEquals(
+            listOf(
+                ForcePcTokensVisibleEvent(true),
+                ForcePcTokensVisibleEvent(true),
+            ),
+            events,
+        )
+    }
+
     private fun emptySavedSettings() = MapSavedSettings(
         gridCalibration = null,
         mapCalibration = null,

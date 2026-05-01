@@ -105,9 +105,12 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   view pan/zoom reuse the last completed mesh.
 - DynamicMap base art, manual fog, and sightline overlays are cached as separate renderer layers
   when their pixel size is within the configured cache budget.
-- Player-facing NPC token visibility is based on intersection between the token's drawn circle and
+- Player-facing token visibility is normally based on intersection between the token's drawn circle and
   the current visible mesh, including authored lighting when active, so even a small exposed edge
   reveals the token. Previously seen areas do not reveal NPCs or their movement.
+- The DM can enable a PC-token visibility override. When enabled, PC tokens are redrawn above fog,
+  darkness, and DynamicMap sightline overlays on the player-facing table view, while NPC tokens keep
+  the normal visibility filtering.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.
@@ -126,6 +129,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Loading a DynamicMap bundle resets fog coverage to the exported map bounds.
 - Scene restore preserves saved fog dimensions when a scene already contains fog state.
 - Scene capture and restore preserve runtime-open DynamicMap doors by exported runtime wall id.
+- Scene capture and restore preserve the PC-token visibility override.
 
 ### Table View Selection
 

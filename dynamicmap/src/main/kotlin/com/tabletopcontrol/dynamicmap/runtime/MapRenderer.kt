@@ -221,6 +221,12 @@ class MapRenderer(private val canvas: Canvas) {
      */
     var showTokenNames: Boolean = false
 
+    /**
+     * When `true`, PC tokens are redrawn above fog and DynamicMap sightline overlays on the
+     * player-facing table view so the party's own positions are always visible.
+     */
+    var forcePlayerCharacterTokensVisible: Boolean = false
+
     /** Whether DM-only measurement overlays should be rendered on this renderer instance. */
     var showDmOnlyMeasurements: Boolean = true
 
@@ -502,6 +508,10 @@ class MapRenderer(private val canvas: Canvas) {
             showTokenNames = event.show
             redraw()
         }
+        subscriptions += EventBus.subscribe<ForcePcTokensVisibleEvent> { event ->
+            forcePlayerCharacterTokensVisible = event.force
+            redraw()
+        }
         subscriptions += EventBus.subscribe<MeasurementAddedEvent> { event ->
             measurements[event.overlay.id] = event.overlay
             redraw()
@@ -647,6 +657,7 @@ class MapRenderer(private val canvas: Canvas) {
         drawFogOfWar()
         drawTokens()
         drawDynamicSightlineLayer()
+        drawForcedPlayerCharacterTokens()
         drawMeasurements()
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
             drawDynamicMapLightMarkers()
@@ -1656,97 +1667,142 @@ class MapRenderer(private val canvas: Canvas) {
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
         if (cellPx <= 0) return
 
-        val originX = canvas.width / 2.0 + gridCalibration.offsetX
-        val originY = canvas.height / 2.0 + gridCalibration.offsetY
         val filterFogVisibility = hideTokensInFog && fogOfWar != null
         val filterSightlineVisibility = hideTokensInFog && dynamicSightlineMesh != null
+
+        drawTokenSet(
+            tokensToDraw = tokensInDrawOrder()
+                .asSequence()
+                .filterNot(::shouldDrawPlayerCharacterInForcedPass)
+                .filter { token -> !filterSightlineVisibility || isTokenVisibleInDynamicSightline(token) }
+                .toList(),
+            clipToFog = filterFogVisibility,
+        )
+    }
+
+    private fun drawForcedPlayerCharacterTokens() {
+        if (!hideTokensInFog || !forcePlayerCharacterTokensVisible || tokens.none { it.isPlayerCharacter }) return
+        drawTokenSet(
+            tokensToDraw = tokensInDrawOrder().filter { it.isPlayerCharacter },
+            clipToFog = false,
+        )
+    }
+
+    private fun drawTokenSet(
+        tokensToDraw: Iterable<Token>,
+        clipToFog: Boolean,
+    ) {
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0) return
+        val originX = canvas.width / 2.0 + gridCalibration.offsetX
+        val originY = canvas.height / 2.0 + gridCalibration.offsetY
 
         if (showTokenNames) {
             gc.textAlign = TextAlignment.CENTER
         }
 
-        for (token in tokensInDrawOrder()) {
-            if (filterSightlineVisibility && !isTokenVisibleInDynamicSightline(token)) {
-                continue
-            }
+        for (token in tokensToDraw) {
             val occupiedCells = tokenOccupiedCells(token)
-            val visibleCells = if (filterFogVisibility) {
+            val visibleCells = if (clipToFog) {
                 occupiedCells.filter { (col, row) -> isFogVisibleCell(col, row) }
             } else {
                 occupiedCells
             }
             if (visibleCells.isEmpty()) continue
 
-            val drawBounds = tokenDrawBounds(token, originX, originY, cellPx)
-            val activeOutlineWidth = (drawBounds.size * ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(1.0)
-            val tokenOutlineWidth = (drawBounds.size * TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(0.5)
-            val isPartiallyHidden = filterFogVisibility && visibleCells.size < occupiedCells.size
-
-            if (isPartiallyHidden) {
-                gc.save()
-                gc.beginPath()
-                visibleCells.forEach { (col, row) ->
-                    gc.rect(
-                        originX + col * cellPx,
-                        originY + row * cellPx,
-                        cellPx,
-                        cellPx,
-                    )
-                }
-                gc.closePath()
-                gc.clip()
-            }
-
-            val img = token.imageUri?.let { imageCache[it] }
-            if (img != null && !img.isError) {
-                gc.save()
-                gc.beginPath()
-                gc.arc(drawBounds.centerX, drawBounds.centerY, drawBounds.size / 2.0, drawBounds.size / 2.0, 0.0, 360.0)
-                gc.closePath()
-                gc.clip()
-                val drawW = drawBounds.size * token.imageScaleX
-                val drawH = drawBounds.size * token.imageScaleY
-                val drawX = drawBounds.centerX - (drawW / 2) + token.imageOffsetX
-                val drawY = drawBounds.centerY - (drawH / 2) + token.imageOffsetY
-                gc.drawImage(img, drawX, drawY, drawW, drawH)
-                gc.restore()
-            } else {
-                gc.fill = token.color
-                gc.fillOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
-            }
-
-            if (token.id == activeTokenId) {
-                gc.stroke = Color.ORANGE
-                gc.lineWidth = activeOutlineWidth
-                gc.strokeOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
-            }
-
-            gc.stroke = token.color
-            gc.lineWidth = tokenOutlineWidth
-            gc.strokeOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
-
-            if (isPartiallyHidden) {
-                gc.restore()
-            }
-
-            if (showTokenNames && token.name.isNotBlank() && !isPartiallyHidden) {
-                val tokenNameFont = Font.font(
-                    (cellPx * token.size.footprintTiles * TOKEN_NAME_FONT_SCALE)
-                        .coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE),
-                )
-                gc.font = tokenNameFont
-                val textY = drawBounds.bottom + tokenNameFont.size
-                gc.fill = Color.BLACK
-                gc.fillText(
-                    token.name,
-                    drawBounds.centerX + TOKEN_NAME_SHADOW_OFFSET,
-                    textY + TOKEN_NAME_SHADOW_OFFSET,
-                )
-                gc.fill = Color.WHITE
-                gc.fillText(token.name, drawBounds.centerX, textY)
-            }
+            drawToken(
+                token = token,
+                occupiedCells = occupiedCells,
+                visibleCells = visibleCells,
+                originX = originX,
+                originY = originY,
+                cellPx = cellPx,
+                clipToFog = clipToFog,
+            )
         }
     }
+
+    private fun drawToken(
+        token: Token,
+        occupiedCells: List<Pair<Int, Int>>,
+        visibleCells: List<Pair<Int, Int>>,
+        originX: Double,
+        originY: Double,
+        cellPx: Double,
+        clipToFog: Boolean,
+    ) {
+        val drawBounds = tokenDrawBounds(token, originX, originY, cellPx)
+        val activeOutlineWidth = (drawBounds.size * ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(1.0)
+        val tokenOutlineWidth = (drawBounds.size * TOKEN_OUTLINE_WIDTH_SCALE).coerceAtLeast(0.5)
+        val isPartiallyHidden = clipToFog && visibleCells.size < occupiedCells.size
+
+        if (isPartiallyHidden) {
+            gc.save()
+            gc.beginPath()
+            visibleCells.forEach { (col, row) ->
+                gc.rect(
+                    originX + col * cellPx,
+                    originY + row * cellPx,
+                    cellPx,
+                    cellPx,
+                )
+            }
+            gc.closePath()
+            gc.clip()
+        }
+
+        val img = token.imageUri?.let { imageCache[it] }
+        if (img != null && !img.isError) {
+            gc.save()
+            gc.beginPath()
+            gc.arc(drawBounds.centerX, drawBounds.centerY, drawBounds.size / 2.0, drawBounds.size / 2.0, 0.0, 360.0)
+            gc.closePath()
+            gc.clip()
+            val drawW = drawBounds.size * token.imageScaleX
+            val drawH = drawBounds.size * token.imageScaleY
+            val drawX = drawBounds.centerX - (drawW / 2) + token.imageOffsetX
+            val drawY = drawBounds.centerY - (drawH / 2) + token.imageOffsetY
+            gc.drawImage(img, drawX, drawY, drawW, drawH)
+            gc.restore()
+        } else {
+            gc.fill = token.color
+            gc.fillOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
+        }
+
+        if (token.id == activeTokenId) {
+            gc.stroke = Color.ORANGE
+            gc.lineWidth = activeOutlineWidth
+            gc.strokeOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
+        }
+
+        gc.stroke = token.color
+        gc.lineWidth = tokenOutlineWidth
+        gc.strokeOval(drawBounds.left, drawBounds.top, drawBounds.size, drawBounds.size)
+
+        if (isPartiallyHidden) {
+            gc.restore()
+        }
+
+        if (showTokenNames && token.name.isNotBlank() && !isPartiallyHidden) {
+            val tokenNameFont = Font.font(
+                (cellPx * token.size.footprintTiles * TOKEN_NAME_FONT_SCALE)
+                    .coerceAtLeast(MIN_TOKEN_NAME_FONT_SIZE),
+            )
+            gc.font = tokenNameFont
+            val textY = drawBounds.bottom + tokenNameFont.size
+            gc.fill = Color.BLACK
+            gc.fillText(
+                token.name,
+                drawBounds.centerX + TOKEN_NAME_SHADOW_OFFSET,
+                textY + TOKEN_NAME_SHADOW_OFFSET,
+            )
+            gc.fill = Color.WHITE
+            gc.fillText(token.name, drawBounds.centerX, textY)
+        }
+    }
+
+    private fun shouldDrawPlayerCharacterInForcedPass(token: Token): Boolean =
+        hideTokensInFog && forcePlayerCharacterTokensVisible && token.isPlayerCharacter
 
     /** Draws measurement overlays (line, cone, rectangle, circle) above tokens. */
     private fun drawMeasurements() {

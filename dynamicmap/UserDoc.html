@@ -181,7 +181,7 @@
         <tr><td>DebugMode</td><td>Shows exported walls with the same soft/hard/door styling used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
-        <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting or a PC has a light source. PC light sources move with the token. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, PC light sources, or PC darkvision keep sight-only visibility.</td></tr>
+        <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting or a PC has a light source. PC light sources move with the token. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, PC light sources, or PC darkvision keep sight-only visibility. <strong>Force PCs</strong> keeps PC tokens visible on the table even when fog or darkness would normally hide them.</td></tr>
         <tr><td>Measurements</td><td>Line, cone, rectangle, and circle overlays can be DM-only or mirrored to the table screen.</td></tr>
         <tr><td>Table movement</td><td>The whole rendered table map can be nudged or re-centered without editing the exported bundle.</td></tr>
       </table>
@@ -207,7 +207,9 @@
         currently visible map with the
         colour chosen in the builder. Terrain seen only through darkvision is shown in black and
         white. The DM minimap remains visible to the DM. Moving an NPC token does not recalculate
-        sightlines. When several PCs are active, moving one PC recalculates that PC's sightline in
+        sightlines. Turn on <strong>Force PCs</strong> when you want player-character tokens to stay
+        visible to the players even if the token is standing in fog, darkness, or an unseen area.
+        NPC visibility is not changed by this option. When several PCs are active, moving one PC recalculates that PC's sightline in
         the background and reuses the other PCs' cached sightlines.
       </p>
       <p>
@@ -247,7 +249,7 @@
       <p>
         DynamicMap participates in the shared <strong>Scenes...</strong> browser. A saved scene
         records the loaded bundle path, table offset, grid settings, fog of war, token positions, and
-        measurement state. It also remembers which dynamic doors are open. Loading the scene restores that DynamicMap setup alongside the other
+        measurement state. It also remembers which dynamic doors are open and whether PC tokens are forced visible. Loading the scene restores that DynamicMap setup alongside the other
         scene-aware plugins.
       </p>
     </section>
