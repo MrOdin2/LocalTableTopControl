@@ -1,15 +1,8 @@
-package com.tabletopcontrol.map.ui
+package com.tabletopcontrol.dynamicmap
 
+import com.tabletopcontrol.core.ThemeManager
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.core.ui.dialog.DialogFlows
-import com.tabletopcontrol.map.MapInputField
-import com.tabletopcontrol.map.MapOperationError
-import com.tabletopcontrol.map.MapRenderer
-import com.tabletopcontrol.map.MapResult
-import com.tabletopcontrol.map.logic.GuidedCalibrationAxis
-import com.tabletopcontrol.map.logic.MapCalibrationService
-import com.tabletopcontrol.map.logic.MapSettingsService
-import com.tabletopcontrol.map.logic.MapViewportState
-import com.tabletopcontrol.map.toUserMessage
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.ButtonType
@@ -33,54 +26,55 @@ import javafx.stage.Window
 import java.util.Locale
 import kotlin.math.floor
 
-object MapCalibrationDialogs {
-    fun showMapCalibrationDialog(
+object DynamicMapCalibrationDialogs {
+    fun showBackgroundCalibrationDialog(
         owner: Window?,
-        settingsService: MapSettingsService,
-        calibrationService: MapCalibrationService,
+        controller: DynamicMapBuilderController,
+        previewCellSize: Double,
     ) {
-        val saved = settingsService.mapCalibration
+        val document = controller.currentDocument()
+        if (document.backgroundImageUri.isNullOrBlank()) return
+
+        val safeCellSize = previewCellSize.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+        val saved = document.backgroundCalibration
         val dialog = DialogFlows.createDialog<ButtonType>(
             owner = owner,
-            title = "Calibrate Map",
-            headerText = "Adjust the map image scale and position.\n" +
-                "A red dot marks the canvas centre; align it with a known reference point on the map.\n" +
-                "Changes are previewed live; Cancel restores the previous calibration.",
+            title = "Calibrate Background Texture",
+            headerText = "Adjust the texture scale and centre position.\n" +
+                "Changes are previewed live in the builder pane and stay aligned to the grid when the pane is resized.",
             buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
         )
 
-        calibrationService.setMapCalibrationMode(true)
-
-        val scaleField = TextField(MapDialogFormSupport.formatDouble(saved.scale)).apply {
-            tooltip = Tooltip("Uniform zoom factor (1.0 = no zoom)")
+        val scaleField = TextField(DynamicMapCalibrationFormSupport.formatDouble(saved.scale * safeCellSize)).apply {
+            tooltip = Tooltip("Rendered image scale in preview pixels per image pixel")
             prefColumnCount = 8
         }
-        val offsetXField = TextField(MapDialogFormSupport.formatDouble(saved.offsetX)).apply {
-            tooltip = Tooltip("Horizontal displacement of the image centre from the canvas centre (px)")
+        val offsetXField = TextField(DynamicMapCalibrationFormSupport.formatDouble(saved.offsetX * safeCellSize)).apply {
+            tooltip = Tooltip("Horizontal displacement from the map centre in preview pixels")
             prefColumnCount = 8
         }
-        val offsetYField = TextField(MapDialogFormSupport.formatDouble(saved.offsetY)).apply {
-            tooltip = Tooltip("Vertical displacement of the image centre from the canvas centre (px)")
+        val offsetYField = TextField(DynamicMapCalibrationFormSupport.formatDouble(saved.offsetY * safeCellSize)).apply {
+            tooltip = Tooltip("Vertical displacement from the map centre in preview pixels")
             prefColumnCount = 8
         }
         val errorLabel = Label().apply { textFill = Color.RED }
-        val tileStep = settingsService.gridCalibration.effectiveCellSizeInPixels()
         val fieldsByInput = mapOf(
-            MapInputField.SCALE to scaleField,
-            MapInputField.OFFSET_X to offsetXField,
-            MapInputField.OFFSET_Y to offsetYField,
+            DynamicMapCalibrationInput.SCALE to scaleField,
+            DynamicMapCalibrationInput.OFFSET_X to offsetXField,
+            DynamicMapCalibrationInput.OFFSET_Y to offsetYField,
         )
 
         fun tryPreview() {
             when (
-                val result = calibrationService.parseMapCalibration(
+                val result = DynamicMapCalibrationFormSupport.parseBackgroundCalibration(
                     scaleText = scaleField.text,
                     offsetXText = offsetXField.text,
                     offsetYText = offsetYField.text,
+                    previewCellSize = safeCellSize,
                 )
             ) {
-                is MapResult.Success -> settingsService.previewMapCalibration(result.value)
-                is MapResult.Failure -> Unit
+                is DynamicMapCalibrationParseResult.Success -> controller.setBackgroundCalibration(result.value)
+                is DynamicMapCalibrationParseResult.Failure -> Unit
             }
         }
 
@@ -91,20 +85,20 @@ object MapCalibrationDialogs {
         dialog.dialogPane.content = VBox(
             8.0,
             Label("Scale:"),
-            MapDialogFormSupport.buildStepRow(scaleField, 0.05, ::tryPreview),
+            DynamicMapCalibrationFormSupport.buildStepRow(scaleField, 0.05, ::tryPreview),
             Label("Offset X (px from centre):"),
-            MapDialogFormSupport.buildOffsetStepRow(
+            DynamicMapCalibrationFormSupport.buildOffsetStepRow(
                 field = offsetXField,
                 smallStep = 5.0,
-                tileStep = tileStep,
+                tileStep = safeCellSize,
                 axis = CalibrationOffsetAxis.HORIZONTAL,
                 onChanged = ::tryPreview,
             ),
             Label("Offset Y (px from centre):"),
-            MapDialogFormSupport.buildOffsetStepRow(
+            DynamicMapCalibrationFormSupport.buildOffsetStepRow(
                 field = offsetYField,
                 smallStep = 5.0,
-                tileStep = tileStep,
+                tileStep = safeCellSize,
                 axis = CalibrationOffsetAxis.VERTICAL,
                 onChanged = ::tryPreview,
             ),
@@ -117,20 +111,22 @@ object MapCalibrationDialogs {
             tracker = confirmation,
             confirmButton = ButtonType.APPLY,
         ) {
-            MapDialogFormSupport.clearFieldErrors(errorLabel, fieldsByInput.values)
+            DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, fieldsByInput.values)
             when (
-                val result = calibrationService.parseMapCalibration(
+                val result = DynamicMapCalibrationFormSupport.parseBackgroundCalibration(
                     scaleText = scaleField.text,
                     offsetXText = offsetXField.text,
                     offsetYText = offsetYField.text,
+                    previewCellSize = safeCellSize,
                 )
             ) {
-                is MapResult.Success -> {
-                    settingsService.commitMapCalibration(result.value)
+                is DynamicMapCalibrationParseResult.Success -> {
+                    controller.setBackgroundCalibration(result.value)
                     true
                 }
-                is MapResult.Failure -> {
-                    MapDialogFormSupport.showOperationError(result.error, errorLabel, fieldsByInput)
+
+                is DynamicMapCalibrationParseResult.Failure -> {
+                    DynamicMapCalibrationFormSupport.showParseError(result, errorLabel, fieldsByInput)
                     false
                 }
             }
@@ -139,117 +135,7 @@ object MapCalibrationDialogs {
         DialogFlows.onHiddenWithCancelRestore(
             dialog = dialog,
             tracker = confirmation,
-            onCancel = { settingsService.restoreMapCalibration(saved) },
-            onAlways = { calibrationService.setMapCalibrationMode(false) },
-        )
-
-        dialog.showAndWait()
-    }
-
-    fun showGridCalibrationDialog(
-        owner: Window?,
-        settingsService: MapSettingsService,
-        calibrationService: MapCalibrationService,
-    ) {
-        val saved = settingsService.gridCalibration
-        val dialog = DialogFlows.createDialog<ButtonType>(
-            owner = owner,
-            title = "Calibrate Grid",
-            headerText = "Adjust the grid cell size and position.\n" +
-                "A yellow crosshair marks the canvas centre; this is the origin for all scale operations.\n" +
-                "Changes are previewed live; Cancel restores the previous calibration.",
-            buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
-        )
-
-        calibrationService.setGridCalibrationMode(true)
-
-        val cellSizeField = TextField(MapDialogFormSupport.formatDouble(saved.cellSizeInPixels)).apply {
-            tooltip = Tooltip("Grid cell size in canvas pixels at scale 1.0")
-            prefColumnCount = 8
-        }
-        val scaleField = TextField(MapDialogFormSupport.formatDouble(saved.scale)).apply {
-            tooltip = Tooltip("Zoom factor applied from the canvas centre (1.0 = no zoom)")
-            prefColumnCount = 8
-        }
-        val offsetXField = TextField(MapDialogFormSupport.formatDouble(saved.offsetX)).apply {
-            tooltip = Tooltip("Horizontal displacement of the grid origin from the canvas centre (px)")
-            prefColumnCount = 8
-        }
-        val offsetYField = TextField(MapDialogFormSupport.formatDouble(saved.offsetY)).apply {
-            tooltip = Tooltip("Vertical displacement of the grid origin from the canvas centre (px)")
-            prefColumnCount = 8
-        }
-        val errorLabel = Label().apply { textFill = Color.RED }
-        val fieldsByInput = mapOf(
-            MapInputField.CELL_SIZE to cellSizeField,
-            MapInputField.SCALE to scaleField,
-            MapInputField.OFFSET_X to offsetXField,
-            MapInputField.OFFSET_Y to offsetYField,
-        )
-
-        fun tryPreview() {
-            when (
-                val result = calibrationService.parseGridCalibration(
-                    cellSizeText = cellSizeField.text,
-                    scaleText = scaleField.text,
-                    offsetXText = offsetXField.text,
-                    offsetYText = offsetYField.text,
-                )
-            ) {
-                is MapResult.Success -> settingsService.previewGridCalibration(result.value)
-                is MapResult.Failure -> Unit
-            }
-        }
-
-        cellSizeField.textProperty().addListener { _, _, _ -> tryPreview() }
-        scaleField.textProperty().addListener { _, _, _ -> tryPreview() }
-        offsetXField.textProperty().addListener { _, _, _ -> tryPreview() }
-        offsetYField.textProperty().addListener { _, _, _ -> tryPreview() }
-
-        dialog.dialogPane.content = VBox(
-            8.0,
-            Label("Cell size (px):"),
-            MapDialogFormSupport.buildStepRow(cellSizeField, 1.0, ::tryPreview),
-            Label("Scale:"),
-            MapDialogFormSupport.buildStepRow(scaleField, 0.05, ::tryPreview),
-            Label("Offset X (px from centre):"),
-            MapDialogFormSupport.buildStepRow(offsetXField, 1.0, ::tryPreview),
-            Label("Offset Y (px from centre):"),
-            MapDialogFormSupport.buildStepRow(offsetYField, 1.0, ::tryPreview),
-            errorLabel,
-        )
-
-        val confirmation = DialogFlows.ConfirmationTracker()
-        DialogFlows.installValidatedConfirm(
-            dialog = dialog,
-            tracker = confirmation,
-            confirmButton = ButtonType.APPLY,
-        ) {
-            MapDialogFormSupport.clearFieldErrors(errorLabel, fieldsByInput.values)
-            when (
-                val result = calibrationService.parseGridCalibration(
-                    cellSizeText = cellSizeField.text,
-                    scaleText = scaleField.text,
-                    offsetXText = offsetXField.text,
-                    offsetYText = offsetYField.text,
-                )
-            ) {
-                is MapResult.Success -> {
-                    settingsService.commitGridCalibration(result.value)
-                    true
-                }
-                is MapResult.Failure -> {
-                    MapDialogFormSupport.showOperationError(result.error, errorLabel, fieldsByInput)
-                    false
-                }
-            }
-        }
-
-        DialogFlows.onHiddenWithCancelRestore(
-            dialog = dialog,
-            tracker = confirmation,
-            onCancel = { settingsService.restoreGridCalibration(saved) },
-            onAlways = { calibrationService.setGridCalibrationMode(false) },
+            onCancel = { controller.setBackgroundCalibration(saved) },
         )
 
         dialog.showAndWait()
@@ -257,18 +143,24 @@ object MapCalibrationDialogs {
 
     fun showGuidedCalibrationDialog(
         owner: Window?,
-        settingsService: MapSettingsService,
-        calibrationService: MapCalibrationService,
+        controller: DynamicMapBuilderController,
     ) {
-        val saved = settingsService.mapCalibration
+        val document = controller.currentDocument()
+        val imageUri = document.backgroundImageUri ?: return
+        val image = runCatching { javafx.scene.image.Image(imageUri, false) }
+            .getOrNull()
+            ?.takeUnless { it.isError }
+            ?: return
+
+        val saved = document.backgroundCalibration
         var working = saved
         var step = GuidedCalibrationStep.SELECT_CENTER
-        var step2Axis = GuidedCalibrationAxis.HORIZONTAL
+        var step2Axis = DynamicMapGuidedCalibrationAxis.HORIZONTAL
         var centerCursorX = 0.0
         var centerCursorY = 0.0
         var centerCursorInitialized = false
         var step2OffsetPx = 0.0
-        val viewport = MapViewportState(
+        val viewport = DynamicMapViewportState(
             zoomFactor = 1.5,
             maxScale = 256.0,
             panStep = 40.0,
@@ -277,10 +169,11 @@ object MapCalibrationDialogs {
 
         val dialog = DialogFlows.createDialog<ButtonType>(
             owner = owner,
-            title = "Guided Map Calibration",
+            title = "Guided Background Calibration",
             headerText = null,
             buttonTypes = listOf(ButtonType.APPLY, ButtonType.CANCEL),
         )
+        dialog.dialogPane.prefWidth = 760.0
 
         val stepLabel = Label()
         val instructionLabel = Label().apply {
@@ -298,19 +191,6 @@ object MapCalibrationDialogs {
             isMouseTransparent = true
         }
         val overlayGc = overlayCanvas.graphicsContext2D
-        val renderer = MapRenderer(canvas).apply {
-            applyTableMapOffset = false
-            mapCalibration = working
-            gridCalibration = settingsService.gridCalibration
-            gridConfig = settingsService.currentGridConfig
-            backgroundColor = settingsService.backgroundColor
-            settingsService.currentMapImageUri?.let { loadImage(it) }
-        }
-        canvas.sceneProperty().addListener { _, _, newScene ->
-            if (newScene == null) renderer.dispose()
-        }
-
-        dialog.dialogPane.prefWidth = 760.0
 
         val applyButton = dialog.dialogPane.lookupButton(ButtonType.APPLY)
         applyButton.isDisable = true
@@ -394,7 +274,17 @@ object MapCalibrationDialogs {
             tooltip = Tooltip("Reset the active point to its default screen position")
         }
 
-        val guidedFieldsByInput = mapOf(MapInputField.GUIDED_TILE_SPAN to wideModeTilesField)
+        val guidedFieldsByInput = mapOf(DynamicMapCalibrationInput.GUIDED_TILE_SPAN to wideModeTilesField)
+
+        fun previewMetricsOrNull(): DynamicMapEditorMetrics? {
+            if (canvas.width <= 0.0 || canvas.height <= 0.0) return null
+            return computeEditorMetrics(
+                width = canvas.width,
+                height = canvas.height,
+                cols = document.cols,
+                rows = document.rows,
+            )
+        }
 
         fun currentTileSpanOrNull(): Int? =
             if (!wideModeCheck.isSelected) {
@@ -404,12 +294,12 @@ object MapCalibrationDialogs {
             }
 
         fun resolveTileSpan(): Int? {
-            MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+            DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
             if (!wideModeCheck.isSelected) return 1
-            return when (val result = calibrationService.parseGuidedTileSpan(wideModeTilesField.text)) {
-                is MapResult.Success -> result.value
-                is MapResult.Failure -> {
-                    MapDialogFormSupport.showOperationError(result.error, errorLabel, guidedFieldsByInput)
+            return when (val result = DynamicMapCalibrationFormSupport.parseGuidedTileSpan(wideModeTilesField.text)) {
+                is DynamicMapCalibrationParseResult.Success -> result.value
+                is DynamicMapCalibrationParseResult.Failure -> {
+                    DynamicMapCalibrationFormSupport.showParseError(result, errorLabel, guidedFieldsByInput)
                     null
                 }
             }
@@ -425,7 +315,8 @@ object MapCalibrationDialogs {
 
         fun defaultStep2OffsetPx(): Double {
             val tileSpan = currentTileSpanOrNull() ?: 1
-            val screenDistance = settingsService.gridCalibration.effectiveCellSizeInPixels() * tileSpan * viewport.scale
+            val cellSize = previewMetricsOrNull()?.cellSize ?: 1.0
+            val screenDistance = cellSize * tileSpan * viewport.scale
             return if (screenDistance.isFinite()) {
                 screenDistance.coerceAtLeast(1.0)
             } else {
@@ -443,9 +334,10 @@ object MapCalibrationDialogs {
             if (canvas.width <= 0.0 || canvas.height <= 0.0) return
             val (baseX, baseY) = baseCanvasPoint()
             step2OffsetPx = when (step2Axis) {
-                GuidedCalibrationAxis.HORIZONTAL ->
+                DynamicMapGuidedCalibrationAxis.HORIZONTAL ->
                     (baseX + step2OffsetPx).coerceIn(0.0, canvas.width) - baseX
-                GuidedCalibrationAxis.VERTICAL ->
+
+                DynamicMapGuidedCalibrationAxis.VERTICAL ->
                     (baseY + step2OffsetPx).coerceIn(0.0, canvas.height) - baseY
             }
         }
@@ -456,8 +348,8 @@ object MapCalibrationDialogs {
                 GuidedCalibrationStep.SELECT_SECOND_POINT -> {
                     val (baseX, baseY) = baseCanvasPoint()
                     when (step2Axis) {
-                        GuidedCalibrationAxis.HORIZONTAL -> Pair(baseX + step2OffsetPx, baseY)
-                        GuidedCalibrationAxis.VERTICAL -> Pair(baseX, baseY + step2OffsetPx)
+                        DynamicMapGuidedCalibrationAxis.HORIZONTAL -> Pair(baseX + step2OffsetPx, baseY)
+                        DynamicMapGuidedCalibrationAxis.VERTICAL -> Pair(baseX, baseY + step2OffsetPx)
                     }
                 }
             }
@@ -474,37 +366,70 @@ object MapCalibrationDialogs {
 
         fun updatePointControlAvailability() {
             val axisLocked = step == GuidedCalibrationStep.SELECT_SECOND_POINT
-            pointLeftButton.isDisable = axisLocked && step2Axis == GuidedCalibrationAxis.VERTICAL
-            pointRightButton.isDisable = axisLocked && step2Axis == GuidedCalibrationAxis.VERTICAL
-            pointUpButton.isDisable = axisLocked && step2Axis == GuidedCalibrationAxis.HORIZONTAL
-            pointDownButton.isDisable = axisLocked && step2Axis == GuidedCalibrationAxis.HORIZONTAL
+            pointLeftButton.isDisable = axisLocked && step2Axis == DynamicMapGuidedCalibrationAxis.VERTICAL
+            pointRightButton.isDisable = axisLocked && step2Axis == DynamicMapGuidedCalibrationAxis.VERTICAL
+            pointUpButton.isDisable = axisLocked && step2Axis == DynamicMapGuidedCalibrationAxis.HORIZONTAL
+            pointDownButton.isDisable = axisLocked && step2Axis == DynamicMapGuidedCalibrationAxis.HORIZONTAL
+        }
+
+        fun redrawPreview() {
+            val width = canvas.width
+            val height = canvas.height
+            if (width <= 0.0 || height <= 0.0) return
+
+            val metrics = computeEditorMetrics(width, height, document.cols, document.rows)
+            val theme = ThemeManager.currentTheme
+            val backgroundColor = ColorHexCodec.hexToColor(theme.bgColor)
+            val surfaceColor = ColorHexCodec.hexToColor(theme.surfaceColor)
+            val borderColor = ColorHexCodec.hexToColor(theme.borderColor)
+
+            val gc = canvas.graphicsContext2D
+            gc.clearRect(0.0, 0.0, width, height)
+            gc.fill = backgroundColor
+            gc.fillRect(0.0, 0.0, width, height)
+
+            gc.save()
+            val centerX = width / 2.0
+            val centerY = height / 2.0
+            gc.translate(centerX + viewport.offsetX, centerY + viewport.offsetY)
+            gc.scale(viewport.scale, viewport.scale)
+            gc.translate(-centerX, -centerY)
+
+            gc.fill = surfaceColor
+            gc.fillRect(metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
+            drawCalibratedBackgroundImage(gc, image, metrics, working)
+
+            gc.stroke = borderColor.deriveColor(0.0, 1.0, 1.0, 0.6)
+            gc.lineWidth = 1.0
+            for (col in 0..document.cols) {
+                val x = metrics.originX + col * metrics.cellSize
+                gc.strokeLine(x, metrics.originY, x, metrics.originY + metrics.mapHeight)
+            }
+            for (row in 0..document.rows) {
+                val y = metrics.originY + row * metrics.cellSize
+                gc.strokeLine(metrics.originX, y, metrics.originX + metrics.mapWidth, y)
+            }
+
+            gc.stroke = borderColor
+            gc.lineWidth = 2.0
+            gc.strokeRect(metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
+            gc.restore()
         }
 
         fun updateStatusText() {
-            if (canvas.width <= 0.0 || canvas.height <= 0.0) {
-                statusLabel.text = "Resize the dialog to begin calibration."
-                return
-            }
-            val zoomText = "Zoom ${MapDialogFormSupport.formatDouble(viewport.scale)}x."
+            val metrics = previewMetricsOrNull()
+            val previewScale = metrics?.cellSize?.let { working.scale * it } ?: working.scale
+            val previewOffsetX = metrics?.cellSize?.let { working.offsetX * it } ?: working.offsetX
+            val previewOffsetY = metrics?.cellSize?.let { working.offsetY * it } ?: working.offsetY
             statusLabel.text = when (step) {
-                GuidedCalibrationStep.SELECT_CENTER -> {
-                    val (canvasX, canvasY) = selectedCanvasPoint()
-                    "$zoomText Cursor: x=${MapDialogFormSupport.formatDouble(canvasX)}, " +
-                        "y=${MapDialogFormSupport.formatDouble(canvasY)} screen px. " +
-                        "Drag with the mouse for coarse positioning, then use the arrows for exact pixel nudges."
-                }
-                GuidedCalibrationStep.SELECT_SECOND_POINT -> {
-                    val tileSpan = currentTileSpanOrNull()
-                    val offsetText = MapDialogFormSupport.formatDouble(step2OffsetPx)
-                    if (tileSpan == null) {
-                        "$zoomText Step 2 is locked to the ${step2Axis.label.lowercase()} axis. " +
-                            "Enter a positive whole number for Wide mode."
-                    } else {
-                        "$zoomText Step 2 is locked to the ${step2Axis.label.lowercase()} axis. " +
-                            "Cursor offset: $offsetText screen px from the centre marker. " +
-                            "Tile span: $tileSpan."
-                    }
-                }
+                GuidedCalibrationStep.SELECT_CENTER ->
+                    "Preview scale ${DynamicMapCalibrationFormSupport.formatDouble(previewScale)} px/image px | " +
+                        "Offset ${DynamicMapCalibrationFormSupport.formatDouble(previewOffsetX)}, " +
+                        "${DynamicMapCalibrationFormSupport.formatDouble(previewOffsetY)} px"
+
+                GuidedCalibrationStep.SELECT_SECOND_POINT ->
+                    "Axis: ${step2Axis.label} | Tiles away: ${currentTileSpanOrNull() ?: "?"} | " +
+                        "Preview scale ${DynamicMapCalibrationFormSupport.formatDouble(previewScale)} px/image px"
             }
         }
 
@@ -512,17 +437,16 @@ object MapCalibrationDialogs {
             overlayGc.save()
             overlayGc.stroke = Color.BLACK
             overlayGc.lineWidth = 4.0
-            overlayGc.strokeOval(x - 8.0, y - 8.0, 16.0, 16.0)
-            overlayGc.strokeLine(x - 12.0, y, x + 12.0, y)
-            overlayGc.strokeLine(x, y - 12.0, x, y + 12.0)
+            overlayGc.strokeLine(x - 10.0, y, x + 10.0, y)
+            overlayGc.strokeLine(x, y - 10.0, x, y + 10.0)
 
             overlayGc.stroke = Color.WHITE
             overlayGc.lineWidth = 2.5
-            overlayGc.strokeOval(x - 8.0, y - 8.0, 16.0, 16.0)
+            overlayGc.strokeLine(x - 10.0, y, x + 10.0, y)
+            overlayGc.strokeLine(x, y - 10.0, x, y + 10.0)
 
-            overlayGc.stroke = Color.DEEPSKYBLUE
+            overlayGc.stroke = Color.DODGERBLUE
             overlayGc.lineWidth = 1.5
-            overlayGc.strokeOval(x - 4.0, y - 4.0, 8.0, 8.0)
             overlayGc.strokeLine(x - 10.0, y, x + 10.0, y)
             overlayGc.strokeLine(x, y - 10.0, x, y + 10.0)
             overlayGc.restore()
@@ -555,6 +479,7 @@ object MapCalibrationDialogs {
                     val (cursorX, cursorY) = selectedCanvasPoint()
                     drawCursorMarker(cursorX, cursorY)
                 }
+
                 GuidedCalibrationStep.SELECT_SECOND_POINT -> {
                     val (baseX, baseY) = baseCanvasPoint()
                     overlayGc.save()
@@ -562,9 +487,10 @@ object MapCalibrationDialogs {
                     overlayGc.lineWidth = 1.25
                     overlayGc.setLineDashes(6.0, 4.0)
                     when (step2Axis) {
-                        GuidedCalibrationAxis.HORIZONTAL ->
+                        DynamicMapGuidedCalibrationAxis.HORIZONTAL ->
                             overlayGc.strokeLine(0.0, baseY, overlayCanvas.width, baseY)
-                        GuidedCalibrationAxis.VERTICAL ->
+
+                        DynamicMapGuidedCalibrationAxis.VERTICAL ->
                             overlayGc.strokeLine(baseX, 0.0, baseX, overlayCanvas.height)
                     }
                     overlayGc.restore()
@@ -605,10 +531,11 @@ object MapCalibrationDialogs {
                     centerCursorX += screenDx
                     centerCursorY += screenDy
                 }
+
                 GuidedCalibrationStep.SELECT_SECOND_POINT -> {
                     step2OffsetPx += when (step2Axis) {
-                        GuidedCalibrationAxis.HORIZONTAL -> screenDx
-                        GuidedCalibrationAxis.VERTICAL -> screenDy
+                        DynamicMapGuidedCalibrationAxis.HORIZONTAL -> screenDx
+                        DynamicMapGuidedCalibrationAxis.VERTICAL -> screenDy
                     }
                     applyButton.isDisable = true
                 }
@@ -621,13 +548,14 @@ object MapCalibrationDialogs {
                 GuidedCalibrationStep.SELECT_CENTER -> {
                     stepLabel.text = "Step 1 of 2: Choose the centre point"
                     instructionLabel.text =
-                        "Drag the map with the mouse for coarse positioning.\n" +
+                        "Drag the texture with the mouse for coarse positioning.\n" +
                             "Use the on-screen arrows or the keyboard arrow keys to move the blue cursor by one calibration-screen pixel at a time.\n" +
-                            "This point becomes the centre for translation, rotation, and scaling."
+                            "This point becomes the centre for translation and scaling."
                     usePointButton.text = "Use This Centre Point \u2192"
                     skipButton.text = "Skip Step 1 \u2192"
                     backButton.isDisable = true
                 }
+
                 GuidedCalibrationStep.SELECT_SECOND_POINT -> {
                     stepLabel.text = "Step 2 of 2: Choose the next tile boundary"
                     instructionLabel.text =
@@ -646,8 +574,12 @@ object MapCalibrationDialogs {
         fun advanceToStep2() {
             step = GuidedCalibrationStep.SELECT_SECOND_POINT
             applyButton.isDisable = true
-            MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
-            step2Axis = if (verticalAxisButton.isSelected) GuidedCalibrationAxis.VERTICAL else GuidedCalibrationAxis.HORIZONTAL
+            DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+            step2Axis = if (verticalAxisButton.isSelected) {
+                DynamicMapGuidedCalibrationAxis.VERTICAL
+            } else {
+                DynamicMapGuidedCalibrationAxis.HORIZONTAL
+            }
             resetStep2Cursor()
             applyStepText()
         }
@@ -668,7 +600,7 @@ object MapCalibrationDialogs {
                     canvas.height = height
                     overlayCanvas.width = width
                     overlayCanvas.height = height
-                    renderer.redraw()
+                    redrawPreview()
                     if (!centerCursorInitialized) {
                         resetCenterCursor()
                     }
@@ -747,75 +679,81 @@ object MapCalibrationDialogs {
         canvas.setOnMouseDragged { event ->
             if (!event.isPrimaryButtonDown) return@setOnMouseDragged
             viewport.setPan(
-                renderer,
-                dragStartOffsetX + (event.x - dragStartX),
-                dragStartOffsetY + (event.y - dragStartY),
+                x = dragStartOffsetX + (event.x - dragStartX),
+                y = dragStartOffsetY + (event.y - dragStartY),
             )
+            redrawPreview()
             refreshOverlayAndStatus()
         }
 
         canvas.setOnScroll { event ->
-            viewport.zoomFromScroll(renderer, event.deltaY)
+            viewport.zoomFromScroll(event.deltaY)
+            redrawPreview()
             refreshOverlayAndStatus()
         }
 
         usePointButton.setOnAction {
+            val cellSize = previewMetricsOrNull()?.cellSize ?: return@setOnAction
             when (step) {
                 GuidedCalibrationStep.SELECT_CENTER -> {
                     val (worldX, worldY) = selectedWorldPoint()
-                    working = calibrationService.guidedStep1(
+                    working = guidedBackgroundCalibrationStep1(
                         current = working,
-                        worldX = worldX,
-                        worldY = worldY,
-                        canvasCenterX = canvas.width / 2.0,
-                        canvasCenterY = canvas.height / 2.0,
+                        clickX = worldX,
+                        clickY = worldY,
+                        targetX = canvas.width / 2.0,
+                        targetY = canvas.height / 2.0,
+                        cellSizeInPixels = cellSize,
                     )
-                    MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
-                    settingsService.previewMapCalibration(working)
+                    DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+                    controller.setBackgroundCalibration(working)
+                    redrawPreview()
                     advanceToStep2()
                     syncStep2OptionsVisibility()
                 }
+
                 GuidedCalibrationStep.SELECT_SECOND_POINT -> {
                     val tileSpan = resolveTileSpan() ?: run {
                         applyButton.isDisable = true
                         return@setOnAction
                     }
                     val (worldX, worldY) = selectedWorldPoint()
-                    when (
-                        val result = calibrationService.guidedStep2(
-                            currentCalibration = working,
-                            worldX = worldX,
-                            worldY = worldY,
-                            canvasCenterX = canvas.width / 2.0,
-                            canvasCenterY = canvas.height / 2.0,
-                            gridCellPixels = settingsService.gridCalibration.effectiveCellSizeInPixels(),
-                            axis = step2Axis,
-                            targetTileSpan = tileSpan,
+                    val updated = guidedBackgroundCalibrationStep2(
+                        currentCalibration = working,
+                        cornerX = worldX,
+                        cornerY = worldY,
+                        targetX = canvas.width / 2.0,
+                        targetY = canvas.height / 2.0,
+                        cellSizeInPixels = cellSize,
+                        axis = step2Axis,
+                        targetTileSpan = tileSpan,
+                    )
+                    if (updated != null) {
+                        working = updated
+                        DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+                        controller.setBackgroundCalibration(working)
+                        redrawPreview()
+                        applyButton.isDisable = false
+                        refreshOverlayAndStatus()
+                    } else {
+                        DynamicMapCalibrationFormSupport.showGuidedTargetTooCloseError(
+                            errorLabel = errorLabel,
+                            fields = guidedFieldsByInput.values,
                         )
-                    ) {
-                        is MapResult.Success -> {
-                            working = result.value
-                            MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
-                            settingsService.previewMapCalibration(working)
-                            applyButton.isDisable = false
-                            refreshOverlayAndStatus()
-                        }
-                        is MapResult.Failure -> {
-                            MapDialogFormSupport.showOperationError(result.error, errorLabel, guidedFieldsByInput)
-                            applyButton.isDisable = true
-                        }
+                        applyButton.isDisable = true
                     }
                 }
             }
         }
 
         skipButton.setOnAction {
-            MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+            DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
             when (step) {
                 GuidedCalibrationStep.SELECT_CENTER -> {
                     advanceToStep2()
                     syncStep2OptionsVisibility()
                 }
+
                 GuidedCalibrationStep.SELECT_SECOND_POINT -> applyButton.isDisable = false
             }
         }
@@ -824,8 +762,9 @@ object MapCalibrationDialogs {
             working = saved
             step = GuidedCalibrationStep.SELECT_CENTER
             applyButton.isDisable = true
-            MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
-            settingsService.previewMapCalibration(working)
+            DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+            controller.setBackgroundCalibration(working)
+            redrawPreview()
             if (centerCursorInitialized) {
                 resetCenterCursor()
             }
@@ -834,31 +773,38 @@ object MapCalibrationDialogs {
         }
 
         zoomOutButton.setOnAction {
-            viewport.zoomOut(renderer)
+            viewport.zoomOut()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
         zoomInButton.setOnAction {
-            viewport.zoomIn(renderer)
+            viewport.zoomIn()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
         resetViewButton.setOnAction {
-            viewport.reset(renderer)
+            viewport.reset()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
         panLeftButton.setOnAction {
-            viewport.panLeft(renderer)
+            viewport.panLeft()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
         panUpButton.setOnAction {
-            viewport.panUp(renderer)
+            viewport.panUp()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
         panDownButton.setOnAction {
-            viewport.panDown(renderer)
+            viewport.panDown()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
         panRightButton.setOnAction {
-            viewport.panRight(renderer)
+            viewport.panRight()
+            redrawPreview()
             refreshOverlayAndStatus()
         }
 
@@ -878,7 +824,7 @@ object MapCalibrationDialogs {
         }
 
         horizontalAxisButton.setOnAction {
-            step2Axis = GuidedCalibrationAxis.HORIZONTAL
+            step2Axis = DynamicMapGuidedCalibrationAxis.HORIZONTAL
             if (step == GuidedCalibrationStep.SELECT_SECOND_POINT) {
                 resetStep2Cursor()
                 applyButton.isDisable = true
@@ -886,7 +832,7 @@ object MapCalibrationDialogs {
             refreshOverlayAndStatus()
         }
         verticalAxisButton.setOnAction {
-            step2Axis = GuidedCalibrationAxis.VERTICAL
+            step2Axis = DynamicMapGuidedCalibrationAxis.VERTICAL
             if (step == GuidedCalibrationStep.SELECT_SECOND_POINT) {
                 resetStep2Cursor()
                 applyButton.isDisable = true
@@ -896,7 +842,7 @@ object MapCalibrationDialogs {
 
         wideModeCheck.selectedProperty().addListener { _, _, isSelected ->
             wideModeTilesField.isDisable = !isSelected
-            MapDialogFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
+            DynamicMapCalibrationFormSupport.clearFieldErrors(errorLabel, guidedFieldsByInput.values)
             if (step == GuidedCalibrationStep.SELECT_SECOND_POINT) {
                 resetStep2Cursor()
                 applyButton.isDisable = true
@@ -922,18 +868,22 @@ object MapCalibrationDialogs {
                     nudgeSelection(screenDx = -1.0)
                     event.consume()
                 }
+
                 KeyCode.RIGHT -> {
                     nudgeSelection(screenDx = 1.0)
                     event.consume()
                 }
+
                 KeyCode.UP -> {
                     nudgeSelection(screenDy = -1.0)
                     event.consume()
                 }
+
                 KeyCode.DOWN -> {
                     nudgeSelection(screenDy = 1.0)
                     event.consume()
                 }
+
                 else -> Unit
             }
         }
@@ -958,6 +908,7 @@ object MapCalibrationDialogs {
             if (!centerCursorInitialized) {
                 resetCenterCursor()
             }
+            redrawPreview()
             refreshOverlayAndStatus()
         }
 
@@ -966,15 +917,14 @@ object MapCalibrationDialogs {
             tracker = confirmation,
             confirmButton = ButtonType.APPLY,
         ) {
-            settingsService.commitMapCalibration(working)
+            controller.setBackgroundCalibration(working)
             true
         }
 
         DialogFlows.onHiddenWithCancelRestore(
             dialog = dialog,
             tracker = confirmation,
-            onCancel = { settingsService.restoreMapCalibration(saved) },
-            onAlways = {},
+            onCancel = { controller.setBackgroundCalibration(saved) },
         )
 
         dialog.showAndWait()
@@ -986,19 +936,35 @@ private enum class GuidedCalibrationStep {
     SELECT_SECOND_POINT,
 }
 
+private enum class DynamicMapCalibrationInput {
+    SCALE,
+    OFFSET_X,
+    OFFSET_Y,
+    GUIDED_TILE_SPAN,
+}
+
 private enum class CalibrationOffsetAxis {
     HORIZONTAL,
     VERTICAL,
 }
 
-private val GuidedCalibrationAxis.label: String
+private sealed interface DynamicMapCalibrationParseResult<out T> {
+    data class Success<T>(val value: T) : DynamicMapCalibrationParseResult<T>
+
+    data class Failure(
+        val field: DynamicMapCalibrationInput,
+        val message: String,
+    ) : DynamicMapCalibrationParseResult<Nothing>
+}
+
+private val DynamicMapGuidedCalibrationAxis.label: String
     get() =
         when (this) {
-            GuidedCalibrationAxis.HORIZONTAL -> "Horizontal"
-            GuidedCalibrationAxis.VERTICAL -> "Vertical"
+            DynamicMapGuidedCalibrationAxis.HORIZONTAL -> "Horizontal"
+            DynamicMapGuidedCalibrationAxis.VERTICAL -> "Vertical"
         }
 
-private object MapDialogFormSupport {
+private object DynamicMapCalibrationFormSupport {
     fun buildStepRow(field: TextField, step: Double, onChanged: () -> Unit): HBox {
         fun adjust(delta: Double) {
             val current = field.text.toDoubleOrNull() ?: 0.0
@@ -1072,23 +1038,164 @@ private object MapDialogFormSupport {
             String.format(Locale.US, "%.4g", value)
         }
 
+    fun parseBackgroundCalibration(
+        scaleText: String,
+        offsetXText: String,
+        offsetYText: String,
+        previewCellSize: Double,
+    ): DynamicMapCalibrationParseResult<DynamicMapBackgroundCalibration> {
+        val scale = scaleText.toDoubleOrNull()
+            ?: return DynamicMapCalibrationParseResult.Failure(
+                field = DynamicMapCalibrationInput.SCALE,
+                message = "Scale must be a positive number.",
+            )
+        if (scale <= 0.0) {
+            return DynamicMapCalibrationParseResult.Failure(
+                field = DynamicMapCalibrationInput.SCALE,
+                message = "Scale must be a positive number.",
+            )
+        }
+        val offsetX = offsetXText.toDoubleOrNull()
+            ?: return DynamicMapCalibrationParseResult.Failure(
+                field = DynamicMapCalibrationInput.OFFSET_X,
+                message = "Offset X must be a number.",
+            )
+        val offsetY = offsetYText.toDoubleOrNull()
+            ?: return DynamicMapCalibrationParseResult.Failure(
+                field = DynamicMapCalibrationInput.OFFSET_Y,
+                message = "Offset Y must be a number.",
+            )
+        val safeCellSize = previewCellSize.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+        return DynamicMapCalibrationParseResult.Success(
+            DynamicMapBackgroundCalibration(
+                scale = scale / safeCellSize,
+                offsetX = offsetX / safeCellSize,
+                offsetY = offsetY / safeCellSize,
+            ),
+        )
+    }
+
+    fun parseGuidedTileSpan(tileSpanText: String): DynamicMapCalibrationParseResult<Int> {
+        val tileSpan = tileSpanText.trim().toIntOrNull()
+            ?: return DynamicMapCalibrationParseResult.Failure(
+                field = DynamicMapCalibrationInput.GUIDED_TILE_SPAN,
+                message = "Wide mode tiles away must be a positive whole number.",
+            )
+        if (tileSpan <= 0) {
+            return DynamicMapCalibrationParseResult.Failure(
+                field = DynamicMapCalibrationInput.GUIDED_TILE_SPAN,
+                message = "Wide mode tiles away must be a positive whole number.",
+            )
+        }
+        return DynamicMapCalibrationParseResult.Success(tileSpan)
+    }
+
     fun clearFieldErrors(errorLabel: Label, fields: Collection<TextField>) {
         fields.forEach { it.style = "" }
         errorLabel.text = ""
     }
 
-    fun showOperationError(
-        error: MapOperationError,
+    fun showParseError(
+        error: DynamicMapCalibrationParseResult.Failure,
         errorLabel: Label,
-        fieldsByInput: Map<MapInputField, TextField>,
+        fieldsByInput: Map<DynamicMapCalibrationInput, TextField>,
     ) {
         clearFieldErrors(errorLabel, fieldsByInput.values)
-        when (error) {
-            is MapOperationError.Validation -> {
-                fieldsByInput[error.field]?.style = "-fx-border-color: red;"
-                errorLabel.text = error.toUserMessage()
-            }
-            else -> errorLabel.text = error.toUserMessage()
-        }
+        fieldsByInput[error.field]?.style = "-fx-border-color: red;"
+        errorLabel.text = error.message
+    }
+
+    fun showGuidedTargetTooCloseError(
+        errorLabel: Label,
+        fields: Collection<TextField>,
+    ) {
+        clearFieldErrors(errorLabel, fields)
+        errorLabel.text = "Move the second point at least one screen pixel away from the centre point on the selected axis."
+    }
+}
+
+private class DynamicMapViewportState(
+    private val zoomFactor: Double = 1.25,
+    private val minScale: Double = 0.125,
+    private val maxScale: Double = 8.0,
+    private val panStep: Double = 20.0,
+) {
+    var scale: Double = 1.0
+        private set
+
+    var offsetX: Double = 0.0
+        private set
+
+    var offsetY: Double = 0.0
+        private set
+
+    fun reset() {
+        scale = 1.0
+        offsetX = 0.0
+        offsetY = 0.0
+    }
+
+    fun zoomFromScroll(deltaY: Double) {
+        val factor = if (deltaY > 0.0) zoomFactor else 1.0 / zoomFactor
+        zoomBy(factor)
+    }
+
+    fun zoomIn() {
+        zoomBy(zoomFactor)
+    }
+
+    fun zoomOut() {
+        zoomBy(1.0 / zoomFactor)
+    }
+
+    fun panLeft() {
+        offsetX -= panStep
+    }
+
+    fun panRight() {
+        offsetX += panStep
+    }
+
+    fun panUp() {
+        offsetY -= panStep
+    }
+
+    fun panDown() {
+        offsetY += panStep
+    }
+
+    fun setPan(x: Double, y: Double) {
+        offsetX = x
+        offsetY = y
+    }
+
+    fun canvasToWorld(
+        canvasWidth: Double,
+        canvasHeight: Double,
+        canvasX: Double,
+        canvasY: Double,
+    ): Pair<Double, Double> {
+        val centerX = canvasWidth / 2.0
+        val centerY = canvasHeight / 2.0
+        val worldX = (canvasX - centerX - offsetX) / scale + centerX
+        val worldY = (canvasY - centerY - offsetY) / scale + centerY
+        return Pair(worldX, worldY)
+    }
+
+    fun worldToCanvas(
+        canvasWidth: Double,
+        canvasHeight: Double,
+        worldX: Double,
+        worldY: Double,
+    ): Pair<Double, Double> {
+        val centerX = canvasWidth / 2.0
+        val centerY = canvasHeight / 2.0
+        val canvasX = centerX + offsetX + scale * (worldX - centerX)
+        val canvasY = centerY + offsetY + scale * (worldY - centerY)
+        return Pair(canvasX, canvasY)
+    }
+
+    private fun zoomBy(factor: Double) {
+        scale = (scale * factor).coerceIn(minScale, maxScale)
     }
 }
