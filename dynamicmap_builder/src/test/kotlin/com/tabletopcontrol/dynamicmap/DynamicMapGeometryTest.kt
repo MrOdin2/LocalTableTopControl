@@ -38,6 +38,22 @@ class DynamicMapGeometryTest {
     }
 
     @Test
+    fun `rectangle helper preserves feature wall side behavior on each side`() {
+        val walls = buildRectangleWalls(
+            start = DynamicMapPoint(1.0, 2.0),
+            end = DynamicMapPoint(4.0, 6.0),
+            kind = DynamicMapWallKind.FEATURE,
+            frontBehavior = DynamicMapWallSideBehavior.OPEN,
+            backBehavior = DynamicMapWallSideBehavior.HARD,
+        )
+
+        assertEquals(4, walls.size)
+        assertTrue(walls.all { it.kind == DynamicMapWallKind.FEATURE })
+        assertTrue(walls.all { it.frontBehavior == DynamicMapWallSideBehavior.OPEN })
+        assertTrue(walls.all { it.backBehavior == DynamicMapWallSideBehavior.HARD })
+    }
+
+    @Test
     fun `snap point rounds both axes to quarter grid by default`() {
         val point = snapPoint(DynamicMapPoint(1.13, 2.87), 0.25)
         assertEquals(DynamicMapPoint(1.25, 2.75), point)
@@ -331,6 +347,38 @@ class DynamicMapGeometryTest {
         assertEquals("door-b", optimized.walls[1].id)
         assertEquals(DynamicMapWallKind.DOOR, optimized.walls[0].kind)
         assertEquals(false, optimized.walls[1].doorVisible)
+    }
+
+    @Test
+    fun `wall topology optimization keeps feature wall segments separate`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "feature-a",
+                    label = "Ledge",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                    kind = DynamicMapWallKind.FEATURE,
+                    frontBehavior = DynamicMapWallSideBehavior.OPEN,
+                    backBehavior = DynamicMapWallSideBehavior.HARD,
+                ),
+                DynamicMapWall(
+                    id = "feature-b",
+                    label = "Ledge",
+                    start = DynamicMapPoint(1.0, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.FEATURE,
+                    frontBehavior = DynamicMapWallSideBehavior.OPEN,
+                    backBehavior = DynamicMapWallSideBehavior.HARD,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+
+        assertEquals(2, optimized.walls.size)
+        assertEquals("feature-a", optimized.walls[0].id)
+        assertEquals("feature-b", optimized.walls[1].id)
     }
 
     @Test

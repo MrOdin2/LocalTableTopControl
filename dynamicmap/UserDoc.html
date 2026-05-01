@@ -132,7 +132,7 @@
       <p>DynamicMap can show:</p>
       <ul>
         <li>The bundled background texture and its builder calibration.</li>
-        <li>Exported soft walls, hard walls, doors, static point lights, and sunlight areas for player-character sightlines and lighting.</li>
+        <li>Exported soft walls, hard walls, doors, feature walls, static point lights, and sunlight areas for player-character sightlines and lighting.</li>
         <li>Grid overlay, fog of war, tracker tokens, token names, and measurement overlays.</li>
       </ul>
     </section>
@@ -177,8 +177,8 @@
       <table>
         <tr><th>Feature</th><th>What it does in DynamicMap</th></tr>
         <tr><td>Minimap</td><td>Shows the loaded dynamic map, fog state, token positions, and every door icon for the DM.</td></tr>
-        <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. Visible doors show a door icon on the player-facing table view. All closed walls and doors block player-character sightlines and point-light bright cores. Dim light reaches softly through soft walls, but hard walls and closed doors block dim light.</td></tr>
-        <tr><td>DebugMode</td><td>Shows exported walls with the same soft/hard/door styling used by the builder, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
+        <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. Visible doors show a door icon on the player-facing table view. Closed walls, doors, and blocking feature-wall sides affect player-character sightlines and point-light bright cores. Dim light reaches softly through soft walls and Soft feature-wall sides, but hard walls, closed doors, and Hard feature-wall sides block dim light.</td></tr>
+        <tr><td>DebugMode</td><td>Shows exported walls with the same soft/hard/door/feature styling used by the builder. Feature walls show front and back as separated side lines: Open is dotted, Soft is dashed, and Hard is solid. DebugMode also draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
         <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting or a PC has a light source. PC light sources move with the token. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, PC light sources, or PC darkvision keep sight-only visibility. <strong>Force PCs</strong> keeps PC tokens visible on the table even when fog or darkness would normally hide them.</td></tr>
@@ -202,8 +202,10 @@
         shown in black and white with a soft grey cover. When the bundle contains authored lighting,
         current visibility is limited to
         places that are both seen by a PC and lit by a point light, sunlight area, or PC-carried
-        light source, plus any area revealed by a PC's darkvision. Soft walls let dim light spread
-        around corners, while hard walls and closed doors stop dim light. Point lights also tint the
+        light source, plus any area revealed by a PC's darkvision. Soft walls and Soft feature-wall
+        sides let dim light spread around corners, while hard walls, closed doors, and Hard
+        feature-wall sides stop dim light. Open feature-wall sides let sight and light pass from that
+        side, while the opposite side can still block them. Point lights also tint the
         currently visible map with the
         colour chosen in the builder. Terrain seen only through darkvision is shown in black and
         white. The DM minimap remains visible to the DM. Moving an NPC token does not recalculate
@@ -223,21 +225,23 @@
       <h2>Builder Data</h2>
       <p>
         Runtime bundles include only play-time data: map size, optional background texture,
-        background calibration, soft walls, hard walls, doors, lights, and sunlight areas. Builder-only details such as construction-site
+        background calibration, soft walls, hard walls, doors, feature walls, lights, and sunlight areas. Builder-only details such as construction-site
         names, wall labels, light labels, sunlight-area labels, outline groups, and editor layer visibility are not shown
         during play.
       </p>
       <p>
         In RenderMode, exported walls, light handles, and sunlight outlines are not drawn directly.
         In DebugMode, soft walls are drawn as lighter dashed guide lines, hard walls are drawn as
-        stronger solid guide lines, doors include door icons, enabled point lights appear as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
+        stronger solid guide lines, doors include door icons, feature walls show separated front/back
+        side lines plus normal arrows, enabled point lights appear as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
         lights remain visible to the DM as subdued markers in DebugMode, but player-facing light
         markers are hidden.
       </p>
       <p>
         Wall geometry controls player-character sightlines during play and also blocks each point
-        light's bright core. Enabled point lights illuminate softly out to their dim radius through
-        soft walls, hard walls and closed doors block dim light, tint visible areas with their chosen colour, sunlight areas are always
+        light's bright core. Feature walls apply their Open, Soft, or Hard behavior from the side the
+        viewer or light is on. Enabled point lights illuminate softly out to their dim radius through
+        soft walls and Soft feature-wall sides, hard walls, closed doors, and Hard feature-wall sides block dim light, tint visible areas with their chosen colour, sunlight areas are always
         lit, PC light sources follow their token, and PC darkvision reveals wall-blocked grayscale
         terrain from that PC's token. If a bundle has no lights, sunlight areas, PC light sources,
         or PC darkvision, DynamicMap keeps the older sight-only behavior.

@@ -39,6 +39,15 @@ class DynamicMapDraftSerializerTest {
                     kind = DynamicMapWallKind.DOOR,
                     doorVisible = false,
                 ),
+                DynamicMapWall(
+                    id = "feature-1",
+                    label = "Upper Ledge",
+                    start = DynamicMapPoint(7.0, 2.0),
+                    end = DynamicMapPoint(9.0, 2.0),
+                    kind = DynamicMapWallKind.FEATURE,
+                    frontBehavior = DynamicMapWallSideBehavior.OPEN,
+                    backBehavior = DynamicMapWallSideBehavior.HARD,
+                ),
             ),
             lights = listOf(
                 DynamicMapLight(
@@ -104,5 +113,7 @@ class DynamicMapDraftSerializerTest {
         assertEquals("Wall 1", restored?.walls?.single()?.label)
         assertEquals(DynamicMapWallKind.SOFT, restored?.walls?.single()?.kind)
         assertEquals(true, restored?.walls?.single()?.doorVisible)
+        assertEquals(DynamicMapWallSideBehavior.OPEN, restored?.walls?.single()?.frontBehavior)
+        assertEquals(DynamicMapWallSideBehavior.HARD, restored?.walls?.single()?.backBehavior)
     }
 }

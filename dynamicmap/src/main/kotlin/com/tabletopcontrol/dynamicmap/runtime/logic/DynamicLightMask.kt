@@ -277,6 +277,7 @@ private fun hardLightGeometryFor(bundle: DynamicMapBundle): DynamicSightlineGeom
         cols = bundle.cols,
         rows = bundle.rows,
         walls = bundle.walls.filter { it.blocksDimLightWhenClosed() },
+        blockMode = DynamicSightlineBlockMode.DIM_LIGHT,
     )
 
 private fun dimLightContribution(

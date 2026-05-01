@@ -31,6 +31,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         val softWallButton = ToggleButton("Soft")
         val hardWallButton = ToggleButton("Hard")
         val doorButton = ToggleButton("Door")
+        val featureWallButton = ToggleButton("Feature")
         val visibleDoorButton = ToggleButton("Visible")
         val hiddenDoorButton = ToggleButton("Hidden")
         val lineButton = ToggleButton("Line")
@@ -45,6 +46,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         softWallButton.toggleGroup = wallKindGroup
         hardWallButton.toggleGroup = wallKindGroup
         doorButton.toggleGroup = wallKindGroup
+        featureWallButton.toggleGroup = wallKindGroup
         visibleDoorButton.toggleGroup = doorVisibilityGroup
         hiddenDoorButton.toggleGroup = doorVisibilityGroup
         lineButton.toggleGroup = drawModeGroup
@@ -54,6 +56,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             softWallButton.isSelected = selectedWallKind == DynamicMapWallKind.SOFT
             hardWallButton.isSelected = selectedWallKind == DynamicMapWallKind.HARD
             doorButton.isSelected = selectedWallKind == DynamicMapWallKind.DOOR
+            featureWallButton.isSelected = selectedWallKind == DynamicMapWallKind.FEATURE
             visibleDoorButton.isSelected = selectedDoorVisible
             hiddenDoorButton.isSelected = !selectedDoorVisible
             visibleDoorButton.isDisable = selectedWallKind != DynamicMapWallKind.DOOR
@@ -81,6 +84,11 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         }
         doorButton.setOnAction {
             selectedWallKind = DynamicMapWallKind.DOOR
+            EventBus.publish(DynamicMapWallKindSelectedEvent(selectedWallKind))
+            refreshToolUi()
+        }
+        featureWallButton.setOnAction {
+            selectedWallKind = DynamicMapWallKind.FEATURE
             EventBus.publish(DynamicMapWallKindSelectedEvent(selectedWallKind))
             refreshToolUi()
         }
@@ -138,7 +146,7 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             Label("Wall drawing"),
             modeLabel,
             Separator(),
-            HBox(6.0, Label("Type:"), softWallButton, hardWallButton, doorButton),
+            HBox(6.0, Label("Type:"), softWallButton, hardWallButton, doorButton, featureWallButton),
             HBox(6.0, Label("Door:"), visibleDoorButton, hiddenDoorButton),
             HBox(6.0, Label("Draw:"), lineButton, rectButton),
             stopButton,

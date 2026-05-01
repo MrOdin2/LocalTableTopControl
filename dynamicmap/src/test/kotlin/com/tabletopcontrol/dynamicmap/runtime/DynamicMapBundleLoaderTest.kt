@@ -27,7 +27,7 @@ class DynamicMapBundleLoaderTest {
                 background.scale=0.5
                 background.offsetX=-1.25
                 background.offsetY=2.0
-                walls.count=1
+                walls.count=2
                 wall.0.id=runtime-door-1
                 wall.0.startX=1.0
                 wall.0.startY=2.0
@@ -35,6 +35,14 @@ class DynamicMapBundleLoaderTest {
                 wall.0.endY=4.0
                 wall.0.kind=DOOR
                 wall.0.doorVisible=false
+                wall.1.id=runtime-feature-1
+                wall.1.startX=4.0
+                wall.1.startY=1.0
+                wall.1.endX=4.0
+                wall.1.endY=5.0
+                wall.1.kind=FEATURE
+                wall.1.frontBehavior=OPEN
+                wall.1.backBehavior=HARD
                 lights.count=1
                 light.0.posX=5.0
                 light.0.posY=6.0
@@ -66,10 +74,13 @@ class DynamicMapBundleLoaderTest {
         assertEquals(20, bundle.rows)
         assertEquals("background/background.png", bundle.backgroundEntry)
         assertArrayEquals(backgroundBytes, bundle.backgroundBytes)
-        assertEquals(1, bundle.walls.size)
+        assertEquals(2, bundle.walls.size)
         assertEquals("runtime-door-1", bundle.walls.first().id)
         assertEquals(DynamicMapRuntimeWallKind.DOOR, bundle.walls.first().kind)
         assertEquals(false, bundle.walls.first().doorVisible)
+        assertEquals(DynamicMapRuntimeWallKind.FEATURE, bundle.walls[1].kind)
+        assertEquals(DynamicMapRuntimeWallSideBehavior.OPEN, bundle.walls[1].frontBehavior)
+        assertEquals(DynamicMapRuntimeWallSideBehavior.HARD, bundle.walls[1].backBehavior)
         assertEquals(1, bundle.lights.size)
         assertEquals("#ff8a65", bundle.lights.first().colorHex)
         assertEquals(1, bundle.sunlightAreas.size)
