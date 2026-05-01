@@ -60,6 +60,7 @@ class MapSceneCodecTest {
             activeTokenId = "token-1",
             dynamicMapRenderMode = DynamicMapRenderMode.DEBUG,
             openDynamicDoorIds = setOf("wall-7", "wall-3"),
+            forcePcTokensVisible = true,
         )
 
         val serialized = MapSceneCodec.serialize(state)
@@ -73,6 +74,7 @@ class MapSceneCodecTest {
         assertTrue(serialized.contains("dynamicMap.openDoors.count=2"))
         assertTrue(serialized.contains("dynamicMap.openDoors.0=wall-3"))
         assertTrue(serialized.contains("dynamicMap.openDoors.1=wall-7"))
+        assertTrue(serialized.contains("tokens.forcePcVisible=true"))
     }
 
     @Test

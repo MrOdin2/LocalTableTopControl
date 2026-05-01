@@ -211,6 +211,14 @@ data class MapRotationEvent(val degrees: Int)
 data class ShowTokenNamesEvent(val show: Boolean)
 
 /**
+ * Event fired when the DM wants PC tokens to remain visible on the player-facing table
+ * even when fog, darkness, or DynamicMap sightlines would normally hide them.
+ *
+ * @property force `true` to always draw PC tokens; `false` to use normal visibility filtering.
+ */
+data class ForcePcTokensVisibleEvent(val force: Boolean)
+
+/**
  * Event fired when a new measurement overlay is created on the DM map.
  *
  * @property overlay newly created measurement.

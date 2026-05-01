@@ -30,6 +30,7 @@ internal data class MapSceneState(
     val activeTokenId: String?,
     val dynamicMapRenderMode: DynamicMapRenderMode = DynamicMapRenderMode.RENDER,
     val openDynamicDoorIds: Set<String> = emptySet(),
+    val forcePcTokensVisible: Boolean = false,
 )
 
 internal data class MapFogSceneState(
@@ -79,6 +80,7 @@ internal object MapSceneCodec {
             setProperty("table.offsetY", state.tableMapOffset.offsetY.toString())
             setProperty("grid.visible", state.gridVisible.toString())
             setProperty("tokens.showNames", state.showTokenNames.toString())
+            setProperty("tokens.forcePcVisible", state.forcePcTokensVisible.toString())
             state.activeTokenId?.let { setProperty("tokens.active", it) }
 
             setProperty("token.count", state.tokens.size.toString())
@@ -255,6 +257,7 @@ internal object MapSceneCodec {
             activeTokenId = props.getProperty("tokens.active"),
             dynamicMapRenderMode = dynamicMapRenderMode,
             openDynamicDoorIds = openDynamicDoorIds,
+            forcePcTokensVisible = props.getProperty("tokens.forcePcVisible")?.toBooleanStrictOrNull() ?: false,
         )
     }
 
