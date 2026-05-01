@@ -9,6 +9,8 @@ import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Separator
 import javafx.scene.control.ToggleButton
+import javafx.scene.control.ToggleGroup
+import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
@@ -20,28 +22,50 @@ class DynamicMapWallToolsPlugin : DmPlugin {
 
     override fun createView(): Node {
         var activeTool: DynamicMapTool? = null
+        var selectedWallKind: DynamicMapWallKind = DynamicMapWallKind.SOFT
 
         val modeLabel = Label("Active tool: none").apply {
             style = "-fx-text-fill: -tc-text-muted;"
         }
-        val lineButton = ToggleButton("Wall Line")
-        val rectButton = ToggleButton("Wall Rect")
+        val softWallButton = ToggleButton("Soft")
+        val hardWallButton = ToggleButton("Hard")
+        val lineButton = ToggleButton("Line")
+        val rectButton = ToggleButton("Rect")
         val stopButton = Button("Stop Editing")
         val optimizeWallsButton = Button("Optimize Walls")
         val clearWallsButton = Button("Clear All Walls")
+        val wallKindGroup = ToggleGroup()
+        val drawModeGroup = ToggleGroup()
+
+        softWallButton.toggleGroup = wallKindGroup
+        hardWallButton.toggleGroup = wallKindGroup
+        lineButton.toggleGroup = drawModeGroup
+        rectButton.toggleGroup = drawModeGroup
 
         fun refreshToolUi() {
+            softWallButton.isSelected = selectedWallKind == DynamicMapWallKind.SOFT
+            hardWallButton.isSelected = selectedWallKind == DynamicMapWallKind.HARD
             lineButton.isSelected = activeTool == DynamicMapTool.WALL_LINE
             rectButton.isSelected = activeTool == DynamicMapTool.WALL_RECT
             modeLabel.text = when (activeTool) {
-                DynamicMapTool.WALL_LINE -> "Active tool: wall line"
-                DynamicMapTool.WALL_RECT -> "Active tool: wall rectangle"
+                DynamicMapTool.WALL_LINE -> "Active tool: ${selectedWallKind.toolText()} line"
+                DynamicMapTool.WALL_RECT -> "Active tool: ${selectedWallKind.toolText()} rectangle"
                 DynamicMapTool.LIGHT -> "Active tool: light placement"
                 DynamicMapTool.SUNLIGHT_AREA -> "Active tool: sunlight area"
                 null -> "Active tool: none"
             }
         }
 
+        softWallButton.setOnAction {
+            selectedWallKind = DynamicMapWallKind.SOFT
+            EventBus.publish(DynamicMapWallKindSelectedEvent(selectedWallKind))
+            refreshToolUi()
+        }
+        hardWallButton.setOnAction {
+            selectedWallKind = DynamicMapWallKind.HARD
+            EventBus.publish(DynamicMapWallKindSelectedEvent(selectedWallKind))
+            refreshToolUi()
+        }
         lineButton.setOnAction {
             EventBus.publish(
                 DynamicMapToolSelectedEvent(
@@ -70,6 +94,10 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             activeTool = event.tool
             refreshToolUi()
         }
+        val wallKindSubscription = EventBus.subscribe<DynamicMapWallKindSelectedEvent> { event ->
+            selectedWallKind = event.kind
+            refreshToolUi()
+        }
 
         refreshToolUi()
 
@@ -78,8 +106,8 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             Label("Wall drawing"),
             modeLabel,
             Separator(),
-            lineButton,
-            rectButton,
+            HBox(6.0, Label("Type:"), softWallButton, hardWallButton),
+            HBox(6.0, Label("Draw:"), lineButton, rectButton),
             stopButton,
             optimizeWallsButton,
             Region().also { VBox.setVgrow(it, Priority.ALWAYS) },
@@ -91,8 +119,12 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             sceneProperty().addListener { _, _, newScene ->
                 if (newScene == null) {
                     toolSubscription.unsubscribe()
+                    wallKindSubscription.unsubscribe()
                 }
             }
         }
     }
 }
+
+private fun DynamicMapWallKind.toolText(): String =
+    displayName.lowercase()

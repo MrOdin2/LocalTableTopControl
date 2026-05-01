@@ -65,6 +65,34 @@ class DynamicLightMaskTest {
     }
 
     @Test
+    fun `hard walls occlude dim light using the larger light mesh`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 5.0),
+            kind = DynamicMapRuntimeWallKind.HARD,
+        )
+        val bundle = bundle(
+            walls = listOf(wall),
+            lights = listOf(
+                DynamicMapRuntimeLight(
+                    position = DynamicMapRuntimePoint(1.0, 2.0),
+                    brightRadius = 1.0,
+                    dimRadius = 5.0,
+                    colorHex = "#ff8800",
+                    enabled = true,
+                ),
+            ),
+        )
+
+        val mask = lightMask(bundle)
+
+        assertTrue(mask.containsPoint(1.5, 2.0))
+        assertFalse(mask.containsPoint(3.0, 2.0))
+        assertTrue(mask.tintContributions.single().containsDimPoint(1.5, 2.0))
+        assertFalse(mask.tintContributions.single().containsDimPoint(3.0, 2.0))
+    }
+
+    @Test
     fun `sunlight polygons are lit without point lights`() {
         val bundle = bundle(
             sunlightAreas = listOf(
@@ -168,6 +196,43 @@ class DynamicLightMaskTest {
         assertTrue(mask.containsBrightPoint(1.5, 1.5))
         assertFalse(mask.containsBrightPoint(3.0, 1.5))
         assertEquals("#ffcc66", mask.tintContributions.single().colorHex)
+    }
+
+    @Test
+    fun `pc token light dim range is occluded by hard walls`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 5.0),
+            kind = DynamicMapRuntimeWallKind.HARD,
+        )
+        val bundle = bundle(walls = listOf(wall))
+        val geometry = DynamicSightlineGeometry.forMap(
+            cols = bundle.cols,
+            rows = bundle.rows,
+            walls = bundle.walls,
+        )
+        val pc = Token(
+            id = "pc",
+            name = "Lantern",
+            col = 0,
+            row = 1,
+            color = Color.BLUE,
+            isPlayerCharacter = true,
+            lightSource = TokenLightSource(
+                brightRangeCells = 1.0,
+                dimRangeCells = 5.0,
+                colorHex = "#ffcc66",
+            ),
+        )
+        val contribution = requireNotNull(geometry.computeContribution(pc))
+
+        val mask = DynamicLightMask.fromPcTokenLights(
+            bundle = bundle,
+            pcSightlines = listOf(DynamicPcSightlineContribution(pc, contribution)),
+        )
+
+        assertTrue(mask.containsPoint(1.5, 1.5))
+        assertFalse(mask.containsPoint(3.0, 1.5))
     }
 
     private fun lightMask(bundle: DynamicMapBundle): DynamicLightMask =

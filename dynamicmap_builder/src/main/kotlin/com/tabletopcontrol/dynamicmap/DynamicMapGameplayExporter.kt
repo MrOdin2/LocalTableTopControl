@@ -93,6 +93,7 @@ object DynamicMapGameplayExportSerializer {
             props.setProperty("$prefix.startY", wall.start.y.toString())
             props.setProperty("$prefix.endX", wall.end.x.toString())
             props.setProperty("$prefix.endY", wall.end.y.toString())
+            props.setProperty("$prefix.kind", wall.kind.name)
         }
 
         props.setProperty("lights.count", document.lights.size.toString())

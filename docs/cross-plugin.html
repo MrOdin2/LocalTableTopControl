@@ -353,6 +353,8 @@
         loaded dynamic bundle contains authored lights or sunlight areas, those PC sightlines are
         also limited to lit areas. A PC actor's light source in the tracker acts as a moving point
         light attached to that token, with separate bright and dim ranges and its chosen tint colour.
+        DynamicMap uses the builder's soft and hard wall kinds for lighting: both block sightlines and
+        bright light, while only hard walls block dim light.
         A PC actor's darkvision range acts as a grayscale reveal from that token's position. If terrain
         is no longer currently visible and only remembered, DynamicMap keeps it grayscale so the table
         shows layout information without colour detail. NPC movement does not recalculate that
@@ -379,6 +381,8 @@
         exports gameplay-ready <code>.dynamicmap</code> bundles without builder-only names or groups.
         The main builder canvas, <strong>Wall Tools</strong>, <strong>Light Browser</strong>, and
         <strong>Outline Browser</strong> all share the same draft map and stay in sync automatically.
+        Wall tools choose wall type separately from drawing mode, so soft and hard walls can be
+        authored with the same shape tools; the exported wall kind is consumed by DynamicMap during lighting.
       </p>
       <div class="flow">
         <div class="step">Choose tool or preset in a side pane</div>

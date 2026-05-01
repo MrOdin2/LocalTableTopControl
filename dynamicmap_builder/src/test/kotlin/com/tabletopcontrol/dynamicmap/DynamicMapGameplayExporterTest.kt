@@ -43,12 +43,14 @@ class DynamicMapGameplayExporterTest {
                     label = "Boss Gate",
                     start = DynamicMapPoint(1.0, 2.0),
                     end = DynamicMapPoint(3.0, 2.0),
+                    kind = DynamicMapWallKind.HARD,
                 ),
                 DynamicMapWall(
                     id = "secret-wall-id-2",
                     label = "Boss Gate",
                     start = DynamicMapPoint(3.0, 2.0),
                     end = DynamicMapPoint(5.0, 2.0),
+                    kind = DynamicMapWallKind.HARD,
                 ),
             ),
             lights = listOf(
@@ -116,6 +118,7 @@ class DynamicMapGameplayExporterTest {
         assertEquals("1", props.getProperty("walls.count"))
         assertEquals("1.0", props.getProperty("wall.0.startX"))
         assertEquals("5.0", props.getProperty("wall.0.endX"))
+        assertEquals("HARD", props.getProperty("wall.0.kind"))
         assertEquals("1", props.getProperty("lights.count"))
         assertEquals("4.0", props.getProperty("light.0.posX"))
         assertEquals("#ffb347", props.getProperty("light.0.colorHex"))

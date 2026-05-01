@@ -1012,11 +1012,14 @@ class MapRenderer(private val canvas: Canvas) {
     ) {
         val color = ColorHexCodec.parseOrDefault(contribution.colorHex, Color.WHITE)
         if (contribution.hasDimTint) {
-            val radius = contribution.dimRadius * cellPx
-            val centerX = originX + contribution.x * cellPx
-            val centerY = originY + contribution.y * cellPx
             target.fill = color.withOpacity(DYNAMIC_LIGHT_TINT_DIM_OPACITY)
-            target.fillOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
+            target.beginPath()
+            contribution.drawDimArea(
+                moveTo = { point -> target.moveTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+                lineTo = { point -> target.lineTo(originX + point.x * cellPx, originY + point.y * cellPx) },
+                closePath = { target.closePath() },
+            )
+            target.fill()
         }
 
         if (contribution.hasBrightTint) {
@@ -1039,15 +1042,15 @@ class MapRenderer(private val canvas: Canvas) {
         val originX = dynamicMapOriginX()
         val originY = dynamicMapOriginY()
 
-        gc.stroke = dynamicWallColor()
-        gc.lineWidth = (cellPx * DYNAMIC_WALL_WIDTH_SCALE).coerceAtLeast(2.0)
         bundle.walls.forEach { wall ->
+            configureDynamicWallStroke(wall.kind, cellPx)
             gc.strokeLine(
                 originX + wall.start.x * cellPx,
                 originY + wall.start.y * cellPx,
                 originX + wall.end.x * cellPx,
                 originY + wall.end.y * cellPx,
             )
+            gc.setLineDashes()
         }
     }
 
@@ -1083,6 +1086,29 @@ class MapRenderer(private val canvas: Canvas) {
 
     private fun dynamicWallColor(): Color =
         dynamicMapDebugWallColor
+
+    private fun configureDynamicWallStroke(kind: DynamicMapRuntimeWallKind, cellPx: Double) {
+        val baseWidth = (cellPx * DYNAMIC_WALL_WIDTH_SCALE).coerceAtLeast(2.0)
+        gc.stroke = dynamicWallColor(kind)
+        gc.lineWidth = when (kind) {
+            DynamicMapRuntimeWallKind.SOFT -> baseWidth
+            DynamicMapRuntimeWallKind.HARD -> baseWidth * 1.15
+        }
+        if (kind == DynamicMapRuntimeWallKind.SOFT) {
+            gc.setLineDashes(
+                (cellPx * 0.18).coerceIn(5.0, 14.0),
+                (cellPx * 0.12).coerceIn(4.0, 10.0),
+            )
+        } else {
+            gc.setLineDashes()
+        }
+    }
+
+    private fun dynamicWallColor(kind: DynamicMapRuntimeWallKind): Color =
+        when (kind) {
+            DynamicMapRuntimeWallKind.SOFT -> dynamicMapDebugWallColor.deriveColor(0.0, 0.55, 1.2, 0.72)
+            DynamicMapRuntimeWallKind.HARD -> dynamicMapDebugWallColor.deriveColor(0.0, 1.0, 0.95, 0.98)
+        }
 
     private fun dynamicLightRingWidth(cellPx: Double): Double =
         (cellPx * DYNAMIC_LIGHT_RING_WIDTH_SCALE).coerceIn(1.0, 4.0)

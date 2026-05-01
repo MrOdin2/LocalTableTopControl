@@ -52,7 +52,22 @@ data class DynamicMapWall(
     val label: String = "Wall",
     val start: DynamicMapPoint,
     val end: DynamicMapPoint,
+    val kind: DynamicMapWallKind = DynamicMapWallKind.SOFT,
 )
+
+enum class DynamicMapWallKind(
+    val displayName: String,
+    val defaultLabel: String,
+) {
+    SOFT("Soft Wall", "Wall"),
+    HARD("Hard Wall", "Hard Wall"),
+    ;
+
+    companion object {
+        fun fromPersistence(value: String?): DynamicMapWallKind =
+            entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) } ?: SOFT
+    }
+}
 
 data class DynamicMapLight(
     val id: String = UUID.randomUUID().toString(),

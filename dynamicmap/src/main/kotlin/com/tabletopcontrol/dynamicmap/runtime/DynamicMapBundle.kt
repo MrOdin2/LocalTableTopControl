@@ -46,7 +46,19 @@ data class DynamicMapRuntimePoint(
 data class DynamicMapRuntimeWall(
     val start: DynamicMapRuntimePoint,
     val end: DynamicMapRuntimePoint,
+    val kind: DynamicMapRuntimeWallKind = DynamicMapRuntimeWallKind.SOFT,
 )
+
+enum class DynamicMapRuntimeWallKind {
+    SOFT,
+    HARD,
+    ;
+
+    companion object {
+        fun fromPersistence(value: String?): DynamicMapRuntimeWallKind =
+            entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) } ?: SOFT
+    }
+}
 
 data class DynamicMapRuntimeLight(
     val position: DynamicMapRuntimePoint,
@@ -159,6 +171,7 @@ object DynamicMapBundleLoader {
                     DynamicMapRuntimeWall(
                         start = DynamicMapRuntimePoint(startX, startY),
                         end = DynamicMapRuntimePoint(endX, endY),
+                        kind = DynamicMapRuntimeWallKind.fromPersistence(props.getProperty("$prefix.kind")),
                     ),
                 )
             }

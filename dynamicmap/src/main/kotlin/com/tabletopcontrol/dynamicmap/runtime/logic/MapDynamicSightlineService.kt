@@ -7,6 +7,7 @@ import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapBundle
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapLoadEvent
+import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWallKind
 import com.tabletopcontrol.dynamicmap.runtime.DynamicSightlineMeshUpdatedEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapClearEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapLoadEvent
@@ -32,6 +33,7 @@ internal class MapDynamicSightlineService {
 
     private var currentBundle: DynamicMapBundle? = null
     private var currentGeometry: DynamicSightlineGeometry? = null
+    private var currentDimLightGeometry: DynamicSightlineGeometry? = null
     private var currentLightMask: DynamicLightMask? = null
     private var topologyVersion: Long = 0L
     private var accumulatedSeenArea: Area? = null
@@ -56,9 +58,19 @@ internal class MapDynamicSightlineService {
                 rows = event.bundle.rows,
                 walls = event.bundle.walls,
             )
+            val dimLightGeometry = DynamicSightlineGeometry.forMap(
+                cols = event.bundle.cols,
+                rows = event.bundle.rows,
+                walls = event.bundle.walls.filter { it.kind == DynamicMapRuntimeWallKind.HARD },
+            )
             currentBundle = event.bundle
             currentGeometry = geometry
-            currentLightMask = DynamicLightMask.fromBundle(event.bundle, geometry)
+            currentDimLightGeometry = dimLightGeometry
+            currentLightMask = DynamicLightMask.fromBundle(
+                bundle = event.bundle,
+                geometry = geometry,
+                dimLightGeometry = dimLightGeometry,
+            )
             topologyVersion++
             clearContributionCache()
             clearSeenArea()
@@ -135,6 +147,7 @@ internal class MapDynamicSightlineService {
         if (disposed) return
         currentBundle = null
         currentGeometry = null
+        currentDimLightGeometry = null
         currentLightMask = null
         topologyVersion++
         clearContributionCache()
@@ -152,6 +165,11 @@ internal class MapDynamicSightlineService {
             rows = bundle.rows,
             walls = bundle.walls,
         ).also { currentGeometry = it }
+        val dimLightGeometry = currentDimLightGeometry ?: DynamicSightlineGeometry.forMap(
+            cols = bundle.cols,
+            rows = bundle.rows,
+            walls = bundle.walls.filter { it.kind == DynamicMapRuntimeWallKind.HARD },
+        ).also { currentDimLightGeometry = it }
         val pcSnapshot = tokens.values
             .filter { it.isPlayerCharacter }
             .map { it.copy() }
@@ -168,7 +186,11 @@ internal class MapDynamicSightlineService {
             ) ?: return@execute
             val sightMesh = geometry.combine(pcSightlines.map { it.contribution })
             val darkvisionMesh = geometry.darkvisionMeshFrom(pcSightlines)
-            val tokenLightMask = DynamicLightMask.fromPcTokenLights(bundle, pcSightlines)
+            val tokenLightMask = DynamicLightMask.fromPcTokenLights(
+                bundle = bundle,
+                pcSightlines = pcSightlines,
+                dimLightGeometry = dimLightGeometry,
+            )
             val lightMaskForRevision = DynamicLightMask.combine(
                 cols = bundle.cols,
                 rows = bundle.rows,
