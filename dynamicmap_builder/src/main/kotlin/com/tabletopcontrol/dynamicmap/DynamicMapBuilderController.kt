@@ -167,6 +167,27 @@ class DynamicMapBuilderController {
         updateDocument { it.copy(walls = it.walls.filterNot { wall -> wall.id == id }) }
     }
 
+    fun setFeatureWallSideBehavior(
+        id: String,
+        side: DynamicMapWallSide,
+        behavior: DynamicMapWallSideBehavior,
+    ) {
+        updateDocument { current ->
+            current.copy(
+                walls = current.walls.map { wall ->
+                    if (wall.id != id || wall.kind != DynamicMapWallKind.FEATURE) {
+                        wall
+                    } else {
+                        when (side) {
+                            DynamicMapWallSide.FRONT -> wall.copy(frontBehavior = behavior)
+                            DynamicMapWallSide.BACK -> wall.copy(backBehavior = behavior)
+                        }
+                    }
+                },
+            )
+        }
+    }
+
     fun clearWalls() {
         updateDocument { it.copy(walls = emptyList()) }
     }

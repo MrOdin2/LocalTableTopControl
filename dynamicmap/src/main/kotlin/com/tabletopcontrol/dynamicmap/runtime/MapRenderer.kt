@@ -1070,6 +1070,9 @@ class MapRenderer(private val canvas: Canvas) {
                 originY + wall.end.y * cellPx,
             )
             gc.setLineDashes()
+            if (wall.kind == DynamicMapRuntimeWallKind.FEATURE) {
+                drawDynamicFeatureWallArrow(wall, cellPx, originX, originY)
+            }
         }
     }
 
@@ -1134,8 +1137,9 @@ class MapRenderer(private val canvas: Canvas) {
             DynamicMapRuntimeWallKind.SOFT -> baseWidth
             DynamicMapRuntimeWallKind.HARD -> baseWidth * 1.15
             DynamicMapRuntimeWallKind.DOOR -> baseWidth * 1.15
+            DynamicMapRuntimeWallKind.FEATURE -> baseWidth * 1.05
         }
-        if (kind == DynamicMapRuntimeWallKind.SOFT) {
+        if (kind == DynamicMapRuntimeWallKind.SOFT || kind == DynamicMapRuntimeWallKind.FEATURE) {
             gc.setLineDashes(
                 (cellPx * 0.18).coerceIn(5.0, 14.0),
                 (cellPx * 0.12).coerceIn(4.0, 10.0),
@@ -1150,7 +1154,67 @@ class MapRenderer(private val canvas: Canvas) {
             DynamicMapRuntimeWallKind.SOFT -> dynamicMapDebugWallColor.deriveColor(0.0, 0.55, 1.2, 0.72)
             DynamicMapRuntimeWallKind.HARD -> dynamicMapDebugWallColor.deriveColor(0.0, 1.0, 0.95, 0.98)
             DynamicMapRuntimeWallKind.DOOR -> dynamicMapDebugWallColor.deriveColor(38.0, 0.95, 1.05, 0.98)
+            DynamicMapRuntimeWallKind.FEATURE -> dynamicMapDebugWallColor.deriveColor(145.0, 0.9, 1.05, 0.95)
         }
+
+    private fun drawDynamicFeatureWallArrow(
+        wall: DynamicMapRuntimeWall,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+    ) {
+        val startX = originX + wall.start.x * cellPx
+        val startY = originY + wall.start.y * cellPx
+        val endX = originX + wall.end.x * cellPx
+        val endY = originY + wall.end.y * cellPx
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val centerX = (startX + endX) / 2.0
+        val centerY = (startY + endY) / 2.0
+        val normalX = -dy / length
+        val normalY = dx / length
+        val arrowLength = (cellPx * 0.28).coerceIn(7.0, 18.0)
+        val headLength = (cellPx * 0.12).coerceIn(4.0, 8.0)
+        val headWidth = (cellPx * 0.09).coerceIn(3.0, 7.0)
+        val shaftStartX = centerX + normalX * (arrowLength * 0.15)
+        val shaftStartY = centerY + normalY * (arrowLength * 0.15)
+        val tipX = centerX + normalX * arrowLength
+        val tipY = centerY + normalY * arrowLength
+        val sideX = dx / length
+        val sideY = dy / length
+        val opacity = if (
+            wall.frontBehavior == DynamicMapRuntimeWallSideBehavior.OPEN ||
+            wall.backBehavior == DynamicMapRuntimeWallSideBehavior.OPEN
+        ) {
+            0.92
+        } else {
+            0.78
+        }
+        val arrowColor = dynamicMapDebugWallColor.deriveColor(145.0, 0.95, 1.15, opacity)
+
+        gc.save()
+        gc.stroke = arrowColor
+        gc.fill = arrowColor
+        gc.lineWidth = (cellPx * 0.04).coerceIn(1.5, 3.5)
+        gc.strokeLine(shaftStartX, shaftStartY, tipX, tipY)
+        gc.fillPolygon(
+            doubleArrayOf(
+                tipX,
+                tipX - normalX * headLength + sideX * headWidth,
+                tipX - normalX * headLength - sideX * headWidth,
+            ),
+            doubleArrayOf(
+                tipY,
+                tipY - normalY * headLength + sideY * headWidth,
+                tipY - normalY * headLength - sideY * headWidth,
+            ),
+            3,
+        )
+        gc.restore()
+    }
 
     private fun drawDynamicDoorIcon(
         wall: DynamicMapRuntimeWall,

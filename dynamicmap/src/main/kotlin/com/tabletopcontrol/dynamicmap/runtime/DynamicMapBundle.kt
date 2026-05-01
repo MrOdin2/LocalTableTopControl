@@ -49,12 +49,15 @@ data class DynamicMapRuntimeWall(
     val end: DynamicMapRuntimePoint,
     val kind: DynamicMapRuntimeWallKind = DynamicMapRuntimeWallKind.SOFT,
     val doorVisible: Boolean = true,
+    val frontBehavior: DynamicMapRuntimeWallSideBehavior = DynamicMapRuntimeWallSideBehavior.OPEN,
+    val backBehavior: DynamicMapRuntimeWallSideBehavior = DynamicMapRuntimeWallSideBehavior.HARD,
 )
 
 enum class DynamicMapRuntimeWallKind {
     SOFT,
     HARD,
     DOOR,
+    FEATURE,
     ;
 
     companion object {
@@ -63,11 +66,89 @@ enum class DynamicMapRuntimeWallKind {
     }
 }
 
+enum class DynamicMapRuntimeWallSideBehavior {
+    OPEN,
+    SOFT,
+    HARD,
+    ;
+
+    companion object {
+        fun fromPersistence(
+            value: String?,
+            default: DynamicMapRuntimeWallSideBehavior,
+        ): DynamicMapRuntimeWallSideBehavior =
+            entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) } ?: default
+    }
+}
+
 fun DynamicMapRuntimeWall.isDoor(): Boolean =
     kind == DynamicMapRuntimeWallKind.DOOR
 
 fun DynamicMapRuntimeWall.blocksDimLightWhenClosed(): Boolean =
-    kind == DynamicMapRuntimeWallKind.HARD || kind == DynamicMapRuntimeWallKind.DOOR
+    when (kind) {
+        DynamicMapRuntimeWallKind.SOFT -> false
+        DynamicMapRuntimeWallKind.HARD,
+        DynamicMapRuntimeWallKind.DOOR,
+        -> true
+        DynamicMapRuntimeWallKind.FEATURE ->
+            frontBehavior.blocksDimLight() || backBehavior.blocksDimLight()
+    }
+
+fun DynamicMapRuntimeWall.blocksAnySightOrBrightWhenClosed(): Boolean =
+    when (kind) {
+        DynamicMapRuntimeWallKind.SOFT,
+        DynamicMapRuntimeWallKind.HARD,
+        DynamicMapRuntimeWallKind.DOOR,
+        -> true
+        DynamicMapRuntimeWallKind.FEATURE ->
+            frontBehavior.blocksSightAndBright() || backBehavior.blocksSightAndBright()
+    }
+
+fun DynamicMapRuntimeWall.blocksSightAndBrightFrom(x: Double, y: Double): Boolean =
+    when (kind) {
+        DynamicMapRuntimeWallKind.SOFT,
+        DynamicMapRuntimeWallKind.HARD,
+        DynamicMapRuntimeWallKind.DOOR,
+        -> true
+        DynamicMapRuntimeWallKind.FEATURE -> behaviorForPoint(x, y).blocksSightAndBright()
+    }
+
+fun DynamicMapRuntimeWall.blocksDimLightFrom(x: Double, y: Double): Boolean =
+    when (kind) {
+        DynamicMapRuntimeWallKind.SOFT -> false
+        DynamicMapRuntimeWallKind.HARD,
+        DynamicMapRuntimeWallKind.DOOR,
+        -> true
+        DynamicMapRuntimeWallKind.FEATURE -> behaviorForPoint(x, y).blocksDimLight()
+    }
+
+private fun DynamicMapRuntimeWall.behaviorForPoint(
+    x: Double,
+    y: Double,
+): DynamicMapRuntimeWallSideBehavior {
+    val wallX = end.x - start.x
+    val wallY = end.y - start.y
+    val pointX = x - start.x
+    val pointY = y - start.y
+    val signedDistance = wallX * pointY - wallY * pointX
+    return when {
+        signedDistance > WALL_SIDE_EPSILON -> frontBehavior
+        signedDistance < -WALL_SIDE_EPSILON -> backBehavior
+        frontBehavior == DynamicMapRuntimeWallSideBehavior.HARD ||
+            backBehavior == DynamicMapRuntimeWallSideBehavior.HARD -> DynamicMapRuntimeWallSideBehavior.HARD
+        frontBehavior == DynamicMapRuntimeWallSideBehavior.SOFT ||
+            backBehavior == DynamicMapRuntimeWallSideBehavior.SOFT -> DynamicMapRuntimeWallSideBehavior.SOFT
+        else -> DynamicMapRuntimeWallSideBehavior.OPEN
+    }
+}
+
+private fun DynamicMapRuntimeWallSideBehavior.blocksSightAndBright(): Boolean =
+    this != DynamicMapRuntimeWallSideBehavior.OPEN
+
+private fun DynamicMapRuntimeWallSideBehavior.blocksDimLight(): Boolean =
+    this == DynamicMapRuntimeWallSideBehavior.HARD
+
+private const val WALL_SIDE_EPSILON = 1e-9
 
 data class DynamicMapRuntimeLight(
     val position: DynamicMapRuntimePoint,
@@ -183,6 +264,14 @@ object DynamicMapBundleLoader {
                         end = DynamicMapRuntimePoint(endX, endY),
                         kind = DynamicMapRuntimeWallKind.fromPersistence(props.getProperty("$prefix.kind")),
                         doorVisible = props.getProperty("$prefix.doorVisible")?.toBooleanStrictOrNull() ?: true,
+                        frontBehavior = DynamicMapRuntimeWallSideBehavior.fromPersistence(
+                            props.getProperty("$prefix.frontBehavior"),
+                            DynamicMapRuntimeWallSideBehavior.OPEN,
+                        ),
+                        backBehavior = DynamicMapRuntimeWallSideBehavior.fromPersistence(
+                            props.getProperty("$prefix.backBehavior"),
+                            DynamicMapRuntimeWallSideBehavior.HARD,
+                        ),
                     ),
                 )
             }

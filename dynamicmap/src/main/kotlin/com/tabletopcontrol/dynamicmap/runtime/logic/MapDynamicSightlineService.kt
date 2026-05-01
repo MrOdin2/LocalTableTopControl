@@ -153,6 +153,7 @@ internal class MapDynamicSightlineService {
             cols = bundle.cols,
             rows = bundle.rows,
             walls = blockingWalls.filter { it.blocksDimLightWhenClosed() },
+            blockMode = DynamicSightlineBlockMode.DIM_LIGHT,
         )
         currentBundle = bundle
         currentGeometry = geometry
@@ -194,6 +195,7 @@ internal class MapDynamicSightlineService {
             cols = bundle.cols,
             rows = bundle.rows,
             walls = blockingWalls.filter { it.blocksDimLightWhenClosed() },
+            blockMode = DynamicSightlineBlockMode.DIM_LIGHT,
         ).also { currentDimLightGeometry = it }
         val pcSnapshot = tokens.values
             .filter { it.isPlayerCharacter }

@@ -54,6 +54,8 @@ data class DynamicMapWall(
     val end: DynamicMapPoint,
     val kind: DynamicMapWallKind = DynamicMapWallKind.SOFT,
     val doorVisible: Boolean = true,
+    val frontBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.OPEN,
+    val backBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.HARD,
 )
 
 enum class DynamicMapWallKind(
@@ -63,11 +65,36 @@ enum class DynamicMapWallKind(
     SOFT("Soft Wall", "Wall"),
     HARD("Hard Wall", "Hard Wall"),
     DOOR("Door", "Door"),
+    FEATURE("Feature Wall", "Feature Wall"),
     ;
 
     companion object {
         fun fromPersistence(value: String?): DynamicMapWallKind =
             entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) } ?: SOFT
+    }
+}
+
+enum class DynamicMapWallSide(
+    val displayName: String,
+) {
+    FRONT("Front"),
+    BACK("Back"),
+}
+
+enum class DynamicMapWallSideBehavior(
+    val displayName: String,
+) {
+    OPEN("Open"),
+    SOFT("Soft"),
+    HARD("Hard"),
+    ;
+
+    companion object {
+        fun fromPersistence(
+            value: String?,
+            default: DynamicMapWallSideBehavior,
+        ): DynamicMapWallSideBehavior =
+            entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) } ?: default
     }
 }
 

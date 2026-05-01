@@ -44,6 +44,33 @@ class DynamicSightlineMeshTest {
     }
 
     @Test
+    fun `feature wall blocks sight only from configured side`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 3.0),
+            kind = DynamicMapRuntimeWallKind.FEATURE,
+            frontBehavior = DynamicMapRuntimeWallSideBehavior.OPEN,
+            backBehavior = DynamicMapRuntimeWallSideBehavior.HARD,
+        )
+
+        val frontMesh = DynamicSightlineMesh.compute(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+            tokens = listOf(pcToken(col = 0, row = 1)),
+        )
+        val backMesh = DynamicSightlineMesh.compute(
+            cols = 5,
+            rows = 3,
+            walls = listOf(wall),
+            tokens = listOf(pcToken(col = 4, row = 1)),
+        )
+
+        assertTrue(frontMesh.containsPoint(3.5, 1.5))
+        assertFalse(backMesh.containsPoint(1.5, 1.5))
+    }
+
+    @Test
     fun `token is visible when any part of its circle intersects the sight mesh`() {
         val wall = DynamicMapRuntimeWall(
             start = DynamicMapRuntimePoint(2.4, 0.0),

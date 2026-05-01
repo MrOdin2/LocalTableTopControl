@@ -517,8 +517,9 @@ private fun formatOutlineCoordinate(value: Double): String =
     String.format(Locale.US, "%.2f", value)
 
 private fun DynamicMapWall.displayWallKind(): String =
-    if (kind == DynamicMapWallKind.DOOR) {
-        if (doorVisible) "Visible Door" else "Hidden Door"
-    } else {
-        kind.displayName
+    when (kind) {
+        DynamicMapWallKind.DOOR -> if (doorVisible) "Visible Door" else "Hidden Door"
+        DynamicMapWallKind.FEATURE ->
+            "Feature Wall: Front ${frontBehavior.displayName} / Back ${backBehavior.displayName}"
+        else -> kind.displayName
     }

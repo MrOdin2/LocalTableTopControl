@@ -51,6 +51,8 @@ fun buildRectangleWalls(
     end: DynamicMapPoint,
     kind: DynamicMapWallKind = DynamicMapWallKind.SOFT,
     doorVisible: Boolean = true,
+    frontBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.OPEN,
+    backBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.HARD,
 ): List<DynamicMapWall> {
     val minX = min(start.x, end.x)
     val minY = min(start.y, end.y)
@@ -65,10 +67,42 @@ fun buildRectangleWalls(
     val label = kind.defaultLabel
 
     return listOf(
-        DynamicMapWall(label = label, start = topLeft, end = topRight, kind = kind, doorVisible = doorVisible),
-        DynamicMapWall(label = label, start = topRight, end = bottomRight, kind = kind, doorVisible = doorVisible),
-        DynamicMapWall(label = label, start = bottomRight, end = bottomLeft, kind = kind, doorVisible = doorVisible),
-        DynamicMapWall(label = label, start = bottomLeft, end = topLeft, kind = kind, doorVisible = doorVisible),
+        DynamicMapWall(
+            label = label,
+            start = topLeft,
+            end = topRight,
+            kind = kind,
+            doorVisible = doorVisible,
+            frontBehavior = frontBehavior,
+            backBehavior = backBehavior,
+        ),
+        DynamicMapWall(
+            label = label,
+            start = topRight,
+            end = bottomRight,
+            kind = kind,
+            doorVisible = doorVisible,
+            frontBehavior = frontBehavior,
+            backBehavior = backBehavior,
+        ),
+        DynamicMapWall(
+            label = label,
+            start = bottomRight,
+            end = bottomLeft,
+            kind = kind,
+            doorVisible = doorVisible,
+            frontBehavior = frontBehavior,
+            backBehavior = backBehavior,
+        ),
+        DynamicMapWall(
+            label = label,
+            start = bottomLeft,
+            end = topLeft,
+            kind = kind,
+            doorVisible = doorVisible,
+            frontBehavior = frontBehavior,
+            backBehavior = backBehavior,
+        ),
     )
 }
 
@@ -297,6 +331,8 @@ private data class DynamicMapWallTopologyCandidate(
     val end: DynamicMapPoint,
     val kind: DynamicMapWallKind,
     val doorVisible: Boolean,
+    val frontBehavior: DynamicMapWallSideBehavior,
+    val backBehavior: DynamicMapWallSideBehavior,
     val sourceIds: Set<String>,
     val sourceLabels: Set<String>,
 ) {
@@ -308,6 +344,8 @@ private data class DynamicMapWallTopologyCandidate(
             end = end,
             kind = kind,
             doorVisible = doorVisible,
+            frontBehavior = frontBehavior,
+            backBehavior = backBehavior,
         )
 }
 
@@ -324,6 +362,8 @@ private fun optimizeWallCandidates(walls: List<DynamicMapWall>): List<DynamicMap
                     end = wall.end,
                     kind = wall.kind,
                     doorVisible = wall.doorVisible,
+                    frontBehavior = wall.frontBehavior,
+                    backBehavior = wall.backBehavior,
                     sourceIds = linkedSetOf(wall.id),
                     sourceLabels = linkedSetOf(wall.label),
                 )
@@ -368,6 +408,8 @@ private fun mergeWallCandidatesOrNull(
         end = end,
         kind = first.kind,
         doorVisible = first.doorVisible,
+        frontBehavior = first.frontBehavior,
+        backBehavior = first.backBehavior,
         sourceIds = (first.sourceIds + second.sourceIds).toCollection(linkedSetOf()),
         sourceLabels = labels,
     )
@@ -383,7 +425,7 @@ private fun canMergeWallCandidates(
     val secondLength = second.length()
     if (firstLength <= WALL_TOPOLOGY_EPSILON || secondLength <= WALL_TOPOLOGY_EPSILON) return false
     if (first.kind != second.kind) return false
-    if (first.kind == DynamicMapWallKind.DOOR) return false
+    if (first.kind == DynamicMapWallKind.DOOR || first.kind == DynamicMapWallKind.FEATURE) return false
 
     val directionCross = cross(firstVector, secondVector)
     if (abs(directionCross) > WALL_TOPOLOGY_EPSILON * firstLength * secondLength) return false

@@ -93,6 +93,47 @@ class DynamicLightMaskTest {
     }
 
     @Test
+    fun `feature walls apply dim light blocking from the light side`() {
+        val wall = DynamicMapRuntimeWall(
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 5.0),
+            kind = DynamicMapRuntimeWallKind.FEATURE,
+            frontBehavior = DynamicMapRuntimeWallSideBehavior.SOFT,
+            backBehavior = DynamicMapRuntimeWallSideBehavior.HARD,
+        )
+        val frontLightBundle = bundle(
+            walls = listOf(wall),
+            lights = listOf(
+                DynamicMapRuntimeLight(
+                    position = DynamicMapRuntimePoint(1.0, 2.0),
+                    brightRadius = 1.0,
+                    dimRadius = 5.0,
+                    colorHex = "#ff8800",
+                    enabled = true,
+                ),
+            ),
+        )
+        val backLightBundle = frontLightBundle.copy(
+            lights = listOf(
+                DynamicMapRuntimeLight(
+                    position = DynamicMapRuntimePoint(3.0, 2.0),
+                    brightRadius = 1.0,
+                    dimRadius = 5.0,
+                    colorHex = "#ff8800",
+                    enabled = true,
+                ),
+            ),
+        )
+
+        val frontMask = lightMask(frontLightBundle)
+        val backMask = lightMask(backLightBundle)
+
+        assertTrue(frontMask.containsPoint(3.0, 2.0))
+        assertFalse(frontMask.containsBrightPoint(3.0, 2.0))
+        assertFalse(backMask.containsPoint(1.0, 2.0))
+    }
+
+    @Test
     fun `doors occlude dim light like hard walls while closed`() {
         val wall = DynamicMapRuntimeWall(
             id = "door-1",

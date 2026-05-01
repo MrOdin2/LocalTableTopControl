@@ -2,6 +2,10 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimePoint
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
+import com.tabletopcontrol.dynamicmap.runtime.blocksAnySightOrBrightWhenClosed
+import com.tabletopcontrol.dynamicmap.runtime.blocksDimLightFrom
+import com.tabletopcontrol.dynamicmap.runtime.blocksDimLightWhenClosed
+import com.tabletopcontrol.dynamicmap.runtime.blocksSightAndBrightFrom
 import java.awt.geom.Area
 import java.awt.geom.Ellipse2D
 import java.awt.geom.Path2D
@@ -243,21 +247,37 @@ internal class DynamicSightlineGeometry private constructor(
             cols: Int,
             rows: Int,
             walls: List<DynamicMapRuntimeWall>,
+            blockMode: DynamicSightlineBlockMode = DynamicSightlineBlockMode.SIGHT_AND_BRIGHT,
         ): DynamicSightlineGeometry =
             DynamicSightlineGeometry(
                 cols = cols,
                 rows = rows,
-                segments = buildSightSegments(cols, rows, walls),
+                segments = buildSightSegments(cols, rows, walls, blockMode),
             )
     }
+}
+
+internal enum class DynamicSightlineBlockMode {
+    SIGHT_AND_BRIGHT,
+    DIM_LIGHT,
 }
 
 private data class SightSegment(
     val start: DynamicSightPoint,
     val end: DynamicSightPoint,
+    val wall: DynamicMapRuntimeWall? = null,
+    val blockMode: DynamicSightlineBlockMode = DynamicSightlineBlockMode.SIGHT_AND_BRIGHT,
 ) {
     val isZeroLength: Boolean
         get() = distance(start, end) < EPSILON
+
+    fun blocksFrom(origin: DynamicSightPoint): Boolean =
+        when (blockMode) {
+            DynamicSightlineBlockMode.SIGHT_AND_BRIGHT ->
+                wall?.blocksSightAndBrightFrom(origin.x, origin.y) ?: true
+            DynamicSightlineBlockMode.DIM_LIGHT ->
+                wall?.blocksDimLightFrom(origin.x, origin.y) ?: true
+        }
 }
 
 private data class RayHit(
@@ -278,6 +298,7 @@ private fun buildSightSegments(
     cols: Int,
     rows: Int,
     walls: List<DynamicMapRuntimeWall>,
+    blockMode: DynamicSightlineBlockMode,
 ): List<SightSegment> {
     val leftTop = DynamicSightPoint(0.0, 0.0)
     val rightTop = DynamicSightPoint(cols.toDouble(), 0.0)
@@ -289,14 +310,27 @@ private fun buildSightSegments(
         add(SightSegment(rightTop, rightBottom))
         add(SightSegment(rightBottom, leftBottom))
         add(SightSegment(leftBottom, leftTop))
-        walls.forEach { wall ->
-            val segment = SightSegment(wall.start.toSightPoint(), wall.end.toSightPoint())
-            if (!segment.isZeroLength) {
-                add(segment)
+        walls
+            .filter { wall -> wall.blocksInMode(blockMode) }
+            .forEach { wall ->
+                val segment = SightSegment(
+                    start = wall.start.toSightPoint(),
+                    end = wall.end.toSightPoint(),
+                    wall = wall,
+                    blockMode = blockMode,
+                )
+                if (!segment.isZeroLength) {
+                    add(segment)
+                }
             }
-        }
     }
 }
+
+private fun DynamicMapRuntimeWall.blocksInMode(blockMode: DynamicSightlineBlockMode): Boolean =
+    when (blockMode) {
+        DynamicSightlineBlockMode.SIGHT_AND_BRIGHT -> blocksAnySightOrBrightWhenClosed()
+        DynamicSightlineBlockMode.DIM_LIGHT -> blocksDimLightWhenClosed()
+    }
 
 private fun DynamicMapRuntimePoint.toSightPoint(): DynamicSightPoint = DynamicSightPoint(x, y)
 
@@ -350,6 +384,7 @@ private fun castRay(
     val rayX = cos(angle)
     val rayY = sin(angle)
     return segments
+        .filter { segment -> segment.blocksFrom(origin) }
         .mapNotNull { segment -> intersectRayWithSegment(origin, rayX, rayY, segment) }
         .minByOrNull { it.distance }
         ?.copy(angle = angle)

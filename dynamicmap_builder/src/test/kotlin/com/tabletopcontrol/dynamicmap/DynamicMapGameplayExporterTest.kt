@@ -60,6 +60,15 @@ class DynamicMapGameplayExporterTest {
                     kind = DynamicMapWallKind.DOOR,
                     doorVisible = false,
                 ),
+                DynamicMapWall(
+                    id = "secret-feature-wall-id",
+                    label = "Upper Gallery Ledge",
+                    start = DynamicMapPoint(6.0, 2.0),
+                    end = DynamicMapPoint(8.0, 2.0),
+                    kind = DynamicMapWallKind.FEATURE,
+                    frontBehavior = DynamicMapWallSideBehavior.OPEN,
+                    backBehavior = DynamicMapWallSideBehavior.HARD,
+                ),
             ),
             lights = listOf(
                 DynamicMapLight(
@@ -111,6 +120,7 @@ class DynamicMapGameplayExporterTest {
         assertFalse(manifest.contains("secret-wall-id"))
         assertFalse(manifest.contains("secret-wall-id-2"))
         assertFalse(manifest.contains("secret-door-id"))
+        assertFalse(manifest.contains("secret-feature-wall-id"))
         assertFalse(manifest.contains("secret-light-id"))
         assertFalse(manifest.contains("secret-sunlight-id"))
         assertFalse(manifest.contains("secret-group-id"))
@@ -125,7 +135,7 @@ class DynamicMapGameplayExporterTest {
         assertEquals("12", props.getProperty("map.rows"))
         assertEquals("background/background.png", props.getProperty("background.image"))
         assertEquals("1.25", props.getProperty("background.scale"))
-        assertEquals("2", props.getProperty("walls.count"))
+        assertEquals("3", props.getProperty("walls.count"))
         assertEquals("wall-0", props.getProperty("wall.0.id"))
         assertEquals("1.0", props.getProperty("wall.0.startX"))
         assertEquals("5.0", props.getProperty("wall.0.endX"))
@@ -134,6 +144,10 @@ class DynamicMapGameplayExporterTest {
         assertEquals("wall-1", props.getProperty("wall.1.id"))
         assertEquals("DOOR", props.getProperty("wall.1.kind"))
         assertEquals("false", props.getProperty("wall.1.doorVisible"))
+        assertEquals("wall-2", props.getProperty("wall.2.id"))
+        assertEquals("FEATURE", props.getProperty("wall.2.kind"))
+        assertEquals("OPEN", props.getProperty("wall.2.frontBehavior"))
+        assertEquals("HARD", props.getProperty("wall.2.backBehavior"))
         assertEquals("1", props.getProperty("lights.count"))
         assertEquals("4.0", props.getProperty("light.0.posX"))
         assertEquals("#ffb347", props.getProperty("light.0.colorHex"))

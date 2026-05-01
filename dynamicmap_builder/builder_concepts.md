@@ -54,7 +54,7 @@ Future decisions should be added here as well so the builder evolves from one co
 
 - Wall controls live in a dedicated `Wall Tools` pane instead of the main builder pane.
 - The wall pane currently owns:
-  - wall kind selection (`Soft`, `Hard`, or `Door`)
+  - wall kind selection (`Soft`, `Hard`, `Door`, or `Feature`)
   - door visibility selection (`Visible` or `Hidden`) when the selected kind is `Door`
   - wall drawing mode (`Line` or `Rect`)
   - stop editing
@@ -66,12 +66,16 @@ Future decisions should be added here as well so the builder evolves from one co
   - `Soft Wall` is the default wall kind and matches the previous wall behavior.
   - `Hard Wall` is authored by switching the wall kind selector and behaves like a regular wall while editing.
   - `Door` is authored as wall geometry with an additional visible/hidden flag. Doors behave like hard walls while closed at runtime.
-- The builder canvas differentiates wall kinds visually: soft walls are drawn with a lighter dashed line, hard walls are drawn as stronger solid lines, and doors use the hard-wall style plus a door icon at the segment midpoint.
+  - `Feature Wall` is authored as directional wall geometry with front/back side behavior. The front side is the direction of the wall's normal arrow.
+- The builder canvas differentiates wall kinds visually: soft walls are drawn with a lighter dashed line, hard walls are drawn as stronger solid lines, doors use the hard-wall style plus a door icon at the segment midpoint, and feature walls show a small normal arrow.
 - Visible and hidden doors both show icons in the builder so the DM can author and review secret exits. Hidden doors are exported as hidden from the player-facing table view. During play, the DM minimap icon is the click target for opening and closing the door.
-- Soft walls, hard walls, and closed doors block player-character sightlines and bright light in the DynamicMap runtime.
-- Runtime dim light ignores soft walls for the cheap scattering approximation, but hard walls and closed doors block dim light using the larger dim-light range.
+- Feature walls are configured from the builder canvas right-click menu. The menu shows one row for the front side and one row for the back side. Each side can be Open, Soft, or Hard.
+- Open feature-wall sides do not block sight, bright light, or dim light from that side. Soft feature-wall sides block sightlines and bright light but allow dim light through. Hard feature-wall sides block sightlines, bright light, and dim light.
+- Soft walls, hard walls, closed doors, and blocking feature-wall sides block player-character sightlines and bright light in the DynamicMap runtime.
+- Runtime dim light ignores soft walls and Soft feature-wall sides for the cheap scattering approximation, but hard walls, closed doors, and Hard feature-wall sides block dim light using the larger dim-light range.
 - Wall topology optimization merges touching or overlapping collinear wall segments with the same wall kind and removes zero-length wall stubs.
   Door segments are never merged so each door keeps its own icon, visibility flag, and runtime open state.
+  Feature-wall segments are never merged so their arrow direction and side behavior are preserved.
 - Manual wall optimization updates the editable builder document, clears the current selection, and remaps group membership onto the remaining merged wall ids where possible.
 
 ### Outline Workflow
@@ -122,11 +126,11 @@ Future decisions should be added here as well so the builder evolves from one co
   - map dimensions
   - bundled background texture when the source image is available
   - background calibration
-  - wall geometry, wall kind, generic runtime wall ids, and door visibility
+  - wall geometry, wall kind, generic runtime wall ids, door visibility, and feature-wall side behavior
   - light geometry, ranges, colour, and enabled state
   - sunlight/outside polygon geometry
 - Export always optimizes wall topology before writing wall geometry so runtime maps do not carry unnecessary split segments.
-  Soft and hard walls stay separate during optimization so their lighting behavior is preserved, and door segments stay separate so they remain individually clickable.
+  Soft and hard walls stay separate during optimization so their lighting behavior is preserved, door segments stay separate so they remain individually clickable, and feature walls stay separate so their direction-specific behavior is preserved.
 - Export deliberately strips editor-only metadata:
   - construction-site name
   - wall, light, and sunlight/outside-area labels
