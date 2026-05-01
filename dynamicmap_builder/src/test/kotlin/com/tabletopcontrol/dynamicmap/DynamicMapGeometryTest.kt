@@ -24,6 +24,20 @@ class DynamicMapGeometryTest {
     }
 
     @Test
+    fun `rectangle helper preserves door visibility on each side`() {
+        val walls = buildRectangleWalls(
+            start = DynamicMapPoint(1.0, 2.0),
+            end = DynamicMapPoint(4.0, 6.0),
+            kind = DynamicMapWallKind.DOOR,
+            doorVisible = false,
+        )
+
+        assertEquals(4, walls.size)
+        assertTrue(walls.all { it.kind == DynamicMapWallKind.DOOR })
+        assertTrue(walls.all { !it.doorVisible })
+    }
+
+    @Test
     fun `snap point rounds both axes to quarter grid by default`() {
         val point = snapPoint(DynamicMapPoint(1.13, 2.87), 0.25)
         assertEquals(DynamicMapPoint(1.25, 2.75), point)
@@ -285,6 +299,38 @@ class DynamicMapGeometryTest {
         assertEquals(2, optimized.walls.size)
         assertEquals(DynamicMapWallKind.SOFT, optimized.walls[0].kind)
         assertEquals(DynamicMapWallKind.HARD, optimized.walls[1].kind)
+    }
+
+    @Test
+    fun `wall topology optimization keeps door segments separate`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "door-a",
+                    label = "Door",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                    kind = DynamicMapWallKind.DOOR,
+                    doorVisible = true,
+                ),
+                DynamicMapWall(
+                    id = "door-b",
+                    label = "Door",
+                    start = DynamicMapPoint(1.0, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.DOOR,
+                    doorVisible = false,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+
+        assertEquals(2, optimized.walls.size)
+        assertEquals("door-a", optimized.walls[0].id)
+        assertEquals("door-b", optimized.walls[1].id)
+        assertEquals(DynamicMapWallKind.DOOR, optimized.walls[0].kind)
+        assertEquals(false, optimized.walls[1].doorVisible)
     }
 
     @Test

@@ -137,7 +137,7 @@
       </p>
       <p>
         This first version focuses on the map-building basics: grid-sized map bounds, a background
-        texture, paintable soft and hard wall geometry, static point lights with reusable presets, and
+        texture, paintable soft, hard, and door wall geometry, static point lights with reusable presets, and
         sunlight/outside areas drawn as polygons.
       </p>
     </section>
@@ -270,7 +270,8 @@
       </p>
       <table>
         <tr><th>Wall Tools action</th><th>What it does</th></tr>
-        <tr><td>Type: Soft / Hard</td><td>Choose whether newly drawn walls are soft walls or hard walls.</td></tr>
+        <tr><td>Type: Soft / Hard / Door</td><td>Choose whether newly drawn segments are soft walls, hard walls, or doors.</td></tr>
+        <tr><td>Door: Visible / Hidden</td><td>Choose whether newly drawn doors are shown to players or kept secret. This row only affects the Door type.</td></tr>
         <tr><td>Draw: Line</td><td>Click and drag in the builder pane to place one straight wall segment using the selected wall type.</td></tr>
         <tr><td>Draw: Rect</td><td>Click and drag in the builder pane to place a rectangular ring of four wall segments using the selected wall type.</td></tr>
         <tr><td>Stop Editing</td><td>Leave wall or light placement mode without changing the draft.</td></tr>
@@ -279,20 +280,27 @@
       </table>
       <p>
         Choose the wall type first, then choose the drawing mode. Soft walls are shown as lighter
-        dashed lines, while hard walls are shown as stronger solid lines. Both kinds behave the same
-        while you edit: they can be selected, moved, renamed, grouped, optimized, and exported like
-        any other wall segment.
+        dashed lines, hard walls are shown as stronger solid lines, and doors are shown with a door
+        icon at the segment midpoint. All wall types can be selected, moved, renamed, grouped, and
+        exported like any other wall segment.
       </p>
       <p>
-        The difference appears during play in DynamicMap. Both wall kinds block player-character
+        Visible doors show a door icon to the players during play; hidden doors only show that icon
+        to the DM. Both visible and hidden doors still appear in the builder so you can review the
+        whole map layout before exporting. During play, the DM can click a door icon on the DynamicMap
+        minimap to open or close that door.
+      </p>
+      <p>
+        The difference appears during play in DynamicMap. All wall types block player-character
         sightlines and bright light. Soft walls let dim light spread through them for a softer
-        scattering look, while hard walls also block dim light.
+        scattering look, while hard walls and closed doors also block dim light.
       </p>
       <p>
         Use <strong>Optimize Walls</strong> after drawing or moving several wall pieces that should
         behave like one continuous wall. The builder clears the current selection after optimization
         and remaps groups onto the merged wall where possible. Soft walls and hard walls are kept
-        separate during optimization so their lighting behavior is preserved.
+        separate during optimization so their lighting behavior is preserved. Doors are kept as
+        separate segments so each one keeps its own icon and visible/hidden setting.
       </p>
     </section>
 
@@ -383,8 +391,8 @@
       <p>
         <strong>Export...</strong> creates a <code>.dynamicmap</code> bundle for gameplay use. The
         bundle includes the map size, background texture when the source image is available, texture
-        calibration, walls with their soft or hard wall kind, lights, and sunlight areas. It leaves out builder-only details such as construction-site
-        names, wall, light, and sunlight-area labels, element ids, outline groups, and temporary layer visibility.
+        calibration, walls with their soft, hard, or door wall kind, door visibility, lights, and sunlight areas. It leaves out builder-only details such as construction-site
+        names, wall, light, and sunlight-area labels, builder element ids, outline groups, and temporary layer visibility.
         Wall topology is optimized automatically during export, so touching wall pieces of the same
         kind on the same line are combined in the gameplay bundle even if you have not pressed <strong>Optimize Walls</strong>
         manually.

@@ -23,33 +23,46 @@ class DynamicMapWallToolsPlugin : DmPlugin {
     override fun createView(): Node {
         var activeTool: DynamicMapTool? = null
         var selectedWallKind: DynamicMapWallKind = DynamicMapWallKind.SOFT
+        var selectedDoorVisible: Boolean = true
 
         val modeLabel = Label("Active tool: none").apply {
             style = "-fx-text-fill: -tc-text-muted;"
         }
         val softWallButton = ToggleButton("Soft")
         val hardWallButton = ToggleButton("Hard")
+        val doorButton = ToggleButton("Door")
+        val visibleDoorButton = ToggleButton("Visible")
+        val hiddenDoorButton = ToggleButton("Hidden")
         val lineButton = ToggleButton("Line")
         val rectButton = ToggleButton("Rect")
         val stopButton = Button("Stop Editing")
         val optimizeWallsButton = Button("Optimize Walls")
         val clearWallsButton = Button("Clear All Walls")
         val wallKindGroup = ToggleGroup()
+        val doorVisibilityGroup = ToggleGroup()
         val drawModeGroup = ToggleGroup()
 
         softWallButton.toggleGroup = wallKindGroup
         hardWallButton.toggleGroup = wallKindGroup
+        doorButton.toggleGroup = wallKindGroup
+        visibleDoorButton.toggleGroup = doorVisibilityGroup
+        hiddenDoorButton.toggleGroup = doorVisibilityGroup
         lineButton.toggleGroup = drawModeGroup
         rectButton.toggleGroup = drawModeGroup
 
         fun refreshToolUi() {
             softWallButton.isSelected = selectedWallKind == DynamicMapWallKind.SOFT
             hardWallButton.isSelected = selectedWallKind == DynamicMapWallKind.HARD
+            doorButton.isSelected = selectedWallKind == DynamicMapWallKind.DOOR
+            visibleDoorButton.isSelected = selectedDoorVisible
+            hiddenDoorButton.isSelected = !selectedDoorVisible
+            visibleDoorButton.isDisable = selectedWallKind != DynamicMapWallKind.DOOR
+            hiddenDoorButton.isDisable = selectedWallKind != DynamicMapWallKind.DOOR
             lineButton.isSelected = activeTool == DynamicMapTool.WALL_LINE
             rectButton.isSelected = activeTool == DynamicMapTool.WALL_RECT
             modeLabel.text = when (activeTool) {
-                DynamicMapTool.WALL_LINE -> "Active tool: ${selectedWallKind.toolText()} line"
-                DynamicMapTool.WALL_RECT -> "Active tool: ${selectedWallKind.toolText()} rectangle"
+                DynamicMapTool.WALL_LINE -> "Active tool: ${selectedWallKind.toolText(selectedDoorVisible)} line"
+                DynamicMapTool.WALL_RECT -> "Active tool: ${selectedWallKind.toolText(selectedDoorVisible)} rectangle"
                 DynamicMapTool.LIGHT -> "Active tool: light placement"
                 DynamicMapTool.SUNLIGHT_AREA -> "Active tool: sunlight area"
                 null -> "Active tool: none"
@@ -64,6 +77,21 @@ class DynamicMapWallToolsPlugin : DmPlugin {
         hardWallButton.setOnAction {
             selectedWallKind = DynamicMapWallKind.HARD
             EventBus.publish(DynamicMapWallKindSelectedEvent(selectedWallKind))
+            refreshToolUi()
+        }
+        doorButton.setOnAction {
+            selectedWallKind = DynamicMapWallKind.DOOR
+            EventBus.publish(DynamicMapWallKindSelectedEvent(selectedWallKind))
+            refreshToolUi()
+        }
+        visibleDoorButton.setOnAction {
+            selectedDoorVisible = true
+            EventBus.publish(DynamicMapDoorVisibilitySelectedEvent(visible = selectedDoorVisible))
+            refreshToolUi()
+        }
+        hiddenDoorButton.setOnAction {
+            selectedDoorVisible = false
+            EventBus.publish(DynamicMapDoorVisibilitySelectedEvent(visible = selectedDoorVisible))
             refreshToolUi()
         }
         lineButton.setOnAction {
@@ -98,6 +126,10 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             selectedWallKind = event.kind
             refreshToolUi()
         }
+        val doorVisibilitySubscription = EventBus.subscribe<DynamicMapDoorVisibilitySelectedEvent> { event ->
+            selectedDoorVisible = event.visible
+            refreshToolUi()
+        }
 
         refreshToolUi()
 
@@ -106,7 +138,8 @@ class DynamicMapWallToolsPlugin : DmPlugin {
             Label("Wall drawing"),
             modeLabel,
             Separator(),
-            HBox(6.0, Label("Type:"), softWallButton, hardWallButton),
+            HBox(6.0, Label("Type:"), softWallButton, hardWallButton, doorButton),
+            HBox(6.0, Label("Door:"), visibleDoorButton, hiddenDoorButton),
             HBox(6.0, Label("Draw:"), lineButton, rectButton),
             stopButton,
             optimizeWallsButton,
@@ -120,11 +153,15 @@ class DynamicMapWallToolsPlugin : DmPlugin {
                 if (newScene == null) {
                     toolSubscription.unsubscribe()
                     wallKindSubscription.unsubscribe()
+                    doorVisibilitySubscription.unsubscribe()
                 }
             }
         }
     }
 }
 
-private fun DynamicMapWallKind.toolText(): String =
-    displayName.lowercase()
+private fun DynamicMapWallKind.toolText(doorVisible: Boolean): String =
+    when (this) {
+        DynamicMapWallKind.DOOR -> if (doorVisible) "visible door" else "hidden door"
+        else -> displayName.lowercase()
+    }

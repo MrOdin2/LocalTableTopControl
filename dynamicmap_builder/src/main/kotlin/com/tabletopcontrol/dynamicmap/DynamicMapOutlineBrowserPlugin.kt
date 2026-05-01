@@ -476,7 +476,7 @@ private fun buildLightOutlineLabel(index: Int, light: DynamicMapLight): String {
 }
 
 private fun buildWallOutlineLabel(index: Int, wall: DynamicMapWall): String =
-    "${index + 1}. ${wall.label} (${wall.kind.displayName}) @ " +
+    "${index + 1}. ${wall.label} (${wall.displayWallKind()}) @ " +
         "${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
         "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
 
@@ -494,7 +494,7 @@ private fun buildGroupMemberOutlineNode(
                 formatOutlineCoordinate(light.position.y)
         }
         DynamicMapElementKind.WALL -> document.wallById(selection.elementId)?.let { wall ->
-            "Wall: ${wall.label} (${wall.kind.displayName}) @ " +
+            "Wall: ${wall.label} (${wall.displayWallKind()}) @ " +
                 "${formatOutlineCoordinate(wall.start.x)}, ${formatOutlineCoordinate(wall.start.y)} " +
                 "-> ${formatOutlineCoordinate(wall.end.x)}, ${formatOutlineCoordinate(wall.end.y)}"
         }
@@ -515,3 +515,10 @@ private fun DynamicMapDocument.labelForSelection(selection: DynamicMapElementSel
 
 private fun formatOutlineCoordinate(value: Double): String =
     String.format(Locale.US, "%.2f", value)
+
+private fun DynamicMapWall.displayWallKind(): String =
+    if (kind == DynamicMapWallKind.DOOR) {
+        if (doorVisible) "Visible Door" else "Hidden Door"
+    } else {
+        kind.displayName
+    }

@@ -42,6 +42,7 @@ object DynamicMapDraftSerializer {
             props.setProperty("$prefix.endX", wall.end.x.toString())
             props.setProperty("$prefix.endY", wall.end.y.toString())
             props.setProperty("$prefix.kind", wall.kind.name)
+            props.setProperty("$prefix.doorVisible", wall.doorVisible.toString())
         }
 
         props.setProperty("lights.count", document.lights.size.toString())
@@ -122,6 +123,7 @@ object DynamicMapDraftSerializer {
                             start = DynamicMapPoint(startX, startY),
                             end = DynamicMapPoint(endX, endY),
                             kind = DynamicMapWallKind.fromPersistence(props.getProperty("$prefix.kind")),
+                            doorVisible = props.getProperty("$prefix.doorVisible")?.toBooleanStrictOrNull() ?: true,
                         ),
                     )
                 }

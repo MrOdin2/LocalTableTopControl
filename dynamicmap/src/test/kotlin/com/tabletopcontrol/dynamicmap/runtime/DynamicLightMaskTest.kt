@@ -93,6 +93,35 @@ class DynamicLightMaskTest {
     }
 
     @Test
+    fun `doors occlude dim light like hard walls while closed`() {
+        val wall = DynamicMapRuntimeWall(
+            id = "door-1",
+            start = DynamicMapRuntimePoint(2.0, 0.0),
+            end = DynamicMapRuntimePoint(2.0, 5.0),
+            kind = DynamicMapRuntimeWallKind.DOOR,
+        )
+        val bundle = bundle(
+            walls = listOf(wall),
+            lights = listOf(
+                DynamicMapRuntimeLight(
+                    position = DynamicMapRuntimePoint(1.0, 2.0),
+                    brightRadius = 1.0,
+                    dimRadius = 5.0,
+                    colorHex = "#ff8800",
+                    enabled = true,
+                ),
+            ),
+        )
+
+        val mask = lightMask(bundle)
+
+        assertTrue(mask.containsPoint(1.5, 2.0))
+        assertFalse(mask.containsPoint(3.0, 2.0))
+        assertTrue(mask.tintContributions.single().containsDimPoint(1.5, 2.0))
+        assertFalse(mask.tintContributions.single().containsDimPoint(3.0, 2.0))
+    }
+
+    @Test
     fun `sunlight polygons are lit without point lights`() {
         val bundle = bundle(
             sunlightAreas = listOf(

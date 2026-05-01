@@ -55,8 +55,31 @@ class MapUiController {
     private val measurementService = MapMeasurementService()
     private val tokenSyncService = MapTokenSyncService()
     private val dynamicSightlineService = MapDynamicSightlineService()
+    private val subscriptions = mutableListOf<EventBus.Subscription>()
+    private val openDynamicDoorIds = linkedSetOf<String>()
 
     private var measurementUnitsComboBox: ComboBox<String>? = null
+
+    init {
+        subscriptions += EventBus.subscribe<DynamicMapLoadEvent> {
+            openDynamicDoorIds.clear()
+        }
+        subscriptions += EventBus.subscribe<MapLoadEvent> {
+            openDynamicDoorIds.clear()
+        }
+        subscriptions += EventBus.subscribe<MapClearEvent> {
+            openDynamicDoorIds.clear()
+        }
+        subscriptions += EventBus.subscribe<DynamicMapDoorStateChangedEvent> { event ->
+            val bundle = settingsService.currentDynamicMap ?: return@subscribe
+            if (bundle.walls.none { wall -> wall.id == event.wallId && wall.isDoor() }) return@subscribe
+            if (event.open) {
+                openDynamicDoorIds += event.wallId
+            } else {
+                openDynamicDoorIds -= event.wallId
+            }
+        }
+    }
 
     fun createTableView(): Node {
         val canvas = Canvas()
@@ -65,6 +88,7 @@ class MapUiController {
             usePersistentVision = true
             showDmOnlyMeasurements = false
             showDynamicLightMarkers = false
+            showHiddenDynamicDoorIcons = false
         }
         hydrateRenderer(canvas, renderer)
         return object : Pane() {
@@ -96,6 +120,8 @@ class MapUiController {
     }
 
     fun onShutdown() {
+        subscriptions.forEach { it.unsubscribe() }
+        subscriptions.clear()
         tokenSyncService.dispose()
         dynamicSightlineService.dispose()
     }
@@ -119,6 +145,7 @@ class MapUiController {
                 tokens = tokenSyncService.snapshotTokens(),
                 activeTokenId = tokenSyncService.snapshotActiveTokenId(),
                 dynamicMapRenderMode = settingsService.dynamicMapRenderMode,
+                openDynamicDoorIds = openDynamicDoorIds.toSet(),
             ),
         )
 
@@ -132,6 +159,20 @@ class MapUiController {
         }
         fogOfWarService.applySnapshot(state.fog)
         tokenSyncService.replaceState(state.tokens, state.activeTokenId)
+        restoreOpenDynamicDoors(state.openDynamicDoorIds)
+    }
+
+    private fun restoreOpenDynamicDoors(savedDoorIds: Set<String>) {
+        openDynamicDoorIds.clear()
+        val validDoorIds = settingsService.currentDynamicMap
+            ?.walls
+            ?.asSequence()
+            ?.filter { wall -> wall.isDoor() && wall.id in savedDoorIds }
+            ?.mapTo(linkedSetOf()) { wall -> wall.id }
+            ?: emptySet()
+        validDoorIds.forEach { doorId ->
+            EventBus.publish(DynamicMapDoorStateChangedEvent(wallId = doorId, open = true))
+        }
     }
 
     private fun hydrateRenderer(canvas: Canvas, renderer: MapRenderer) {
@@ -240,6 +281,21 @@ class MapUiController {
                         }
                     }
                     else -> {
+                        val door = renderer.dynamicDoorAtCanvasCoords(
+                            canvasX = event.x,
+                            canvasY = event.y,
+                            includeHidden = true,
+                        )
+                        if (door != null) {
+                            EventBus.publish(
+                                DynamicMapDoorStateChangedEvent(
+                                    wallId = door.id,
+                                    open = !renderer.isDynamicDoorOpen(door.id),
+                                ),
+                            )
+                            event.consume()
+                            return@setOnMousePressed
+                        }
                         val clickedCell = renderer.canvasCoordsToGridCell(event.x, event.y)
                         val token = renderer.tokenAtCanvasCoords(event.x, event.y)
                         if (token != null) {

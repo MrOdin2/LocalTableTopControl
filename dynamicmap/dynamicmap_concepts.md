@@ -35,7 +35,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ### Runtime Rendering
 
-- The loaded bundle provides map columns, rows, soft or hard walls, lights, sunlight/outside areas, optional background texture,
+- The loaded bundle provides map columns, rows, soft, hard, or door walls, lights, sunlight/outside areas, optional background texture,
   and background calibration.
 - Loading a bundle centers the grid origin so exported cell coordinates run from `(0, 0)`
   at the top-left of the map bounds to `(cols, rows)` at the bottom-right.
@@ -46,21 +46,30 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
     sightlines and point-light bright cores.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same wall-kind styles as the Dynamic Map Builder: soft walls are lighter
-    and dashed, while hard walls are stronger and solid. Enabled point lights are drawn as
+    and dashed, while hard walls are stronger and solid. Door walls use the hard-wall style plus
+    door icons. Enabled point lights are drawn as
     diagnostic halos with distinct bright and dim radius areas.
     Exported sunlight/outside areas are drawn as translucent polygons for bundle verification.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden
   on the player-facing table view.
 - Disabled lights appear as subdued DM markers in `DebugMode`.
+- Exported doors carry a visible/hidden flag. Visible doors draw a door icon on the player-facing
+  table view when the door is currently visible through fog/sightlines. The DM minimap draws icons
+  for all doors, including hidden doors.
+- Closed doors behave like hard walls: they block player-character sightlines, bright light, and dim
+  light. When the DM left-clicks a door icon on the minimap, the door toggles open or closed. Open
+  doors are ignored by sightline and light calculations, while the icon remains in place to show the
+  doorway and provide the close target.
 - Tokens whose tracker actors are marked `PC` define DynamicMap sight origins. A shared sightline
   service casts line-of-sight from those token centres through cached exported wall geometry and
   publishes one triangulated visibility mesh for all active DynamicMap renderers.
 - Exported walls carry a wall kind. Soft walls match the original wall behavior: they block PC
-  sightlines and bright light, while dim light can bleed through them. Hard walls also block dim light.
+  sightlines and bright light, while dim light can bleed through them. Hard walls and closed doors
+  also block dim light.
 - When authored or PC-carried lighting is active, the shared sightline service builds a light mask
   from enabled point lights, sunlight/outside polygons, and PC token light sources. Point lights use
   their dim radius as a soft reach through soft walls, while their bright radius is occluded by all
-  exported walls. Hard walls occlude both bright and dim light, with dim light using the larger dim range.
+  closed exported walls. Hard walls and closed doors occlude both bright and dim light, with dim light using the larger dim range.
   Sunlight/outside polygons are treated as always-lit authored areas. The current player-visible mesh
   is `PC sight AND light`, plus any PC darkvision area.
 - Tracker light-source ranges are published as token metadata in grid cells. DynamicMap consumes
@@ -116,6 +125,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   - scene capture and restore
 - Loading a DynamicMap bundle resets fog coverage to the exported map bounds.
 - Scene restore preserves saved fog dimensions when a scene already contains fog state.
+- Scene capture and restore preserve runtime-open DynamicMap doors by exported runtime wall id.
 
 ### Table View Selection
 
@@ -130,11 +140,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Current lighting supports builder-authored point lights, sunlight/outside polygons, and PC-carried
   tracker light sources. Authored lights are fixed to the grid; PC-carried lights follow the PC token.
   Bright cores are wall-occluded, while dim light intentionally ignores soft walls as a cheap soft-light
-  approximation and is blocked by hard walls when authored. Light colour tint is rendered for visible point-light areas. PC darkvision is supported
-  as a wall-blocked grayscale reveal from the token centre. NPC-carried lights, inventory automation,
-  and door or opening rules are still future work.
-- Future door/opening rules should extend the wall-blocker model rather than bypassing the cached
-  PC sightline mesh.
+  approximation and is blocked by hard walls and closed doors when authored. Light colour tint is rendered for visible point-light areas. PC darkvision is supported
+  as a wall-blocked grayscale reveal from the token centre. NPC-carried lights and inventory automation
+  are still future work.
 - If bundle format version `2` is introduced, record the migration and backward compatibility behavior here.
 - If DynamicMap gains public import back into the builder, keep the runtime format rules separate from
   builder construction-site persistence.
