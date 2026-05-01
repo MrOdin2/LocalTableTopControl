@@ -103,28 +103,46 @@ class App : Application() {
     /**
      * Builds the table-screen [Scene].
      *
-     * If any loaded plugin provides a table view via [DmPlugin.createTableView], that
-     * node is placed in the centre of a [BorderPane] so it fills the entire screen.
-     * When no plugin contributes a table view, a placeholder label is shown instead.
+     * Primary table views (plugins where [DmPlugin.isTableOverlay] is `false`) are
+     * stacked and controlled by the "Table content" selector in the DM toolbar.
+     *
+     * Overlay table views (plugins where [DmPlugin.isTableOverlay] is `true`) are
+     * always rendered on top of the primary layer. They manage their own internal
+     * visibility and do not appear in the selector.
+     *
+     * When no primary plugin contributes a table view, a placeholder label is shown.
      */
     private fun buildTableScene(plugins: List<DmPlugin>): Scene {
-        val tableViews = plugins.mapNotNull { plugin ->
+        val primaryViews = plugins.filter { !it.isTableOverlay }.mapNotNull { plugin ->
             plugin.createTableView()?.let { node -> TableViewOption(plugin.displayName, node) }
         }
-        tableViewOptions = tableViews
+        val overlayViews = plugins.filter { it.isTableOverlay }.mapNotNull { it.createTableView() }
+        tableViewOptions = primaryViews
+
         val root = BorderPane()
-        root.center = if (tableViews.isEmpty()) {
+
+        val primaryNode: Node = if (primaryViews.isEmpty()) {
             Label("Table View - no plugins providing content")
         } else {
-            selectTableView(tableViews.first())
-            if (tableViews.size == 1) {
-                tableViews.first().node
+            selectTableView(primaryViews.first())
+            if (primaryViews.size == 1) {
+                primaryViews.first().node
             } else {
                 StackPane().apply {
-                    children.setAll(tableViews.map { it.node })
+                    children.setAll(primaryViews.map { it.node })
                 }
             }
         }
+
+        root.center = if (overlayViews.isEmpty()) {
+            primaryNode
+        } else {
+            StackPane().apply {
+                children.add(primaryNode)
+                children.addAll(overlayViews)
+            }
+        }
+
         return Scene(root, 1280.0, 720.0)
     }
 

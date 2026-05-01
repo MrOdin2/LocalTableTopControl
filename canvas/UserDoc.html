@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Plugin — TabletopControl</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+    h1 { border-bottom: 2px solid #333; padding-bottom: 0.4rem; }
+    h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2rem; margin-top: 2rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem 0.8rem; text-align: left; }
+    th { background: #f0f0f0; }
+    code { background: #f4f4f4; padding: 0.1em 0.3em; border-radius: 3px; }
+    .tip { background: #fffde7; border-left: 4px solid #fbc02d; padding: 0.6rem 1rem; margin: 1rem 0; }
+    nav ul { list-style: none; padding: 0; }
+    nav li { margin: 0.3rem 0; }
+    nav a { text-decoration: none; color: #1a73e8; }
+  </style>
+</head>
+<body>
+
+<h1>Canvas Plugin</h1>
+
+<nav>
+  <h3>Contents</h3>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#dm-view">DM View</a></li>
+    <li><a href="#loading-pictures">Loading Pictures</a></li>
+    <li><a href="#arranging-pictures">Arranging Pictures</a></li>
+    <li><a href="#sharing">Sharing with Players</a></li>
+    <li><a href="#table-overlay">Table View Overlay</a></li>
+    <li><a href="#tips">Tips &amp; Best Practices</a></li>
+  </ul>
+</nav>
+
+<section id="overview">
+  <h2>Overview</h2>
+  <p>
+    The <strong>Canvas</strong> plugin gives the DM a freeform picture board for sharing images
+    with players. Pictures can be loaded from the file system, freely positioned, resized, and
+    rotated in the DM panel. The DM then chooses which pictures are projected onto the
+    player-facing table view as a transparent overlay on top of the active map.
+  </p>
+  <p>
+    Use the Canvas to share handouts, illustrations, portraits, props, clue images, or any other
+    visual aid without leaving the session.
+  </p>
+</section>
+
+<section id="dm-view">
+  <h2>DM View</h2>
+  <p>
+    The Canvas panel shows a dashed-border workspace that represents the player-facing
+    table view. The toolbar at the top provides quick access to common actions.
+  </p>
+  <table>
+    <tr><th>Toolbar control</th><th>Description</th></tr>
+    <tr><td><strong>Share All</strong> toggle</td><td>Instantly shares (or un-shares) every picture on the canvas with the player table.</td></tr>
+    <tr><td><strong>Add picture…</strong> button</td><td>Opens a file-chooser dialog to load an image from disk.</td></tr>
+  </table>
+  <p>
+    <strong>Right-clicking</strong> on an empty area of the workspace also opens a mini context
+    menu with a <em>Load picture…</em> option. The picture is placed at the right-click position.
+  </p>
+</section>
+
+<section id="loading-pictures">
+  <h2>Loading Pictures</h2>
+  <p>
+    Use either method to add a picture:
+  </p>
+  <ul>
+    <li>Click <strong>Add picture…</strong> in the toolbar.</li>
+    <li>Right-click on the workspace canvas and choose <strong>Load picture…</strong>.</li>
+  </ul>
+  <p>
+    Supported formats: <code>PNG</code>, <code>JPG/JPEG</code>, <code>GIF</code>, <code>BMP</code>,
+    <code>WEBP</code>. The file-chooser remembers the last directory used.
+  </p>
+  <p>
+    New pictures are placed with a default size (approximately 30 % of the canvas width). You
+    can resize and reposition them immediately after loading.
+  </p>
+</section>
+
+<section id="arranging-pictures">
+  <h2>Arranging Pictures</h2>
+  <p>
+    Click a picture to <strong>select</strong> it. Selection reveals the resize corners and
+    rotate handles.
+  </p>
+  <table>
+    <tr><th>Interaction</th><th>How to perform it</th></tr>
+    <tr>
+      <td>Move</td>
+      <td>Click and drag anywhere on the picture (not on a handle).</td>
+    </tr>
+    <tr>
+      <td>Resize</td>
+      <td>Drag one of the four <strong>corner handles</strong> (small squares at the corners).
+          The picture scales from the dragged corner. Works correctly even when the picture
+          is rotated.</td>
+    </tr>
+    <tr>
+      <td>Rotate</td>
+      <td>Drag one of the four <strong>edge handles</strong> (small circles at the mid-point
+          of each edge). The picture rotates around its centre.</td>
+    </tr>
+    <tr>
+      <td>Deselect</td>
+      <td>Click on an empty area of the workspace.</td>
+    </tr>
+    <tr>
+      <td>Remove</td>
+      <td>Right-click the picture and choose <strong>Remove</strong>.</td>
+    </tr>
+  </table>
+</section>
+
+<section id="sharing">
+  <h2>Sharing with Players</h2>
+  <p>
+    Each picture has an independent sharing toggle:
+  </p>
+  <ul>
+    <li>Right-click the picture and tick <strong>Share with Table</strong> to project it.</li>
+    <li>Un-tick to hide it from players without removing it from the canvas.</li>
+  </ul>
+  <p>
+    The <strong>Share All</strong> toggle button in the toolbar flips the sharing state of
+    <em>every</em> picture at once — handy for a quick reveal or blackout.
+  </p>
+  <div class="tip">
+    <strong>Tip:</strong> You can pre-load all pictures for a session, arrange them, and then
+    share them one by one as the narrative unfolds. Players only see the pictures you explicitly
+    share.
+  </div>
+</section>
+
+<section id="table-overlay">
+  <h2>Table View Overlay</h2>
+  <p>
+    Shared pictures appear as a transparent overlay rendered on top of the active primary table
+    view (Map or DynamicMap). There is no interference with the map — the canvas overlay is
+    fully mouse-transparent on the player screen.
+  </p>
+  <p>
+    Picture positions and sizes in the DM workspace correspond directly to the same relative
+    positions on the player table: a picture placed in the top-left quarter of the DM workspace
+    appears in the top-left quarter of the player screen, scaled to the actual screen resolution.
+  </p>
+  <p>
+    The overlay is visible only when at least one picture has sharing enabled. If no pictures are
+    shared, the overlay is completely invisible.
+  </p>
+</section>
+
+<section id="tips">
+  <h2>Tips &amp; Best Practices</h2>
+  <ul>
+    <li>Use the <strong>Share All</strong> toggle to quickly hide all pictures when transitioning
+        between scenes.</li>
+    <li>Load and arrange all handout images before the session to avoid scrambling during
+        play.</li>
+    <li>To show a full-screen illustration, resize it to cover the entire workspace area, then
+        share it. It will fill the player screen on top of the map.</li>
+    <li>Shared pictures layer in the order they were added — the most recently added picture
+        appears on top.</li>
+  </ul>
+</section>
+
+</body>
+</html>
