@@ -73,7 +73,8 @@ Future decisions should be added here as well so the builder evolves from one co
 - Open feature-wall sides do not block sight, bright light, or dim light from that side. Soft feature-wall sides block sightlines and bright light but allow dim light through. Hard feature-wall sides block sightlines, bright light, and dim light.
 - Soft walls, hard walls, closed doors, and blocking feature-wall sides block player-character sightlines and bright light in the DynamicMap runtime.
 - Runtime dim light ignores soft walls and Soft feature-wall sides for the cheap scattering approximation, but hard walls, closed doors, and Hard feature-wall sides block dim light using the larger dim-light range.
-- Wall topology optimization merges touching or overlapping collinear wall segments with the same wall kind and removes zero-length wall stubs.
+- Wall topology optimization first closes wall-to-wall gaps smaller than `0.1` tile, then merges touching or overlapping collinear wall segments with the same wall kind and removes zero-length wall stubs.
+  Gap-closing connectors are Soft only when both neighboring walls are Soft; every other wall-kind pairing is closed with Hard wall geometry.
   Door segments are never merged so each door keeps its own icon, visibility flag, and runtime open state.
   Feature-wall segments are never merged so their arrow direction and side behavior are preserved.
 - Manual wall optimization updates the editable builder document, clears the current selection, and remaps group membership onto the remaining merged wall ids where possible.
@@ -129,7 +130,7 @@ Future decisions should be added here as well so the builder evolves from one co
   - wall geometry, wall kind, generic runtime wall ids, door visibility, and feature-wall side behavior
   - light geometry, ranges, colour, and enabled state
   - sunlight/outside polygon geometry
-- Export always optimizes wall topology before writing wall geometry so runtime maps do not carry unnecessary split segments.
+- Export always optimizes wall topology before writing wall geometry so runtime maps do not carry unnecessary split segments or tiny hidden gaps.
   Soft and hard walls stay separate during optimization so their lighting behavior is preserved, door segments stay separate so they remain individually clickable, and feature walls stay separate so their direction-specific behavior is preserved.
 - Export deliberately strips editor-only metadata:
   - construction-site name

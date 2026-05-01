@@ -8,6 +8,8 @@ import kotlin.math.round
 
 private const val MAX_FINE_NUDGE_TILES = 0.05
 private const val WALL_TOPOLOGY_EPSILON = 0.0000001
+private const val WALL_GAP_CLOSE_MAX_TILES = 0.1
+private const val WALL_GAP_EXTENSION_MIN_ALIGNMENT = 0.7071067811865476
 private const val POLYGON_EPSILON = 0.0000001
 
 data class DynamicMapBounds(
@@ -369,6 +371,7 @@ private fun optimizeWallCandidates(walls: List<DynamicMapWall>): List<DynamicMap
                 )
             }
         }
+        .let(::closeSmallWallGaps)
         .toMutableList()
 
     var changed: Boolean
@@ -388,6 +391,136 @@ private fun optimizeWallCandidates(walls: List<DynamicMapWall>): List<DynamicMap
     return candidates
 }
 
+private data class WallGapConnector(
+    val start: DynamicMapPoint,
+    val end: DynamicMapPoint,
+    val kind: DynamicMapWallKind,
+)
+
+private data class WallEndpoint(
+    val point: DynamicMapPoint,
+    val role: WallEndpointRole,
+)
+
+private data class SegmentProjection(
+    val point: DynamicMapPoint,
+    val t: Double,
+)
+
+private enum class WallEndpointRole {
+    START,
+    END,
+}
+
+private fun closeSmallWallGaps(
+    candidates: List<DynamicMapWallTopologyCandidate>,
+): List<DynamicMapWallTopologyCandidate> {
+    if (candidates.size < 2) return candidates
+
+    val connectors = mutableListOf<WallGapConnector>()
+    for (index in candidates.indices) {
+        for (otherIndex in index + 1 until candidates.size) {
+            val first = candidates[index]
+            val second = candidates[otherIndex]
+            addEndpointGapConnectors(connectors, first, second)
+            addEndpointToSegmentGapConnectors(connectors, first, second)
+            addEndpointToSegmentGapConnectors(connectors, second, first)
+        }
+    }
+
+    if (connectors.isEmpty()) return candidates
+
+    val usedIds = candidates.mapTo(mutableSetOf()) { it.id }
+    val gapCandidates = connectors.mapIndexed { index, connector ->
+        val id = uniqueGapClosureId(index, usedIds)
+        usedIds += id
+        DynamicMapWallTopologyCandidate(
+            id = id,
+            label = connector.kind.defaultLabel,
+            start = connector.start,
+            end = connector.end,
+            kind = connector.kind,
+            doorVisible = true,
+            frontBehavior = DynamicMapWallSideBehavior.OPEN,
+            backBehavior = DynamicMapWallSideBehavior.HARD,
+            sourceIds = linkedSetOf(id),
+            sourceLabels = linkedSetOf(),
+        )
+    }
+    return candidates + gapCandidates
+}
+
+private fun addEndpointGapConnectors(
+    connectors: MutableList<WallGapConnector>,
+    first: DynamicMapWallTopologyCandidate,
+    second: DynamicMapWallTopologyCandidate,
+) {
+    first.endpoints().forEach { firstEndpoint ->
+        second.endpoints().forEach { secondEndpoint ->
+            connectors.addUniqueGapConnector(
+                WallGapConnector(
+                    start = firstEndpoint.point,
+                    end = secondEndpoint.point,
+                    kind = gapClosureKind(first, second),
+                ),
+            )
+        }
+    }
+}
+
+private fun addEndpointToSegmentGapConnectors(
+    connectors: MutableList<WallGapConnector>,
+    endpointOwner: DynamicMapWallTopologyCandidate,
+    target: DynamicMapWallTopologyCandidate,
+) {
+    endpointOwner.endpoints().forEach { endpoint ->
+        val projection = projectPointOntoSegment(endpoint.point, target.start, target.end) ?: return@forEach
+        if (projection.t <= WALL_TOPOLOGY_EPSILON || projection.t >= 1.0 - WALL_TOPOLOGY_EPSILON) {
+            return@forEach
+        }
+        if (!isGapExtension(endpointOwner, endpoint, projection.point)) return@forEach
+
+        connectors.addUniqueGapConnector(
+            WallGapConnector(
+                start = endpoint.point,
+                end = projection.point,
+                kind = gapClosureKind(endpointOwner, target),
+            ),
+        )
+    }
+}
+
+private fun MutableList<WallGapConnector>.addUniqueGapConnector(connector: WallGapConnector) {
+    val distance = connector.start.distanceTo(connector.end)
+    if (distance <= WALL_TOPOLOGY_EPSILON || distance >= WALL_GAP_CLOSE_MAX_TILES) return
+    if (any { it.sameUndirectedSegment(connector) }) return
+    add(connector)
+}
+
+private fun gapClosureKind(
+    first: DynamicMapWallTopologyCandidate,
+    second: DynamicMapWallTopologyCandidate,
+): DynamicMapWallKind =
+    if (first.kind == DynamicMapWallKind.SOFT && second.kind == DynamicMapWallKind.SOFT) {
+        DynamicMapWallKind.SOFT
+    } else {
+        DynamicMapWallKind.HARD
+    }
+
+private fun uniqueGapClosureId(
+    index: Int,
+    usedIds: Set<String>,
+): String {
+    val baseId = "wall-gap-${index + 1}"
+    if (baseId !in usedIds) return baseId
+
+    var suffix = 2
+    while ("$baseId-$suffix" in usedIds) {
+        suffix += 1
+    }
+    return "$baseId-$suffix"
+}
+
 private fun mergeWallCandidatesOrNull(
     first: DynamicMapWallTopologyCandidate,
     second: DynamicMapWallTopologyCandidate,
@@ -403,7 +536,7 @@ private fun mergeWallCandidatesOrNull(
 
     return DynamicMapWallTopologyCandidate(
         id = first.id,
-        label = if (labels.size == 1) labels.first() else "Merged Wall",
+        label = mergedWallLabel(labels, first.kind),
         start = start,
         end = end,
         kind = first.kind,
@@ -414,6 +547,16 @@ private fun mergeWallCandidatesOrNull(
         sourceLabels = labels,
     )
 }
+
+private fun mergedWallLabel(
+    labels: Set<String>,
+    kind: DynamicMapWallKind,
+): String =
+    when (labels.size) {
+        0 -> kind.defaultLabel
+        1 -> labels.first()
+        else -> "Merged Wall"
+    }
 
 private fun canMergeWallCandidates(
     first: DynamicMapWallTopologyCandidate,
@@ -458,12 +601,59 @@ private fun DynamicMapWallTopologyCandidate.length(): Double = hypot(end.x - sta
 
 private fun DynamicMapWall.length(): Double = hypot(end.x - start.x, end.y - start.y)
 
+private fun DynamicMapWallTopologyCandidate.endpoints(): List<WallEndpoint> =
+    listOf(
+        WallEndpoint(start, WallEndpointRole.START),
+        WallEndpoint(end, WallEndpointRole.END),
+    )
+
+private fun DynamicMapWallTopologyCandidate.outwardVector(endpoint: WallEndpoint): DynamicMapPoint =
+    when (endpoint.role) {
+        WallEndpointRole.START -> start - end
+        WallEndpointRole.END -> end - start
+    }
+
 private fun DynamicMapWallTopologyCandidate.directionUnit(): DynamicMapPoint {
     val length = length()
     return DynamicMapPoint(
         x = (end.x - start.x) / length,
         y = (end.y - start.y) / length,
     )
+}
+
+private fun projectPointOntoSegment(
+    point: DynamicMapPoint,
+    start: DynamicMapPoint,
+    end: DynamicMapPoint,
+): SegmentProjection? {
+    val segment = end - start
+    val lengthSquared = segment.x * segment.x + segment.y * segment.y
+    if (lengthSquared <= WALL_TOPOLOGY_EPSILON * WALL_TOPOLOGY_EPSILON) return null
+
+    val rawT = dot(point - start, segment) / lengthSquared
+    val t = rawT.coerceIn(0.0, 1.0)
+    return SegmentProjection(
+        point = DynamicMapPoint(
+            x = start.x + segment.x * t,
+            y = start.y + segment.y * t,
+        ),
+        t = t,
+    )
+}
+
+private fun isGapExtension(
+    endpointOwner: DynamicMapWallTopologyCandidate,
+    endpoint: WallEndpoint,
+    targetPoint: DynamicMapPoint,
+): Boolean {
+    val outward = endpointOwner.outwardVector(endpoint)
+    val connector = targetPoint - endpoint.point
+    val outwardLength = outward.length()
+    val connectorLength = connector.length()
+    if (outwardLength <= WALL_TOPOLOGY_EPSILON || connectorLength <= WALL_TOPOLOGY_EPSILON) return false
+
+    val alignment = dot(outward, connector) / (outwardLength * connectorLength)
+    return alignment >= WALL_GAP_EXTENSION_MIN_ALIGNMENT
 }
 
 private fun projectionRange(
@@ -478,6 +668,26 @@ private fun projectionRange(
 
 private fun DynamicMapPoint.projectOnto(direction: DynamicMapPoint): Double =
     x * direction.x + y * direction.y
+
+private operator fun DynamicMapPoint.minus(other: DynamicMapPoint): DynamicMapPoint =
+    DynamicMapPoint(
+        x = x - other.x,
+        y = y - other.y,
+    )
+
+private fun DynamicMapPoint.length(): Double = hypot(x, y)
+
+private fun DynamicMapPoint.distanceTo(other: DynamicMapPoint): Double = (this - other).length()
+
+private fun WallGapConnector.sameUndirectedSegment(other: WallGapConnector): Boolean =
+    (start.samePoint(other.start) && end.samePoint(other.end)) ||
+        (start.samePoint(other.end) && end.samePoint(other.start))
+
+private fun DynamicMapPoint.samePoint(other: DynamicMapPoint): Boolean =
+    distanceTo(other) <= WALL_TOPOLOGY_EPSILON
+
+private fun dot(first: DynamicMapPoint, second: DynamicMapPoint): Double =
+    first.x * second.x + first.y * second.y
 
 private fun cross(first: DynamicMapPoint, second: DynamicMapPoint): Double =
     first.x * second.y - first.y * second.x
