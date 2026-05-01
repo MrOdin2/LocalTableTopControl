@@ -47,7 +47,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   - `DebugMode` is the setup/verification mode. Exported walls are drawn clearly from bundle
     coordinates using the same wall-kind styles as the Dynamic Map Builder: soft walls are lighter
     and dashed, while hard walls are stronger and solid. Door walls use the hard-wall style plus
-    door icons, and feature walls show a normal arrow for their front side. Enabled point lights are drawn as
+    door icons, and feature walls show separated front/back side lines plus a normal arrow for their
+    front side. Open feature-wall sides are dotted, Soft sides are dashed, and Hard sides are solid.
+    Enabled point lights are drawn as
     diagnostic halos with distinct bright and dim radius areas.
     Exported sunlight/outside areas are drawn as translucent polygons for bundle verification.
 - Light source point markers are visible only in `DebugMode` on the DM minimap and remain hidden

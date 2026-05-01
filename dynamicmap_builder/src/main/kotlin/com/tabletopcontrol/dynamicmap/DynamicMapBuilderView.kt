@@ -33,6 +33,7 @@ import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.scene.shape.StrokeLineCap
 import javafx.stage.FileChooser
 import java.io.File
 import java.util.Locale
@@ -1102,6 +1103,28 @@ class DynamicMapBuilderView(
         accentColor: Color,
         lineWidth: Double = builderWallLineWidth(metrics),
     ) {
+        if (kind == DynamicMapWallKind.FEATURE) {
+            drawFeatureWallSides(
+                gc = gc,
+                metrics = metrics,
+                start = start,
+                end = end,
+                frontBehavior = frontBehavior,
+                backBehavior = backBehavior,
+                accentColor = accentColor,
+            )
+            drawFeatureWallArrow(
+                gc = gc,
+                metrics = metrics,
+                start = start,
+                end = end,
+                frontBehavior = frontBehavior,
+                backBehavior = backBehavior,
+                accentColor = accentColor,
+            )
+            return
+        }
+
         configureBuilderWallStroke(gc, metrics, kind, accentColor, lineWidth)
         gc.strokeLine(
             metrics.originX + start.x * metrics.cellSize,
@@ -1112,16 +1135,6 @@ class DynamicMapBuilderView(
         gc.setLineDashes()
         if (kind == DynamicMapWallKind.DOOR) {
             drawBuilderDoorIcon(gc, metrics, start, end, doorVisible, accentColor)
-        } else if (kind == DynamicMapWallKind.FEATURE) {
-            drawFeatureWallArrow(
-                gc = gc,
-                metrics = metrics,
-                start = start,
-                end = end,
-                frontBehavior = frontBehavior,
-                backBehavior = backBehavior,
-                accentColor = accentColor,
-            )
         }
     }
 
@@ -1138,6 +1151,22 @@ class DynamicMapBuilderView(
         backBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.HARD,
         accentColor: Color,
     ) {
+        if (kind == DynamicMapWallKind.FEATURE) {
+            val left = minX
+            val right = minX + widthCells
+            val top = minY
+            val bottom = minY + heightCells
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), frontBehavior, backBehavior, accentColor)
+            return
+        }
+
         configureBuilderWallStroke(gc, metrics, kind, accentColor, builderWallLineWidth(metrics))
         gc.strokeRect(
             metrics.originX + minX * metrics.cellSize,
@@ -1155,15 +1184,6 @@ class DynamicMapBuilderView(
             drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), doorVisible, accentColor)
             drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), doorVisible, accentColor)
             drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), doorVisible, accentColor)
-        } else if (kind == DynamicMapWallKind.FEATURE) {
-            val left = minX
-            val right = minX + widthCells
-            val top = minY
-            val bottom = minY + heightCells
-            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), frontBehavior, backBehavior, accentColor)
-            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), frontBehavior, backBehavior, accentColor)
-            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), frontBehavior, backBehavior, accentColor)
-            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), frontBehavior, backBehavior, accentColor)
         }
     }
 
@@ -1200,6 +1220,111 @@ class DynamicMapBuilderView(
             DynamicMapWallKind.HARD -> accentColor.deriveColor(0.0, 1.0, 0.95, 0.98)
             DynamicMapWallKind.DOOR -> accentColor.deriveColor(38.0, 0.95, 1.05, 0.98)
             DynamicMapWallKind.FEATURE -> accentColor.deriveColor(145.0, 0.9, 1.05, 0.95)
+        }
+
+    private fun drawFeatureWallSides(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        frontBehavior: DynamicMapWallSideBehavior,
+        backBehavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ) {
+        val startX = metrics.originX + start.x * metrics.cellSize
+        val startY = metrics.originY + start.y * metrics.cellSize
+        val endX = metrics.originX + end.x * metrics.cellSize
+        val endY = metrics.originY + end.y * metrics.cellSize
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val normalX = -dy / length
+        val normalY = dx / length
+        val offset = featureWallSideOffset(metrics.cellSize)
+        drawFeatureWallSideStroke(
+            gc = gc,
+            cellSize = metrics.cellSize,
+            startX = startX + normalX * offset,
+            startY = startY + normalY * offset,
+            endX = endX + normalX * offset,
+            endY = endY + normalY * offset,
+            behavior = frontBehavior,
+            accentColor = accentColor,
+        )
+        drawFeatureWallSideStroke(
+            gc = gc,
+            cellSize = metrics.cellSize,
+            startX = startX - normalX * offset,
+            startY = startY - normalY * offset,
+            endX = endX - normalX * offset,
+            endY = endY - normalY * offset,
+            behavior = backBehavior,
+            accentColor = accentColor,
+        )
+    }
+
+    private fun drawFeatureWallSideStroke(
+        gc: GraphicsContext,
+        cellSize: Double,
+        startX: Double,
+        startY: Double,
+        endX: Double,
+        endY: Double,
+        behavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ) {
+        gc.save()
+        gc.stroke = featureWallSideColor(behavior, accentColor)
+        gc.lineWidth = featureWallSideLineWidth(cellSize, behavior)
+        when (behavior) {
+            DynamicMapWallSideBehavior.OPEN -> {
+                gc.lineCap = StrokeLineCap.ROUND
+                gc.setLineDashes(
+                    (cellSize * 0.035).coerceIn(1.0, 2.5),
+                    (cellSize * 0.12).coerceIn(4.0, 9.0),
+                )
+            }
+            DynamicMapWallSideBehavior.SOFT -> {
+                gc.lineCap = StrokeLineCap.BUTT
+                gc.setLineDashes(
+                    (cellSize * 0.18).coerceIn(5.0, 14.0),
+                    (cellSize * 0.12).coerceIn(4.0, 10.0),
+                )
+            }
+            DynamicMapWallSideBehavior.HARD -> {
+                gc.lineCap = StrokeLineCap.BUTT
+                gc.setLineDashes()
+            }
+        }
+        gc.strokeLine(startX, startY, endX, endY)
+        gc.restore()
+    }
+
+    private fun featureWallSideOffset(cellSize: Double): Double =
+        (cellSize * 0.085).coerceIn(3.0, 7.0)
+
+    private fun featureWallSideLineWidth(
+        cellSize: Double,
+        behavior: DynamicMapWallSideBehavior,
+    ): Double {
+        val baseWidth = (cellSize * 0.085).coerceAtLeast(1.8)
+        return when (behavior) {
+            DynamicMapWallSideBehavior.OPEN -> baseWidth * 0.8
+            DynamicMapWallSideBehavior.SOFT -> baseWidth
+            DynamicMapWallSideBehavior.HARD -> baseWidth * 1.15
+        }
+    }
+
+    private fun featureWallSideColor(
+        behavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ): Color =
+        when (behavior) {
+            DynamicMapWallSideBehavior.OPEN -> accentColor.deriveColor(145.0, 0.32, 1.3, 0.62)
+            DynamicMapWallSideBehavior.SOFT -> accentColor.deriveColor(145.0, 0.72, 1.18, 0.82)
+            DynamicMapWallSideBehavior.HARD -> accentColor.deriveColor(145.0, 1.0, 0.95, 0.98)
         }
 
     private fun drawFeatureWallArrow(

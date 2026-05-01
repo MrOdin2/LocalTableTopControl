@@ -178,7 +178,7 @@
         <tr><th>Feature</th><th>What it does in DynamicMap</th></tr>
         <tr><td>Minimap</td><td>Shows the loaded dynamic map, fog state, token positions, and every door icon for the DM.</td></tr>
         <tr><td>RenderMode</td><td>Uses the normal play view. Exported walls, light handles, and sunlight outlines are hidden. Visible doors show a door icon on the player-facing table view. Closed walls, doors, and blocking feature-wall sides affect player-character sightlines and point-light bright cores. Dim light reaches softly through soft walls and Soft feature-wall sides, but hard walls, closed doors, and Hard feature-wall sides block dim light.</td></tr>
-        <tr><td>DebugMode</td><td>Shows exported walls with the same soft/hard/door/feature styling used by the builder, including feature-wall arrows, draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
+        <tr><td>DebugMode</td><td>Shows exported walls with the same soft/hard/door/feature styling used by the builder. Feature walls show front and back as separated side lines: Open is dotted, Soft is dashed, and Hard is solid. DebugMode also draws point-light halos with separate bright and dim radius areas, and shows sunlight areas as translucent polygons for setup checks.</td></tr>
         <tr><td>Grid</td><td>Can be shown or hidden and recoloured. Loading a bundle centers the grid on the exported map bounds.</td></tr>
         <tr><td>Fog of war</td><td>Paint or erase fog on the minimap. By default, a loaded bundle uses fog coverage matching its exported map size.</td></tr>
         <tr><td>Tokens</td><td>Tracker combatants appear as draggable tokens with colour, size, image, and name support. Actors marked as PCs reveal only lit areas they can see through exported walls when the loaded bundle contains authored lighting or a PC has a light source. PC light sources move with the token. PC darkvision reveals nearby wall-blocked terrain in black and white. Bundles without lights, sunlight areas, PC light sources, or PC darkvision keep sight-only visibility.</td></tr>
@@ -230,8 +230,8 @@
       <p>
         In RenderMode, exported walls, light handles, and sunlight outlines are not drawn directly.
         In DebugMode, soft walls are drawn as lighter dashed guide lines, hard walls are drawn as
-        stronger solid guide lines, doors include door icons, feature walls include normal arrows,
-        enabled point lights appear as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
+        stronger solid guide lines, doors include door icons, feature walls show separated front/back
+        side lines plus normal arrows, enabled point lights appear as two-radius coloured halos, and sunlight areas appear as translucent polygons. Disabled
         lights remain visible to the DM as subdued markers in DebugMode, but player-facing light
         markers are hidden.
       </p>
