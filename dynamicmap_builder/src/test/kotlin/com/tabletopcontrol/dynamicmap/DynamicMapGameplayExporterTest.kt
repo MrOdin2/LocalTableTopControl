@@ -48,7 +48,7 @@ class DynamicMapGameplayExporterTest {
                 DynamicMapWall(
                     id = "secret-wall-id-2",
                     label = "Boss Gate",
-                    start = DynamicMapPoint(3.0, 2.0),
+                    start = DynamicMapPoint(3.05, 2.0),
                     end = DynamicMapPoint(5.0, 2.0),
                     kind = DynamicMapWallKind.HARD,
                 ),

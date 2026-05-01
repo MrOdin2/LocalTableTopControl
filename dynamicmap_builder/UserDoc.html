@@ -275,7 +275,7 @@
         <tr><td>Draw: Line</td><td>Click and drag in the builder pane to place one straight wall segment using the selected wall type.</td></tr>
         <tr><td>Draw: Rect</td><td>Click and drag in the builder pane to place a rectangular ring of four wall segments using the selected wall type.</td></tr>
         <tr><td>Stop Editing</td><td>Leave wall or light placement mode without changing the draft.</td></tr>
-        <tr><td>Optimize Walls</td><td>Merges touching or overlapping straight wall segments that lie on the same line, and removes zero-length wall stubs.</td></tr>
+        <tr><td>Optimize Walls</td><td>Closes tiny gaps between wall pieces, merges touching or overlapping straight segments on the same line, and removes zero-length wall stubs.</td></tr>
         <tr><td>Clear All Walls</td><td>Remove every wall segment from the current builder draft.</td></tr>
       </table>
       <p>
@@ -309,10 +309,12 @@
       <p>
         Use <strong>Optimize Walls</strong> after drawing or moving several wall pieces that should
         behave like one continuous wall. The builder clears the current selection after optimization
-        and remaps groups onto the merged wall where possible. Soft walls and hard walls are kept
-        separate during optimization so their lighting behavior is preserved. Doors are kept as
-        separate segments so each one keeps its own icon and visible/hidden setting. Feature walls
-        are also kept separate so their arrow direction and side behavior remain unchanged.
+        and remaps groups onto the merged wall where possible. Gaps smaller than one tenth of a tile
+        are filled automatically. A gap between two Soft walls is filled as Soft; every other wall-type
+        pairing is filled as Hard. Soft walls and hard walls are kept separate during optimization so
+        their lighting behavior is preserved. Doors are kept as separate segments so each one keeps its
+        own icon and visible/hidden setting. Feature walls are also kept separate so their arrow
+        direction and side behavior remain unchanged.
       </p>
     </section>
 
@@ -405,10 +407,10 @@
         bundle includes the map size, background texture when the source image is available, texture
         calibration, walls with their soft, hard, door, or feature wall kind, door visibility, feature-wall side behavior, lights, and sunlight areas. It leaves out builder-only details such as construction-site
         names, wall, light, and sunlight-area labels, builder element ids, outline groups, and temporary layer visibility.
-        Wall topology is optimized automatically during export, so touching wall pieces of the same
-        kind on the same line are combined in the gameplay bundle even if you have not pressed <strong>Optimize Walls</strong>
-        manually. Feature walls are not combined because their arrow direction and side behavior are
-        part of the authored map.
+        Wall topology is optimized automatically during export, so tiny gaps are closed and touching wall pieces
+        of the same kind on the same line are combined in the gameplay bundle even if you have not pressed
+        <strong>Optimize Walls</strong> manually. Feature walls are not combined because their arrow direction
+        and side behavior are part of the authored map.
       </p>
     </section>
 

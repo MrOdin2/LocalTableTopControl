@@ -318,6 +318,130 @@ class DynamicMapGeometryTest {
     }
 
     @Test
+    fun `wall topology optimization closes small gaps between soft walls as soft walls`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "soft-a",
+                    label = "Curtain",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                    kind = DynamicMapWallKind.SOFT,
+                ),
+                DynamicMapWall(
+                    id = "soft-b",
+                    label = "Curtain",
+                    start = DynamicMapPoint(1.05, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.SOFT,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+
+        assertEquals(
+            listOf(
+                DynamicMapWall(
+                    id = "soft-a",
+                    label = "Curtain",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.SOFT,
+                ),
+            ),
+            optimized.walls,
+        )
+    }
+
+    @Test
+    fun `wall topology optimization closes small gaps between non-soft wall types with hard walls`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "door",
+                    label = "Door",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                    kind = DynamicMapWallKind.DOOR,
+                    doorVisible = false,
+                ),
+                DynamicMapWall(
+                    id = "feature",
+                    label = "Ledge",
+                    start = DynamicMapPoint(1.08, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.FEATURE,
+                    frontBehavior = DynamicMapWallSideBehavior.OPEN,
+                    backBehavior = DynamicMapWallSideBehavior.SOFT,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+        val connector = optimized.walls.single { it.kind == DynamicMapWallKind.HARD }
+
+        assertEquals(3, optimized.walls.size)
+        assertEquals(DynamicMapPoint(1.0, 0.0), connector.start)
+        assertEquals(DynamicMapPoint(1.08, 0.0), connector.end)
+    }
+
+    @Test
+    fun `wall topology optimization closes endpoint to segment gaps`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "stub",
+                    start = DynamicMapPoint(1.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.95),
+                    kind = DynamicMapWallKind.SOFT,
+                ),
+                DynamicMapWall(
+                    id = "cross",
+                    start = DynamicMapPoint(0.0, 1.0),
+                    end = DynamicMapPoint(2.0, 1.0),
+                    kind = DynamicMapWallKind.HARD,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+        val connector = optimized.walls.single {
+            it.kind == DynamicMapWallKind.HARD &&
+                it.start == DynamicMapPoint(1.0, 0.95) &&
+                it.end == DynamicMapPoint(1.0, 1.0)
+        }
+
+        assertEquals("Hard Wall", connector.label)
+    }
+
+    @Test
+    fun `wall topology optimization ignores gaps of one tenth tile or larger`() {
+        val document = DynamicMapDocument(
+            walls = listOf(
+                DynamicMapWall(
+                    id = "wall-a",
+                    start = DynamicMapPoint(0.0, 0.0),
+                    end = DynamicMapPoint(1.0, 0.0),
+                    kind = DynamicMapWallKind.HARD,
+                ),
+                DynamicMapWall(
+                    id = "wall-b",
+                    start = DynamicMapPoint(1.1, 0.0),
+                    end = DynamicMapPoint(2.0, 0.0),
+                    kind = DynamicMapWallKind.HARD,
+                ),
+            ),
+        )
+
+        val optimized = document.optimizeWallTopology()
+
+        assertEquals(2, optimized.walls.size)
+        assertEquals(DynamicMapPoint(1.0, 0.0), optimized.walls[0].end)
+        assertEquals(DynamicMapPoint(1.1, 0.0), optimized.walls[1].start)
+    }
+
+    @Test
     fun `wall topology optimization keeps door segments separate`() {
         val document = DynamicMapDocument(
             walls = listOf(
