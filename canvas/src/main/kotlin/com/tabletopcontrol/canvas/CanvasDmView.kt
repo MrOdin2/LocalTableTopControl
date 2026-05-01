@@ -21,7 +21,6 @@ import javafx.scene.layout.Pane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
-import javafx.scene.paint.Color
 import javafx.scene.shape.Circle
 import javafx.scene.shape.Rectangle
 import javafx.scene.transform.Rotate
@@ -202,10 +201,6 @@ class CanvasDmView(private val model: CanvasModel) {
         selectedNode = node
         node?.setSelected(true)
     }
-
-    private fun removeItem(id: String) {
-        model.removeItem(id)
-    }
 }
 
 // ─── Item node ───────────────────────────────────────────────────────────────
@@ -344,17 +339,13 @@ internal class CanvasItemNode(
 
     private fun styleHandles() {
         cornerHandles.forEach { h ->
-            h.fill = Color.WHITE
-            h.stroke = Color.GRAY
-            h.strokeWidth = 1.0
+            h.style = "-fx-fill: -tc-surface; -fx-stroke: -tc-border; -fx-stroke-width: 1;"
             h.arcWidth = 2.0
             h.arcHeight = 2.0
             h.cursor = javafx.scene.Cursor.CROSSHAIR
         }
         edgeHandles.forEach { h ->
-            h.fill = Color.WHITE
-            h.stroke = Color.CORNFLOWERBLUE
-            h.strokeWidth = 1.5
+            h.style = "-fx-fill: -tc-surface; -fx-stroke: -tc-accent; -fx-stroke-width: 1.5;"
             h.cursor = javafx.scene.Cursor.CROSSHAIR
         }
     }

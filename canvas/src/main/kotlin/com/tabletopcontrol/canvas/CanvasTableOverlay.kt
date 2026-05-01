@@ -57,9 +57,9 @@ class CanvasTableOverlay {
         val currentIds = sharedItems.map { it.id }.toSet()
 
         // Remove views for items that are no longer shared or have been deleted.
-        itemViews.keys.filter { it !in currentIds }.forEach { id ->
-            val view = itemViews.remove(id) ?: return@forEach
-            pane.children.remove(view)
+        val idsToRemove = itemViews.keys.filter { it !in currentIds }
+        idsToRemove.forEach { id ->
+            itemViews.remove(id)?.let { view -> pane.children.remove(view) }
         }
 
         // Add or update views for shared items.
