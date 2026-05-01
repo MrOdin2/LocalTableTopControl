@@ -46,6 +46,16 @@ enum class DynamicMapRenderMode(val displayName: String) {
 data class DynamicMapRenderModeEvent(val mode: DynamicMapRenderMode)
 
 /**
+ * Event fired when the DM changes the runtime open state of a DynamicMap door.
+ *
+ * Open doors keep their icon but are ignored by sightline and light-blocking calculations.
+ */
+data class DynamicMapDoorStateChangedEvent(
+    val wallId: String,
+    val open: Boolean,
+)
+
+/**
  * Internal renderer event carrying the latest shared DynamicMap player-visible mesh.
  *
  * The mesh, optional light mask, and optional darkvision-only mesh are computed once by

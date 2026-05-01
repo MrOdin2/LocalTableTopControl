@@ -50,6 +50,7 @@ fun buildRectangleWalls(
     start: DynamicMapPoint,
     end: DynamicMapPoint,
     kind: DynamicMapWallKind = DynamicMapWallKind.SOFT,
+    doorVisible: Boolean = true,
 ): List<DynamicMapWall> {
     val minX = min(start.x, end.x)
     val minY = min(start.y, end.y)
@@ -64,10 +65,10 @@ fun buildRectangleWalls(
     val label = kind.defaultLabel
 
     return listOf(
-        DynamicMapWall(label = label, start = topLeft, end = topRight, kind = kind),
-        DynamicMapWall(label = label, start = topRight, end = bottomRight, kind = kind),
-        DynamicMapWall(label = label, start = bottomRight, end = bottomLeft, kind = kind),
-        DynamicMapWall(label = label, start = bottomLeft, end = topLeft, kind = kind),
+        DynamicMapWall(label = label, start = topLeft, end = topRight, kind = kind, doorVisible = doorVisible),
+        DynamicMapWall(label = label, start = topRight, end = bottomRight, kind = kind, doorVisible = doorVisible),
+        DynamicMapWall(label = label, start = bottomRight, end = bottomLeft, kind = kind, doorVisible = doorVisible),
+        DynamicMapWall(label = label, start = bottomLeft, end = topLeft, kind = kind, doorVisible = doorVisible),
     )
 }
 
@@ -295,6 +296,7 @@ private data class DynamicMapWallTopologyCandidate(
     val start: DynamicMapPoint,
     val end: DynamicMapPoint,
     val kind: DynamicMapWallKind,
+    val doorVisible: Boolean,
     val sourceIds: Set<String>,
     val sourceLabels: Set<String>,
 ) {
@@ -305,6 +307,7 @@ private data class DynamicMapWallTopologyCandidate(
             start = start,
             end = end,
             kind = kind,
+            doorVisible = doorVisible,
         )
 }
 
@@ -320,6 +323,7 @@ private fun optimizeWallCandidates(walls: List<DynamicMapWall>): List<DynamicMap
                     start = wall.start,
                     end = wall.end,
                     kind = wall.kind,
+                    doorVisible = wall.doorVisible,
                     sourceIds = linkedSetOf(wall.id),
                     sourceLabels = linkedSetOf(wall.label),
                 )
@@ -363,6 +367,7 @@ private fun mergeWallCandidatesOrNull(
         start = start,
         end = end,
         kind = first.kind,
+        doorVisible = first.doorVisible,
         sourceIds = (first.sourceIds + second.sourceIds).toCollection(linkedSetOf()),
         sourceLabels = labels,
     )
@@ -378,6 +383,7 @@ private fun canMergeWallCandidates(
     val secondLength = second.length()
     if (firstLength <= WALL_TOPOLOGY_EPSILON || secondLength <= WALL_TOPOLOGY_EPSILON) return false
     if (first.kind != second.kind) return false
+    if (first.kind == DynamicMapWallKind.DOOR) return false
 
     val directionCross = cross(firstVector, secondVector)
     if (abs(directionCross) > WALL_TOPOLOGY_EPSILON * firstLength * secondLength) return false

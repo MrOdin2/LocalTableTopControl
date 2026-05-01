@@ -6,11 +6,14 @@ import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapBundle
+import com.tabletopcontrol.dynamicmap.runtime.DynamicMapDoorStateChangedEvent
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapLoadEvent
-import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWallKind
+import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
 import com.tabletopcontrol.dynamicmap.runtime.DynamicSightlineMeshUpdatedEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapClearEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapLoadEvent
+import com.tabletopcontrol.dynamicmap.runtime.blocksDimLightWhenClosed
+import com.tabletopcontrol.dynamicmap.runtime.isDoor
 import java.awt.geom.Area
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -35,6 +38,7 @@ internal class MapDynamicSightlineService {
     private var currentGeometry: DynamicSightlineGeometry? = null
     private var currentDimLightGeometry: DynamicSightlineGeometry? = null
     private var currentLightMask: DynamicLightMask? = null
+    private val openDoorIds = linkedSetOf<String>()
     private var topologyVersion: Long = 0L
     private var accumulatedSeenArea: Area? = null
     @Volatile
@@ -53,28 +57,23 @@ internal class MapDynamicSightlineService {
 
     private fun attachToEventBus() {
         subscriptions += EventBus.subscribe<DynamicMapLoadEvent> { event ->
-            val geometry = DynamicSightlineGeometry.forMap(
-                cols = event.bundle.cols,
-                rows = event.bundle.rows,
-                walls = event.bundle.walls,
-            )
-            val dimLightGeometry = DynamicSightlineGeometry.forMap(
-                cols = event.bundle.cols,
-                rows = event.bundle.rows,
-                walls = event.bundle.walls.filter { it.kind == DynamicMapRuntimeWallKind.HARD },
-            )
-            currentBundle = event.bundle
-            currentGeometry = geometry
-            currentDimLightGeometry = dimLightGeometry
-            currentLightMask = DynamicLightMask.fromBundle(
-                bundle = event.bundle,
-                geometry = geometry,
-                dimLightGeometry = dimLightGeometry,
-            )
-            topologyVersion++
-            clearContributionCache()
+            openDoorIds.clear()
+            rebuildGeometryAndLightMask(event.bundle)
             clearSeenArea()
             scheduleCompute()
+        }
+        subscriptions += EventBus.subscribe<DynamicMapDoorStateChangedEvent> { event ->
+            val bundle = currentBundle ?: return@subscribe
+            if (bundle.walls.none { it.id == event.wallId && it.isDoor() }) return@subscribe
+            val changed = if (event.open) {
+                openDoorIds.add(event.wallId)
+            } else {
+                openDoorIds.remove(event.wallId)
+            }
+            if (changed) {
+                rebuildGeometryAndLightMask(bundle)
+                scheduleCompute()
+            }
         }
         subscriptions += EventBus.subscribe<MapLoadEvent> {
             clearDynamicMap()
@@ -143,12 +142,37 @@ internal class MapDynamicSightlineService {
         }
     }
 
+    private fun rebuildGeometryAndLightMask(bundle: DynamicMapBundle) {
+        val blockingWalls = bundle.closedRuntimeWalls(openDoorIds)
+        val geometry = DynamicSightlineGeometry.forMap(
+            cols = bundle.cols,
+            rows = bundle.rows,
+            walls = blockingWalls,
+        )
+        val dimLightGeometry = DynamicSightlineGeometry.forMap(
+            cols = bundle.cols,
+            rows = bundle.rows,
+            walls = blockingWalls.filter { it.blocksDimLightWhenClosed() },
+        )
+        currentBundle = bundle
+        currentGeometry = geometry
+        currentDimLightGeometry = dimLightGeometry
+        currentLightMask = DynamicLightMask.fromBundle(
+            bundle = bundle.copy(walls = blockingWalls),
+            geometry = geometry,
+            dimLightGeometry = dimLightGeometry,
+        )
+        topologyVersion++
+        clearContributionCache()
+    }
+
     private fun clearDynamicMap() {
         if (disposed) return
         currentBundle = null
         currentGeometry = null
         currentDimLightGeometry = null
         currentLightMask = null
+        openDoorIds.clear()
         topologyVersion++
         clearContributionCache()
         clearSeenArea()
@@ -160,15 +184,16 @@ internal class MapDynamicSightlineService {
         if (disposed) return
         val bundle = currentBundle ?: return
         val snapshotTopologyVersion = topologyVersion
+        val blockingWalls = bundle.closedRuntimeWalls(openDoorIds)
         val geometry = currentGeometry ?: DynamicSightlineGeometry.forMap(
             cols = bundle.cols,
             rows = bundle.rows,
-            walls = bundle.walls,
+            walls = blockingWalls,
         ).also { currentGeometry = it }
         val dimLightGeometry = currentDimLightGeometry ?: DynamicSightlineGeometry.forMap(
             cols = bundle.cols,
             rows = bundle.rows,
-            walls = bundle.walls.filter { it.kind == DynamicMapRuntimeWallKind.HARD },
+            walls = blockingWalls.filter { it.blocksDimLightWhenClosed() },
         ).also { currentDimLightGeometry = it }
         val pcSnapshot = tokens.values
             .filter { it.isPlayerCharacter }
@@ -380,3 +405,6 @@ internal class MapDynamicSightlineService {
         val darkvisionOnlyMesh: DynamicSightlineMesh?,
     )
 }
+
+private fun DynamicMapBundle.closedRuntimeWalls(openDoorIds: Set<String>): List<DynamicMapRuntimeWall> =
+    walls.filterNot { wall -> wall.isDoor() && wall.id in openDoorIds }

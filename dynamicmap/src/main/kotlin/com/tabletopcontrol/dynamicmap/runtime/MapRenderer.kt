@@ -227,6 +227,9 @@ class MapRenderer(private val canvas: Canvas) {
     /** Whether runtime light source markers should be drawn in addition to light halos. */
     var showDynamicLightMarkers: Boolean = true
 
+    /** Whether hidden DynamicMap door icons should be shown by this renderer. */
+    var showHiddenDynamicDoorIcons: Boolean = true
+
     /** Current DynamicMap wall/light visualisation mode. */
     var dynamicMapRenderMode: DynamicMapRenderMode = DynamicMapRenderMode.RENDER
 
@@ -248,6 +251,9 @@ class MapRenderer(private val canvas: Canvas) {
 
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
+
+    /** Runtime-open DynamicMap door ids. Open doors keep their icon but no longer draw as blockers. */
+    private val openDynamicDoorIds = linkedSetOf<String>()
 
     /** Latest grid colour, retained even while the visible grid is disabled. */
     private var lastGridColor: Color = GridConfig().color
@@ -290,6 +296,14 @@ class MapRenderer(private val canvas: Canvas) {
         }
         subscriptions += EventBus.subscribe<DynamicMapRenderModeEvent> { event ->
             dynamicMapRenderMode = event.mode
+            redraw()
+        }
+        subscriptions += EventBus.subscribe<DynamicMapDoorStateChangedEvent> { event ->
+            if (event.open) {
+                openDynamicDoorIds += event.wallId
+            } else {
+                openDynamicDoorIds -= event.wallId
+            }
             redraw()
         }
         subscriptions += EventBus.subscribe<DynamicSightlineMeshUpdatedEvent> { event ->
@@ -544,6 +558,7 @@ class MapRenderer(private val canvas: Canvas) {
             dynamicSeenSightlineMesh = null
             dynamicLightMask = null
             dynamicDarkvisionMesh = null
+            openDynamicDoorIds.clear()
             dynamicSightlineLayerVersion++
             clearLayerCaches()
             mapImage = image
@@ -561,6 +576,7 @@ class MapRenderer(private val canvas: Canvas) {
         dynamicSeenSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
         dynamicLightMask = null
         dynamicDarkvisionMesh = null
+        openDynamicDoorIds.clear()
         dynamicSightlineLayerVersion++
         clearLayerCaches()
         redraw()
@@ -579,6 +595,7 @@ class MapRenderer(private val canvas: Canvas) {
         dynamicSeenSightlineMesh = null
         dynamicLightMask = null
         dynamicDarkvisionMesh = null
+        openDynamicDoorIds.clear()
         dynamicSightlineLayerVersion++
         clearLayerCaches()
         redraw()
@@ -625,6 +642,7 @@ class MapRenderer(private val canvas: Canvas) {
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
             drawDynamicMapWalls()
         }
+        drawDynamicDoorIcons()
         drawDynamicLightTintLayer()
         drawFogOfWar()
         drawTokens()
@@ -1043,6 +1061,7 @@ class MapRenderer(private val canvas: Canvas) {
         val originY = dynamicMapOriginY()
 
         bundle.walls.forEach { wall ->
+            if (wall.isDoor() && wall.id in openDynamicDoorIds) return@forEach
             configureDynamicWallStroke(wall.kind, cellPx)
             gc.strokeLine(
                 originX + wall.start.x * cellPx,
@@ -1052,6 +1071,27 @@ class MapRenderer(private val canvas: Canvas) {
             )
             gc.setLineDashes()
         }
+    }
+
+    private fun drawDynamicDoorIcons() {
+        val bundle = dynamicMapBundle ?: return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+        val originX = dynamicMapOriginX()
+        val originY = dynamicMapOriginY()
+
+        bundle.walls
+            .filter { it.isDoor() }
+            .filter { it.doorVisible || showHiddenDynamicDoorIcons }
+            .forEach { wall ->
+                drawDynamicDoorIcon(
+                    wall = wall,
+                    cellPx = cellPx,
+                    originX = originX,
+                    originY = originY,
+                    isOpen = wall.id in openDynamicDoorIds,
+                )
+            }
     }
 
     private fun drawDynamicMapLightMarkers() {
@@ -1093,6 +1133,7 @@ class MapRenderer(private val canvas: Canvas) {
         gc.lineWidth = when (kind) {
             DynamicMapRuntimeWallKind.SOFT -> baseWidth
             DynamicMapRuntimeWallKind.HARD -> baseWidth * 1.15
+            DynamicMapRuntimeWallKind.DOOR -> baseWidth * 1.15
         }
         if (kind == DynamicMapRuntimeWallKind.SOFT) {
             gc.setLineDashes(
@@ -1108,6 +1149,78 @@ class MapRenderer(private val canvas: Canvas) {
         when (kind) {
             DynamicMapRuntimeWallKind.SOFT -> dynamicMapDebugWallColor.deriveColor(0.0, 0.55, 1.2, 0.72)
             DynamicMapRuntimeWallKind.HARD -> dynamicMapDebugWallColor.deriveColor(0.0, 1.0, 0.95, 0.98)
+            DynamicMapRuntimeWallKind.DOOR -> dynamicMapDebugWallColor.deriveColor(38.0, 0.95, 1.05, 0.98)
+        }
+
+    private fun drawDynamicDoorIcon(
+        wall: DynamicMapRuntimeWall,
+        cellPx: Double,
+        originX: Double,
+        originY: Double,
+        isOpen: Boolean,
+    ) {
+        val startX = originX + wall.start.x * cellPx
+        val startY = originY + wall.start.y * cellPx
+        val endX = originX + wall.end.x * cellPx
+        val endY = originY + wall.end.y * cellPx
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val centerX = (startX + endX) / 2.0
+        val centerY = (startY + endY) / 2.0
+        val wallAngle = atan2(dy, dx)
+        val doorAngle = if (isOpen) wallAngle - Math.toRadians(60.0) else wallAngle
+        val alongX = cos(doorAngle)
+        val alongY = sin(doorAngle)
+        val normalX = -sin(wallAngle)
+        val normalY = cos(wallAngle)
+        val halfLong = (cellPx * 0.3).coerceIn(7.0, 20.0)
+        val halfShort = (cellPx * 0.16).coerceIn(4.0, 12.0)
+        val iconColor = dynamicDoorIconColor(wall, isOpen)
+
+        gc.save()
+        gc.stroke = iconColor
+        gc.fill = iconColor.deriveColor(0.0, 1.0, 1.0, if (wall.doorVisible) 0.24 else 0.1)
+        gc.lineWidth = (cellPx * 0.045).coerceIn(2.0, 4.5)
+        if (!wall.doorVisible) {
+            gc.setLineDashes(4.0, 4.0)
+        }
+
+        val xs = doubleArrayOf(
+            centerX + alongX * halfLong,
+            centerX + normalX * halfShort,
+            centerX - alongX * halfLong,
+            centerX - normalX * halfShort,
+        )
+        val ys = doubleArrayOf(
+            centerY + alongY * halfLong,
+            centerY + normalY * halfShort,
+            centerY - alongY * halfLong,
+            centerY - normalY * halfShort,
+        )
+        gc.fillPolygon(xs, ys, xs.size)
+        gc.strokePolygon(xs, ys, xs.size)
+        gc.setLineDashes()
+
+        if (isOpen) {
+            val hingeRadius = (cellPx * 0.055).coerceIn(2.5, 5.5)
+            gc.fill = iconColor
+            gc.fillOval(centerX - hingeRadius, centerY - hingeRadius, hingeRadius * 2.0, hingeRadius * 2.0)
+        } else if (!wall.doorVisible) {
+            gc.stroke = iconColor
+            gc.lineWidth = (cellPx * 0.04).coerceIn(1.5, 3.0)
+            gc.strokeLine(xs[0], ys[0], xs[2], ys[2])
+        }
+        gc.restore()
+    }
+
+    private fun dynamicDoorIconColor(wall: DynamicMapRuntimeWall, isOpen: Boolean): Color =
+        when {
+            isOpen -> dynamicMapDebugWallColor.deriveColor(105.0, 0.85, 1.15, 0.92)
+            wall.doorVisible -> dynamicMapDebugWallColor.deriveColor(38.0, 0.95, 1.1, 0.95)
+            else -> dynamicMapDebugWallColor.deriveColor(38.0, 0.35, 1.25, 0.72)
         }
 
     private fun dynamicLightRingWidth(cellPx: Double): Double =
@@ -1476,6 +1589,36 @@ class MapRenderer(private val canvas: Canvas) {
         if (fogCol < 0 || fogCol >= fow.cols || fogRow < 0 || fogRow >= fow.rows) return null
         return Pair(fogCol, fogRow)
     }
+
+    fun dynamicDoorAtCanvasCoords(
+        canvasX: Double,
+        canvasY: Double,
+        includeHidden: Boolean = showHiddenDynamicDoorIcons,
+    ): DynamicMapRuntimeWall? {
+        val bundle = dynamicMapBundle ?: return null
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return null
+        val (worldX, worldY) = canvasToWorldCoords(canvasX, canvasY)
+        val originX = canvas.width / 2.0 + gridCalibration.offsetX
+        val originY = canvas.height / 2.0 + gridCalibration.offsetY
+        val hitRadius = (cellPx * 0.45).coerceAtLeast(16.0 / viewportScale.coerceAtLeast(0.1))
+
+        return bundle.walls
+            .asSequence()
+            .filter { it.isDoor() }
+            .filter { includeHidden || it.doorVisible }
+            .map { wall ->
+                val centerX = originX + ((wall.start.x + wall.end.x) / 2.0) * cellPx
+                val centerY = originY + ((wall.start.y + wall.end.y) / 2.0) * cellPx
+                wall to hypot(worldX - centerX, worldY - centerY)
+            }
+            .filter { (_, distance) -> distance <= hitRadius }
+            .minByOrNull { it.second }
+            ?.first
+    }
+
+    fun isDynamicDoorOpen(wallId: String): Boolean =
+        wallId in openDynamicDoorIds
 
     /**
      * Returns the token whose grid cell contains the given canvas-space coordinates,

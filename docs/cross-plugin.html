@@ -193,7 +193,7 @@
         capture and restore a full encounter setup. A scene can include:
       </p>
       <ul>
-        <li>Map image, calibration, token positions, and fog of war.</li>
+        <li>Map image, calibration, token positions, fog of war, and open DynamicMap doors.</li>
         <li>Tracker actors with their live HP, AC, initiative, and token settings.</li>
         <li>Music tracks and volume settings.</li>
         <li>Soundboard button assignments and order.</li>
@@ -353,8 +353,10 @@
         loaded dynamic bundle contains authored lights or sunlight areas, those PC sightlines are
         also limited to lit areas. A PC actor's light source in the tracker acts as a moving point
         light attached to that token, with separate bright and dim ranges and its chosen tint colour.
-        DynamicMap uses the builder's soft and hard wall kinds for lighting: both block sightlines and
-        bright light, while only hard walls block dim light.
+        DynamicMap uses the builder's soft, hard, and door wall kinds for lighting: all closed wall
+        geometry blocks sightlines and bright light, while hard walls and closed doors also block dim light.
+        Visible doors can show icons on the player-facing table view, and all doors show icons on the
+        DM minimap so the DM can left-click a door to open or close it.
         A PC actor's darkvision range acts as a grayscale reveal from that token's position. If terrain
         is no longer currently visible and only remembered, DynamicMap keeps it grayscale so the table
         shows layout information without colour detail. NPC movement does not recalculate that
@@ -381,8 +383,9 @@
         exports gameplay-ready <code>.dynamicmap</code> bundles without builder-only names or groups.
         The main builder canvas, <strong>Wall Tools</strong>, <strong>Light Browser</strong>, and
         <strong>Outline Browser</strong> all share the same draft map and stay in sync automatically.
-        Wall tools choose wall type separately from drawing mode, so soft and hard walls can be
-        authored with the same shape tools; the exported wall kind is consumed by DynamicMap during lighting.
+        Wall tools choose wall type separately from drawing mode, so soft walls, hard walls, and
+        visible or hidden doors can be authored with the same shape tools; the exported wall kind and
+        door visibility are consumed by DynamicMap during lighting and door handling.
       </p>
       <div class="flow">
         <div class="step">Choose tool or preset in a side pane</div>

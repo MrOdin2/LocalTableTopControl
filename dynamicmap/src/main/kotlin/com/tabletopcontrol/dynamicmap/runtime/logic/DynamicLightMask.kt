@@ -2,7 +2,7 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapBundle
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeSunlightArea
-import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWallKind
+import com.tabletopcontrol.dynamicmap.runtime.blocksDimLightWhenClosed
 import java.awt.geom.Area
 import java.awt.geom.Ellipse2D
 import java.awt.geom.Path2D
@@ -57,7 +57,7 @@ internal class DynamicLightMask(
             val brightArea = Area()
             val tintContributions = mutableListOf<DynamicLightTintContribution>()
             val hasAuthoredLighting = bundle.lights.isNotEmpty() || bundle.sunlightAreas.isNotEmpty()
-            val hasHardWalls = bundle.walls.any { it.kind == DynamicMapRuntimeWallKind.HARD }
+            val hasHardWalls = bundle.walls.any { it.blocksDimLightWhenClosed() }
 
             bundle.lights
                 .filter { it.enabled }
@@ -118,7 +118,7 @@ internal class DynamicLightMask(
             val brightArea = Area()
             val tintContributions = mutableListOf<DynamicLightTintContribution>()
             var hasTokenLighting = false
-            val hasHardWalls = bundle.walls.any { it.kind == DynamicMapRuntimeWallKind.HARD }
+            val hasHardWalls = bundle.walls.any { it.blocksDimLightWhenClosed() }
 
             pcSightlines.forEach { snapshot ->
                 val source = snapshot.token.lightSource ?: return@forEach
@@ -276,7 +276,7 @@ private fun hardLightGeometryFor(bundle: DynamicMapBundle): DynamicSightlineGeom
     DynamicSightlineGeometry.forMap(
         cols = bundle.cols,
         rows = bundle.rows,
-        walls = bundle.walls.filter { it.kind == DynamicMapRuntimeWallKind.HARD },
+        walls = bundle.walls.filter { it.blocksDimLightWhenClosed() },
     )
 
 private fun dimLightContribution(

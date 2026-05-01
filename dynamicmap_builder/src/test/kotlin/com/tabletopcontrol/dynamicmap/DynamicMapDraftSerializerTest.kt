@@ -31,6 +31,14 @@ class DynamicMapDraftSerializerTest {
                     end = DynamicMapPoint(5.0, 2.0),
                     kind = DynamicMapWallKind.HARD,
                 ),
+                DynamicMapWall(
+                    id = "door-1",
+                    label = "Hidden Pantry Door",
+                    start = DynamicMapPoint(5.0, 2.0),
+                    end = DynamicMapPoint(5.0, 3.0),
+                    kind = DynamicMapWallKind.DOOR,
+                    doorVisible = false,
+                ),
             ),
             lights = listOf(
                 DynamicMapLight(
@@ -95,5 +103,6 @@ class DynamicMapDraftSerializerTest {
         assertNotNull(restored)
         assertEquals("Wall 1", restored?.walls?.single()?.label)
         assertEquals(DynamicMapWallKind.SOFT, restored?.walls?.single()?.kind)
+        assertEquals(true, restored?.walls?.single()?.doorVisible)
     }
 }

@@ -89,11 +89,13 @@ object DynamicMapGameplayExportSerializer {
         props.setProperty("walls.count", document.walls.size.toString())
         document.walls.forEachIndexed { index, wall ->
             val prefix = "wall.$index"
+            props.setProperty("$prefix.id", "wall-$index")
             props.setProperty("$prefix.startX", wall.start.x.toString())
             props.setProperty("$prefix.startY", wall.start.y.toString())
             props.setProperty("$prefix.endX", wall.end.x.toString())
             props.setProperty("$prefix.endY", wall.end.y.toString())
             props.setProperty("$prefix.kind", wall.kind.name)
+            props.setProperty("$prefix.doorVisible", wall.doorVisible.toString())
         }
 
         props.setProperty("lights.count", document.lights.size.toString())

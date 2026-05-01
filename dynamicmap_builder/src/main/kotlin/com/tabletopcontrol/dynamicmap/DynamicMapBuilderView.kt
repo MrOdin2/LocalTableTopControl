@@ -31,7 +31,11 @@ import javafx.scene.paint.Color
 import javafx.stage.FileChooser
 import java.io.File
 import java.util.Locale
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.min
+import kotlin.math.sin
 
 private const val BACKGROUND_HISTORY_KEY = "dynamicmap_builder.background"
 private const val SNAP_STEP = 0.25
@@ -53,6 +57,7 @@ class DynamicMapBuilderView(
     private var preset: DynamicMapLightPreset = controller.currentPreset()
     private var activeTool: DynamicMapTool? = null
     private var activeWallKind: DynamicMapWallKind = DynamicMapWallKind.SOFT
+    private var activeDoorVisible: Boolean = true
     private var snapEnabled: Boolean = true
     private var dragStart: DynamicMapPoint? = null
     private var dragCurrent: DynamicMapPoint? = null
@@ -348,13 +353,21 @@ class DynamicMapBuilderView(
                                 start = start,
                                 end = end,
                                 kind = activeWallKind,
+                                doorVisible = activeDoorVisible,
                             ),
                         )
                     }
                 }
 
                 DynamicMapTool.WALL_RECT -> {
-                    controller.addWalls(buildRectangleWalls(start, end, kind = activeWallKind))
+                    controller.addWalls(
+                        buildRectangleWalls(
+                            start = start,
+                            end = end,
+                            kind = activeWallKind,
+                            doorVisible = activeDoorVisible,
+                        ),
+                    )
                 }
 
                 else -> Unit
@@ -434,6 +447,12 @@ class DynamicMapBuilderView(
             updateStatus(null)
         }
         disposers += { wallKindSubscription.unsubscribe() }
+        val doorVisibilitySubscription = EventBus.subscribe<DynamicMapDoorVisibilitySelectedEvent> { event ->
+            activeDoorVisible = event.visible
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { doorVisibilitySubscription.unsubscribe() }
         val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
             selectedElements = document.filterExistingSelections(event.selections)
             if (moveDrag != null) {
@@ -760,7 +779,15 @@ class DynamicMapBuilderView(
         }
         if (document.visibility.walls) {
             document.walls.forEach { wall ->
-                drawBuilderWallSegment(gc, metrics, wall.start, wall.end, wall.kind, accentColor)
+                drawBuilderWallSegment(
+                    gc = gc,
+                    metrics = metrics,
+                    start = wall.start,
+                    end = wall.end,
+                    kind = wall.kind,
+                    doorVisible = wall.doorVisible,
+                    accentColor = accentColor,
+                )
             }
             drawSelectedWallHighlight(gc, metrics, accentColor)
         }
@@ -779,6 +806,7 @@ class DynamicMapBuilderView(
                         start = start,
                         end = end,
                         kind = activeWallKind,
+                        doorVisible = activeDoorVisible,
                         accentColor = accentColor,
                     )
                 }
@@ -798,6 +826,7 @@ class DynamicMapBuilderView(
                         widthCells = widthCells,
                         heightCells = heightCells,
                         kind = activeWallKind,
+                        doorVisible = activeDoorVisible,
                         accentColor = accentColor,
                     )
                 }
@@ -986,6 +1015,7 @@ class DynamicMapBuilderView(
         start: DynamicMapPoint,
         end: DynamicMapPoint,
         kind: DynamicMapWallKind,
+        doorVisible: Boolean,
         accentColor: Color,
         lineWidth: Double = builderWallLineWidth(metrics),
     ) {
@@ -997,6 +1027,9 @@ class DynamicMapBuilderView(
             metrics.originY + end.y * metrics.cellSize,
         )
         gc.setLineDashes()
+        if (kind == DynamicMapWallKind.DOOR) {
+            drawBuilderDoorIcon(gc, metrics, start, end, doorVisible, accentColor)
+        }
     }
 
     private fun drawBuilderWallRect(
@@ -1007,6 +1040,7 @@ class DynamicMapBuilderView(
         widthCells: Double,
         heightCells: Double,
         kind: DynamicMapWallKind,
+        doorVisible: Boolean,
         accentColor: Color,
     ) {
         configureBuilderWallStroke(gc, metrics, kind, accentColor, builderWallLineWidth(metrics))
@@ -1017,6 +1051,16 @@ class DynamicMapBuilderView(
             heightCells * metrics.cellSize,
         )
         gc.setLineDashes()
+        if (kind == DynamicMapWallKind.DOOR) {
+            val left = minX
+            val right = minX + widthCells
+            val top = minY
+            val bottom = minY + heightCells
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), doorVisible, accentColor)
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), doorVisible, accentColor)
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), doorVisible, accentColor)
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), doorVisible, accentColor)
+        }
     }
 
     private fun configureBuilderWallStroke(
@@ -1030,6 +1074,7 @@ class DynamicMapBuilderView(
         gc.lineWidth = when (kind) {
             DynamicMapWallKind.SOFT -> lineWidth
             DynamicMapWallKind.HARD -> lineWidth * 1.15
+            DynamicMapWallKind.DOOR -> lineWidth * 1.15
         }
         if (kind == DynamicMapWallKind.SOFT) {
             gc.setLineDashes(
@@ -1048,7 +1093,69 @@ class DynamicMapBuilderView(
         when (kind) {
             DynamicMapWallKind.SOFT -> accentColor.deriveColor(0.0, 0.55, 1.2, 0.72)
             DynamicMapWallKind.HARD -> accentColor.deriveColor(0.0, 1.0, 0.95, 0.98)
+            DynamicMapWallKind.DOOR -> accentColor.deriveColor(38.0, 0.95, 1.05, 0.98)
         }
+
+    private fun drawBuilderDoorIcon(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        doorVisible: Boolean,
+        accentColor: Color,
+    ) {
+        val startX = metrics.originX + start.x * metrics.cellSize
+        val startY = metrics.originY + start.y * metrics.cellSize
+        val endX = metrics.originX + end.x * metrics.cellSize
+        val endY = metrics.originY + end.y * metrics.cellSize
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val centerX = (startX + endX) / 2.0
+        val centerY = (startY + endY) / 2.0
+        val angle = atan2(dy, dx)
+        val alongX = cos(angle)
+        val alongY = sin(angle)
+        val normalX = -alongY
+        val normalY = alongX
+        val halfLong = (metrics.cellSize * 0.3).coerceIn(7.0, 20.0)
+        val halfShort = (metrics.cellSize * 0.16).coerceIn(4.0, 12.0)
+        val xs = doubleArrayOf(
+            centerX + alongX * halfLong,
+            centerX + normalX * halfShort,
+            centerX - alongX * halfLong,
+            centerX - normalX * halfShort,
+        )
+        val ys = doubleArrayOf(
+            centerY + alongY * halfLong,
+            centerY + normalY * halfShort,
+            centerY - alongY * halfLong,
+            centerY - normalY * halfShort,
+        )
+
+        val iconColor = if (doorVisible) {
+            accentColor.deriveColor(38.0, 0.95, 1.1, 0.95)
+        } else {
+            accentColor.deriveColor(38.0, 0.35, 1.25, 0.7)
+        }
+        gc.fill = iconColor.deriveColor(0.0, 1.0, 1.0, if (doorVisible) 0.26 else 0.1)
+        gc.stroke = iconColor
+        gc.lineWidth = (metrics.cellSize * 0.045).coerceIn(2.0, 4.5)
+        if (!doorVisible) {
+            gc.setLineDashes(4.0, 4.0)
+        }
+        gc.fillPolygon(xs, ys, xs.size)
+        gc.strokePolygon(xs, ys, xs.size)
+        gc.setLineDashes()
+
+        if (!doorVisible) {
+            gc.stroke = iconColor
+            gc.lineWidth = (metrics.cellSize * 0.04).coerceIn(1.5, 3.0)
+            gc.strokeLine(xs[0], ys[0], xs[2], ys[2])
+        }
+    }
 
     private fun drawSelectedWallHighlight(
         gc: GraphicsContext,
@@ -1078,6 +1185,7 @@ class DynamicMapBuilderView(
                 start = selectedWall.start,
                 end = selectedWall.end,
                 kind = selectedWall.kind,
+                doorVisible = selectedWall.doorVisible,
                 accentColor = accentColor,
                 lineWidth = baseWidth * 1.2,
             )
@@ -1145,8 +1253,8 @@ class DynamicMapBuilderView(
 
     private fun updateStatus(mapPoint: DynamicMapPoint?) {
         val toolText = when (activeTool) {
-            DynamicMapTool.WALL_LINE -> "Tool: ${activeWallKind.statusText()} line"
-            DynamicMapTool.WALL_RECT -> "Tool: ${activeWallKind.statusText()} rectangle"
+            DynamicMapTool.WALL_LINE -> "Tool: ${activeWallKind.statusText(activeDoorVisible)} line"
+            DynamicMapTool.WALL_RECT -> "Tool: ${activeWallKind.statusText(activeDoorVisible)} rectangle"
             DynamicMapTool.LIGHT -> "Tool: light placement"
             DynamicMapTool.SUNLIGHT_AREA -> {
                 val vertices = sunlightDraftPoints.size
@@ -1172,5 +1280,8 @@ private fun DynamicMapTool?.isWallPlacementTool(): Boolean =
     this == DynamicMapTool.WALL_LINE ||
         this == DynamicMapTool.WALL_RECT
 
-private fun DynamicMapWallKind.statusText(): String =
-    displayName.lowercase()
+private fun DynamicMapWallKind.statusText(doorVisible: Boolean): String =
+    when (this) {
+        DynamicMapWallKind.DOOR -> if (doorVisible) "visible door" else "hidden door"
+        else -> displayName.lowercase()
+    }

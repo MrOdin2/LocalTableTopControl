@@ -59,6 +59,7 @@ class MapSceneCodecTest {
             ),
             activeTokenId = "token-1",
             dynamicMapRenderMode = DynamicMapRenderMode.DEBUG,
+            openDynamicDoorIds = setOf("wall-7", "wall-3"),
         )
 
         val serialized = MapSceneCodec.serialize(state)
@@ -69,6 +70,9 @@ class MapSceneCodecTest {
         assertTrue(serialized.contains("token.0.darkvisionRangeCells=12.0"))
         assertTrue(serialized.contains("token.0.lightBrightRangeCells=4.0"))
         assertTrue(serialized.contains("token.0.lightColor=\\#FFD37A"))
+        assertTrue(serialized.contains("dynamicMap.openDoors.count=2"))
+        assertTrue(serialized.contains("dynamicMap.openDoors.0=wall-3"))
+        assertTrue(serialized.contains("dynamicMap.openDoors.1=wall-7"))
     }
 
     @Test

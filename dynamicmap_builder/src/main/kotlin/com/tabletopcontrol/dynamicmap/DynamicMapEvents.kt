@@ -18,6 +18,11 @@ data class DynamicMapToolSelectedEvent(val tool: DynamicMapTool?)
 data class DynamicMapWallKindSelectedEvent(val kind: DynamicMapWallKind)
 
 /**
+ * Published when the wall tools pane changes whether newly placed doors are player-visible.
+ */
+data class DynamicMapDoorVisibilitySelectedEvent(val visible: Boolean)
+
+/**
  * Published when a side-pane requests bulk removal of all wall segments.
  */
 data object DynamicMapClearWallsRequestedEvent

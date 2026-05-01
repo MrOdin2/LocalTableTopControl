@@ -44,14 +44,17 @@ data class DynamicMapRuntimePoint(
 )
 
 data class DynamicMapRuntimeWall(
+    val id: String = "",
     val start: DynamicMapRuntimePoint,
     val end: DynamicMapRuntimePoint,
     val kind: DynamicMapRuntimeWallKind = DynamicMapRuntimeWallKind.SOFT,
+    val doorVisible: Boolean = true,
 )
 
 enum class DynamicMapRuntimeWallKind {
     SOFT,
     HARD,
+    DOOR,
     ;
 
     companion object {
@@ -59,6 +62,12 @@ enum class DynamicMapRuntimeWallKind {
             entries.firstOrNull { it.name.equals(value?.trim(), ignoreCase = true) } ?: SOFT
     }
 }
+
+fun DynamicMapRuntimeWall.isDoor(): Boolean =
+    kind == DynamicMapRuntimeWallKind.DOOR
+
+fun DynamicMapRuntimeWall.blocksDimLightWhenClosed(): Boolean =
+    kind == DynamicMapRuntimeWallKind.HARD || kind == DynamicMapRuntimeWallKind.DOOR
 
 data class DynamicMapRuntimeLight(
     val position: DynamicMapRuntimePoint,
@@ -169,9 +178,11 @@ object DynamicMapBundleLoader {
                 val endY = props.double("$prefix.endY") ?: return@repeat
                 add(
                     DynamicMapRuntimeWall(
+                        id = props.getProperty("$prefix.id") ?: "wall-$index",
                         start = DynamicMapRuntimePoint(startX, startY),
                         end = DynamicMapRuntimePoint(endX, endY),
                         kind = DynamicMapRuntimeWallKind.fromPersistence(props.getProperty("$prefix.kind")),
+                        doorVisible = props.getProperty("$prefix.doorVisible")?.toBooleanStrictOrNull() ?: true,
                     ),
                 )
             }

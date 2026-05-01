@@ -29,6 +29,7 @@ internal data class MapSceneState(
     val tokens: List<Token>,
     val activeTokenId: String?,
     val dynamicMapRenderMode: DynamicMapRenderMode = DynamicMapRenderMode.RENDER,
+    val openDynamicDoorIds: Set<String> = emptySet(),
 )
 
 internal data class MapFogSceneState(
@@ -57,6 +58,11 @@ internal object MapSceneCodec {
             state.dynamicMapBundlePath?.let { setProperty("dynamicMap.bundlePath", it) }
             state.dynamicMapDisplayPath?.let { setProperty("dynamicMap.displayPath", it) }
             setProperty("dynamicMap.renderMode", state.dynamicMapRenderMode.name)
+            val openDoorIds = state.openDynamicDoorIds.filter { it.isNotBlank() }.sorted()
+            setProperty("dynamicMap.openDoors.count", openDoorIds.size.toString())
+            openDoorIds.forEachIndexed { index, doorId ->
+                setProperty("dynamicMap.openDoors.$index", doorId)
+            }
             state.mapImageUri?.let { setProperty("mapImageUri", it) }
             state.mapDisplayPath?.let { setProperty("mapDisplayPath", it) }
             setProperty("map.scale", state.mapCalibration.scale.toString())
@@ -147,6 +153,14 @@ internal object MapSceneCodec {
         val dynamicMapRenderMode =
             DynamicMapRenderMode.fromPersisted(props.getProperty("dynamicMap.renderMode"))
                 ?: DynamicMapRenderMode.RENDER
+        val openDynamicDoorIds = buildSet {
+            val count = props.getProperty("dynamicMap.openDoors.count")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+            for (index in 0 until count) {
+                props.getProperty("dynamicMap.openDoors.$index")
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(::add)
+            }
+        }
 
         val tokenCount = props.getProperty("token.count")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val tokens = buildList {
@@ -240,6 +254,7 @@ internal object MapSceneCodec {
             tokens = tokens,
             activeTokenId = props.getProperty("tokens.active"),
             dynamicMapRenderMode = dynamicMapRenderMode,
+            openDynamicDoorIds = openDynamicDoorIds,
         )
     }
 

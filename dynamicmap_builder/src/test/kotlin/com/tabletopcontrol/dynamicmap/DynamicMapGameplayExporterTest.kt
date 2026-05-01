@@ -52,6 +52,14 @@ class DynamicMapGameplayExporterTest {
                     end = DynamicMapPoint(5.0, 2.0),
                     kind = DynamicMapWallKind.HARD,
                 ),
+                DynamicMapWall(
+                    id = "secret-door-id",
+                    label = "Hidden Study Door",
+                    start = DynamicMapPoint(5.0, 2.0),
+                    end = DynamicMapPoint(6.0, 2.0),
+                    kind = DynamicMapWallKind.DOOR,
+                    doorVisible = false,
+                ),
             ),
             lights = listOf(
                 DynamicMapLight(
@@ -96,11 +104,13 @@ class DynamicMapGameplayExporterTest {
 
         val manifest = entries.getValue(DynamicMapGameplayExporter.MANIFEST_ENTRY).toString(StandardCharsets.UTF_8)
         assertFalse(manifest.contains("Boss Gate"))
+        assertFalse(manifest.contains("Hidden Study Door"))
         assertFalse(manifest.contains("Ambush Torch"))
         assertFalse(manifest.contains("Ambush Group"))
         assertFalse(manifest.contains("Hidden Courtyard Name"))
         assertFalse(manifest.contains("secret-wall-id"))
         assertFalse(manifest.contains("secret-wall-id-2"))
+        assertFalse(manifest.contains("secret-door-id"))
         assertFalse(manifest.contains("secret-light-id"))
         assertFalse(manifest.contains("secret-sunlight-id"))
         assertFalse(manifest.contains("secret-group-id"))
@@ -115,10 +125,15 @@ class DynamicMapGameplayExporterTest {
         assertEquals("12", props.getProperty("map.rows"))
         assertEquals("background/background.png", props.getProperty("background.image"))
         assertEquals("1.25", props.getProperty("background.scale"))
-        assertEquals("1", props.getProperty("walls.count"))
+        assertEquals("2", props.getProperty("walls.count"))
+        assertEquals("wall-0", props.getProperty("wall.0.id"))
         assertEquals("1.0", props.getProperty("wall.0.startX"))
         assertEquals("5.0", props.getProperty("wall.0.endX"))
         assertEquals("HARD", props.getProperty("wall.0.kind"))
+        assertEquals("true", props.getProperty("wall.0.doorVisible"))
+        assertEquals("wall-1", props.getProperty("wall.1.id"))
+        assertEquals("DOOR", props.getProperty("wall.1.kind"))
+        assertEquals("false", props.getProperty("wall.1.doorVisible"))
         assertEquals("1", props.getProperty("lights.count"))
         assertEquals("4.0", props.getProperty("light.0.posX"))
         assertEquals("#ffb347", props.getProperty("light.0.colorHex"))

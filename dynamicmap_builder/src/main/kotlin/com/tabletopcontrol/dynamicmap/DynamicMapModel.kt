@@ -53,6 +53,7 @@ data class DynamicMapWall(
     val start: DynamicMapPoint,
     val end: DynamicMapPoint,
     val kind: DynamicMapWallKind = DynamicMapWallKind.SOFT,
+    val doorVisible: Boolean = true,
 )
 
 enum class DynamicMapWallKind(
@@ -61,6 +62,7 @@ enum class DynamicMapWallKind(
 ) {
     SOFT("Soft Wall", "Wall"),
     HARD("Hard Wall", "Hard Wall"),
+    DOOR("Door", "Door"),
     ;
 
     companion object {
