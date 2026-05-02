@@ -1,0 +1,1590 @@
+package com.tabletopcontrol.dynamicmap
+
+import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.ThemeChangedEvent
+import com.tabletopcontrol.core.ThemeManager
+import com.tabletopcontrol.core.ui.ContextMenuRenderer
+import com.tabletopcontrol.core.ui.MenuAction
+import com.tabletopcontrol.core.ui.MenuSection
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
+import com.tabletopcontrol.core.ui.dialog.FileChooserHistoryStore
+import javafx.geometry.Insets
+import javafx.geometry.Orientation
+import javafx.scene.Node
+import javafx.scene.canvas.Canvas
+import javafx.scene.canvas.GraphicsContext
+import javafx.scene.control.Button
+import javafx.scene.control.CheckBox
+import javafx.scene.control.ContextMenu
+import javafx.scene.control.CustomMenuItem
+import javafx.scene.control.Label
+import javafx.scene.control.MenuItem
+import javafx.scene.control.RadioButton
+import javafx.scene.control.Separator
+import javafx.scene.control.SeparatorMenuItem
+import javafx.scene.control.TextField
+import javafx.scene.control.Tooltip
+import javafx.scene.image.Image
+import javafx.scene.input.KeyCode
+import javafx.scene.input.KeyEvent
+import javafx.scene.input.MouseButton
+import javafx.scene.layout.HBox
+import javafx.scene.layout.Pane
+import javafx.scene.layout.Priority
+import javafx.scene.layout.VBox
+import javafx.scene.paint.Color
+import javafx.scene.shape.StrokeLineCap
+import javafx.stage.FileChooser
+import java.io.File
+import java.util.Locale
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.min
+import kotlin.math.sin
+
+private const val BACKGROUND_HISTORY_KEY = "dynamicmap_builder.background"
+private const val SNAP_STEP = 0.25
+private const val KEYBOARD_NUDGE_STEP = 0.25
+private const val KEYBOARD_SHIFT_NUDGE_STEP = 1.0
+private const val SUNLIGHT_CLOSE_VERTEX_TOLERANCE_PX = 12.0
+
+private data class DynamicMapMoveDrag(
+    val startPoint: DynamicMapPoint,
+    val baseDocument: DynamicMapDocument,
+    val selections: Set<DynamicMapElementSelection>,
+    val delta: DynamicMapPoint = DynamicMapPoint(0.0, 0.0),
+)
+
+class DynamicMapBuilderView(
+    private val controller: DynamicMapBuilderController,
+) {
+    private var document: DynamicMapDocument = controller.currentDocument()
+    private var preset: DynamicMapLightPreset = controller.currentPreset()
+    private var activeTool: DynamicMapTool? = null
+    private var activeWallKind: DynamicMapWallKind = DynamicMapWallKind.SOFT
+    private var activeDoorVisible: Boolean = true
+    private var snapEnabled: Boolean = true
+    private var dragStart: DynamicMapPoint? = null
+    private var dragCurrent: DynamicMapPoint? = null
+    private var sunlightDraftPoints: List<DynamicMapPoint> = emptyList()
+    private var sunlightHoverPoint: DynamicMapPoint? = null
+    private var cachedBackgroundUri: String? = null
+    private var cachedBackgroundImage: Image? = null
+    private var isPanning: Boolean = false
+    private var panDragStartX: Double = 0.0
+    private var panDragStartY: Double = 0.0
+    private var panDragStartOffsetX: Double = 0.0
+    private var panDragStartOffsetY: Double = 0.0
+    private var selectedElements: Set<DynamicMapElementSelection> = emptySet()
+    private var moveDrag: DynamicMapMoveDrag? = null
+    private val viewport = DynamicMapWorkspaceViewport()
+
+    private val canvas = Canvas(1.0, 1.0)
+    private val pathField = TextField(document.backgroundDisplayPath.orEmpty()).apply {
+        isEditable = false
+        promptText = "No texture loaded"
+    }
+    private val colsField = TextField(document.cols.toString()).apply {
+        prefWidth = 56.0
+        tooltip = Tooltip("Map width in grid cells")
+    }
+    private val rowsField = TextField(document.rows.toString()).apply {
+        prefWidth = 56.0
+        tooltip = Tooltip("Map height in grid cells")
+    }
+    private val statusLabel = Label()
+    private val showBackgroundCheck = CheckBox("BG").apply { isSelected = document.visibility.background }
+    private val showWallsCheck = CheckBox("Walls").apply { isSelected = document.visibility.walls }
+    private val showLightsCheck = CheckBox("Lights").apply { isSelected = document.visibility.lights }
+    private val showGridCheck = CheckBox("Grid").apply { isSelected = document.visibility.grid }
+    private val snapCheck = CheckBox("Snap 0.25").apply { isSelected = snapEnabled }
+    private val clearTextureButton = Button("Clear Texture").apply {
+        tooltip = Tooltip("Remove the current background texture")
+        setOnAction { controller.clearBackgroundImage() }
+    }
+    private val calibrateTextureButton = Button("Calibrate Texture...").apply {
+        tooltip = Tooltip("Adjust the texture scale and position against the builder grid")
+    }
+    private val guidedCalibrationButton = Button("Guided Calibration...").apply {
+        tooltip = Tooltip("Interactive two-step texture calibration")
+    }
+    private val zoomOutButton = Button("-").apply {
+        tooltip = Tooltip("Zoom out")
+        style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+        setOnAction {
+            viewport.zoomOut()
+            redraw()
+            updateStatus(null)
+        }
+    }
+    private val zoomInButton = Button("+").apply {
+        tooltip = Tooltip("Zoom in")
+        style = "-fx-min-width: 28px; -fx-max-width: 28px;"
+        setOnAction {
+            viewport.zoomIn()
+            redraw()
+            updateStatus(null)
+        }
+    }
+    private val resetViewButton = Button("Reset View").apply {
+        tooltip = Tooltip("Reset zoom and pan without changing the map grid or draft")
+        setOnAction {
+            viewport.reset()
+            redraw()
+            updateStatus(null)
+        }
+    }
+
+    val root: Node
+
+    init {
+        HBox.setHgrow(pathField, Priority.ALWAYS)
+
+        val textureRow = HBox(
+            6.0,
+            Button("Load Texture...").apply {
+                tooltip = Tooltip("Load an image as the builder background")
+                setOnAction { openTextureChooser() }
+            },
+            clearTextureButton,
+            calibrateTextureButton,
+            guidedCalibrationButton,
+            pathField,
+        )
+
+        val layoutRow = HBox(
+            6.0,
+            Label("Map:"),
+            colsField,
+            Label("x"),
+            rowsField,
+            Button("Apply Size").apply {
+                tooltip = Tooltip("Resize the logical map bounds without deleting placed content")
+                setOnAction { applyMapSize() }
+            },
+            Separator(Orientation.VERTICAL),
+            Label("Layers:"),
+            showBackgroundCheck,
+            showWallsCheck,
+            showLightsCheck,
+            showGridCheck,
+            Separator(Orientation.VERTICAL),
+            snapCheck,
+            Separator(Orientation.VERTICAL),
+            Label("View:"),
+            zoomOutButton,
+            zoomInButton,
+            resetViewButton,
+        )
+
+        val canvasPane = object : Pane() {
+            init {
+                children += canvas
+                minHeight = 260.0
+                style = "-fx-background-color: -tc-surface; -fx-border-color: -tc-border;"
+            }
+
+            override fun layoutChildren() {
+                if (canvas.width != width || canvas.height != height) {
+                    canvas.width = width
+                    canvas.height = height
+                    redraw()
+                }
+            }
+        }
+
+        root = VBox(
+            6.0,
+            textureRow,
+            layoutRow,
+            canvasPane,
+            statusLabel,
+        ).apply {
+            padding = Insets(6.0)
+            style = "-fx-background-color: -tc-bg;"
+            isFocusTraversable = true
+            VBox.setVgrow(canvasPane, Priority.ALWAYS)
+            setOnKeyPressed { event ->
+                when {
+                    event.code == KeyCode.ESCAPE && activeTool != null -> {
+                        clearSunlightDraft()
+                        EventBus.publish(DynamicMapToolSelectedEvent(tool = null))
+                        event.consume()
+                    }
+
+                    handleKeyboardNudge(event) -> {
+                        event.consume()
+                    }
+                }
+            }
+        }
+
+        showBackgroundCheck.setOnAction {
+            controller.setLayerVisible(DynamicMapLayer.BACKGROUND, showBackgroundCheck.isSelected)
+        }
+        showWallsCheck.setOnAction {
+            controller.setLayerVisible(DynamicMapLayer.WALLS, showWallsCheck.isSelected)
+        }
+        showLightsCheck.setOnAction {
+            controller.setLayerVisible(DynamicMapLayer.LIGHTS, showLightsCheck.isSelected)
+        }
+        showGridCheck.setOnAction {
+            controller.setLayerVisible(DynamicMapLayer.GRID, showGridCheck.isSelected)
+        }
+        snapCheck.setOnAction {
+            snapEnabled = snapCheck.isSelected
+            redraw()
+            updateStatus(null)
+        }
+
+        calibrateTextureButton.setOnAction {
+            DynamicMapCalibrationDialogs.showBackgroundCalibrationDialog(
+                owner = root.scene?.window,
+                controller = controller,
+                previewCellSize = currentMetrics()?.cellSize ?: 1.0,
+            )
+        }
+        guidedCalibrationButton.setOnAction {
+            DynamicMapCalibrationDialogs.showGuidedCalibrationDialog(
+                owner = root.scene?.window,
+                controller = controller,
+            )
+        }
+
+        canvas.setOnMousePressed { event ->
+            root.requestFocus()
+            when (event.button) {
+                MouseButton.PRIMARY -> {
+                    when (activeTool) {
+                        DynamicMapTool.LIGHT -> {
+                            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
+                                ?: return@setOnMousePressed
+                            controller.addLight(normalizePoint(point))
+                        }
+
+                        DynamicMapTool.SUNLIGHT_AREA -> {
+                            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
+                                ?: return@setOnMousePressed
+                            handleSunlightAreaClick(
+                                point = normalizePoint(point),
+                                clickCount = event.clickCount,
+                            )
+                            event.consume()
+                        }
+
+                        DynamicMapTool.WALL_LINE,
+                        DynamicMapTool.WALL_RECT,
+                        -> {
+                            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)
+                                ?: return@setOnMousePressed
+                            dragStart = normalizePoint(point)
+                            dragCurrent = dragStart
+                            redraw()
+                        }
+
+                        null -> {
+                            val selection = selectionAtCanvas(event.x, event.y)
+                            if (selection != null) {
+                                val dragSelections = if (selection in selectedElements) {
+                                    selectedElements
+                                } else {
+                                    setOf(selection)
+                                }
+                                if (dragSelections != selectedElements) {
+                                    EventBus.publish(DynamicMapSelectionChangedEvent(dragSelections))
+                                }
+                                val point = mapPointFromCanvas(event.x, event.y, clampToBounds = true)
+                                    ?: return@setOnMousePressed
+                                beginMoveDrag(point, dragSelections)
+                                event.consume()
+                            } else {
+                                beginPan(event.x, event.y)
+                            }
+                        }
+                    }
+                }
+
+                MouseButton.MIDDLE -> beginPan(event.x, event.y)
+                else -> Unit
+            }
+        }
+
+        canvas.setOnMouseDragged { event ->
+            val activeMoveDrag = moveDrag
+            if (activeMoveDrag != null && event.isPrimaryButtonDown) {
+                updateMoveDrag(event.x, event.y, activeMoveDrag)
+                event.consume()
+                return@setOnMouseDragged
+            }
+            if (isPanning && (event.isPrimaryButtonDown || event.isMiddleButtonDown)) {
+                viewport.setPan(
+                    x = panDragStartOffsetX + (event.x - panDragStartX),
+                    y = panDragStartOffsetY + (event.y - panDragStartY),
+                )
+                redraw()
+                updateStatus(mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint))
+                return@setOnMouseDragged
+            }
+            if (!event.isPrimaryButtonDown) return@setOnMouseDragged
+            if (activeTool.isWallPlacementTool()) {
+                val point = mapPointFromCanvas(event.x, event.y, clampToBounds = true) ?: return@setOnMouseDragged
+                dragCurrent = normalizePoint(point)
+                redraw()
+                updateStatus(dragCurrent)
+            }
+        }
+
+        canvas.setOnMouseReleased { event ->
+            val activeMoveDrag = moveDrag
+            if (activeMoveDrag != null) {
+                commitMoveDrag(activeMoveDrag)
+                event.consume()
+                return@setOnMouseReleased
+            }
+            if (isPanning) {
+                isPanning = false
+                event.consume()
+                return@setOnMouseReleased
+            }
+            if (event.button != MouseButton.PRIMARY) return@setOnMouseReleased
+            val start = dragStart ?: return@setOnMouseReleased
+            val end = dragCurrent ?: start
+            when (activeTool) {
+                DynamicMapTool.WALL_LINE -> {
+                    if (start != end) {
+                        controller.addWall(
+                            DynamicMapWall(
+                                label = activeWallKind.defaultLabel,
+                                start = start,
+                                end = end,
+                                kind = activeWallKind,
+                                doorVisible = activeDoorVisible,
+                            ),
+                        )
+                    }
+                }
+
+                DynamicMapTool.WALL_RECT -> {
+                    controller.addWalls(
+                        buildRectangleWalls(
+                            start = start,
+                            end = end,
+                            kind = activeWallKind,
+                            doorVisible = activeDoorVisible,
+                        ),
+                    )
+                }
+
+                else -> Unit
+            }
+            dragStart = null
+            dragCurrent = null
+            redraw()
+        }
+
+        canvas.setOnMouseMoved { event ->
+            val point = mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint)
+            if (activeTool == DynamicMapTool.SUNLIGHT_AREA && sunlightDraftPoints.isNotEmpty()) {
+                sunlightHoverPoint = point
+                redraw()
+            }
+            updateStatus(point)
+        }
+
+        canvas.setOnMouseExited {
+            updateStatus(null)
+        }
+
+        canvas.setOnScroll { event ->
+            viewport.zoomFromScroll(event.deltaY)
+            redraw()
+            updateStatus(mapPointFromCanvas(event.x, event.y, clampToBounds = false)?.let(::normalizePoint))
+            event.consume()
+        }
+
+        canvas.setOnContextMenuRequested { event ->
+            if (showContextMenu(event.x, event.y, event.screenX, event.screenY)) {
+                event.consume()
+            }
+        }
+
+        val disposers = mutableListOf<() -> Unit>()
+        disposers += controller.observeDocument { updated ->
+            document = updated
+            val existingSelections = updated.filterExistingSelections(selectedElements)
+            if (existingSelections != selectedElements) {
+                EventBus.publish(DynamicMapSelectionChangedEvent(existingSelections))
+            }
+            pathField.text = updated.backgroundDisplayPath.orEmpty()
+            colsField.text = updated.cols.toString()
+            rowsField.text = updated.rows.toString()
+            showBackgroundCheck.isSelected = updated.visibility.background
+            showWallsCheck.isSelected = updated.visibility.walls
+            showLightsCheck.isSelected = updated.visibility.lights
+            showGridCheck.isSelected = updated.visibility.grid
+            clearTextureButton.isDisable = updated.backgroundImageUri == null
+            calibrateTextureButton.isDisable = updated.backgroundImageUri == null
+            guidedCalibrationButton.isDisable = updated.backgroundImageUri == null
+            redraw()
+            updateStatus(null)
+        }
+        disposers += controller.observePreset { updated ->
+            preset = updated
+            updateStatus(null)
+        }
+        val toolSubscription = EventBus.subscribe<DynamicMapToolSelectedEvent> { event ->
+            if (event.tool != DynamicMapTool.SUNLIGHT_AREA) {
+                clearSunlightDraft()
+            } else if (activeTool != DynamicMapTool.SUNLIGHT_AREA) {
+                sunlightDraftPoints = emptyList()
+                sunlightHoverPoint = null
+            }
+            activeTool = event.tool
+            dragStart = null
+            dragCurrent = null
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { toolSubscription.unsubscribe() }
+        val wallKindSubscription = EventBus.subscribe<DynamicMapWallKindSelectedEvent> { event ->
+            activeWallKind = event.kind
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { wallKindSubscription.unsubscribe() }
+        val doorVisibilitySubscription = EventBus.subscribe<DynamicMapDoorVisibilitySelectedEvent> { event ->
+            activeDoorVisible = event.visible
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { doorVisibilitySubscription.unsubscribe() }
+        val selectionSubscription = EventBus.subscribe<DynamicMapSelectionChangedEvent> { event ->
+            selectedElements = document.filterExistingSelections(event.selections)
+            if (moveDrag != null) {
+                moveDrag = null
+            }
+            redraw()
+            updateStatus(null)
+        }
+        disposers += { selectionSubscription.unsubscribe() }
+        val themeSubscription = EventBus.subscribe<ThemeChangedEvent> {
+            redraw()
+        }
+        disposers += { themeSubscription.unsubscribe() }
+
+        root.sceneProperty().addListener { _, _, newScene ->
+            if (newScene == null) {
+                disposers.toList().forEach { it() }
+            }
+        }
+
+        redraw()
+        updateStatus(null)
+    }
+
+    private fun openTextureChooser() {
+        val chooser = FileChooser().apply {
+            title = "Select background texture"
+            extensionFilters.addAll(
+                FileChooser.ExtensionFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"),
+                FileChooser.ExtensionFilter("All files", "*.*"),
+            )
+            FileChooserHistoryStore.configureInitialDirectory(
+                chooser = this,
+                key = BACKGROUND_HISTORY_KEY,
+                fallbackSelection = document.backgroundDisplayPath?.let(::File),
+            )
+        }
+        val file = chooser.showOpenDialog(root.scene?.window)
+        if (file != null) {
+            FileChooserHistoryStore.rememberSelection(BACKGROUND_HISTORY_KEY, file)
+            val uri = file.toURI().toString()
+            val image = runCatching { Image(uri, false) }
+                .getOrNull()
+                ?.takeUnless { it.isError }
+            val calibration = image?.let {
+                fittedBackgroundCalibration(
+                    imageWidth = it.width,
+                    imageHeight = it.height,
+                    cols = document.cols,
+                    rows = document.rows,
+                )
+            } ?: DynamicMapBackgroundCalibration()
+            controller.setBackgroundImage(uri, file.absolutePath, calibration)
+        }
+    }
+
+    private fun applyMapSize() {
+        val cols = colsField.text.toIntOrNull()
+        val rows = rowsField.text.toIntOrNull()
+        if (cols != null && rows != null) {
+            controller.setMapSize(cols, rows)
+        } else {
+            colsField.text = document.cols.toString()
+            rowsField.text = document.rows.toString()
+        }
+    }
+
+    private fun beginPan(canvasX: Double, canvasY: Double) {
+        isPanning = true
+        panDragStartX = canvasX
+        panDragStartY = canvasY
+        panDragStartOffsetX = viewport.offsetX
+        panDragStartOffsetY = viewport.offsetY
+    }
+
+    private fun beginMoveDrag(
+        startPoint: DynamicMapPoint,
+        selections: Set<DynamicMapElementSelection>,
+    ) {
+        isPanning = false
+        moveDrag = DynamicMapMoveDrag(
+            startPoint = startPoint,
+            baseDocument = document,
+            selections = selections,
+        )
+        updateStatus(startPoint)
+    }
+
+    private fun handleKeyboardNudge(event: KeyEvent): Boolean {
+        if (!isBuilderCanvasFocusOwner()) return false
+        if (activeTool != null || moveDrag != null || selectedElements.isEmpty()) return false
+        val direction = when (event.code) {
+            KeyCode.LEFT -> DynamicMapPoint(-1.0, 0.0)
+            KeyCode.RIGHT -> DynamicMapPoint(1.0, 0.0)
+            KeyCode.UP -> DynamicMapPoint(0.0, -1.0)
+            KeyCode.DOWN -> DynamicMapPoint(0.0, 1.0)
+            else -> return false
+        }
+        val step = keyboardNudgeStep(event)
+        val requestedDelta = DynamicMapPoint(
+            x = direction.x * step,
+            y = direction.y * step,
+        )
+        val clampedDelta = document.clampMovementDelta(selectedElements, requestedDelta)
+        if (clampedDelta.x == 0.0 && clampedDelta.y == 0.0) return true
+
+        controller.moveSelections(selectedElements, clampedDelta)
+        return true
+    }
+
+    private fun keyboardNudgeStep(event: KeyEvent): Double =
+        when {
+            event.isControlDown -> currentMetrics()
+                ?.let { fineMovementStepInTiles(it.cellSize, viewport.scale) }
+                ?: 0.01
+            event.isShiftDown -> KEYBOARD_SHIFT_NUDGE_STEP
+            else -> KEYBOARD_NUDGE_STEP
+        }
+
+    private fun isBuilderCanvasFocusOwner(): Boolean {
+        val focusOwner = root.scene?.focusOwner
+        return focusOwner == root || focusOwner == canvas
+    }
+
+    private fun updateMoveDrag(
+        canvasX: Double,
+        canvasY: Double,
+        drag: DynamicMapMoveDrag,
+    ) {
+        val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = true) ?: return
+        val requestedDelta = DynamicMapPoint(
+            x = point.x - drag.startPoint.x,
+            y = point.y - drag.startPoint.y,
+        ).let { delta ->
+            if (snapEnabled) snapPoint(delta, SNAP_STEP) else delta
+        }
+        val clampedDelta = drag.baseDocument.clampMovementDelta(drag.selections, requestedDelta)
+        moveDrag = drag.copy(delta = clampedDelta)
+        document = drag.baseDocument.moveSelections(drag.selections, clampedDelta)
+        redraw()
+        updateStatus(normalizePoint(point))
+    }
+
+    private fun commitMoveDrag(drag: DynamicMapMoveDrag) {
+        moveDrag = null
+        document = drag.baseDocument
+        if (drag.delta.x != 0.0 || drag.delta.y != 0.0) {
+            controller.moveSelections(drag.selections, drag.delta)
+        } else {
+            redraw()
+            updateStatus(null)
+        }
+    }
+
+    private fun handleSunlightAreaClick(
+        point: DynamicMapPoint,
+        clickCount: Int,
+    ) {
+        if (sunlightDraftPoints.size >= 3 && isNearFirstSunlightDraftPoint(point)) {
+            finishSunlightArea(sunlightDraftPoints)
+            return
+        }
+
+        val nextPoints = if (sunlightDraftPoints.lastOrNull() == point) {
+            sunlightDraftPoints
+        } else {
+            sunlightDraftPoints + point
+        }
+        if (clickCount >= 2 && nextPoints.size >= 3) {
+            finishSunlightArea(nextPoints)
+            return
+        }
+
+        sunlightDraftPoints = nextPoints
+        sunlightHoverPoint = point
+        redraw()
+        updateStatus(point)
+    }
+
+    private fun finishSunlightArea(points: List<DynamicMapPoint>) {
+        controller.addSunlightArea(points)
+        clearSunlightDraft()
+        redraw()
+        updateStatus(null)
+    }
+
+    private fun clearSunlightDraft() {
+        sunlightDraftPoints = emptyList()
+        sunlightHoverPoint = null
+    }
+
+    private fun isNearFirstSunlightDraftPoint(point: DynamicMapPoint): Boolean {
+        val first = sunlightDraftPoints.firstOrNull() ?: return false
+        val metrics = currentMetrics() ?: return false
+        val tolerance = SUNLIGHT_CLOSE_VERTEX_TOLERANCE_PX / (metrics.cellSize * viewport.scale)
+        return distanceToSegment(point, first, first) <= tolerance
+    }
+
+    private fun showContextMenu(canvasX: Double, canvasY: Double, screenX: Double, screenY: Double): Boolean {
+        val actions = mutableListOf<MenuAction>()
+        val chosenSelection = selectionAtCanvas(canvasX, canvasY)
+        val chosenLight = chosenSelection
+            ?.takeIf { it.kind == DynamicMapElementKind.LIGHT }
+            ?.let { document.lightById(it.elementId) }
+        val chosenWall = chosenSelection
+            ?.takeIf { it.kind == DynamicMapElementKind.WALL }
+            ?.let { document.wallById(it.elementId) }
+        val chosenSunlightArea = chosenSelection
+            ?.takeIf { it.kind == DynamicMapElementKind.SUNLIGHT_AREA }
+            ?.let { document.sunlightAreaById(it.elementId) }
+
+        chosenSelection?.let {
+            EventBus.publish(DynamicMapSelectionChangedEvent(it))
+        }
+
+        if (chosenWall?.kind == DynamicMapWallKind.FEATURE) {
+            showFeatureWallContextMenu(chosenWall, screenX, screenY)
+            return true
+        }
+
+        if (chosenLight != null) {
+            actions += MenuAction(
+                id = "dynamicmap_builder.remove-light",
+                label = "Remove ${chosenLight.label}",
+                section = MenuSection.DANGER_ZONE,
+                onAction = { controller.removeLight(chosenLight.id) },
+            )
+        }
+        if (chosenWall != null) {
+            actions += MenuAction(
+                id = "dynamicmap_builder.remove-wall",
+                label = "Remove Wall",
+                section = MenuSection.DANGER_ZONE,
+                onAction = { controller.removeWall(chosenWall.id) },
+            )
+        }
+        if (chosenSunlightArea != null) {
+            actions += MenuAction(
+                id = "dynamicmap_builder.remove-sunlight-area",
+                label = "Remove ${chosenSunlightArea.label}",
+                section = MenuSection.DANGER_ZONE,
+                onAction = { controller.removeSunlightArea(chosenSunlightArea.id) },
+            )
+        }
+        if (actions.isEmpty()) return false
+        ContextMenuRenderer.build(actions).show(canvas, screenX, screenY)
+        return true
+    }
+
+    private fun showFeatureWallContextMenu(
+        wall: DynamicMapWall,
+        screenX: Double,
+        screenY: Double,
+    ) {
+        val menu = ContextMenu()
+        val behaviorEditor = VBox(
+            6.0,
+            Label("Feature Wall").apply {
+                style = "-fx-text-fill: -tc-text; -fx-font-weight: bold;"
+            },
+            featureWallSideBehaviorRow(
+                wall = wall,
+                side = DynamicMapWallSide.FRONT,
+                selectedBehavior = wall.frontBehavior,
+            ),
+            featureWallSideBehaviorRow(
+                wall = wall,
+                side = DynamicMapWallSide.BACK,
+                selectedBehavior = wall.backBehavior,
+            ),
+        ).apply {
+            padding = Insets(6.0, 8.0, 6.0, 8.0)
+            style = "-fx-background-color: -tc-surface;"
+        }
+        val removeItem = MenuItem("Remove Feature Wall").apply {
+            setOnAction { controller.removeWall(wall.id) }
+        }
+
+        menu.items.add(CustomMenuItem(behaviorEditor, false))
+        menu.items.add(SeparatorMenuItem())
+        menu.items.add(removeItem)
+        menu.show(canvas, screenX, screenY)
+    }
+
+    private fun featureWallSideBehaviorRow(
+        wall: DynamicMapWall,
+        side: DynamicMapWallSide,
+        selectedBehavior: DynamicMapWallSideBehavior,
+    ): HBox {
+        val group = javafx.scene.control.ToggleGroup()
+        val behaviorButtons = DynamicMapWallSideBehavior.entries.map { behavior ->
+            RadioButton(behavior.displayName).apply {
+                toggleGroup = group
+                isSelected = behavior == selectedBehavior
+                style = "-fx-text-fill: -tc-text;"
+                setOnAction {
+                    if (isSelected) {
+                        controller.setFeatureWallSideBehavior(
+                            id = wall.id,
+                            side = side,
+                            behavior = behavior,
+                        )
+                    }
+                }
+            }
+        }
+        return HBox(
+            8.0,
+            Label("${side.displayName}:").apply {
+                minWidth = 42.0
+                style = "-fx-text-fill: -tc-text;"
+            },
+            *behaviorButtons.toTypedArray(),
+        ).apply {
+            style = "-fx-background-color: -tc-surface;"
+        }
+    }
+
+    private fun selectionAtCanvas(canvasX: Double, canvasY: Double): DynamicMapElementSelection? {
+        val point = mapPointFromCanvas(canvasX, canvasY, clampToBounds = false) ?: return null
+        val metrics = currentMetrics() ?: return null
+        val tolerance = 12.0 / (metrics.cellSize * viewport.scale)
+
+        val nearestLight = document.lights
+            .map { light -> light to distanceToSegment(point, light.position, light.position) }
+            .filter { (_, distance) -> distance <= tolerance }
+            .minByOrNull { it.second }
+        val nearestWall = document.walls
+            .map { wall -> wall to distanceToWall(point, wall) }
+            .filter { (_, distance) -> distance <= tolerance }
+            .minByOrNull { it.second }
+        val chosenSunlightArea = document.sunlightAreas
+            .asReversed()
+            .firstOrNull { area -> distanceToSunlightArea(point, area) <= tolerance }
+
+        val chosenLight = nearestLight
+            ?.takeIf { nearestWall == null || it.second <= nearestWall.second }
+            ?.first
+        val chosenWall = nearestWall
+            ?.takeIf { nearestLight == null || it.second < nearestLight.second }
+            ?.first
+
+        return when {
+            chosenLight != null -> DynamicMapElementSelection(DynamicMapElementKind.LIGHT, chosenLight.id)
+            chosenWall != null -> DynamicMapElementSelection(DynamicMapElementKind.WALL, chosenWall.id)
+            chosenSunlightArea != null -> DynamicMapElementSelection(
+                DynamicMapElementKind.SUNLIGHT_AREA,
+                chosenSunlightArea.id,
+            )
+            else -> null
+        }
+    }
+
+    private fun redraw() {
+        val width = canvas.width
+        val height = canvas.height
+        if (width <= 0.0 || height <= 0.0) return
+
+        val metrics = computeMetrics(width, height)
+        val theme = ThemeManager.currentTheme
+        val backgroundColor = ColorHexCodec.hexToColor(theme.bgColor)
+        val surfaceColor = ColorHexCodec.hexToColor(theme.surfaceColor)
+        val borderColor = ColorHexCodec.hexToColor(theme.borderColor)
+        val accentColor = ColorHexCodec.hexToColor(theme.accentColor)
+
+        val gc = canvas.graphicsContext2D
+        gc.clearRect(0.0, 0.0, width, height)
+        gc.fill = backgroundColor
+        gc.fillRect(0.0, 0.0, width, height)
+
+        gc.save()
+        applyWorkspaceViewportTransform(width, height)
+
+        gc.fill = surfaceColor
+        gc.fillRect(metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
+
+        if (document.visibility.background) {
+            resolveBackgroundImage()?.let { image ->
+                drawCalibratedBackgroundImage(gc, image, metrics, document.backgroundCalibration)
+            }
+        }
+
+        if (document.visibility.lights) {
+            drawSunlightAreas(gc, metrics, accentColor)
+            drawLightHalos(gc, metrics)
+        }
+        if (document.visibility.grid) {
+            gc.stroke = borderColor.deriveColor(0.0, 1.0, 1.0, 0.55)
+            gc.lineWidth = 1.0
+            for (col in 0..document.cols) {
+                val x = metrics.originX + col * metrics.cellSize
+                gc.strokeLine(x, metrics.originY, x, metrics.originY + metrics.mapHeight)
+            }
+            for (row in 0..document.rows) {
+                val y = metrics.originY + row * metrics.cellSize
+                gc.strokeLine(metrics.originX, y, metrics.originX + metrics.mapWidth, y)
+            }
+        }
+        if (document.visibility.walls) {
+            document.walls.forEach { wall ->
+                drawBuilderWallSegment(
+                    gc = gc,
+                    metrics = metrics,
+                    start = wall.start,
+                    end = wall.end,
+                    kind = wall.kind,
+                    doorVisible = wall.doorVisible,
+                    frontBehavior = wall.frontBehavior,
+                    backBehavior = wall.backBehavior,
+                    accentColor = accentColor,
+                )
+            }
+            drawSelectedWallHighlight(gc, metrics, accentColor)
+        }
+        if (document.visibility.lights) {
+            drawLightMarkers(gc, metrics, borderColor, accentColor)
+        }
+
+        if (dragStart != null && dragCurrent != null) {
+            when (activeTool) {
+                DynamicMapTool.WALL_LINE -> {
+                    val start = dragStart ?: return
+                    val end = dragCurrent ?: return
+                    drawBuilderWallSegment(
+                        gc = gc,
+                        metrics = metrics,
+                        start = start,
+                        end = end,
+                        kind = activeWallKind,
+                        doorVisible = activeDoorVisible,
+                        accentColor = accentColor,
+                    )
+                }
+
+                DynamicMapTool.WALL_RECT -> {
+                    val start = dragStart ?: return
+                    val end = dragCurrent ?: return
+                    val minX = min(start.x, end.x)
+                    val minY = min(start.y, end.y)
+                    val widthCells = kotlin.math.abs(end.x - start.x)
+                    val heightCells = kotlin.math.abs(end.y - start.y)
+                    drawBuilderWallRect(
+                        gc = gc,
+                        metrics = metrics,
+                        minX = minX,
+                        minY = minY,
+                        widthCells = widthCells,
+                        heightCells = heightCells,
+                        kind = activeWallKind,
+                        doorVisible = activeDoorVisible,
+                        accentColor = accentColor,
+                    )
+                }
+
+                else -> Unit
+            }
+            gc.setLineDashes()
+        }
+        if (activeTool == DynamicMapTool.SUNLIGHT_AREA && sunlightDraftPoints.isNotEmpty()) {
+            drawSunlightDraft(gc, metrics, accentColor)
+        }
+
+        gc.stroke = borderColor
+        gc.lineWidth = 2.0
+        gc.strokeRect(metrics.originX, metrics.originY, metrics.mapWidth, metrics.mapHeight)
+
+        gc.restore()
+    }
+
+    private fun applyWorkspaceViewportTransform(width: Double, height: Double) {
+        val gc = canvas.graphicsContext2D
+        val centerX = width / 2.0
+        val centerY = height / 2.0
+        gc.translate(centerX + viewport.offsetX, centerY + viewport.offsetY)
+        gc.scale(viewport.scale, viewport.scale)
+        gc.translate(-centerX, -centerY)
+    }
+
+    private fun drawSunlightAreas(
+        gc: javafx.scene.canvas.GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        accentColor: Color,
+    ) {
+        document.sunlightAreas.forEach { area ->
+            val points = sanitizedSunlightPolygon(area.points)
+            if (points.size < 3) return@forEach
+            val xs = DoubleArray(points.size) { index -> metrics.originX + points[index].x * metrics.cellSize }
+            val ys = DoubleArray(points.size) { index -> metrics.originY + points[index].y * metrics.cellSize }
+            val selected = selectedElements.any {
+                it.kind == DynamicMapElementKind.SUNLIGHT_AREA && it.elementId == area.id
+            }
+
+            gc.fill = accentColor.deriveColor(35.0, 0.6, 1.2, 0.16)
+            gc.fillPolygon(xs, ys, points.size)
+            gc.stroke = accentColor.deriveColor(35.0, 0.8, 1.2, 0.82)
+            gc.lineWidth = 2.0
+            gc.strokePolygon(xs, ys, points.size)
+
+            if (selected) {
+                gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+                gc.lineWidth = 5.0
+                gc.strokePolygon(xs, ys, points.size)
+                gc.stroke = accentColor
+                gc.lineWidth = 2.5
+                gc.strokePolygon(xs, ys, points.size)
+            }
+        }
+    }
+
+    private fun drawSunlightDraft(
+        gc: javafx.scene.canvas.GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        accentColor: Color,
+    ) {
+        val hover = sunlightHoverPoint
+        val points = if (hover != null && hover != sunlightDraftPoints.lastOrNull()) {
+            sunlightDraftPoints + hover
+        } else {
+            sunlightDraftPoints
+        }
+        if (points.isEmpty()) return
+
+        val xs = DoubleArray(points.size) { index -> metrics.originX + points[index].x * metrics.cellSize }
+        val ys = DoubleArray(points.size) { index -> metrics.originY + points[index].y * metrics.cellSize }
+
+        if (points.size >= 3) {
+            gc.fill = accentColor.deriveColor(35.0, 0.6, 1.2, 0.10)
+            gc.fillPolygon(xs, ys, points.size)
+        }
+
+        if (points.size >= 2) {
+            gc.stroke = accentColor
+            gc.lineWidth = 2.0
+            gc.strokePolyline(xs, ys, points.size)
+
+            if (points.size >= 3) {
+                gc.setLineDashes(6.0, 6.0)
+                gc.strokeLine(xs.last(), ys.last(), xs.first(), ys.first())
+                gc.setLineDashes()
+            }
+        }
+
+        val markerRadius = (metrics.cellSize * 0.12).coerceIn(3.0, 7.0)
+        sunlightDraftPoints.forEachIndexed { index, point ->
+            val x = metrics.originX + point.x * metrics.cellSize
+            val y = metrics.originY + point.y * metrics.cellSize
+            gc.fill = if (index == 0) {
+                accentColor.deriveColor(35.0, 0.8, 1.25, 0.95)
+            } else {
+                accentColor
+            }
+            gc.fillOval(x - markerRadius, y - markerRadius, markerRadius * 2.0, markerRadius * 2.0)
+            gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+            gc.lineWidth = 1.0
+            gc.strokeOval(x - markerRadius, y - markerRadius, markerRadius * 2.0, markerRadius * 2.0)
+        }
+    }
+
+    private fun drawLightHalos(
+        gc: javafx.scene.canvas.GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+    ) {
+        document.lights.filter { it.enabled }.forEach { light ->
+            val color = ColorHexCodec.hexToColor(light.colorHex)
+            val centerX = metrics.originX + light.position.x * metrics.cellSize
+            val centerY = metrics.originY + light.position.y * metrics.cellSize
+            val dimRadius = light.dimRadius * metrics.cellSize
+            val brightRadius = light.brightRadius * metrics.cellSize
+
+            gc.fill = color.deriveColor(0.0, 1.0, 1.0, 0.14)
+            gc.fillOval(centerX - dimRadius, centerY - dimRadius, dimRadius * 2.0, dimRadius * 2.0)
+
+            gc.fill = color.deriveColor(0.0, 1.0, 1.0, 0.28)
+            gc.fillOval(centerX - brightRadius, centerY - brightRadius, brightRadius * 2.0, brightRadius * 2.0)
+        }
+    }
+
+    private fun drawLightMarkers(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        borderColor: Color,
+        accentColor: Color,
+    ) {
+        document.lights.forEach { light ->
+            val color = ColorHexCodec.hexToColor(light.colorHex)
+            val centerX = metrics.originX + light.position.x * metrics.cellSize
+            val centerY = metrics.originY + light.position.y * metrics.cellSize
+            val radius = (metrics.cellSize * 0.18).coerceAtLeast(4.0)
+            val markerColor = if (light.enabled) {
+                color
+            } else {
+                color.deriveColor(0.0, 0.2, 1.0, 0.45)
+            }
+
+            gc.fill = markerColor
+            gc.fillOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
+            gc.stroke = if (light.enabled) {
+                Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.7)
+            } else {
+                borderColor.deriveColor(0.0, 1.0, 1.0, 0.9)
+            }
+            gc.lineWidth = 1.0
+            if (!light.enabled) {
+                gc.setLineDashes(4.0, 4.0)
+            }
+            gc.strokeOval(centerX - radius, centerY - radius, radius * 2.0, radius * 2.0)
+            gc.setLineDashes()
+
+            val isSelected =
+                selectedElements.any { it.kind == DynamicMapElementKind.LIGHT && it.elementId == light.id }
+            if (isSelected) {
+                val highlightRadius = radius + 4.0
+                gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.8)
+                gc.lineWidth = 2.5
+                gc.strokeOval(
+                    centerX - highlightRadius,
+                    centerY - highlightRadius,
+                    highlightRadius * 2.0,
+                    highlightRadius * 2.0,
+                )
+                gc.stroke = accentColor
+                gc.lineWidth = 1.5
+                gc.strokeOval(
+                    centerX - highlightRadius - 2.0,
+                    centerY - highlightRadius - 2.0,
+                    (highlightRadius + 2.0) * 2.0,
+                    (highlightRadius + 2.0) * 2.0,
+                )
+            }
+        }
+    }
+
+    private fun drawBuilderWallSegment(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        kind: DynamicMapWallKind,
+        doorVisible: Boolean,
+        frontBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.OPEN,
+        backBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.HARD,
+        accentColor: Color,
+        lineWidth: Double = builderWallLineWidth(metrics),
+    ) {
+        if (kind == DynamicMapWallKind.FEATURE) {
+            drawFeatureWallSides(
+                gc = gc,
+                metrics = metrics,
+                start = start,
+                end = end,
+                frontBehavior = frontBehavior,
+                backBehavior = backBehavior,
+                accentColor = accentColor,
+            )
+            drawFeatureWallArrow(
+                gc = gc,
+                metrics = metrics,
+                start = start,
+                end = end,
+                frontBehavior = frontBehavior,
+                backBehavior = backBehavior,
+                accentColor = accentColor,
+            )
+            return
+        }
+
+        configureBuilderWallStroke(gc, metrics, kind, accentColor, lineWidth)
+        gc.strokeLine(
+            metrics.originX + start.x * metrics.cellSize,
+            metrics.originY + start.y * metrics.cellSize,
+            metrics.originX + end.x * metrics.cellSize,
+            metrics.originY + end.y * metrics.cellSize,
+        )
+        gc.setLineDashes()
+        if (kind == DynamicMapWallKind.DOOR) {
+            drawBuilderDoorIcon(gc, metrics, start, end, doorVisible, accentColor)
+        }
+    }
+
+    private fun drawBuilderWallRect(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        minX: Double,
+        minY: Double,
+        widthCells: Double,
+        heightCells: Double,
+        kind: DynamicMapWallKind,
+        doorVisible: Boolean,
+        frontBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.OPEN,
+        backBehavior: DynamicMapWallSideBehavior = DynamicMapWallSideBehavior.HARD,
+        accentColor: Color,
+    ) {
+        if (kind == DynamicMapWallKind.FEATURE) {
+            val left = minX
+            val right = minX + widthCells
+            val top = minY
+            val bottom = minY + heightCells
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallSides(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), frontBehavior, backBehavior, accentColor)
+            drawFeatureWallArrow(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), frontBehavior, backBehavior, accentColor)
+            return
+        }
+
+        configureBuilderWallStroke(gc, metrics, kind, accentColor, builderWallLineWidth(metrics))
+        gc.strokeRect(
+            metrics.originX + minX * metrics.cellSize,
+            metrics.originY + minY * metrics.cellSize,
+            widthCells * metrics.cellSize,
+            heightCells * metrics.cellSize,
+        )
+        gc.setLineDashes()
+        if (kind == DynamicMapWallKind.DOOR) {
+            val left = minX
+            val right = minX + widthCells
+            val top = minY
+            val bottom = minY + heightCells
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(left, top), DynamicMapPoint(right, top), doorVisible, accentColor)
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(right, top), DynamicMapPoint(right, bottom), doorVisible, accentColor)
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(right, bottom), DynamicMapPoint(left, bottom), doorVisible, accentColor)
+            drawBuilderDoorIcon(gc, metrics, DynamicMapPoint(left, bottom), DynamicMapPoint(left, top), doorVisible, accentColor)
+        }
+    }
+
+    private fun configureBuilderWallStroke(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        kind: DynamicMapWallKind,
+        accentColor: Color,
+        lineWidth: Double,
+    ) {
+        gc.stroke = builderWallColor(kind, accentColor)
+        gc.lineWidth = when (kind) {
+            DynamicMapWallKind.SOFT -> lineWidth
+            DynamicMapWallKind.HARD -> lineWidth * 1.15
+            DynamicMapWallKind.DOOR -> lineWidth * 1.15
+            DynamicMapWallKind.FEATURE -> lineWidth * 1.05
+        }
+        if (kind == DynamicMapWallKind.SOFT || kind == DynamicMapWallKind.FEATURE) {
+            gc.setLineDashes(
+                (metrics.cellSize * 0.18).coerceIn(5.0, 14.0),
+                (metrics.cellSize * 0.12).coerceIn(4.0, 10.0),
+            )
+        } else {
+            gc.setLineDashes()
+        }
+    }
+
+    private fun builderWallLineWidth(metrics: DynamicMapEditorMetrics): Double =
+        (metrics.cellSize * 0.12).coerceAtLeast(2.0)
+
+    private fun builderWallColor(kind: DynamicMapWallKind, accentColor: Color): Color =
+        when (kind) {
+            DynamicMapWallKind.SOFT -> accentColor.deriveColor(0.0, 0.55, 1.2, 0.72)
+            DynamicMapWallKind.HARD -> accentColor.deriveColor(0.0, 1.0, 0.95, 0.98)
+            DynamicMapWallKind.DOOR -> accentColor.deriveColor(38.0, 0.95, 1.05, 0.98)
+            DynamicMapWallKind.FEATURE -> accentColor.deriveColor(145.0, 0.9, 1.05, 0.95)
+        }
+
+    private fun drawFeatureWallSides(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        frontBehavior: DynamicMapWallSideBehavior,
+        backBehavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ) {
+        val startX = metrics.originX + start.x * metrics.cellSize
+        val startY = metrics.originY + start.y * metrics.cellSize
+        val endX = metrics.originX + end.x * metrics.cellSize
+        val endY = metrics.originY + end.y * metrics.cellSize
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val normalX = -dy / length
+        val normalY = dx / length
+        val offset = featureWallSideOffset(metrics.cellSize)
+        drawFeatureWallSideStroke(
+            gc = gc,
+            cellSize = metrics.cellSize,
+            startX = startX + normalX * offset,
+            startY = startY + normalY * offset,
+            endX = endX + normalX * offset,
+            endY = endY + normalY * offset,
+            behavior = frontBehavior,
+            accentColor = accentColor,
+        )
+        drawFeatureWallSideStroke(
+            gc = gc,
+            cellSize = metrics.cellSize,
+            startX = startX - normalX * offset,
+            startY = startY - normalY * offset,
+            endX = endX - normalX * offset,
+            endY = endY - normalY * offset,
+            behavior = backBehavior,
+            accentColor = accentColor,
+        )
+    }
+
+    private fun drawFeatureWallSideStroke(
+        gc: GraphicsContext,
+        cellSize: Double,
+        startX: Double,
+        startY: Double,
+        endX: Double,
+        endY: Double,
+        behavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ) {
+        gc.save()
+        gc.stroke = featureWallSideColor(behavior, accentColor)
+        gc.lineWidth = featureWallSideLineWidth(cellSize, behavior)
+        when (behavior) {
+            DynamicMapWallSideBehavior.OPEN -> {
+                gc.lineCap = StrokeLineCap.ROUND
+                gc.setLineDashes(
+                    (cellSize * 0.035).coerceIn(1.0, 2.5),
+                    (cellSize * 0.12).coerceIn(4.0, 9.0),
+                )
+            }
+            DynamicMapWallSideBehavior.SOFT -> {
+                gc.lineCap = StrokeLineCap.BUTT
+                gc.setLineDashes(
+                    (cellSize * 0.18).coerceIn(5.0, 14.0),
+                    (cellSize * 0.12).coerceIn(4.0, 10.0),
+                )
+            }
+            DynamicMapWallSideBehavior.HARD -> {
+                gc.lineCap = StrokeLineCap.BUTT
+                gc.setLineDashes()
+            }
+        }
+        gc.strokeLine(startX, startY, endX, endY)
+        gc.restore()
+    }
+
+    private fun featureWallSideOffset(cellSize: Double): Double =
+        (cellSize * 0.085).coerceIn(3.0, 7.0)
+
+    private fun featureWallSideLineWidth(
+        cellSize: Double,
+        behavior: DynamicMapWallSideBehavior,
+    ): Double {
+        val baseWidth = (cellSize * 0.085).coerceAtLeast(1.8)
+        return when (behavior) {
+            DynamicMapWallSideBehavior.OPEN -> baseWidth * 0.8
+            DynamicMapWallSideBehavior.SOFT -> baseWidth
+            DynamicMapWallSideBehavior.HARD -> baseWidth * 1.15
+        }
+    }
+
+    private fun featureWallSideColor(
+        behavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ): Color =
+        when (behavior) {
+            DynamicMapWallSideBehavior.OPEN -> accentColor.deriveColor(145.0, 0.32, 1.3, 0.62)
+            DynamicMapWallSideBehavior.SOFT -> accentColor.deriveColor(145.0, 0.72, 1.18, 0.82)
+            DynamicMapWallSideBehavior.HARD -> accentColor.deriveColor(145.0, 1.0, 0.95, 0.98)
+        }
+
+    private fun drawFeatureWallArrow(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        frontBehavior: DynamicMapWallSideBehavior,
+        backBehavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ) {
+        val startX = metrics.originX + start.x * metrics.cellSize
+        val startY = metrics.originY + start.y * metrics.cellSize
+        val endX = metrics.originX + end.x * metrics.cellSize
+        val endY = metrics.originY + end.y * metrics.cellSize
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val centerX = (startX + endX) / 2.0
+        val centerY = (startY + endY) / 2.0
+        val normalX = -dy / length
+        val normalY = dx / length
+        val arrowLength = (metrics.cellSize * 0.28).coerceIn(7.0, 18.0)
+        val headLength = (metrics.cellSize * 0.12).coerceIn(4.0, 8.0)
+        val headWidth = (metrics.cellSize * 0.09).coerceIn(3.0, 7.0)
+        val shaftStartX = centerX + normalX * (arrowLength * 0.15)
+        val shaftStartY = centerY + normalY * (arrowLength * 0.15)
+        val tipX = centerX + normalX * arrowLength
+        val tipY = centerY + normalY * arrowLength
+        val sideX = dx / length
+        val sideY = dy / length
+        val arrowColor = featureArrowColor(frontBehavior, backBehavior, accentColor)
+
+        gc.save()
+        gc.stroke = arrowColor
+        gc.fill = arrowColor
+        gc.lineWidth = (metrics.cellSize * 0.04).coerceIn(1.5, 3.5)
+        gc.strokeLine(shaftStartX, shaftStartY, tipX, tipY)
+        gc.fillPolygon(
+            doubleArrayOf(
+                tipX,
+                tipX - normalX * headLength + sideX * headWidth,
+                tipX - normalX * headLength - sideX * headWidth,
+            ),
+            doubleArrayOf(
+                tipY,
+                tipY - normalY * headLength + sideY * headWidth,
+                tipY - normalY * headLength - sideY * headWidth,
+            ),
+            3,
+        )
+        gc.restore()
+    }
+
+    private fun featureArrowColor(
+        frontBehavior: DynamicMapWallSideBehavior,
+        backBehavior: DynamicMapWallSideBehavior,
+        accentColor: Color,
+    ): Color {
+        val opacity = if (
+            frontBehavior == DynamicMapWallSideBehavior.OPEN ||
+            backBehavior == DynamicMapWallSideBehavior.OPEN
+        ) {
+            0.92
+        } else {
+            0.78
+        }
+        return accentColor.deriveColor(145.0, 0.95, 1.15, opacity)
+    }
+
+    private fun drawBuilderDoorIcon(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        start: DynamicMapPoint,
+        end: DynamicMapPoint,
+        doorVisible: Boolean,
+        accentColor: Color,
+    ) {
+        val startX = metrics.originX + start.x * metrics.cellSize
+        val startY = metrics.originY + start.y * metrics.cellSize
+        val endX = metrics.originX + end.x * metrics.cellSize
+        val endY = metrics.originY + end.y * metrics.cellSize
+        val dx = endX - startX
+        val dy = endY - startY
+        val length = hypot(dx, dy)
+        if (length <= 0.0) return
+
+        val centerX = (startX + endX) / 2.0
+        val centerY = (startY + endY) / 2.0
+        val angle = atan2(dy, dx)
+        val alongX = cos(angle)
+        val alongY = sin(angle)
+        val normalX = -alongY
+        val normalY = alongX
+        val halfLong = (metrics.cellSize * 0.3).coerceIn(7.0, 20.0)
+        val halfShort = (metrics.cellSize * 0.16).coerceIn(4.0, 12.0)
+        val xs = doubleArrayOf(
+            centerX + alongX * halfLong,
+            centerX + normalX * halfShort,
+            centerX - alongX * halfLong,
+            centerX - normalX * halfShort,
+        )
+        val ys = doubleArrayOf(
+            centerY + alongY * halfLong,
+            centerY + normalY * halfShort,
+            centerY - alongY * halfLong,
+            centerY - normalY * halfShort,
+        )
+
+        val iconColor = if (doorVisible) {
+            accentColor.deriveColor(38.0, 0.95, 1.1, 0.95)
+        } else {
+            accentColor.deriveColor(38.0, 0.35, 1.25, 0.7)
+        }
+        gc.fill = iconColor.deriveColor(0.0, 1.0, 1.0, if (doorVisible) 0.26 else 0.1)
+        gc.stroke = iconColor
+        gc.lineWidth = (metrics.cellSize * 0.045).coerceIn(2.0, 4.5)
+        if (!doorVisible) {
+            gc.setLineDashes(4.0, 4.0)
+        }
+        gc.fillPolygon(xs, ys, xs.size)
+        gc.strokePolygon(xs, ys, xs.size)
+        gc.setLineDashes()
+
+        if (!doorVisible) {
+            gc.stroke = iconColor
+            gc.lineWidth = (metrics.cellSize * 0.04).coerceIn(1.5, 3.0)
+            gc.strokeLine(xs[0], ys[0], xs[2], ys[2])
+        }
+    }
+
+    private fun drawSelectedWallHighlight(
+        gc: GraphicsContext,
+        metrics: DynamicMapEditorMetrics,
+        accentColor: Color,
+    ) {
+        val selectedWalls = selectedElements
+            .filter { it.kind == DynamicMapElementKind.WALL }
+            .mapNotNull { document.wallById(it.elementId) }
+        if (selectedWalls.isEmpty()) return
+
+        val baseWidth = (metrics.cellSize * 0.12).coerceAtLeast(2.0)
+
+        selectedWalls.forEach { selectedWall ->
+            val startX = metrics.originX + selectedWall.start.x * metrics.cellSize
+            val startY = metrics.originY + selectedWall.start.y * metrics.cellSize
+            val endX = metrics.originX + selectedWall.end.x * metrics.cellSize
+            val endY = metrics.originY + selectedWall.end.y * metrics.cellSize
+
+            gc.stroke = Color.WHITE.deriveColor(0.0, 1.0, 1.0, 0.85)
+            gc.lineWidth = baseWidth * 2.0
+            gc.strokeLine(startX, startY, endX, endY)
+
+            drawBuilderWallSegment(
+                gc = gc,
+                metrics = metrics,
+                start = selectedWall.start,
+                end = selectedWall.end,
+                kind = selectedWall.kind,
+                doorVisible = selectedWall.doorVisible,
+                frontBehavior = selectedWall.frontBehavior,
+                backBehavior = selectedWall.backBehavior,
+                accentColor = accentColor,
+                lineWidth = baseWidth * 1.2,
+            )
+        }
+    }
+
+    private fun resolveBackgroundImage(): Image? {
+        val uri = document.backgroundImageUri
+        if (uri.isNullOrBlank()) {
+            cachedBackgroundUri = null
+            cachedBackgroundImage = null
+            return null
+        }
+        if (uri != cachedBackgroundUri) {
+            cachedBackgroundUri = uri
+            cachedBackgroundImage = runCatching { Image(uri, false) }
+                .getOrNull()
+                ?.takeUnless { it.isError }
+        }
+        return cachedBackgroundImage
+    }
+
+    private fun computeMetrics(width: Double, height: Double): DynamicMapEditorMetrics =
+        computeEditorMetrics(
+            width = width,
+            height = height,
+            cols = document.cols,
+            rows = document.rows,
+        )
+
+    private fun currentMetrics(): DynamicMapEditorMetrics? {
+        val width = canvas.width
+        val height = canvas.height
+        if (width <= 0.0 || height <= 0.0) return null
+        return computeMetrics(width, height)
+    }
+
+    private fun mapPointFromCanvas(
+        canvasX: Double,
+        canvasY: Double,
+        clampToBounds: Boolean,
+    ): DynamicMapPoint? {
+        val metrics = currentMetrics() ?: return null
+        val (worldX, worldY) = viewport.canvasToWorld(
+            canvasWidth = canvas.width,
+            canvasHeight = canvas.height,
+            canvasX = canvasX,
+            canvasY = canvasY,
+        )
+        val raw = DynamicMapPoint(
+            x = (worldX - metrics.originX) / metrics.cellSize,
+            y = (worldY - metrics.originY) / metrics.cellSize,
+        )
+        return if (clampToBounds) {
+            clampPointToMap(raw, document.cols, document.rows)
+        } else {
+            raw.takeIf { it.x in 0.0..document.cols.toDouble() && it.y in 0.0..document.rows.toDouble() }
+        }
+    }
+
+    private fun normalizePoint(point: DynamicMapPoint): DynamicMapPoint {
+        val clamped = clampPointToMap(point, document.cols, document.rows)
+        return if (snapEnabled) snapPoint(clamped, SNAP_STEP) else clamped
+    }
+
+    private fun updateStatus(mapPoint: DynamicMapPoint?) {
+        val toolText = when (activeTool) {
+            DynamicMapTool.WALL_LINE -> "Tool: ${activeWallKind.statusText(activeDoorVisible)} line"
+            DynamicMapTool.WALL_RECT -> "Tool: ${activeWallKind.statusText(activeDoorVisible)} rectangle"
+            DynamicMapTool.LIGHT -> "Tool: light placement"
+            DynamicMapTool.SUNLIGHT_AREA -> {
+                val vertices = sunlightDraftPoints.size
+                if (vertices == 0) "Tool: sunlight area" else "Tool: sunlight area ($vertices vertices)"
+            }
+            null -> moveDrag?.let { "Tool: moving ${it.selections.size} selected" } ?: "Tool: none"
+        }
+        val pointerText = mapPoint?.let {
+            "Pointer ${formatGrid(it.x)}, ${formatGrid(it.y)}"
+        } ?: "Pointer off map"
+        statusLabel.text =
+            "$toolText | Preset: ${preset.displayName} | Walls: ${document.walls.size} | " +
+                "Lights: ${document.lights.size} | Sunlight: ${document.sunlightAreas.size} | " +
+                "View: ${(viewport.scale * 100).toInt()}% | $pointerText"
+        statusLabel.style = "-fx-text-fill: -tc-text-muted;"
+    }
+
+    private fun formatGrid(value: Double): String =
+        String.format(Locale.US, "%.2f", value)
+}
+
+private fun DynamicMapTool?.isWallPlacementTool(): Boolean =
+    this == DynamicMapTool.WALL_LINE ||
+        this == DynamicMapTool.WALL_RECT
+
+private fun DynamicMapWallKind.statusText(doorVisible: Boolean): String =
+    when (this) {
+        DynamicMapWallKind.DOOR -> if (doorVisible) "visible door" else "hidden door"
+        else -> displayName.lowercase()
+    }

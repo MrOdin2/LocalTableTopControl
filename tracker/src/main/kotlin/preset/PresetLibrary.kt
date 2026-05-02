@@ -5,7 +5,14 @@ import com.tabletopcontrol.core.persistence.AppConfigPaths
 import com.tabletopcontrol.core.persistence.ConfigFiles
 import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.persistence.SafeConfigIO
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
+import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.DEFAULT_LIGHT_SOURCE_COLOR
+import com.tabletopcontrol.new_tracker.model.DistanceRange
+import com.tabletopcontrol.new_tracker.model.DistanceUnit
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -41,6 +48,8 @@ object PresetLibrary {
         val initiative: Int? = null,
         val initiativeEnabled: Boolean = true,
         val tokenSize: TokenSize = TokenSize.MEDIUM,
+        val actorType: ActorType = ActorType.NPC,
+        val features: ActorFeatures = ActorFeatures(),
         val folder: String = "",
         val imageUri: String? = null,
         val imageBase64: String? = null,
@@ -216,6 +225,22 @@ object PresetLibrary {
             appendLine("initiativeEnabled=false")
         }
         appendLine("tokenSize=${preset.tokenSize.name}")
+        appendLine("actorType=${preset.actorType.name}")
+        preset.features.darkvisionRange?.let { range ->
+            appendLine("darkvisionRange=${range.amount}")
+            appendLine("darkvisionUnit=${range.unit.name}")
+        }
+        preset.features.movementRange?.let { range ->
+            appendLine("movementRange=${range.amount}")
+            appendLine("movementUnit=${range.unit.name}")
+        }
+        preset.features.lightSource?.let { source ->
+            appendLine("lightBrightRange=${source.brightRange.amount}")
+            appendLine("lightBrightUnit=${source.brightRange.unit.name}")
+            appendLine("lightDimRange=${source.dimRange.amount}")
+            appendLine("lightDimUnit=${source.dimRange.unit.name}")
+            appendLine("lightColor=${ColorHexCodec.colorToHex(source.color)}")
+        }
         preset.imageUri?.let { appendLine("imageUri=$it") }
         appendLine("imageScaleX=${preset.imageScaleX}")
         appendLine("imageScaleY=${preset.imageScaleY}")
@@ -247,6 +272,12 @@ object PresetLibrary {
             initiative = initiative,
             initiativeEnabled = initiativeEnabled,
             tokenSize = TokenSize.fromPersistence(props["tokenSize"]),
+            actorType = ActorType.fromPersistence(props["actorType"]),
+            features = ActorFeatures(
+                darkvisionRange = readDistanceRange(props, "darkvision"),
+                movementRange = readDistanceRange(props, "movement"),
+                lightSource = readLightSource(props),
+            ),
             imageUri = props["imageUri"]?.takeIf { it.isNotBlank() },
             imageBase64 = props["imageBase64"]?.takeIf { it.isNotBlank() },
             imageScaleX = props["imageScaleX"]?.toDoubleOrNull() ?: 1.0,
@@ -254,6 +285,31 @@ object PresetLibrary {
             imageOffsetX = props["imageOffsetX"]?.toDoubleOrNull() ?: 0.0,
             imageOffsetY = props["imageOffsetY"]?.toDoubleOrNull() ?: 0.0,
         )
+    }
+
+    private fun readLightSource(props: Map<String, String>): ActorLightSource? {
+        val brightRange = readDistanceRange(props, "lightBright") ?: return null
+        val dimRange = readDistanceRange(props, "lightDim") ?: return null
+        return ActorLightSource(
+            brightRange = brightRange,
+            dimRange = dimRange,
+            color = ColorHexCodec.parseOrDefault(
+                props["lightColor"],
+                DEFAULT_LIGHT_SOURCE_COLOR,
+            ),
+        )
+    }
+
+    private fun readDistanceRange(
+        props: Map<String, String>,
+        key: String,
+    ): DistanceRange? {
+        val amount = props["${key}Range"]
+            ?.toIntOrNull()
+            ?.coerceAtLeast(0)
+            ?: return null
+        val unit = DistanceUnit.fromPersistence(props["${key}Unit"])
+        return DistanceRange(amount = amount, unit = unit)
     }
 
     internal fun loadAndScaleImage(

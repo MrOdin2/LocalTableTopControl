@@ -3,7 +3,13 @@ package com.tabletopcontrol.new_tracker.scene
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
+import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.DEFAULT_LIGHT_SOURCE_COLOR
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
+import com.tabletopcontrol.new_tracker.model.DistanceRange
+import com.tabletopcontrol.new_tracker.model.DistanceUnit
 import java.io.StringReader
 import java.io.StringWriter
 import java.util.Base64
@@ -16,7 +22,8 @@ internal data class TrackerSceneState(
 )
 
 internal object TrackerSceneCodec {
-    private const val VERSION = 2
+    private const val VERSION = 5
+    private const val PROPERTY_VERSION_WITHOUT_ACTOR_TYPE = 2
     private const val LEGACY_VERSION = 1
 
     fun serialize(state: TrackerSceneState): String {
@@ -33,6 +40,22 @@ internal object TrackerSceneCodec {
                 setProperty("$prefix.ac", actor.ac.toString())
                 actor.initiative?.let { setProperty("$prefix.initiative", it.toString()) }
                 setProperty("$prefix.tokenSize", actor.tokenSize.name)
+                setProperty("$prefix.actorType", actor.actorType.name)
+                actor.features.darkvisionRange?.let { range ->
+                    setProperty("$prefix.darkvisionRange", range.amount.toString())
+                    setProperty("$prefix.darkvisionUnit", range.unit.name)
+                }
+                actor.features.movementRange?.let { range ->
+                    setProperty("$prefix.movementRange", range.amount.toString())
+                    setProperty("$prefix.movementUnit", range.unit.name)
+                }
+                actor.features.lightSource?.let { source ->
+                    setProperty("$prefix.lightBrightRange", source.brightRange.amount.toString())
+                    setProperty("$prefix.lightBrightUnit", source.brightRange.unit.name)
+                    setProperty("$prefix.lightDimRange", source.dimRange.amount.toString())
+                    setProperty("$prefix.lightDimUnit", source.dimRange.unit.name)
+                    setProperty("$prefix.lightColor", ColorHexCodec.colorToHex(source.color))
+                }
                 setProperty("$prefix.color", ColorHexCodec.colorToHex(actor.color))
                 actor.imageSettings.uri?.let { setProperty("$prefix.imageUri", it) }
                 setProperty("$prefix.imageScaleX", actor.imageSettings.scaleX.toString())
@@ -59,7 +82,7 @@ internal object TrackerSceneCodec {
         }.getOrNull() ?: return null
 
         val version = props.getProperty("version")?.toIntOrNull() ?: return null
-        if (version != VERSION) return null
+        if (version !in PROPERTY_VERSION_WITHOUT_ACTOR_TYPE..VERSION) return null
 
         val actorCount = props.getProperty("actor.count")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val actors = buildList {
@@ -78,6 +101,12 @@ internal object TrackerSceneCodec {
                         tokenSize = runCatching {
                             TokenSize.valueOf(props.getProperty("$prefix.tokenSize"))
                         }.getOrDefault(TokenSize.MEDIUM),
+                        actorType = ActorType.fromPersistence(props.getProperty("$prefix.actorType")),
+                        features = ActorFeatures(
+                            darkvisionRange = readDistanceRange(props, prefix, "darkvision"),
+                            movementRange = readDistanceRange(props, prefix, "movement"),
+                            lightSource = readLightSource(props, prefix),
+                        ),
                         color = color,
                         imageSettings = ActorImageSettings(
                             uri = props.getProperty("$prefix.imageUri"),
@@ -96,6 +125,35 @@ internal object TrackerSceneCodec {
             activeActorId = props.getProperty("activeActorId"),
             roundCount = props.getProperty("roundCount")?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
         )
+    }
+
+    private fun readLightSource(
+        props: Properties,
+        prefix: String,
+    ): ActorLightSource? {
+        val brightRange = readDistanceRange(props, prefix, "lightBright") ?: return null
+        val dimRange = readDistanceRange(props, prefix, "lightDim") ?: return null
+        return ActorLightSource(
+            brightRange = brightRange,
+            dimRange = dimRange,
+            color = ColorHexCodec.parseOrDefault(
+                props.getProperty("$prefix.lightColor"),
+                DEFAULT_LIGHT_SOURCE_COLOR,
+            ),
+        )
+    }
+
+    private fun readDistanceRange(
+        props: Properties,
+        prefix: String,
+        key: String,
+    ): DistanceRange? {
+        val amount = props.getProperty("$prefix.${key}Range")
+            ?.toIntOrNull()
+            ?.coerceAtLeast(0)
+            ?: return null
+        val unit = DistanceUnit.fromPersistence(props.getProperty("$prefix.${key}Unit"))
+        return DistanceRange(amount = amount, unit = unit)
     }
 
     internal fun serializeLegacy(state: TrackerSceneState): String {

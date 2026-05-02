@@ -2,7 +2,13 @@ package com.tabletopcontrol.new_tracker.preset
 
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorFeatures
+import com.tabletopcontrol.new_tracker.model.ActorLightSource
+import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
+import com.tabletopcontrol.new_tracker.model.DistanceRange
+import com.tabletopcontrol.new_tracker.model.DistanceUnit
+import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -46,6 +52,8 @@ class PresetLibraryTest {
         assertTrue(preset.initiativeEnabled)
         assertEquals(0, preset.initiative)
         assertEquals(TokenSize.MEDIUM, preset.tokenSize)
+        assertEquals(ActorType.NPC, preset.actorType)
+        assertEquals(ActorFeatures(), preset.features)
     }
 
     @Test
@@ -57,6 +65,16 @@ class PresetLibraryTest {
             initiative = 0,
             initiativeEnabled = false,
             tokenSize = TokenSize.LARGE,
+            actorType = ActorType.PC,
+            features = ActorFeatures(
+                darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
+                movementRange = DistanceRange(9, DistanceUnit.METERS),
+                lightSource = ActorLightSource(
+                    brightRange = DistanceRange(20, DistanceUnit.FEET),
+                    dimRange = DistanceRange(12, DistanceUnit.METERS),
+                    color = Color.web("#FFD37A"),
+                ),
+            ),
         )
 
         val roundTrip = PresetLibrary.deserialize(PresetLibrary.serialize(preset))
@@ -74,6 +92,16 @@ class PresetLibraryTest {
             initiativeEnabled = false,
             folder = "Bosses",
             tokenSize = TokenSize.HUGE,
+            actorType = ActorType.PC,
+            features = ActorFeatures(
+                darkvisionRange = DistanceRange(120, DistanceUnit.FEET),
+                movementRange = DistanceRange(12, DistanceUnit.METERS),
+                lightSource = ActorLightSource(
+                    brightRange = DistanceRange(30, DistanceUnit.FEET),
+                    dimRange = DistanceRange(60, DistanceUnit.FEET),
+                    color = Color.web("#88CCFF"),
+                ),
+            ),
             imageUri = "file:///tokens/dragon.png",
             imageBase64 = "abc123==",
             imageScaleX = 1.5,
@@ -95,6 +123,16 @@ class PresetLibraryTest {
             ac = 12,
             initiative = 18,
             tokenSize = TokenSize.LARGE,
+            actorType = ActorType.PC,
+            features = ActorFeatures(
+                darkvisionRange = DistanceRange(60, DistanceUnit.FEET),
+                movementRange = DistanceRange(30, DistanceUnit.FEET),
+                lightSource = ActorLightSource(
+                    brightRange = DistanceRange(20, DistanceUnit.FEET),
+                    dimRange = DistanceRange(40, DistanceUnit.FEET),
+                    color = Color.web("#FFD37A"),
+                ),
+            ),
             imageSettings = ActorImageSettings(
                 uri = "file:///ghost.png",
                 scaleX = 1.3,
@@ -110,11 +148,15 @@ class PresetLibraryTest {
         assertEquals(0, preset.initiative)
         assertEquals(false, preset.initiativeEnabled)
         assertEquals(TokenSize.LARGE, preset.tokenSize)
+        assertEquals(ActorType.PC, preset.actorType)
+        assertEquals(actor.features, preset.features)
         assertNull(restoredActor.initiative)
         assertEquals(actor.name, restoredActor.name)
         assertEquals(actor.hp, restoredActor.hp)
         assertEquals(actor.ac, restoredActor.ac)
         assertEquals(actor.tokenSize, restoredActor.tokenSize)
+        assertEquals(actor.actorType, restoredActor.actorType)
+        assertEquals(actor.features, restoredActor.features)
         assertEquals(actor.imageSettings, restoredActor.imageSettings)
     }
 
