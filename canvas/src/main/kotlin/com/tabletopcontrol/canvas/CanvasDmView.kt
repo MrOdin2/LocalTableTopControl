@@ -44,6 +44,7 @@ private const val EDGE_HANDLE_RADIUS = 5.0
  * - Rotate pictures by dragging the four mid-edge handles
  * - Toggle per-picture sharing via the right-click menu
  * - Toggle sharing of all pictures at once via the "Share All" button
+ * - Bring a picture to the front or send it to the back via the right-click menu
  * - Remove pictures via the right-click menu
  *
  * The workspace pane uses a dashed border to indicate it represents the
@@ -185,6 +186,8 @@ class CanvasDmView(private val model: CanvasModel) {
                     item = item,
                     onUpdate = { model.updateItem(it) },
                     onRemove = { model.removeItem(item.id) },
+                    onBringToFront = { model.bringToFront(item.id) },
+                    onSendToBack = { model.sendToBack(item.id) },
                     onSelect = { selectNode(it) },
                 )
                 itemNodes[item.id] = node
@@ -192,6 +195,25 @@ class CanvasDmView(private val model: CanvasModel) {
                 if (workspace.width > 0 && workspace.height > 0) {
                     node.layout(workspace.width, workspace.height)
                 }
+            }
+        }
+
+        // Reorder workspace children to match model order (index = z-order).
+        reorderChildren(items)
+    }
+
+    /**
+     * Reorders the workspace [Pane] children so their index matches the order of [items].
+     *
+     * Items later in the list are rendered on top (higher z-index in the scene graph).
+     */
+    private fun reorderChildren(items: List<CanvasItem>) {
+        for ((targetIndex, item) in items.withIndex()) {
+            val node = itemNodes[item.id] ?: continue
+            val currentIndex = workspace.children.indexOf(node.group)
+            if (currentIndex >= 0 && currentIndex != targetIndex) {
+                workspace.children.removeAt(currentIndex)
+                workspace.children.add(targetIndex.coerceAtMost(workspace.children.size), node.group)
             }
         }
     }
@@ -220,6 +242,8 @@ internal class CanvasItemNode(
     item: CanvasItem,
     private val onUpdate: (CanvasItem) -> Unit,
     private val onRemove: () -> Unit,
+    private val onBringToFront: () -> Unit,
+    private val onSendToBack: () -> Unit,
     private val onSelect: (CanvasItemNode) -> Unit,
 ) {
     var item: CanvasItem = item
@@ -233,6 +257,8 @@ internal class CanvasItemNode(
     private val imageView = ImageView().apply {
         isPreserveRatio = false
         isSmooth = true
+        // Accept mouse events on all pixels, including transparent ones.
+        isPickOnBounds = true
     }
 
     // Corner handles (TL, TR, BR, BL).
@@ -280,7 +306,6 @@ internal class CanvasItemNode(
         setupDragMove()
         setupCornerResize()
         setupEdgeRotate()
-        setupSelect()
         setupContextMenu()
         loadImageIfNeeded()
     }
@@ -356,37 +381,18 @@ internal class CanvasItemNode(
 
     // ─── Interactions ────────────────────────────────────────────────────────
 
-    private fun setupSelect() {
-        imageView.setOnMousePressed { event ->
-            if (event.button == MouseButton.PRIMARY) {
-                onSelect(this)
-                event.consume()
-            }
-        }
-    }
-
-    private fun setupContextMenu() {
-        val removeItem = MenuItem("Remove")
-        removeItem.setOnAction { onRemove() }
-
-        val shareCheck = CheckMenuItem("Share with Table")
-
-        val menu = ContextMenu(shareCheck, SeparatorMenuItem(), removeItem)
-
-        shareCheck.setOnAction {
-            onUpdate(item.copy(isShared = shareCheck.isSelected))
-        }
-
-        imageView.setOnContextMenuRequested { event ->
-            shareCheck.isSelected = item.isShared
-            menu.show(imageView, event.screenX, event.screenY)
-            event.consume()
-        }
-    }
-
+    /**
+     * Sets up move dragging on the image view.
+     *
+     * The pressed handler both selects the item AND records the drag start position
+     * in one handler. Previously these were separate handlers and the later one
+     * (select) silently overwrote the earlier one (drag start), causing the picture
+     * to jump to the cursor position on every drag.
+     */
     private fun setupDragMove() {
         imageView.setOnMousePressed { event ->
             if (event.button == MouseButton.PRIMARY) {
+                onSelect(this)
                 dragStartSceneX = event.sceneX
                 dragStartSceneY = event.sceneY
                 dragItemX = item.x
@@ -404,6 +410,37 @@ internal class CanvasItemNode(
                 onUpdate(item.copy(x = newX, y = newY))
                 event.consume()
             }
+        }
+    }
+
+    private fun setupContextMenu() {
+        val removeItem = MenuItem("Remove")
+        removeItem.setOnAction { onRemove() }
+
+        val shareCheck = CheckMenuItem("Share with Table")
+        shareCheck.setOnAction {
+            onUpdate(item.copy(isShared = shareCheck.isSelected))
+        }
+
+        val bringToFront = MenuItem("Bring to Front")
+        bringToFront.setOnAction { onBringToFront() }
+
+        val sendToBack = MenuItem("Send to Back")
+        sendToBack.setOnAction { onSendToBack() }
+
+        val menu = ContextMenu(
+            shareCheck,
+            SeparatorMenuItem(),
+            bringToFront,
+            sendToBack,
+            SeparatorMenuItem(),
+            removeItem,
+        )
+
+        imageView.setOnContextMenuRequested { event ->
+            shareCheck.isSelected = item.isShared
+            menu.show(imageView, event.screenX, event.screenY)
+            event.consume()
         }
     }
 

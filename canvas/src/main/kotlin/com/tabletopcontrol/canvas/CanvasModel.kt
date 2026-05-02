@@ -50,6 +50,34 @@ class CanvasModel {
         publish()
     }
 
+    /**
+     * Moves the item with [id] to the end of the list, so it is rendered on top of all
+     * others. Publishes a change event.
+     *
+     * No-op when no matching item is found.
+     */
+    fun bringToFront(id: String) {
+        val idx = _items.indexOfFirst { it.id == id }
+        if (idx >= 0 && idx < _items.lastIndex) {
+            _items.add(_items.removeAt(idx))
+            publish()
+        }
+    }
+
+    /**
+     * Moves the item with [id] to the beginning of the list, so it is rendered behind all
+     * others. Publishes a change event.
+     *
+     * No-op when no matching item is found.
+     */
+    fun sendToBack(id: String) {
+        val idx = _items.indexOfFirst { it.id == id }
+        if (idx > 0) {
+            _items.add(0, _items.removeAt(idx))
+            publish()
+        }
+    }
+
     private fun publish() {
         EventBus.publish(CanvasItemsChangedEvent(items))
     }

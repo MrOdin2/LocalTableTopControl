@@ -125,4 +125,58 @@ class CanvasModelTest {
         assertEquals(1, snapshot.size)
         assertEquals(2, model.items.size)
     }
+
+    @Test
+    fun `bringToFront moves item to end of list and publishes event`() {
+        val a = CanvasItem(filePath = "/tmp/a.png")
+        val b = CanvasItem(filePath = "/tmp/b.png")
+        val c = CanvasItem(filePath = "/tmp/c.png")
+        model.addItem(a); model.addItem(b); model.addItem(c)
+        published.clear()
+
+        model.bringToFront(a.id)
+
+        assertEquals(listOf(b.id, c.id, a.id), model.items.map { it.id })
+        assertEquals(1, published.size)
+    }
+
+    @Test
+    fun `bringToFront on already-front item is a no-op`() {
+        val a = CanvasItem(filePath = "/tmp/a.png")
+        val b = CanvasItem(filePath = "/tmp/b.png")
+        model.addItem(a); model.addItem(b)
+        val countBefore = published.size
+
+        model.bringToFront(b.id)
+
+        assertEquals(listOf(a.id, b.id), model.items.map { it.id })
+        assertEquals(countBefore, published.size)
+    }
+
+    @Test
+    fun `sendToBack moves item to beginning of list and publishes event`() {
+        val a = CanvasItem(filePath = "/tmp/a.png")
+        val b = CanvasItem(filePath = "/tmp/b.png")
+        val c = CanvasItem(filePath = "/tmp/c.png")
+        model.addItem(a); model.addItem(b); model.addItem(c)
+        published.clear()
+
+        model.sendToBack(c.id)
+
+        assertEquals(listOf(c.id, a.id, b.id), model.items.map { it.id })
+        assertEquals(1, published.size)
+    }
+
+    @Test
+    fun `sendToBack on already-back item is a no-op`() {
+        val a = CanvasItem(filePath = "/tmp/a.png")
+        val b = CanvasItem(filePath = "/tmp/b.png")
+        model.addItem(a); model.addItem(b)
+        val countBefore = published.size
+
+        model.sendToBack(a.id)
+
+        assertEquals(listOf(a.id, b.id), model.items.map { it.id })
+        assertEquals(countBefore, published.size)
+    }
 }
