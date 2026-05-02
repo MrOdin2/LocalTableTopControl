@@ -64,6 +64,21 @@ interface DmPlugin {
     fun createTableView(): Node? = null
 
     /**
+     * When `true`, this plugin's table view is treated as a persistent overlay layer
+     * rendered on top of all primary table views, unaffected by the "Table content"
+     * selector in the DM toolbar.
+     *
+     * Overlay plugins manage their own internal visibility and transparency — a fully
+     * transparent overlay has no visual impact when nothing is shared. This is the
+     * expected mechanism for plugins that augment the primary table view rather than
+     * replacing it (e.g. the Canvas picture projection layer).
+     *
+     * The default implementation returns `false`.
+     */
+    val isTableOverlay: Boolean
+        get() = false
+
+    /**
      * Called when the application is shutting down.
      *
      * Plugins should release any resources (audio handles, file handles, etc.) here.
