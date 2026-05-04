@@ -424,7 +424,7 @@ class PlayerWebServer(
       currentPlayer = name;
       updateDisplay(await res.json());
       document.getElementById('connect-screen').style.display = 'none';
-      document.getElementById('game-screen').style.display = '';
+      document.getElementById('game-screen').style.display = 'flex';
     } catch (e) {
       setStatus('Connection error: ' + e.message);
     }
