@@ -163,6 +163,9 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         webServer.onActorChanged = {
             refreshTrackerView(actorList, roundLabel)
         }
+        webServer.initiativeTieResolver = { actorsAtInitiative, initiative, movedActorId ->
+            initiativeTieResolver(actorList.scene?.window)(actorsAtInitiative, initiative, movedActorId)
+        }
         refreshTrackerView(actorList, roundLabel)
         return root
     }

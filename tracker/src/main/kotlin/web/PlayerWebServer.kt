@@ -12,6 +12,7 @@ import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
 import javafx.application.Platform
 import java.io.IOException
 import java.io.OutputStream
@@ -58,6 +59,7 @@ class PlayerWebServer(
     private var initiativeEntryRequested = false
 
     var onActorChanged: (() -> Unit)? = null
+    var initiativeTieResolver: InitiativeTieResolver = { actorsAtInitiative, _, _ -> actorsAtInitiative }
 
     /** Cache of current token positions: tokenId → (col, row). */
     private val tokenPositions = mutableMapOf<String, Pair<Int, Int>>()
@@ -252,7 +254,7 @@ class PlayerWebServer(
                 body = "No PC actor named \"$actorName\""
                 return@runOnApplicationThreadAndWait
             }
-            actorTracker.updateActor(actor.copy(initiative = initiative))
+            actorTracker.updateActor(actor.copy(initiative = initiative), initiativeTieResolver)
             if (!actorTracker.hasPlayerCharactersMissingInitiative()) {
                 initiativeEntryRequested = false
             }

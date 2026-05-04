@@ -145,6 +145,69 @@ class PlayerWebServerTest {
     }
 
     @Test
+    fun `initiative endpoint resolves ties between PCs`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(id = "pc-1", name = "Aria", initiative = 12, actorType = ActorType.PC))
+        tracker.addActor(Actor(id = "pc-2", name = "Bryn", actorType = ActorType.PC))
+        val resolverCalls = mutableListOf<List<String>>()
+        val server = PlayerWebServer(
+            actorTracker = tracker,
+            port = freePort(),
+            applicationDispatcher = { action -> action() },
+        ).apply {
+            initiativeTieResolver = { actorsAtInitiative, initiative, movedActorId ->
+                assertEquals(12, initiative)
+                assertEquals("pc-2", movedActorId)
+                resolverCalls += actorsAtInitiative.map(Actor::name)
+                listOf(actorsAtInitiative[1], actorsAtInitiative[0])
+            }
+        }
+
+        try {
+            server.start()
+
+            val response = put(server.port, "/api/initiative?player=Bryn&initiative=12")
+
+            assertEquals(200, response.statusCode())
+            assertEquals(listOf(listOf("Aria", "Bryn")), resolverCalls)
+            assertEquals(listOf("Bryn", "Aria"), tracker.actorList.take(2).map(Actor::name))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `initiative endpoint resolves ties between PCs and NPCs`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(id = "npc-1", name = "Guard", initiative = 11, actorType = ActorType.NPC))
+        tracker.addActor(Actor(id = "pc-1", name = "Aria", actorType = ActorType.PC))
+        val resolverCalls = mutableListOf<List<String>>()
+        val server = PlayerWebServer(
+            actorTracker = tracker,
+            port = freePort(),
+            applicationDispatcher = { action -> action() },
+        ).apply {
+            initiativeTieResolver = { actorsAtInitiative, initiative, movedActorId ->
+                assertEquals(11, initiative)
+                assertEquals("pc-1", movedActorId)
+                resolverCalls += actorsAtInitiative.map(Actor::name)
+                actorsAtInitiative
+            }
+        }
+
+        try {
+            server.start()
+
+            val response = put(server.port, "/api/initiative?player=Aria&initiative=11")
+
+            assertEquals(200, response.statusCode())
+            assertEquals(listOf(listOf("Guard", "Aria")), resolverCalls)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
     fun `initiative request does not block PCs when only NPCs are missing initiative`() {
         val tracker = ActorTracker()
         tracker.addActor(Actor(name = "Aria", hp = 30, ac = 14, initiative = 18, actorType = ActorType.PC))
