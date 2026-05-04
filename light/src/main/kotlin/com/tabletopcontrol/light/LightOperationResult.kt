@@ -80,4 +80,11 @@ sealed interface LightOperationResult {
         override val operatorMessage: String =
             "Could not send the latest light update to the WLED device."
     }
+
+    data class SerialQueryFailed(
+        override val details: String?,
+    ) : SerialFailure {
+        override val operatorMessage: String =
+            "Could not read segment data from the WLED device."
+    }
 }
