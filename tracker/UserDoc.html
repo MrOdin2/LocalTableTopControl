@@ -205,9 +205,13 @@
 
     <h3>Player controls</h3>
     <p>
-      After connecting, the player sees their character's current <strong>HP</strong>,
-      <strong>AC</strong>, and grid position (<strong>Col / Row</strong>), plus a
-      directional pad with four buttons:
+      After connecting, the player sees their character's current <strong>HP</strong> and
+      <strong>AC</strong>, plus a directional pad with four buttons:
+    </p>
+    <p>
+      Players can update their own <strong>HP</strong> and <strong>AC</strong> from the web page.
+      The tracker remains the source of truth, so the page also refreshes when the DM changes those
+      values in the main application.
     </p>
     <ul>
       <li><strong>↑ (North)</strong> — move the token one cell up on the grid.</li>
@@ -217,7 +221,11 @@
     </ul>
     <p>
       Each tap sends a movement request to the DM machine, which moves the token on the live map
-      immediately.  The display updates automatically to show the new grid position.
+      immediately.
+    </p>
+    <p>
+      When the connected character is the current initiative actor, the web card is outlined in that
+      actor's token colour.
     </p>
 
     <h3>HTTP API</h3>
@@ -243,11 +251,19 @@
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/state?player=&lt;name&gt;</code></td>
-          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, <code>col</code>, <code>row</code>.</td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, <code>col</code>, <code>row</code>, <code>active</code>, and <code>color</code>.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/stats?player=&lt;name&gt;&amp;hp=&lt;hp&gt;&amp;ac=&lt;ac&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Update the PC actor's HP and AC; returns updated state JSON.</td>
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/move?player=&lt;name&gt;&amp;dir=&lt;n|s|e|w&gt;</code></td>
           <td style="padding:0.5rem; border:1px solid var(--border);">Move token one cell; returns updated state JSON.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/events</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Server-sent <code>applicationUpdate</code> events used by the web page to refresh from the tracker.</td>
         </tr>
       </tbody>
     </table>
@@ -256,6 +272,7 @@
     <ul>
       <li>The server runs on port <code>8765</code> by default.</li>
       <li>The server only runs while <strong>Web: ON</strong> is active — it is off by default.</li>
+      <li>Connected pages listen for live application updates and re-read their selected actor from the tracker.</li>
       <li>Token positions are tracked in memory; they reset when the server is restarted.</li>
       <li>Only actors marked as <strong>PC</strong> are visible in the player list.</li>
       <li>Token movement via the web companion is subject to the same grid-cell boundaries as DM movement.</li>

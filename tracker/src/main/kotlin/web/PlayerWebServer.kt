@@ -6,14 +6,20 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.ActorType
 import javafx.application.Platform
+import java.io.IOException
+import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.URI
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * A lightweight embedded HTTP server that exposes a mobile-optimised web companion
@@ -24,8 +30,8 @@ import java.util.concurrent.Executors
  * The server subscribes to [TokenMovedEvent] to maintain an up-to-date position
  * cache so that each directional step is relative to the token's current position.
  *
- * All [TokenMovedEvent] publications are dispatched on the JavaFX Application Thread
- * via [Platform.runLater] so that map renderers receive them correctly.
+ * All [TokenMovedEvent] publications are dispatched on the JavaFX Application Thread by
+ * default so that map renderers receive them correctly.
  *
  * @param actorTracker the live [ActorTracker] instance used to resolve PC actor names.
  * @param port         TCP port to listen on; defaults to [DEFAULT_PORT].
@@ -33,6 +39,9 @@ import java.util.concurrent.Executors
 class PlayerWebServer(
     private val actorTracker: ActorTracker,
     val port: Int = DEFAULT_PORT,
+    private val applicationDispatcher: ((() -> Unit) -> Unit) = { action ->
+        if (Platform.isFxApplicationThread()) action() else Platform.runLater(action)
+    },
 ) {
     companion object {
         const val DEFAULT_PORT = 8765
@@ -40,7 +49,11 @@ class PlayerWebServer(
 
     private var server: HttpServer? = null
     private var executor: ExecutorService? = null
+    private var trackerSubscription: ActorTracker.Subscription? = null
     private val subscriptions = mutableListOf<EventBus.Subscription>()
+    private val updateClients = CopyOnWriteArraySet<SseClient>()
+
+    var onActorStatsChanged: (() -> Unit)? = null
 
     /** Cache of current token positions: tokenId → (col, row). */
     private val tokenPositions = mutableMapOf<String, Pair<Int, Int>>()
@@ -55,28 +68,49 @@ class PlayerWebServer(
     fun start() {
         if (server != null) return
 
+        val exec = Executors.newCachedThreadPool()
+        executor = exec
+
+        trackerSubscription = actorTracker.onChanged {
+            publishApplicationUpdate()
+        }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             // Register a new token at (0,0) until its actual position is reported via a TokenMovedEvent.
             // Tokens placed on the map by the DM will update this cache when their position events arrive.
             tokenPositions.putIfAbsent(event.id, Pair(0, 0))
+            publishApplicationUpdate()
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
             tokenPositions[event.id] = Pair(event.col, event.row)
+            publishApplicationUpdate()
         }
         subscriptions += EventBus.subscribe<TokensResetEvent> {
             tokenPositions.clear()
+            publishApplicationUpdate()
         }
 
-        val srv = HttpServer.create(InetSocketAddress(port), 0)
-        val exec = Executors.newCachedThreadPool()
-        srv.createContext("/api/players", ::handlePlayers)
-        srv.createContext("/api/state", ::handleState)
-        srv.createContext("/api/move", ::handleMove)
-        srv.createContext("/", ::handleIndex)
-        srv.executor = exec
-        srv.start()
-        server = srv
-        executor = exec
+        try {
+            val srv = HttpServer.create(InetSocketAddress(port), 0)
+            srv.createContext("/api/players", ::handlePlayers)
+            srv.createContext("/api/state", ::handleState)
+            srv.createContext("/api/stats", ::handleStats)
+            srv.createContext("/api/move", ::handleMove)
+            srv.createContext("/api/events", ::handleEvents)
+            srv.createContext("/", ::handleIndex)
+            srv.executor = exec
+            srv.start()
+            server = srv
+            publishApplicationUpdate()
+        } catch (t: Throwable) {
+            trackerSubscription?.unsubscribe()
+            trackerSubscription = null
+            subscriptions.forEach { it.unsubscribe() }
+            subscriptions.clear()
+            closeUpdateClients()
+            executor?.shutdownNow()
+            executor = null
+            throw t
+        }
     }
 
     /**
@@ -86,6 +120,9 @@ class PlayerWebServer(
     fun stop() {
         server?.stop(0)
         server = null
+        trackerSubscription?.unsubscribe()
+        trackerSubscription = null
+        closeUpdateClients()
         executor?.shutdownNow()
         executor = null
         subscriptions.forEach { it.unsubscribe() }
@@ -115,7 +152,7 @@ class PlayerWebServer(
     /**
      * `GET /api/state?player=<name>` — returns the actor's current stats and token position.
      *
-     * Response JSON: `{"name":"…","hp":0,"ac":0,"col":0,"row":0}`
+     * Response JSON includes name, HP, AC, token position, active-turn flag, and actor colour.
      */
     private fun handleState(exchange: HttpExchange) {
         if (exchange.requestMethod != "GET") {
@@ -133,10 +170,51 @@ class PlayerWebServer(
             return
         }
         val (col, row) = tokenPositions[actor.id] ?: Pair(0, 0)
-        respondJson(
-            exchange, 200,
-            """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"col":$col,"row":$row}""",
-        )
+        respondJson(exchange, 200, stateJson(actor, col, row))
+    }
+
+    /**
+     * `PUT /api/stats?player=<name>&hp=<hp>&ac=<ac>` - updates HP and AC for the PC actor.
+     */
+    private fun handleStats(exchange: HttpExchange) {
+        if (exchange.requestMethod != "PUT") {
+            respond(exchange, 405, "Method Not Allowed")
+            return
+        }
+        val actorName = queryParam(exchange.requestURI, "player")
+        val hp = nonNegativeIntQueryParam(exchange.requestURI, "hp")
+        val ac = nonNegativeIntQueryParam(exchange.requestURI, "ac")
+        if (actorName == null || hp == null || ac == null) {
+            respond(exchange, 400, "Missing or invalid 'player', 'hp', or 'ac' query parameter")
+            return
+        }
+
+        var status = 500
+        var body = "Update did not complete"
+        val completed = runOnApplicationThreadAndWait {
+            val actor = findPlayerActor(actorName)
+            if (actor == null) {
+                status = 404
+                body = "No PC actor named \"$actorName\""
+                return@runOnApplicationThreadAndWait
+            }
+            actorTracker.updateActor(actor.copy(hp = hp, ac = ac))
+            onActorStatsChanged?.invoke()
+            val updatedActor = actorTracker.findActor(actor.id) ?: actor.copy(hp = hp, ac = ac)
+            val (col, row) = tokenPositions[updatedActor.id] ?: Pair(0, 0)
+            status = 200
+            body = stateJson(updatedActor, col, row)
+        }
+
+        if (!completed) {
+            respond(exchange, 503, "Application update timed out")
+            return
+        }
+        if (status == 200) {
+            respondJson(exchange, status, body)
+        } else {
+            respond(exchange, status, body)
+        }
     }
 
     /**
@@ -173,13 +251,29 @@ class PlayerWebServer(
         val newColClamped = newCol.coerceAtLeast(0)
         val newRowClamped = newRow.coerceAtLeast(0)
         tokenPositions[actor.id] = Pair(newColClamped, newRowClamped)
-        Platform.runLater {
+        applicationDispatcher {
             EventBus.publish(TokenMovedEvent(actor.id, actor.name, newColClamped, newRowClamped))
         }
-        respondJson(
-            exchange, 200,
-            """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"col":$newColClamped,"row":$newRowClamped}""",
-        )
+        respondJson(exchange, 200, stateJson(actor, newColClamped, newRowClamped))
+    }
+
+    /** `GET /api/events` - server-sent applicationUpdate events for connected browsers. */
+    private fun handleEvents(exchange: HttpExchange) {
+        if (exchange.requestMethod != "GET") {
+            respond(exchange, 405, "Method Not Allowed")
+            return
+        }
+        exchange.responseHeaders.add("Content-Type", "text/event-stream; charset=utf-8")
+        exchange.responseHeaders.add("Cache-Control", "no-cache")
+        exchange.responseHeaders.add("Connection", "keep-alive")
+        exchange.responseHeaders.add("Access-Control-Allow-Origin", "*")
+        exchange.sendResponseHeaders(200, 0)
+
+        val client = SseClient(exchange, exchange.responseBody)
+        updateClients += client
+        if (!sendApplicationUpdate(client)) {
+            closeUpdateClient(client)
+        }
     }
 
     /** `GET /` — serves the mobile-optimised player web app HTML page. */
@@ -223,10 +317,75 @@ class PlayerWebServer(
             ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
     }
 
+    private fun nonNegativeIntQueryParam(uri: URI, name: String): Int? =
+        queryParam(uri, name)?.toIntOrNull()?.takeIf { it >= 0 }
+
     private fun findPlayerActor(actorName: String): Actor? =
         actorTracker.actorList.firstOrNull { actor ->
             actor.actorType == ActorType.PC && actor.name == actorName
         }
+
+    private fun runOnApplicationThreadAndWait(action: () -> Unit): Boolean {
+        val latch = CountDownLatch(1)
+        var failure: Throwable? = null
+        applicationDispatcher {
+            try {
+                action()
+            } catch (t: Throwable) {
+                failure = t
+            } finally {
+                latch.countDown()
+            }
+        }
+        if (!latch.await(5, TimeUnit.SECONDS)) return false
+        failure?.let { throw it }
+        return true
+    }
+
+    private fun stateJson(
+        actor: Actor,
+        col: Int,
+        row: Int,
+    ): String =
+        """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"col":$col,"row":$row,"active":${actor.id == actorTracker.getCurrentActor()?.id},"color":"${ColorHexCodec.colorToHex(actor.color)}"}"""
+
+    private fun publishApplicationUpdate() {
+        executor?.execute {
+            updateClients.forEach { client ->
+                if (!sendApplicationUpdate(client)) {
+                    closeUpdateClient(client)
+                }
+            }
+        }
+    }
+
+    private fun sendApplicationUpdate(client: SseClient): Boolean =
+        try {
+            synchronized(client) {
+                val message = "event: applicationUpdate\n" +
+                    "data: ${applicationUpdateJson()}\n\n"
+                client.body.write(message.toByteArray(Charsets.UTF_8))
+                client.body.flush()
+            }
+            true
+        } catch (_: IOException) {
+            false
+        }
+
+    private fun applicationUpdateJson(): String {
+        val currentActor = actorTracker.getCurrentActor()
+        return """{"activeActorId":${currentActor?.id?.jsonString() ?: "null"},"activeActorName":${currentActor?.name?.jsonString() ?: "null"}}"""
+    }
+
+    private fun closeUpdateClients() {
+        updateClients.forEach(::closeUpdateClient)
+    }
+
+    private fun closeUpdateClient(client: SseClient) {
+        updateClients -= client
+        runCatching { client.body.close() }
+        runCatching { client.exchange.close() }
+    }
 
     private fun String.jsonEscape(): String = this
         .replace("\\", "\\\\")
@@ -234,6 +393,13 @@ class PlayerWebServer(
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t")
+
+    private fun String.jsonString(): String = "\"${jsonEscape()}\""
+
+    private data class SseClient(
+        val exchange: HttpExchange,
+        val body: OutputStream,
+    )
 
     // -------------------------------------------------------------------------
     // HTML page
@@ -272,13 +438,18 @@ class PlayerWebServer(
     .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
     .card {
       background: var(--surface);
+      border: 3px solid transparent;
       border-radius: 16px;
       padding: 1.75rem;
       width: 100%;
       max-width: 360px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
-    select, input[type="text"] {
+    .game-card.active {
+      border-color: var(--actor-color, var(--accent));
+      box-shadow: 0 0 0 2px var(--actor-color, var(--accent)), 0 8px 32px rgba(0,0,0,0.4);
+    }
+    select, input[type="text"], input[type="number"] {
       width: 100%;
       padding: 0.75rem 1rem;
       border-radius: var(--btn-radius);
@@ -289,7 +460,7 @@ class PlayerWebServer(
       margin-bottom: 1rem;
       appearance: none;
     }
-    select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+    select:focus, input[type="text"]:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
     .btn-primary {
       width: 100%;
       padding: 0.85rem;
@@ -303,18 +474,35 @@ class PlayerWebServer(
       transition: background 0.2s;
     }
     .btn-primary:active { background: var(--accent-dark); }
-    .info-bar {
-      display: flex;
-      justify-content: space-between;
-      background: #0f3460;
-      border-radius: 10px;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1.5rem;
+    .btn-secondary {
+      align-self: end;
+      min-height: 44px;
+      padding: 0 1rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--btn-radius);
       font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
     }
-    .info-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .info-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    .info-value { font-size: 1.1rem; font-weight: 700; }
+    .btn-secondary:active { background: var(--accent-dark); }
+    .stat-editor {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 1.25rem;
+    }
+    .stat-editor label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+    .stat-editor input { margin-bottom: 0; }
     .dpad {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -370,13 +558,12 @@ class PlayerWebServer(
 </div>
 
 <div id="game-screen">
-  <div class="card">
+  <div class="card game-card" id="game-card">
     <div class="actor-name" id="actor-name">—</div>
-    <div class="info-bar">
-      <div class="info-item"><span class="info-label">HP</span><span class="info-value" id="info-hp">—</span></div>
-      <div class="info-item"><span class="info-label">AC</span><span class="info-value" id="info-ac">—</span></div>
-      <div class="info-item"><span class="info-label">Col</span><span class="info-value" id="info-col">—</span></div>
-      <div class="info-item"><span class="info-label">Row</span><span class="info-value" id="info-row">—</span></div>
+    <div class="stat-editor">
+      <label for="hp-input">HP<input id="hp-input" type="number" min="0" inputmode="numeric"/></label>
+      <label for="ac-input">AC<input id="ac-input" type="number" min="0" inputmode="numeric"/></label>
+      <button class="btn-secondary" onclick="commitStats()">Set</button>
     </div>
     <div class="dpad">
       <div></div>
@@ -396,6 +583,7 @@ class PlayerWebServer(
 
 <script>
   let currentPlayer = '';
+  let updateEvents = null;
 
   async function loadPlayers() {
     try {
@@ -421,8 +609,10 @@ class PlayerWebServer(
     try {
       const res = await fetch('/api/state?player=' + encodeURIComponent(name));
       if (!res.ok) { setStatus('Player not found. Ask your DM to assign you an actor.'); return; }
+      const data = await res.json();
       currentPlayer = name;
-      updateDisplay(await res.json());
+      updateDisplay(data);
+      openApplicationUpdates();
       document.getElementById('connect-screen').style.display = 'none';
       document.getElementById('game-screen').style.display = 'flex';
     } catch (e) {
@@ -442,7 +632,23 @@ class PlayerWebServer(
     }
   }
 
+  async function commitStats() {
+    if (!currentPlayer) return;
+    const hp = nonNegativeInt(document.getElementById('hp-input').value);
+    const ac = nonNegativeInt(document.getElementById('ac-input').value);
+    if (hp === null || ac === null) { setStatus('HP and AC must be 0 or higher.'); return; }
+    try {
+      const res = await fetch('/api/stats?player=' + encodeURIComponent(currentPlayer) + '&hp=' + hp + '&ac=' + ac, { method: 'PUT' });
+      if (!res.ok) { setStatus('Stats update failed.'); return; }
+      updateDisplay(await res.json());
+      setStatus('');
+    } catch (e) {
+      setStatus('Error: ' + e.message);
+    }
+  }
+
   function disconnect() {
+    closeApplicationUpdates();
     currentPlayer = '';
     document.getElementById('game-screen').style.display = 'none';
     document.getElementById('connect-screen').style.display = '';
@@ -450,15 +656,55 @@ class PlayerWebServer(
   }
 
   function updateDisplay(data) {
+    const card = document.getElementById('game-card');
+    card.style.setProperty('--actor-color', data.color || 'transparent');
+    card.classList.toggle('active', Boolean(data.active));
     document.getElementById('actor-name').textContent = data.name;
-    document.getElementById('info-hp').textContent = data.hp;
-    document.getElementById('info-ac').textContent = data.ac;
-    document.getElementById('info-col').textContent = data.col;
-    document.getElementById('info-row').textContent = data.row;
+    document.getElementById('hp-input').value = data.hp;
+    document.getElementById('ac-input').value = data.ac;
   }
 
   function setStatus(msg) {
     document.getElementById('status').textContent = msg;
+  }
+
+  async function refreshSelectedActor() {
+    if (!currentPlayer) return;
+    try {
+      const res = await fetch('/api/state?player=' + encodeURIComponent(currentPlayer));
+      if (res.status === 404) {
+        setStatus('Character no longer available. Ask your DM to reconnect you.');
+        return;
+      }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      updateDisplay(await res.json());
+      setStatus('');
+    } catch (e) {
+      setStatus('Refresh error: ' + e.message);
+    }
+  }
+
+  function openApplicationUpdates() {
+    closeApplicationUpdates();
+    updateEvents = new EventSource('/api/events');
+    updateEvents.addEventListener('applicationUpdate', refreshSelectedActor);
+    updateEvents.onerror = function() {
+      if (currentPlayer) setStatus('Waiting for live updates...');
+    };
+  }
+
+  function closeApplicationUpdates() {
+    if (updateEvents) {
+      updateEvents.close();
+      updateEvents = null;
+    }
+  }
+
+  function nonNegativeInt(value) {
+    if (value === '') return null;
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < 0) return null;
+    return number;
   }
 
   function esc(s) {
@@ -468,6 +714,12 @@ class PlayerWebServer(
   // Prevent double-fire on touch devices (touchstart + click)
   document.querySelectorAll('.dpad-btn').forEach(btn => {
     btn.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+  });
+
+  document.querySelectorAll('#hp-input, #ac-input').forEach(input => {
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') commitStats();
+    });
   });
 
   loadPlayers();

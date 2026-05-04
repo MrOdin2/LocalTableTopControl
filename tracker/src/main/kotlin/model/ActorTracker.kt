@@ -10,6 +10,7 @@ import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.scene.paint.Color
+import java.util.concurrent.CopyOnWriteArrayList
 
 typealias InitiativeTieResolver = (
     actorsAtInitiative: List<Actor>,
@@ -23,11 +24,22 @@ private val KEEP_EXISTING_TIE_ORDER: InitiativeTieResolver =
 class ActorTracker(
     val actorList: MutableList<Actor> = mutableListOf(),
 ){
+    class Subscription(
+        private val unsubscribeAction: () -> Unit,
+    ) {
+        fun unsubscribe() = unsubscribeAction()
+    }
 
     var currentlyActive: Int = 0
     var roundCount: Int = 0
 
     private var activeActors: Int = 0
+    private val changeListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    fun onChanged(listener: () -> Unit): Subscription {
+        changeListeners += listener
+        return Subscription { changeListeners -= listener }
+    }
 
     fun addActor(
         actor: Actor,
@@ -55,6 +67,7 @@ class ActorTracker(
             sortActorsByInitiative(actor.id, tieResolver)
         }
         normalizeCurrentSelection(currentActorId)
+        notifyChanged()
     }
 
     fun duplicateActor(
@@ -74,6 +87,7 @@ class ActorTracker(
         actorList.remove(actor)
         EventBus.publish(TokenRemovedEvent(actor.id, actor.name))
         normalizeCurrentSelection(currentActorId)
+        notifyChanged()
     }
 
     fun updateActor(
@@ -117,8 +131,10 @@ class ActorTracker(
 
                 sortActorsByInitiative(updatedActor.id, tieResolver)
                 normalizeCurrentSelection(currentActorId)
+                notifyChanged()
                 return true
             }
+            notifyChanged()
         }
         normalizeCurrentSelection()
         return false
@@ -132,6 +148,7 @@ class ActorTracker(
         EventBus.publish(TokensResetEvent())
         EventBus.publish(ActiveTokenChangedEvent(null, null)
         )
+        notifyChanged()
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
@@ -171,6 +188,7 @@ class ActorTracker(
             }
         }
         EventBus.publish(ActiveTokenChangedEvent(getCurrentActor()?.id, getCurrentActor()?.name))
+        notifyChanged()
     }
 
     private fun sortActorsByInitiative(
@@ -236,6 +254,7 @@ class ActorTracker(
         if (activeActors == 0) {
             currentlyActive = 0
             roundCount = 0
+            notifyChanged()
             return
         }
 
@@ -248,6 +267,7 @@ class ActorTracker(
                 actorList[currentlyActive].name,
             ),
         )
+        notifyChanged()
     }
 
     fun getCurrentActor(): Actor? =
@@ -286,6 +306,10 @@ class ActorTracker(
                 imageOffsetY = settings.offsetY,
             ),
         )
+    }
+
+    private fun notifyChanged() {
+        changeListeners.forEach { listener -> listener() }
     }
 
     private fun Actor.darkvisionRangeCells(): Double? =

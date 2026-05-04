@@ -156,6 +156,9 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
         }
 
+        webServer.onActorStatsChanged = {
+            refreshTrackerView(actorList, roundLabel)
+        }
         refreshTrackerView(actorList, roundLabel)
         return root
     }
