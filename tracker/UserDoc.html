@@ -178,6 +178,92 @@
       stores the tracker together with the linked map, audio, soundboard, and lighting setup.
     </p>
   </section>
+
+  <section>
+    <h2>Player Web Companion</h2>
+    <p>
+      The Player Web Companion is a small built-in web server that lets players control their own
+      map token from any phone or tablet on the same network — no app installation needed.
+    </p>
+
+    <h3>Setting up</h3>
+    <ol style="margin-left:1.5rem; margin-bottom:0.75rem;">
+      <li>
+        Mark a tracker actor as a <strong>PC</strong> (right-click the card → Actor Type → PC).
+      </li>
+      <li>
+        Type the player's name into the <strong>Player</strong> field that appears at the bottom
+        of the PC actor card.  Each player needs a unique name.
+      </li>
+      <li>
+        Click <strong>Web: OFF</strong> in the tracker toolbar to start the server.
+        The button changes to <strong>Web: ON</strong> and the URL is shown next to it
+        (for example <code>http://192.168.1.5:8765</code>).
+      </li>
+      <li>
+        Players open that URL on their device, select their name from the drop-down, and tap
+        <strong>Connect</strong>.
+      </li>
+    </ol>
+
+    <h3>Player controls</h3>
+    <p>
+      After connecting, the player sees their character's current <strong>HP</strong>,
+      <strong>AC</strong>, and grid position (<strong>Col / Row</strong>), plus a
+      directional pad with four buttons:
+    </p>
+    <ul>
+      <li><strong>↑ (North)</strong> — move the token one cell up on the grid.</li>
+      <li><strong>↓ (South)</strong> — move the token one cell down.</li>
+      <li><strong>← (West)</strong> — move the token one cell to the left.</li>
+      <li><strong>→ (East)</strong> — move the token one cell to the right.</li>
+    </ul>
+    <p>
+      Each tap sends a movement request to the DM machine, which moves the token on the live map
+      immediately.  The display updates automatically to show the new grid position.
+    </p>
+
+    <h3>HTTP API</h3>
+    <p>
+      The server also exposes a simple REST API for custom integrations (default port
+      <code>8765</code>):
+    </p>
+    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+      <thead>
+        <tr style="background:var(--accent-light);">
+          <th style="padding:0.5rem; border:1px solid var(--border); text-align:left;">Method &amp; Path</th>
+          <th style="padding:0.5rem; border:1px solid var(--border); text-align:left;">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">The mobile-optimised player web app.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/players</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON array of configured player names.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/state?player=&lt;name&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, <code>col</code>, <code>row</code>.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/move?player=&lt;name&gt;&amp;dir=&lt;n|s|e|w&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Move token one cell; returns updated state JSON.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Notes</h3>
+    <ul>
+      <li>The server runs on port <code>8765</code> by default.</li>
+      <li>The server only runs while <strong>Web: ON</strong> is active — it is off by default.</li>
+      <li>Player names and token positions are tracked in memory; they reset when the server is restarted.</li>
+      <li>Only actors marked as <strong>PC</strong> and given a player name are visible in the player list.</li>
+      <li>Token movement via the web companion is subject to the same grid-cell boundaries as DM movement.</li>
+    </ul>
+  </section>
 </main>
 </body>
 </html>

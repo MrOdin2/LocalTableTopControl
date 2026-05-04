@@ -15,6 +15,8 @@ data class Actor(
     val features: ActorFeatures = ActorFeatures(),
     var color: Color = Color.GRAY,
     val imageSettings: ActorImageSettings = ActorImageSettings(),
+    /** Player name assigned to this actor for the web companion (PC actors only). */
+    val playerName: String? = null,
 ) {
     fun duplicateActor(): Actor = copy(id = UUID.randomUUID().toString())
 }

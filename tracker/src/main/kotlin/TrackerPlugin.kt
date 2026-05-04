@@ -18,6 +18,7 @@ import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
 import com.tabletopcontrol.new_tracker.ui.ActorFeaturesDialog
 import com.tabletopcontrol.new_tracker.ui.AddActorDialog
 import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
+import com.tabletopcontrol.new_tracker.web.PlayerWebServer
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
@@ -38,6 +39,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.stage.Window
+import java.net.InetAddress
 
 class TrackerPlugin : DmPlugin, SceneParticipant {
 
@@ -53,6 +55,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     private val actorFeaturesDialog = ActorFeaturesDialog()
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
     private val initiativeTieDialog = InitiativeTieDialog()
+    private val webServer = PlayerWebServer(actorTracker)
 
     override fun createView(): Node {
 
@@ -90,8 +93,48 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             }
         }
 
+        val webUrlLabel = Label().apply {
+            style = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;"
+            isVisible = false
+            isManaged = false
+        }
+
+        val webToggleButton = Button("Web: OFF").apply {
+            setOnAction {
+                if (webServer.isRunning) {
+                    webServer.stop()
+                    text = "Web: OFF"
+                    webUrlLabel.isVisible = false
+                    webUrlLabel.isManaged = false
+                } else {
+                    try {
+                        webServer.start()
+                        text = "Web: ON"
+                        val host = runCatching { InetAddress.getLocalHost().hostAddress }.getOrDefault("localhost")
+                        webUrlLabel.text = "http://$host:${webServer.port}"
+                        webUrlLabel.isVisible = true
+                        webUrlLabel.isManaged = true
+                    } catch (ex: Exception) {
+                        text = "Web: ERR"
+                        webUrlLabel.text = ex.message ?: "Failed to start"
+                        webUrlLabel.isVisible = true
+                        webUrlLabel.isManaged = true
+                    }
+                }
+            }
+            Tooltip.install(
+                this,
+                Tooltip("Start/stop the player web companion server (port ${webServer.port})"),
+            )
+        }
+
         val toolbar = HBox(8.0, addActorButton, nextButton, presetsButton, roundLabel).apply {
             alignment = Pos.CENTER_LEFT
+        }
+
+        val webBar = HBox(8.0, webToggleButton, webUrlLabel).apply {
+            alignment = Pos.CENTER_LEFT
+            padding = Insets(0.0, 0.0, 4.0, 0.0)
         }
 
         val scrollPane = ScrollPane(actorList).apply {
@@ -101,7 +144,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             style = "-fx-background-color: transparent;"
         }
 
-        val root = VBox(12.0, toolbar, scrollPane).apply {
+        val root = VBox(8.0, toolbar, webBar, scrollPane).apply {
             padding = Insets(12.0)
             style = "-fx-background-color: -tc-bg;"
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
@@ -118,6 +161,10 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             "Invalid tracker scene payload"
         }
         actorTracker.replaceAllActors(presetService.recoverSceneActors(state))
+    }
+
+    override fun onShutdown() {
+        webServer.stop()
     }
 
 
@@ -219,6 +266,26 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             alignment = Pos.CENTER_LEFT
         }
 
+        val playerNameRow: HBox? = if (actor.actorType == ActorType.PC) {
+            val playerNameField = TextField(actor.playerName.orEmpty()).apply {
+                promptText = "Player name (for web companion)"
+                HBox.setHgrow(this, Priority.ALWAYS)
+                Tooltip.install(this, Tooltip("Assign a player name so this actor can be controlled via the web companion"))
+                textProperty().addListener { _, _, newValue ->
+                    actorTracker.findActor(actor.id)?.let { currentActor ->
+                        actorTracker.updateActor(
+                            currentActor.copy(playerName = newValue.trim().ifBlank { null }),
+                        )
+                    }
+                }
+            }
+            HBox(8.0, Label("Player:").apply { style = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;" }, playerNameField).apply {
+                alignment = Pos.CENTER_LEFT
+            }
+        } else {
+            null
+        }
+
         val stats = HBox(
             8.0,
             InputHelpers.labeledField("HP", hpField),
@@ -234,7 +301,13 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val borderStyle =
         if (actor.id == actorTracker.getCurrentActor()?.id) "-tc-card-active-border" else "-tc-card-border"
 
-        return VBox(8.0, header, stats).apply {
+        val cardChildren = buildList {
+            add(header)
+            add(stats)
+            playerNameRow?.let { add(it) }
+        }
+
+        return VBox(8.0, *cardChildren.toTypedArray()).apply {
             padding = Insets(12.0)
             style = """
                 -fx-background-color: -tc-surface;

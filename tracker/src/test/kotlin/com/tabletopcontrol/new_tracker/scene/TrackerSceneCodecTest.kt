@@ -85,7 +85,7 @@ class TrackerSceneCodecTest {
 
         val serialized = TrackerSceneCodec.serialize(state)
 
-        assertTrue(serialized.contains("version=5"))
+        assertTrue(serialized.contains("version=6"))
         assertTrue(serialized.contains("actor.0.name=Goblin Boss"))
         assertTrue(serialized.contains("actor.0.actorType=PC"))
         assertTrue(serialized.contains("actor.0.darkvisionRange=60"))
@@ -120,6 +120,54 @@ class TrackerSceneCodecTest {
 
         assertEquals(ActorType.NPC, restored.actors.single().actorType)
         assertEquals(ActorFeatures(), restored.actors.single().features)
+    }
+
+    @Test
+    fun `serialize and deserialize preserve player name on PC actors`() {
+        val state = TrackerSceneState(
+            actors = listOf(
+                Actor(
+                    id = "actor-1",
+                    name = "Aria",
+                    hp = 30,
+                    ac = 14,
+                    actorType = ActorType.PC,
+                    playerName = "Alice",
+                    color = Color.BLUE,
+                ),
+            ),
+            activeActorId = null,
+            roundCount = 0,
+        )
+
+        val restored = TrackerSceneCodec.deserialize(TrackerSceneCodec.serialize(state))
+
+        assertEquals("Alice", restored?.actors?.single()?.playerName)
+    }
+
+    @Test
+    fun `deserialize version five tracker scenes defaults player name to null`() {
+        val serialized = """
+            #TabletopControl tracker scene
+            version=5
+            roundCount=0
+            actor.count=1
+            actor.0.id=actor-1
+            actor.0.name=Hero
+            actor.0.hp=10
+            actor.0.ac=12
+            actor.0.tokenSize=MEDIUM
+            actor.0.actorType=PC
+            actor.0.color=#0000FF
+            actor.0.imageScaleX=1.0
+            actor.0.imageScaleY=1.0
+            actor.0.imageOffsetX=0.0
+            actor.0.imageOffsetY=0.0
+        """.trimIndent()
+
+        val restored = requireNotNull(TrackerSceneCodec.deserialize(serialized))
+
+        assertEquals(null, restored.actors.single().playerName)
     }
 
     @Test
