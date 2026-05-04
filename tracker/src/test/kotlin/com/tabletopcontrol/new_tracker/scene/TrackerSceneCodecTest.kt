@@ -146,7 +146,7 @@ class TrackerSceneCodecTest {
     }
 
     @Test
-    fun `deserialize version five tracker scenes defaults player name to null`() {
+    fun `deserialize version 5 tracker scenes defaults player name to null`() {
         val serialized = """
             #TabletopControl tracker scene
             version=5

@@ -57,6 +57,10 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     private val initiativeTieDialog = InitiativeTieDialog()
     private val webServer = PlayerWebServer(actorTracker)
 
+    companion object {
+        private const val MUTED_SMALL_LABEL_STYLE = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;"
+    }
+
     override fun createView(): Node {
 
         val roundLabel = Label()
@@ -94,7 +98,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         }
 
         val webUrlLabel = Label().apply {
-            style = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;"
+            style = MUTED_SMALL_LABEL_STYLE
             isVisible = false
             isManaged = false
         }
@@ -279,7 +283,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
                     }
                 }
             }
-            HBox(8.0, Label("Player:").apply { style = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;" }, playerNameField).apply {
+            HBox(8.0, Label("Player:").apply { style = MUTED_SMALL_LABEL_STYLE }, playerNameField).apply {
                 alignment = Pos.CENTER_LEFT
             }
         } else {

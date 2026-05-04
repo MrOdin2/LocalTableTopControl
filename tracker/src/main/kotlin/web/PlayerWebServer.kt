@@ -53,7 +53,8 @@ class PlayerWebServer(
         if (server != null) return
 
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
-            // Register a new token at (0,0); a subsequent TokenMovedEvent will update the position.
+            // Register a new token at (0,0) until its actual position is reported via a TokenMovedEvent.
+            // Tokens placed on the map by the DM will update this cache when their position events arrive.
             tokenPositions.putIfAbsent(event.id, Pair(0, 0))
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
