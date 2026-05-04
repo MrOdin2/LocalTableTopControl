@@ -69,7 +69,7 @@ class PlayerWebServerTest {
 
             assertEquals(200, pcResponse.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080"}""",
                 pcResponse.body(),
             )
             assertEquals(404, npcResponse.statusCode())
@@ -100,7 +100,43 @@ class PlayerWebServerTest {
             assertEquals(22, tracker.actorList.single().hp)
             assertEquals(16, tracker.actorList.single().ac)
             assertEquals(
-                """{"name":"Aria","hp":22,"ac":16,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":22,"ac":16,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                response.body(),
+            )
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `initiative request blocks player state until initiative is submitted`() {
+        val tracker = ActorTracker(
+            mutableListOf(
+                Actor(name = "Aria", hp = 30, ac = 14, actorType = ActorType.PC),
+            ),
+        )
+        val server = PlayerWebServer(
+            actorTracker = tracker,
+            port = freePort(),
+            applicationDispatcher = { action -> action() },
+        )
+
+        try {
+            server.start()
+            server.requestInitiatives()
+
+            val requiredState = get(server.port, "/api/state?player=Aria")
+            val response = put(server.port, "/api/initiative?player=Aria&initiative=18")
+
+            assertEquals(200, requiredState.statusCode())
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":true,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                requiredState.body(),
+            )
+            assertEquals(200, response.statusCode())
+            assertEquals(18, tracker.actorList.single().initiative)
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"initiative":18,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"#808080"}""",
                 response.body(),
             )
         } finally {
@@ -126,7 +162,7 @@ class PlayerWebServerTest {
 
             assertEquals(200, response.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"col":0,"row":0,"active":true,"color":"$colorHex"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":10,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"$colorHex"}""",
                 response.body(),
             )
         } finally {
@@ -163,7 +199,7 @@ class PlayerWebServerTest {
             )
             assertEquals(200, response.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"col":5,"row":7,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":5,"row":7,"active":false,"color":"#808080"}""",
                 response.body(),
             )
         } finally {
@@ -191,6 +227,39 @@ class PlayerWebServerTest {
                 assertEquals(200, response.statusCode())
                 assertEquals("event: applicationUpdate", reader.readLine())
                 assertEquals("""data: {"activeActorId":null,"activeActorName":null}""", reader.readLine())
+                assertEquals("", reader.readLine())
+            }
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `initiative requests are sent to connected event streams`() {
+        val server = PlayerWebServer(
+            actorTracker = ActorTracker(),
+            port = freePort(),
+        )
+
+        try {
+            server.start()
+
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("http://127.0.0.1:${server.port}/api/events"))
+                .GET()
+                .build()
+            val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofInputStream())
+
+            response.body().bufferedReader().use { reader ->
+                assertEquals(200, response.statusCode())
+                assertEquals("event: applicationUpdate", reader.readLine())
+                assertEquals("""data: {"activeActorId":null,"activeActorName":null}""", reader.readLine())
+                assertEquals("", reader.readLine())
+
+                server.requestInitiatives()
+
+                assertEquals("event: initiativeRequired", reader.readLine())
+                assertEquals("""data: {}""", reader.readLine())
                 assertEquals("", reader.readLine())
             }
         } finally {

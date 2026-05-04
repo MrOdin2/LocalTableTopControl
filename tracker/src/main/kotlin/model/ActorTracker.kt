@@ -153,6 +153,8 @@ class ActorTracker(
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
 
+    fun hasInitiativeActors(): Boolean = activeActors > 0
+
     internal fun snapshot(): TrackerSceneState =
         TrackerSceneState(
             actors = actorList.map { actor -> actor.copy() },

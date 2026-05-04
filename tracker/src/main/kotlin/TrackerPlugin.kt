@@ -83,10 +83,14 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val nextButton = Button("NEXT").apply {
             style = "-fx-base: -tc-accent;"
             setOnAction {
+                if (!actorTracker.hasInitiativeActors()) {
+                    webServer.requestInitiatives()
+                    return@setOnAction
+                }
                 actorTracker.next()
                 refreshTrackerView(actorList, roundLabel)
-                }
             }
+        }
 
         val presetsButton = Button("Presets...").apply {
             setOnAction { event ->
@@ -156,7 +160,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
         }
 
-        webServer.onActorStatsChanged = {
+        webServer.onActorChanged = {
             refreshTrackerView(actorList, roundLabel)
         }
         refreshTrackerView(actorList, roundLabel)

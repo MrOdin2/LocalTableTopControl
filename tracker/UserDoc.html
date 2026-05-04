@@ -227,6 +227,11 @@
       When the connected character is the current initiative actor, the web card is outlined in that
       actor's token colour.
     </p>
+    <p>
+      If the DM presses <strong>NEXT</strong> before any actor has an initiative value, connected
+      player screens show a required initiative prompt. The player must submit their initiative
+      before using the web controls again, and the value is written back to the tracker.
+    </p>
 
     <h3>HTTP API</h3>
     <p>
@@ -251,11 +256,15 @@
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/state?player=&lt;name&gt;</code></td>
-          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, <code>col</code>, <code>row</code>, <code>active</code>, and <code>color</code>.</td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, <code>initiative</code>, <code>initiativeRequired</code>, <code>col</code>, <code>row</code>, <code>active</code>, and <code>color</code>.</td>
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/stats?player=&lt;name&gt;&amp;hp=&lt;hp&gt;&amp;ac=&lt;ac&gt;</code></td>
           <td style="padding:0.5rem; border:1px solid var(--border);">Update the PC actor's HP and AC; returns updated state JSON.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/initiative?player=&lt;name&gt;&amp;initiative=&lt;initiative&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Update the PC actor's initiative; returns updated state JSON.</td>
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/move?player=&lt;name&gt;&amp;dir=&lt;n|s|e|w&gt;</code></td>
@@ -263,7 +272,7 @@
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/events</code></td>
-          <td style="padding:0.5rem; border:1px solid var(--border);">Server-sent <code>applicationUpdate</code> events used by the web page to refresh from the tracker.</td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Server-sent <code>applicationUpdate</code> and <code>initiativeRequired</code> events used by the web page to refresh from the tracker.</td>
         </tr>
       </tbody>
     </table>

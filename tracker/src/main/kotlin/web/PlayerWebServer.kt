@@ -54,14 +54,21 @@ class PlayerWebServer(
     private var trackerSubscription: ActorTracker.Subscription? = null
     private val subscriptions = mutableListOf<EventBus.Subscription>()
     private val updateClients = CopyOnWriteArraySet<SseClient>()
+    @Volatile
+    private var initiativeEntryRequested = false
 
-    var onActorStatsChanged: (() -> Unit)? = null
+    var onActorChanged: (() -> Unit)? = null
 
     /** Cache of current token positions: tokenId → (col, row). */
     private val tokenPositions = mutableMapOf<String, Pair<Int, Int>>()
 
     /** Whether the server is currently running. */
     val isRunning: Boolean get() = server != null
+
+    fun requestInitiatives() {
+        initiativeEntryRequested = true
+        publishInitiativeRequired()
+    }
 
     /**
      * Starts the HTTP server and begins subscribing to token events.
@@ -74,6 +81,9 @@ class PlayerWebServer(
         executor = exec
 
         trackerSubscription = actorTracker.onChanged {
+            if (initiativeEntryRequested && allPlayerInitiativesEntered()) {
+                initiativeEntryRequested = false
+            }
             publishApplicationUpdate()
         }
         subscriptions += EventBus.subscribe<TokenAddedEvent> {
@@ -93,6 +103,7 @@ class PlayerWebServer(
             srv.createContext("/api/players", ::handlePlayers)
             srv.createContext("/api/state", ::handleState)
             srv.createContext("/api/stats", ::handleStats)
+            srv.createContext("/api/initiative", ::handleInitiative)
             srv.createContext("/api/move", ::handleMove)
             srv.createContext("/api/events", ::handleEvents)
             srv.createContext("/", ::handleIndex)
@@ -198,8 +209,54 @@ class PlayerWebServer(
                 return@runOnApplicationThreadAndWait
             }
             actorTracker.updateActor(actor.copy(hp = hp, ac = ac))
-            onActorStatsChanged?.invoke()
+            onActorChanged?.invoke()
             val updatedActor = actorTracker.findActor(actor.id) ?: actor.copy(hp = hp, ac = ac)
+            val (col, row) = tokenPositions[updatedActor.id] ?: Pair(0, 0)
+            status = 200
+            body = stateJson(updatedActor, col, row)
+        }
+
+        if (!completed) {
+            respond(exchange, 503, "Application update timed out")
+            return
+        }
+        if (status == 200) {
+            respondJson(exchange, status, body)
+        } else {
+            respond(exchange, status, body)
+        }
+    }
+
+    /**
+     * `PUT /api/initiative?player=<name>&initiative=<initiative>` - updates initiative for the PC actor.
+     */
+    private fun handleInitiative(exchange: HttpExchange) {
+        if (exchange.requestMethod != "PUT") {
+            respond(exchange, 405, "Method Not Allowed")
+            return
+        }
+        val actorName = queryParam(exchange.requestURI, "player")
+        val initiative = nonNegativeIntQueryParam(exchange.requestURI, "initiative")
+        if (actorName == null || initiative == null) {
+            respond(exchange, 400, "Missing or invalid 'player' or 'initiative' query parameter")
+            return
+        }
+
+        var status = 500
+        var body = "Update did not complete"
+        val completed = runOnApplicationThreadAndWait {
+            val actor = findPlayerActor(actorName)
+            if (actor == null) {
+                status = 404
+                body = "No PC actor named \"$actorName\""
+                return@runOnApplicationThreadAndWait
+            }
+            actorTracker.updateActor(actor.copy(initiative = initiative))
+            if (allPlayerInitiativesEntered()) {
+                initiativeEntryRequested = false
+            }
+            onActorChanged?.invoke()
+            val updatedActor = actorTracker.findActor(actor.id) ?: actor.copy(initiative = initiative)
             val (col, row) = tokenPositions[updatedActor.id] ?: Pair(0, 0)
             status = 200
             body = stateJson(updatedActor, col, row)
@@ -328,6 +385,11 @@ class PlayerWebServer(
             actor.actorType == ActorType.PC && actor.name == actorName
         }
 
+    private fun allPlayerInitiativesEntered(): Boolean =
+        actorTracker.actorList.none { actor ->
+            actor.actorType == ActorType.PC && actor.name.isNotBlank() && actor.initiative == null
+        }
+
     private fun runOnApplicationThreadAndWait(action: () -> Unit): Boolean {
         val latch = CountDownLatch(1)
         var failure: Throwable? = null
@@ -350,7 +412,7 @@ class PlayerWebServer(
         col: Int,
         row: Int,
     ): String =
-        """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"col":$col,"row":$row,"active":${actor.id == actorTracker.getCurrentActor()?.id},"color":"${ColorHexCodec.colorToHex(actor.color)}"}"""
+        """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"initiative":${actor.initiative ?: "null"},"initiativeRequired":${initiativeEntryRequested && actor.initiative == null},"col":$col,"row":$row,"active":${actor.id == actorTracker.getCurrentActor()?.id},"color":"${ColorHexCodec.colorToHex(actor.color)}"}"""
 
     private fun publishApplicationUpdate() {
         executor?.execute {
@@ -363,10 +425,23 @@ class PlayerWebServer(
     }
 
     private fun sendApplicationUpdate(client: SseClient): Boolean =
+        sendSseEvent(client, "applicationUpdate", applicationUpdateJson())
+
+    private fun publishInitiativeRequired() {
+        executor?.execute {
+            updateClients.forEach { client ->
+                if (!sendSseEvent(client, "initiativeRequired", "{}")) {
+                    closeUpdateClient(client)
+                }
+            }
+        }
+    }
+
+    private fun sendSseEvent(client: SseClient, eventName: String, data: String): Boolean =
         try {
             synchronized(client) {
-                val message = "event: applicationUpdate\n" +
-                    "data: ${applicationUpdateJson()}\n\n"
+                val message = "event: $eventName\n" +
+                    "data: $data\n\n"
                 client.body.write(message.toByteArray(Charsets.UTF_8))
                 client.body.flush()
             }
@@ -544,6 +619,45 @@ class PlayerWebServer(
       text-decoration: underline;
     }
     .back-btn:hover { color: var(--text); }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.72);
+      padding: 1.5rem;
+      z-index: 10;
+    }
+    .modal-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--surface);
+      border: 3px solid var(--accent);
+      border-radius: 16px;
+      padding: 1.75rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+    .modal-text {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .modal-card label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
     #connect-screen, #game-screen { width: 100%; max-width: 360px; }
     #game-screen { display: none; }
     .actor-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; text-align: center; }
@@ -584,9 +698,22 @@ class PlayerWebServer(
   </div>
 </div>
 
+<div id="initiative-modal" class="modal-backdrop" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-title">Enter initiative</div>
+    <p class="modal-text">Your DM is starting initiative.</p>
+    <label for="initiative-input">Initiative
+      <input id="initiative-input" type="number" min="0" inputmode="numeric"/>
+    </label>
+    <button class="btn-primary" onclick="commitInitiative()">Submit</button>
+    <div class="status" id="initiative-status"></div>
+  </div>
+</div>
+
 <script>
   let currentPlayer = '';
   let updateEvents = null;
+  let initiativeRequired = false;
 
   async function loadPlayers() {
     try {
@@ -625,6 +752,7 @@ class PlayerWebServer(
 
   async function handleMove(dir) {
     if (!currentPlayer) return;
+    if (initiativeRequired) { setInitiativeStatus('Enter initiative first.'); return; }
     try {
       const res = await fetch('/api/move?player=' + encodeURIComponent(currentPlayer) + '&dir=' + dir, { method: 'PUT' });
       if (!res.ok) { setStatus('Move failed.'); return; }
@@ -637,6 +765,7 @@ class PlayerWebServer(
 
   async function commitStats() {
     if (!currentPlayer) return;
+    if (initiativeRequired) { setInitiativeStatus('Enter initiative first.'); return; }
     const hp = nonNegativeInt(document.getElementById('hp-input').value);
     const ac = nonNegativeInt(document.getElementById('ac-input').value);
     if (hp === null || ac === null) { setStatus('HP and AC must be 0 or higher.'); return; }
@@ -652,6 +781,7 @@ class PlayerWebServer(
 
   function disconnect() {
     closeApplicationUpdates();
+    hideInitiativeDialog();
     currentPlayer = '';
     document.getElementById('game-screen').style.display = 'none';
     document.getElementById('connect-screen').style.display = '';
@@ -665,10 +795,54 @@ class PlayerWebServer(
     document.getElementById('actor-name').textContent = data.name;
     document.getElementById('hp-input').value = data.hp;
     document.getElementById('ac-input').value = data.ac;
+    if (data.initiativeRequired) {
+      showInitiativeDialog();
+    } else if (initiativeRequired) {
+      hideInitiativeDialog();
+    }
   }
 
   function setStatus(msg) {
     document.getElementById('status').textContent = msg;
+  }
+
+  function setInitiativeStatus(msg) {
+    document.getElementById('initiative-status').textContent = msg;
+  }
+
+  function showInitiativeDialog() {
+    if (!currentPlayer) return;
+    const wasOpen = initiativeRequired;
+    initiativeRequired = true;
+    const modal = document.getElementById('initiative-modal');
+    const input = document.getElementById('initiative-input');
+    modal.style.display = 'flex';
+    if (!wasOpen) {
+      setInitiativeStatus('');
+      input.value = '';
+      setTimeout(() => input.focus(), 0);
+    }
+  }
+
+  function hideInitiativeDialog() {
+    initiativeRequired = false;
+    document.getElementById('initiative-modal').style.display = 'none';
+    setInitiativeStatus('');
+  }
+
+  async function commitInitiative() {
+    if (!currentPlayer) return;
+    const initiative = nonNegativeInt(document.getElementById('initiative-input').value);
+    if (initiative === null) { setInitiativeStatus('Initiative must be 0 or higher.'); return; }
+    try {
+      const res = await fetch('/api/initiative?player=' + encodeURIComponent(currentPlayer) + '&initiative=' + initiative, { method: 'PUT' });
+      if (!res.ok) { setInitiativeStatus('Initiative update failed.'); return; }
+      updateDisplay(await res.json());
+      hideInitiativeDialog();
+      setStatus('');
+    } catch (e) {
+      setInitiativeStatus('Error: ' + e.message);
+    }
   }
 
   async function refreshSelectedActor() {
@@ -691,6 +865,7 @@ class PlayerWebServer(
     closeApplicationUpdates();
     updateEvents = new EventSource('/api/events');
     updateEvents.addEventListener('applicationUpdate', refreshSelectedActor);
+    updateEvents.addEventListener('initiativeRequired', refreshSelectedActor);
     updateEvents.onerror = function() {
       if (currentPlayer) setStatus('Waiting for live updates...');
     };
@@ -723,6 +898,10 @@ class PlayerWebServer(
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') commitStats();
     });
+  });
+
+  document.getElementById('initiative-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') commitInitiative();
   });
 
   loadPlayers();
