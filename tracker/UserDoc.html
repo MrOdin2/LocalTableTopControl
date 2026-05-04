@@ -189,11 +189,8 @@
     <h3>Setting up</h3>
     <ol style="margin-left:1.5rem; margin-bottom:0.75rem;">
       <li>
-        Mark a tracker actor as a <strong>PC</strong> (right-click the card → Actor Type → PC).
-      </li>
-      <li>
-        Type the player's name into the <strong>Player</strong> field that appears at the bottom
-        of the PC actor card.  Each player needs a unique name.
+        Give each player character a unique actor name and mark that tracker actor as a
+        <strong>PC</strong> (right-click the card → Actor Type → PC).
       </li>
       <li>
         Click <strong>Web: OFF</strong> in the tracker toolbar to start the server.
@@ -201,8 +198,8 @@
         (for example <code>http://192.168.1.5:8765</code>).
       </li>
       <li>
-        Players open that URL on their device, select their name from the drop-down, and tap
-        <strong>Connect</strong>.
+        Players open that URL on their device, select their character name from the drop-down,
+        and tap <strong>Connect</strong>.
       </li>
     </ol>
 
@@ -242,7 +239,7 @@
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/players</code></td>
-          <td style="padding:0.5rem; border:1px solid var(--border);">JSON array of configured player names.</td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON array of PC actor names.</td>
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/state?player=&lt;name&gt;</code></td>
@@ -259,8 +256,8 @@
     <ul>
       <li>The server runs on port <code>8765</code> by default.</li>
       <li>The server only runs while <strong>Web: ON</strong> is active — it is off by default.</li>
-      <li>Player names and token positions are tracked in memory; they reset when the server is restarted.</li>
-      <li>Only actors marked as <strong>PC</strong> and given a player name are visible in the player list.</li>
+      <li>Token positions are tracked in memory; they reset when the server is restarted.</li>
+      <li>Only actors marked as <strong>PC</strong> are visible in the player list.</li>
       <li>Token movement via the web companion is subject to the same grid-cell boundaries as DM movement.</li>
     </ul>
   </section>

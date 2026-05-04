@@ -6,18 +6,20 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
+import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
+import com.tabletopcontrol.new_tracker.model.ActorType
 import javafx.application.Platform
 import java.net.InetSocketAddress
 import java.net.URI
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
  * A lightweight embedded HTTP server that exposes a mobile-optimised web companion
- * for players.  Players connect via a browser, select their player name (which must
- * match the [com.tabletopcontrol.new_tracker.model.Actor.playerName] field of a PC
- * actor in the tracker), and use four directional buttons to move their map token
- * one grid cell at a time.
+ * for players. Players connect via a browser, select their character name (which
+ * matches the [Actor.name] field of a PC actor in the tracker), and use four
+ * directional buttons to move their map token one grid cell at a time.
  *
  * The server subscribes to [TokenMovedEvent] to maintain an up-to-date position
  * cache so that each directional step is relative to the token's current position.
@@ -25,7 +27,7 @@ import java.util.concurrent.Executors
  * All [TokenMovedEvent] publications are dispatched on the JavaFX Application Thread
  * via [Platform.runLater] so that map renderers receive them correctly.
  *
- * @param actorTracker the live [ActorTracker] instance used to resolve player names.
+ * @param actorTracker the live [ActorTracker] instance used to resolve PC actor names.
  * @param port         TCP port to listen on; defaults to [DEFAULT_PORT].
  */
 class PlayerWebServer(
@@ -37,6 +39,7 @@ class PlayerWebServer(
     }
 
     private var server: HttpServer? = null
+    private var executor: ExecutorService? = null
     private val subscriptions = mutableListOf<EventBus.Subscription>()
 
     /** Cache of current token positions: tokenId → (col, row). */
@@ -65,13 +68,15 @@ class PlayerWebServer(
         }
 
         val srv = HttpServer.create(InetSocketAddress(port), 0)
+        val exec = Executors.newCachedThreadPool()
         srv.createContext("/api/players", ::handlePlayers)
         srv.createContext("/api/state", ::handleState)
         srv.createContext("/api/move", ::handleMove)
         srv.createContext("/", ::handleIndex)
-        srv.executor = Executors.newCachedThreadPool()
+        srv.executor = exec
         srv.start()
         server = srv
+        executor = exec
     }
 
     /**
@@ -81,6 +86,8 @@ class PlayerWebServer(
     fun stop() {
         server?.stop(0)
         server = null
+        executor?.shutdownNow()
+        executor = null
         subscriptions.forEach { it.unsubscribe() }
         subscriptions.clear()
         tokenPositions.clear()
@@ -90,14 +97,16 @@ class PlayerWebServer(
     // HTTP handlers
     // -------------------------------------------------------------------------
 
-    /** `GET /api/players` — returns a JSON array of player names that have a PC actor assigned. */
+    /** `GET /api/players` - returns a JSON array of PC actor names. */
     private fun handlePlayers(exchange: HttpExchange) {
         if (exchange.requestMethod != "GET") {
             respond(exchange, 405, "Method Not Allowed")
             return
         }
         val names = actorTracker.actorList
-            .mapNotNull { it.playerName?.takeIf { n -> n.isNotBlank() } }
+            .mapNotNull { actor ->
+                actor.name.takeIf { actor.actorType == ActorType.PC && it.isNotBlank() }
+            }
             .distinct()
         val json = names.joinToString(separator = ",", prefix = "[", postfix = "]") { "\"${it.jsonEscape()}\"" }
         respondJson(exchange, 200, json)
@@ -113,14 +122,14 @@ class PlayerWebServer(
             respond(exchange, 405, "Method Not Allowed")
             return
         }
-        val playerName = queryParam(exchange.requestURI, "player")
-        if (playerName == null) {
+        val actorName = queryParam(exchange.requestURI, "player")
+        if (actorName == null) {
             respond(exchange, 400, "Missing 'player' query parameter")
             return
         }
-        val actor = actorTracker.actorList.firstOrNull { it.playerName == playerName }
+        val actor = findPlayerActor(actorName)
         if (actor == null) {
-            respond(exchange, 404, "No actor assigned to player \"$playerName\"")
+            respond(exchange, 404, "No PC actor named \"$actorName\"")
             return
         }
         val (col, row) = tokenPositions[actor.id] ?: Pair(0, 0)
@@ -139,15 +148,15 @@ class PlayerWebServer(
             respond(exchange, 405, "Method Not Allowed")
             return
         }
-        val playerName = queryParam(exchange.requestURI, "player")
+        val actorName = queryParam(exchange.requestURI, "player")
         val dir = queryParam(exchange.requestURI, "dir")
-        if (playerName == null || dir == null) {
+        if (actorName == null || dir == null) {
             respond(exchange, 400, "Missing 'player' or 'dir' query parameter")
             return
         }
-        val actor = actorTracker.actorList.firstOrNull { it.playerName == playerName }
+        val actor = findPlayerActor(actorName)
         if (actor == null) {
-            respond(exchange, 404, "No actor assigned to player \"$playerName\"")
+            respond(exchange, 404, "No PC actor named \"$actorName\"")
             return
         }
         val (col, row) = tokenPositions[actor.id] ?: Pair(0, 0)
@@ -213,6 +222,11 @@ class PlayerWebServer(
             ?.getOrNull(1)
             ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
     }
+
+    private fun findPlayerActor(actorName: String): Actor? =
+        actorTracker.actorList.firstOrNull { actor ->
+            actor.actorType == ActorType.PC && actor.name == actorName
+        }
 
     private fun String.jsonEscape(): String = this
         .replace("\\", "\\\\")

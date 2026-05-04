@@ -132,14 +132,16 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             )
         }
 
-        val toolbar = HBox(8.0, addActorButton, nextButton, presetsButton, roundLabel).apply {
+//        val webBar = HBox(8.0, ).apply {
+//            alignment = Pos.CENTER_LEFT
+//            padding = Insets(0.0, 0.0, 4.0, 0.0)
+//        }
+
+        val toolbar = HBox(8.0, addActorButton, nextButton, presetsButton, roundLabel, webToggleButton, webUrlLabel).apply {
             alignment = Pos.CENTER_LEFT
         }
 
-        val webBar = HBox(8.0, webToggleButton, webUrlLabel).apply {
-            alignment = Pos.CENTER_LEFT
-            padding = Insets(0.0, 0.0, 4.0, 0.0)
-        }
+
 
         val scrollPane = ScrollPane(actorList).apply {
             isFitToWidth = true
@@ -148,7 +150,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             style = "-fx-background-color: transparent;"
         }
 
-        val root = VBox(8.0, toolbar, webBar, scrollPane).apply {
+        val root = VBox(8.0, toolbar, scrollPane).apply {
             padding = Insets(12.0)
             style = "-fx-background-color: -tc-bg;"
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
@@ -188,7 +190,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     }
 
     private fun refreshTrackerView(actorList: VBox, roundLabel: Label) {
-        roundLabel.text = "Round: ${actorTracker.roundCount}"
+        roundLabel.text = "${actorTracker.roundCount} - Round"
         refreshActorList(actorList)
     }
 
@@ -270,26 +272,6 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             alignment = Pos.CENTER_LEFT
         }
 
-        val playerNameRow: HBox? = if (actor.actorType == ActorType.PC) {
-            val playerNameField = TextField(actor.playerName.orEmpty()).apply {
-                promptText = "Player name (for web companion)"
-                HBox.setHgrow(this, Priority.ALWAYS)
-                Tooltip.install(this, Tooltip("Assign a player name so this actor can be controlled via the web companion"))
-                textProperty().addListener { _, _, newValue ->
-                    actorTracker.findActor(actor.id)?.let { currentActor ->
-                        actorTracker.updateActor(
-                            currentActor.copy(playerName = newValue.trim().ifBlank { null }),
-                        )
-                    }
-                }
-            }
-            HBox(8.0, Label("Player:").apply { style = MUTED_SMALL_LABEL_STYLE }, playerNameField).apply {
-                alignment = Pos.CENTER_LEFT
-            }
-        } else {
-            null
-        }
-
         val stats = HBox(
             8.0,
             InputHelpers.labeledField("HP", hpField),
@@ -308,7 +290,6 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val cardChildren = buildList {
             add(header)
             add(stats)
-            playerNameRow?.let { add(it) }
         }
 
         return VBox(8.0, *cardChildren.toTypedArray()).apply {

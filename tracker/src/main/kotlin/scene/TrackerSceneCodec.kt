@@ -23,7 +23,6 @@ internal data class TrackerSceneState(
 
 internal object TrackerSceneCodec {
     private const val VERSION = 6
-    private const val PROPERTY_VERSION_WITHOUT_PLAYER_NAME = 5
     private const val PROPERTY_VERSION_WITHOUT_ACTOR_TYPE = 2
     private const val LEGACY_VERSION = 1
 
@@ -63,7 +62,6 @@ internal object TrackerSceneCodec {
                 setProperty("$prefix.imageScaleY", actor.imageSettings.scaleY.toString())
                 setProperty("$prefix.imageOffsetX", actor.imageSettings.offsetX.toString())
                 setProperty("$prefix.imageOffsetY", actor.imageSettings.offsetY.toString())
-                actor.playerName?.let { setProperty("$prefix.playerName", it) }
             }
         }
 
@@ -117,7 +115,6 @@ internal object TrackerSceneCodec {
                             offsetX = props.getProperty("$prefix.imageOffsetX")?.toDoubleOrNull() ?: 0.0,
                             offsetY = props.getProperty("$prefix.imageOffsetY")?.toDoubleOrNull() ?: 0.0,
                         ),
-                        playerName = props.getProperty("$prefix.playerName")?.takeIf { it.isNotBlank() },
                     ),
                 )
             }
