@@ -83,7 +83,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val nextButton = Button("NEXT").apply {
             style = "-fx-base: -tc-accent;"
             setOnAction {
-                if (!actorTracker.hasInitiativeActors()) {
+                if (actorTracker.hasPlayerCharactersMissingInitiative()) {
                     webServer.requestInitiatives()
                     return@setOnAction
                 }

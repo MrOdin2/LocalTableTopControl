@@ -145,6 +145,33 @@ class PlayerWebServerTest {
     }
 
     @Test
+    fun `initiative request does not block PCs when only NPCs are missing initiative`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(name = "Aria", hp = 30, ac = 14, initiative = 18, actorType = ActorType.PC))
+        tracker.addActor(Actor(name = "Goblin", hp = 7, ac = 15, actorType = ActorType.NPC))
+        val colorHex = ColorHexCodec.colorToHex(tracker.actorList.first { it.name == "Aria" }.color)
+        val server = PlayerWebServer(
+            actorTracker = tracker,
+            port = freePort(),
+        )
+
+        try {
+            server.start()
+            server.requestInitiatives()
+
+            val response = get(server.port, "/api/state?player=Aria")
+
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"initiative":18,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"$colorHex"}""",
+                response.body(),
+            )
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
     fun `state endpoint marks current initiative actor with token color`() {
         val tracker = ActorTracker()
         val actor = Actor(name = "Aria", hp = 30, ac = 14, initiative = 10, actorType = ActorType.PC)
@@ -237,7 +264,11 @@ class PlayerWebServerTest {
     @Test
     fun `initiative requests are sent to connected event streams`() {
         val server = PlayerWebServer(
-            actorTracker = ActorTracker(),
+            actorTracker = ActorTracker(
+                mutableListOf(
+                    Actor(name = "Aria", actorType = ActorType.PC),
+                ),
+            ),
             port = freePort(),
         )
 

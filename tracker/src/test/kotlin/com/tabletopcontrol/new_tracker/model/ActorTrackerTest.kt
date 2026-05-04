@@ -81,6 +81,23 @@ class ActorTrackerTest {
     }
 
     @Test
+    fun `player initiative requirement ignores npcs without initiative`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(name = "Goblin", actorType = ActorType.NPC))
+
+        assertEquals(false, tracker.hasPlayerCharactersMissingInitiative())
+
+        val hero = Actor(name = "Hero", actorType = ActorType.PC)
+        tracker.addActor(hero)
+
+        assertEquals(true, tracker.hasPlayerCharactersMissingInitiative())
+
+        tracker.updateActor(hero.copy(initiative = 14))
+
+        assertEquals(false, tracker.hasPlayerCharactersMissingInitiative())
+    }
+
+    @Test
     fun `adding an actor publishes darkvision range in grid cells`() {
         val tracker = ActorTracker()
         val tokenEvents = mutableListOf<TokenAddedEvent>()

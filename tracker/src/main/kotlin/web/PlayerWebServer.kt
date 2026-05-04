@@ -66,6 +66,7 @@ class PlayerWebServer(
     val isRunning: Boolean get() = server != null
 
     fun requestInitiatives() {
+        if (!actorTracker.hasPlayerCharactersMissingInitiative()) return
         initiativeEntryRequested = true
         publishInitiativeRequired()
     }
@@ -81,7 +82,7 @@ class PlayerWebServer(
         executor = exec
 
         trackerSubscription = actorTracker.onChanged {
-            if (initiativeEntryRequested && allPlayerInitiativesEntered()) {
+            if (initiativeEntryRequested && !actorTracker.hasPlayerCharactersMissingInitiative()) {
                 initiativeEntryRequested = false
             }
             publishApplicationUpdate()
@@ -252,7 +253,7 @@ class PlayerWebServer(
                 return@runOnApplicationThreadAndWait
             }
             actorTracker.updateActor(actor.copy(initiative = initiative))
-            if (allPlayerInitiativesEntered()) {
+            if (!actorTracker.hasPlayerCharactersMissingInitiative()) {
                 initiativeEntryRequested = false
             }
             onActorChanged?.invoke()
@@ -383,11 +384,6 @@ class PlayerWebServer(
     private fun findPlayerActor(actorName: String): Actor? =
         actorTracker.actorList.firstOrNull { actor ->
             actor.actorType == ActorType.PC && actor.name == actorName
-        }
-
-    private fun allPlayerInitiativesEntered(): Boolean =
-        actorTracker.actorList.none { actor ->
-            actor.actorType == ActorType.PC && actor.name.isNotBlank() && actor.initiative == null
         }
 
     private fun runOnApplicationThreadAndWait(action: () -> Unit): Boolean {
