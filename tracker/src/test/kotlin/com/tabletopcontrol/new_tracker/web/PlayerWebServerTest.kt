@@ -1,6 +1,9 @@
 package com.tabletopcontrol.new_tracker.web
 
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenMoveDirection
+import com.tabletopcontrol.core.TokenMoveRequestedEvent
+import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
@@ -124,6 +127,43 @@ class PlayerWebServerTest {
             assertEquals(200, response.statusCode())
             assertEquals(
                 """{"name":"Aria","hp":30,"ac":14,"col":0,"row":0,"active":true,"color":"$colorHex"}""",
+                response.body(),
+            )
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `move endpoint delegates relative movement to map owner`() {
+        val tracker = ActorTracker(
+            mutableListOf(
+                Actor(id = "actor-1", name = "Aria", hp = 30, ac = 14, actorType = ActorType.PC),
+            ),
+        )
+        val requests = mutableListOf<TokenMoveRequestedEvent>()
+        EventBus.subscribe<TokenMoveRequestedEvent> { event ->
+            requests += event
+            EventBus.publish(TokenMovedEvent(event.id, event.name, 5, 7))
+        }
+        val server = PlayerWebServer(
+            actorTracker = tracker,
+            port = freePort(),
+            applicationDispatcher = { action -> action() },
+        )
+
+        try {
+            server.start()
+
+            val response = put(server.port, "/api/move?player=Aria&dir=s")
+
+            assertEquals(
+                listOf(TokenMoveRequestedEvent("actor-1", "Aria", TokenMoveDirection.SOUTH)),
+                requests,
+            )
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"col":5,"row":7,"active":false,"color":"#808080"}""",
                 response.body(),
             )
         } finally {

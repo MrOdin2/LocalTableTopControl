@@ -4,6 +4,8 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenMoveDirection
+import com.tabletopcontrol.core.TokenMoveRequestedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
@@ -27,8 +29,8 @@ import java.util.concurrent.TimeUnit
  * matches the [Actor.name] field of a PC actor in the tracker), and use four
  * directional buttons to move their map token one grid cell at a time.
  *
- * The server subscribes to [TokenMovedEvent] to maintain an up-to-date position
- * cache so that each directional step is relative to the token's current position.
+ * The server subscribes to [TokenMovedEvent] to mirror the latest authoritative map position
+ * and publishes relative move requests for map modules to resolve.
  *
  * All [TokenMovedEvent] publications are dispatched on the JavaFX Application Thread by
  * default so that map renderers receive them correctly.
@@ -74,10 +76,7 @@ class PlayerWebServer(
         trackerSubscription = actorTracker.onChanged {
             publishApplicationUpdate()
         }
-        subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
-            // Register a new token at (0,0) until its actual position is reported via a TokenMovedEvent.
-            // Tokens placed on the map by the DM will update this cache when their position events arrive.
-            tokenPositions.putIfAbsent(event.id, Pair(0, 0))
+        subscriptions += EventBus.subscribe<TokenAddedEvent> {
             publishApplicationUpdate()
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
@@ -237,24 +236,28 @@ class PlayerWebServer(
             respond(exchange, 404, "No PC actor named \"$actorName\"")
             return
         }
-        val (col, row) = tokenPositions[actor.id] ?: Pair(0, 0)
-        val (newCol, newRow) = when (dir.lowercase()) {
-            "n" -> Pair(col, row - 1)
-            "s" -> Pair(col, row + 1)
-            "w" -> Pair(col - 1, row)
-            "e" -> Pair(col + 1, row)
+        val direction = when (dir.lowercase()) {
+            "n" -> TokenMoveDirection.NORTH
+            "s" -> TokenMoveDirection.SOUTH
+            "w" -> TokenMoveDirection.WEST
+            "e" -> TokenMoveDirection.EAST
             else -> {
                 respond(exchange, 400, "Invalid direction; use n, s, e, or w")
                 return
             }
         }
-        val newColClamped = newCol.coerceAtLeast(0)
-        val newRowClamped = newRow.coerceAtLeast(0)
-        tokenPositions[actor.id] = Pair(newColClamped, newRowClamped)
-        applicationDispatcher {
-            EventBus.publish(TokenMovedEvent(actor.id, actor.name, newColClamped, newRowClamped))
+        val completed = runOnApplicationThreadAndWait {
+            EventBus.publish(TokenMoveRequestedEvent(actor.id, actor.name, direction))
         }
-        respondJson(exchange, 200, stateJson(actor, newColClamped, newRowClamped))
+        if (!completed) {
+            respond(exchange, 503, "Application move timed out")
+            return
+        }
+        val (col, row) = tokenPositions[actor.id] ?: run {
+            respond(exchange, 409, "Token is not available on the active map")
+            return
+        }
+        respondJson(exchange, 200, stateJson(actor, col, row))
     }
 
     /** `GET /api/events` - server-sent applicationUpdate events for connected browsers. */
