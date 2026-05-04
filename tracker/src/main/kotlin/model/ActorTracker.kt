@@ -224,35 +224,42 @@ class ActorTracker(
             return
         }
 
-        val tiedActors = actorList.subList(insertIndex, insertIndex + tieCount).toList()
-        val defaultOrder = tiedActors + actor
-        val resolvedOrder = resolveTieOrder(defaultOrder, initiative, actor.id, tieResolver)
-
-        actorList.subList(insertIndex, insertIndex + tieCount).clear()
-        actorList.addAll(insertIndex, resolvedOrder)
+        actorList.add(insertIndex + tieCount, actor)
+        val tiedActors = actorList.subList(insertIndex, insertIndex + tieCount + 1).toList()
+        val resolvedOrder = tieResolver(tiedActors, initiative, actor.id) ?: return
+        applyTieOrder(initiative, resolvedOrder)
     }
 
-    private fun resolveTieOrder(
-        defaultOrder: List<Actor>,
+    private fun applyTieOrder(
         initiative: Int,
-        movedActorId: String,
-        tieResolver: InitiativeTieResolver,
-    ): List<Actor> {
-        val resolvedOrder = tieResolver(defaultOrder, initiative, movedActorId) ?: return defaultOrder
-        val expectedIds = defaultOrder.map(Actor::id)
+        resolvedOrder: List<Actor>,
+    ) {
+        val tieStart = actorList.indexOfFirst { it.initiative == initiative }
+        if (tieStart == -1) {
+            return
+        }
+        val tieCount = actorList.drop(tieStart).takeWhile { it.initiative == initiative }.size
+        if (tieCount == 0) {
+            return
+        }
+
+        val currentTieActors = actorList.subList(tieStart, tieStart + tieCount).toList()
+        val currentActorsById = currentTieActors.associateBy(Actor::id)
         val resolvedIds = resolvedOrder.map(Actor::id)
 
-        if (resolvedOrder.size != defaultOrder.size) {
-            return defaultOrder
+        if (resolvedIds.toSet().size != resolvedIds.size) {
+            return
         }
-        if (resolvedIds.toSet().size != expectedIds.size) {
-            return defaultOrder
-        }
-        if (resolvedIds.toSet() != expectedIds.toSet()) {
-            return defaultOrder
+        if (!currentActorsById.keys.containsAll(resolvedIds)) {
+            return
         }
 
-        return resolvedOrder
+        val resolvedIdSet = resolvedIds.toSet()
+        val finalOrder = resolvedIds.mapNotNull(currentActorsById::get) +
+            currentTieActors.filterNot { it.id in resolvedIdSet }
+
+        actorList.subList(tieStart, tieStart + tieCount).clear()
+        actorList.addAll(tieStart, finalOrder)
     }
 
     fun next(){
