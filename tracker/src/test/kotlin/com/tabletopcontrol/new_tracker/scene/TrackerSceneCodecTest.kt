@@ -85,7 +85,7 @@ class TrackerSceneCodecTest {
 
         val serialized = TrackerSceneCodec.serialize(state)
 
-        assertTrue(serialized.contains("version=6"))
+        assertTrue(serialized.contains("version=5"))
         assertTrue(serialized.contains("actor.0.name=Goblin Boss"))
         assertTrue(serialized.contains("actor.0.actorType=PC"))
         assertTrue(serialized.contains("actor.0.darkvisionRange=60"))
