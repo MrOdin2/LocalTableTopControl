@@ -16,6 +16,7 @@ import com.tabletopcontrol.core.ThemeChangedEvent
 import com.tabletopcontrol.core.ThemeManager
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
+import com.tabletopcontrol.core.TokenMovementBudgetChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
@@ -31,6 +32,7 @@ import com.tabletopcontrol.dynamicmap.runtime.logic.MapCalibration
 import com.tabletopcontrol.dynamicmap.runtime.logic.TableMapOffset
 import com.tabletopcontrol.dynamicmap.runtime.logic.Token
 import com.tabletopcontrol.dynamicmap.runtime.logic.nextAvailableTokenPlacement
+import com.tabletopcontrol.dynamicmap.runtime.logic.reachableMovementCells
 import com.tabletopcontrol.dynamicmap.runtime.logic.tokenDrawBounds
 import com.tabletopcontrol.dynamicmap.runtime.logic.tokenOccupiedCells
 import kotlin.math.abs
@@ -256,6 +258,9 @@ class MapRenderer(private val canvas: Canvas) {
     /** Stable ID of the currently active combatant's token, or `null` when none is active. */
     private var activeTokenId: String? = null
 
+    /** Latest tracker-owned movement budget used to render the active PC's reachable cells. */
+    private var movementBudgetOverlay: TokenMovementBudgetChangedEvent? = null
+
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
 
@@ -443,6 +448,9 @@ class MapRenderer(private val canvas: Canvas) {
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
             val removed = tokens.find { it.id == event.id }
             tokens.removeIf { it.id == event.id }
+            if (movementBudgetOverlay?.id == event.id) {
+                movementBudgetOverlay = null
+            }
             // Evict the removed token's image from the cache if no other token uses it.
             val uri = removed?.imageUri
             if (uri != null && tokens.none { it.imageUri == uri }) {
@@ -463,10 +471,15 @@ class MapRenderer(private val canvas: Canvas) {
             activeTokenId = event.id
             redraw()
         }
+        subscriptions += EventBus.subscribe<TokenMovementBudgetChangedEvent> { event ->
+            movementBudgetOverlay = event.takeIf { it.id != null && it.remainingMovementCells > 0 }
+            redraw()
+        }
         subscriptions += EventBus.subscribe<TokensResetEvent> {
             tokens.clear()
             imageCache.clear()
             activeTokenId = null
+            movementBudgetOverlay = null
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenImageChangedEvent> { event ->
@@ -650,6 +663,7 @@ class MapRenderer(private val canvas: Canvas) {
             drawMapImage()
         }
         drawGrid()
+        drawDynamicMovementReachabilityOverlay()
         if (dynamicMapRenderMode == DynamicMapRenderMode.DEBUG) {
             drawDynamicMapWalls()
         }
@@ -706,6 +720,44 @@ class MapRenderer(private val canvas: Canvas) {
             gc.drawImage(image, drawX, drawY, destWidth, destHeight)
             gc.restore()
         }
+    }
+
+    private fun drawDynamicMovementReachabilityOverlay() {
+        val bundle = dynamicMapBundle ?: return
+        val budget = movementBudgetOverlay ?: return
+        val tokenId = budget.id ?: return
+        if (budget.remainingMovementCells <= 0) return
+
+        val token = tokens.firstOrNull { it.id == tokenId && it.isPlayerCharacter } ?: return
+        val cellPx = gridCalibration.effectiveCellSizeInPixels()
+        if (cellPx <= 0.0) return
+
+        val reachableCells = reachableMovementCells(
+            bundle = bundle,
+            token = token,
+            remainingCells = budget.remainingMovementCells,
+            openDoorIds = openDynamicDoorIds,
+        )
+        if (reachableCells.isEmpty()) return
+
+        val originX = dynamicMapOriginX()
+        val originY = dynamicMapOriginY()
+        val inset = maxOf(1.0, cellPx * 0.08)
+
+        gc.save()
+        gc.fill = token.color.deriveColor(0.0, 0.9, 1.15, 0.28)
+        gc.stroke = token.color.deriveColor(0.0, 1.0, 1.0, 0.7)
+        gc.lineWidth = maxOf(1.0, cellPx * 0.035)
+        reachableCells.forEach { (col, row) ->
+            val x = originX + col * cellPx + inset
+            val y = originY + row * cellPx + inset
+            val size = cellPx - inset * 2.0
+            if (size > 0.0) {
+                gc.fillRect(x, y, size, size)
+                gc.strokeRect(x, y, size, size)
+            }
+        }
+        gc.restore()
     }
 
     private fun drawDynamicMapBaseLayer() {

@@ -6,8 +6,11 @@ import com.tabletopcontrol.core.TokenMoveRequestedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
+import com.tabletopcontrol.new_tracker.model.ActorFeatures
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.DistanceRange
+import com.tabletopcontrol.new_tracker.model.DistanceUnit
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -69,7 +72,7 @@ class PlayerWebServerTest {
 
             assertEquals(200, pcResponse.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080","movementBaseCells":0,"movementRemainingCells":0,"movementBaseAmount":0.0,"movementRemainingAmount":0.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 pcResponse.body(),
             )
             assertEquals(404, npcResponse.statusCode())
@@ -100,8 +103,55 @@ class PlayerWebServerTest {
             assertEquals(22, tracker.actorList.single().hp)
             assertEquals(16, tracker.actorList.single().ac)
             assertEquals(
-                """{"name":"Aria","hp":22,"ac":16,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":22,"ac":16,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080","movementBaseCells":0,"movementRemainingCells":0,"movementBaseAmount":0.0,"movementRemainingAmount":0.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 response.body(),
+            )
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `movement endpoint updates movement and dash stacks for this round`() {
+        val tracker = ActorTracker(
+            mutableListOf(
+                Actor(
+                    name = "Aria",
+                    hp = 30,
+                    ac = 14,
+                    actorType = ActorType.PC,
+                    features = ActorFeatures(movementRange = DistanceRange(30, DistanceUnit.FEET)),
+                ),
+            ),
+        )
+        val server = PlayerWebServer(
+            actorTracker = tracker,
+            port = freePort(),
+            applicationDispatcher = { action -> action() },
+        )
+
+        try {
+            server.start()
+
+            val movementResponse = put(server.port, "/api/movement?player=Aria&amount=40&unit=FEET")
+            val dashResponse = put(server.port, "/api/dash?player=Aria")
+            val secondDashResponse = put(server.port, "/api/dash?player=Aria")
+
+            assertEquals(200, movementResponse.statusCode())
+            assertEquals(40, tracker.actorList.single().features.movementRange?.amount)
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080","movementBaseCells":8,"movementRemainingCells":8,"movementBaseAmount":40.0,"movementRemainingAmount":40.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
+                movementResponse.body(),
+            )
+            assertEquals(200, dashResponse.statusCode())
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080","movementBaseCells":8,"movementRemainingCells":16,"movementBaseAmount":40.0,"movementRemainingAmount":80.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
+                dashResponse.body(),
+            )
+            assertEquals(200, secondDashResponse.statusCode())
+            assertEquals(
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":0,"row":0,"active":false,"color":"#808080","movementBaseCells":8,"movementRemainingCells":24,"movementBaseAmount":40.0,"movementRemainingAmount":120.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
+                secondDashResponse.body(),
             )
         } finally {
             server.stop()
@@ -130,13 +180,13 @@ class PlayerWebServerTest {
 
             assertEquals(200, requiredState.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":true,"col":0,"row":0,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":true,"col":0,"row":0,"active":false,"color":"#808080","movementBaseCells":0,"movementRemainingCells":0,"movementBaseAmount":0.0,"movementRemainingAmount":0.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 requiredState.body(),
             )
             assertEquals(200, response.statusCode())
             assertEquals(18, tracker.actorList.single().initiative)
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"initiative":18,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"#808080"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":18,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"#808080","movementBaseCells":0,"movementRemainingCells":0,"movementBaseAmount":0.0,"movementRemainingAmount":0.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 response.body(),
             )
         } finally {
@@ -226,7 +276,7 @@ class PlayerWebServerTest {
 
             assertEquals(200, response.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"initiative":18,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"$colorHex"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":18,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"$colorHex","movementBaseCells":0,"movementRemainingCells":0,"movementBaseAmount":0.0,"movementRemainingAmount":0.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 response.body(),
             )
         } finally {
@@ -252,7 +302,7 @@ class PlayerWebServerTest {
 
             assertEquals(200, response.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"initiative":10,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"$colorHex"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":10,"initiativeRequired":false,"col":0,"row":0,"active":true,"color":"$colorHex","movementBaseCells":0,"movementRemainingCells":0,"movementBaseAmount":0.0,"movementRemainingAmount":0.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 response.body(),
             )
         } finally {
@@ -264,7 +314,14 @@ class PlayerWebServerTest {
     fun `move endpoint delegates relative movement to map owner`() {
         val tracker = ActorTracker(
             mutableListOf(
-                Actor(id = "actor-1", name = "Aria", hp = 30, ac = 14, actorType = ActorType.PC),
+                Actor(
+                    id = "actor-1",
+                    name = "Aria",
+                    hp = 30,
+                    ac = 14,
+                    actorType = ActorType.PC,
+                    features = ActorFeatures(movementRange = DistanceRange(30, DistanceUnit.FEET)),
+                ),
             ),
         )
         val requests = mutableListOf<TokenMoveRequestedEvent>()
@@ -289,7 +346,7 @@ class PlayerWebServerTest {
             )
             assertEquals(200, response.statusCode())
             assertEquals(
-                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":5,"row":7,"active":false,"color":"#808080"}""",
+                """{"name":"Aria","hp":30,"ac":14,"initiative":null,"initiativeRequired":false,"col":5,"row":7,"active":false,"color":"#808080","movementBaseCells":6,"movementRemainingCells":5,"movementBaseAmount":30.0,"movementRemainingAmount":25.0,"movementUnit":"FEET","movementUnitLabel":"ft"}""",
                 response.body(),
             )
         } finally {

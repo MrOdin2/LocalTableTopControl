@@ -191,6 +191,12 @@
         must remain aligned with the exported grid.
       </p>
       <p>
+        When a PC is the current initiative actor and has movement remaining, DynamicMap highlights
+        the grid cells that PC can reach from their current token position. The highlight follows the
+        tracker movement budget, respects the dynamic map's walls, and treats closed doors as
+        blockers while open doors allow movement through.
+      </p>
+      <p>
         Left-click a door icon on the DM minimap to open or close that door. The icon stays in place
         as the click target, but an open door stops blocking sightlines and light. Hidden
         doors can only be seen and toggled from the DM minimap; the player-facing table view only

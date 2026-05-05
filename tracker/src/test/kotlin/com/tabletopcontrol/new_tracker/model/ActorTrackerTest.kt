@@ -255,6 +255,34 @@ class ActorTrackerTest {
         assertEquals(true, tokenEvents.single().isPlayerCharacter)
     }
 
+    @Test
+    fun `movement dash stacks and resets when the actor becomes active again`() {
+        val tracker = ActorTracker()
+        tracker.addActor(
+            Actor(
+                id = "hero",
+                name = "Hero",
+                initiative = 12,
+                actorType = ActorType.PC,
+                features = ActorFeatures(movementRange = DistanceRange(30, DistanceUnit.FEET)),
+            ),
+        )
+        tracker.addActor(Actor(id = "guard", name = "Guard", initiative = 10))
+
+        assertEquals(6, tracker.movementBudget("hero")?.remainingMovementCells)
+
+        tracker.dashActorMovement("hero")
+        tracker.dashActorMovement("hero")
+        tracker.spendActorMovement("hero", 2)
+
+        assertEquals(16, tracker.movementBudget("hero")?.remainingMovementCells)
+
+        tracker.next()
+        tracker.next()
+
+        assertEquals(6, tracker.movementBudget("hero")?.remainingMovementCells)
+    }
+
     private fun actor(name: String, initiative: Int?): Actor =
         Actor(name = name, initiative = initiative)
 }

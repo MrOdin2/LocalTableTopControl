@@ -109,6 +109,24 @@ enum class TokenMoveDirection(
 }
 
 /**
+ * Event published when tracker-owned movement budget changes for the currently relevant token.
+ *
+ * Renderers can use this to show where a PC can still move this turn. A `null` [id] clears the
+ * current movement overlay.
+ *
+ * @property id stable unique identifier of the combatant/token whose budget is active.
+ * @property name optional display name of the combatant, useful for UI/debugging only.
+ * @property baseMovementCells actor's normal per-round movement measured in grid cells.
+ * @property remainingMovementCells current movement remaining for this round measured in grid cells.
+ */
+data class TokenMovementBudgetChangedEvent(
+    val id: String?,
+    val name: String?,
+    val baseMovementCells: Int,
+    val remainingMovementCells: Int,
+)
+
+/**
  * Event published when the active combatant changes in the initiative tracker,
  * so the map can update the active-token highlight.
  *

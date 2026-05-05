@@ -213,6 +213,12 @@
       The tracker remains the source of truth, so the page also refreshes when the DM changes those
       values in the main application.
     </p>
+    <p>
+      The page also shows the character's movement for the current round. Players can edit their
+      normal movement, tap <strong>Dash</strong> to add that normal movement to the remaining amount,
+      and tap Dash more than once if the round gives them more than one dash-like boost. Web moves
+      spend one grid cell from the remaining movement after the live map accepts the move.
+    </p>
     <ul>
       <li><strong>↑ (North)</strong> — move the token one cell up on the grid.</li>
       <li><strong>↓ (South)</strong> — move the token one cell down.</li>
@@ -225,7 +231,8 @@
     </p>
     <p>
       When the connected character is the current initiative actor, the web card is outlined in that
-      actor's token colour.
+      actor's token colour. Their round movement resets to the normal movement value when their turn
+      comes up again.
     </p>
     <p>
       If the DM presses <strong>NEXT</strong> while any <strong>PC</strong> actor has no initiative
@@ -260,7 +267,7 @@
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/state?player=&lt;name&gt;</code></td>
-          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, <code>initiative</code>, <code>initiativeRequired</code>, <code>col</code>, <code>row</code>, <code>active</code>, and <code>color</code>.</td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with <code>name</code>, <code>hp</code>, <code>ac</code>, initiative state, token position, active-turn colour, and movement budget fields.</td>
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/stats?player=&lt;name&gt;&amp;hp=&lt;hp&gt;&amp;ac=&lt;ac&gt;</code></td>
@@ -269,6 +276,14 @@
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/initiative?player=&lt;name&gt;&amp;initiative=&lt;initiative&gt;</code></td>
           <td style="padding:0.5rem; border:1px solid var(--border);">Update the PC actor's initiative; returns updated state JSON.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/movement?player=&lt;name&gt;&amp;amount=&lt;amount&gt;&amp;unit=&lt;FEET|METERS&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Update the PC actor's normal movement; returns updated state JSON.</td>
+        </tr>
+        <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/dash?player=&lt;name&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">Add the actor's normal movement to the current round's remaining movement; returns updated state JSON.</td>
         </tr>
         <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/move?player=&lt;name&gt;&amp;dir=&lt;n|s|e|w&gt;</code></td>

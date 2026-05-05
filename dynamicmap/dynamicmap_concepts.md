@@ -122,6 +122,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Web companion movement requests use the relative `TokenMoveRequestedEvent`; DynamicMap resolves
   those requests from its authoritative token positions and republishes the resulting absolute
   `TokenMovedEvent`.
+- Tracker-owned PC movement budgets are published as `TokenMovementBudgetChangedEvent`. DynamicMap
+  renders the active PC's reachable grid cells from the current token position, using closed runtime
+  walls and closed doors as movement blockers while ignoring doors that are currently open.
 
 ### Standard Map Feature Parity
 
