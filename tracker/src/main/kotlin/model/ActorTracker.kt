@@ -405,7 +405,7 @@ class ActorTracker(
 
     private fun publishCurrentMovementBudget() {
         val actor = getCurrentActor()
-        if (actor == null || actor.actorType != ActorType.PC) {
+        if (actor == null) {
             EventBus.publish(
                 TokenMovementBudgetChangedEvent(
                     id = null,

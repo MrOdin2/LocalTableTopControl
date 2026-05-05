@@ -365,9 +365,13 @@
         visibility layer.
       </p>
       <p>
-        Tracker also publishes the current PC movement budget. DynamicMap uses that budget to draw
-        reachable grid cells for the active PC, using the same live token position and dynamic door
-        state as movement itself. Closed walls and closed doors block the highlight; open doors do not.
+        Tracker also publishes the current movement budget. DynamicMap uses that budget to draw
+        reachable grid cells for the active combatant with the current dynamic door state. PC
+        reachability follows the live token position. NPC reachability is shown only on the DM
+        minimap and is anchored to the token position at turn start or when the DM presses
+        <strong>Shift</strong> on the focused DynamicMap minimap to apply an NPC Dash. Closed walls
+        and closed doors block the highlight; open doors do not. If Shift is pressed while dragging
+        a token, the Dash highlight is applied when the token is dropped.
       </p>
       <p>
         When both Map and DynamicMap are available, use the toolbar's <strong>Table content</strong>

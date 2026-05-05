@@ -191,10 +191,15 @@
         must remain aligned with the exported grid.
       </p>
       <p>
-        When a PC is the current initiative actor and has movement remaining, DynamicMap highlights
-        the grid cells that PC can reach from their current token position. The highlight follows the
-        tracker movement budget, respects the dynamic map's walls, and treats closed doors as
-        blockers while open doors allow movement through.
+        When a combatant is the current initiative actor and has movement remaining, DynamicMap
+        highlights the grid cells that token can reach. PC highlights can appear on the table view
+        and follow the live token position as web movement is spent. NPC highlights are shown only
+        on the DM minimap and stay anchored to the position where the turn or Dash was started, so
+        quick DM drag/drop movement does not constantly redraw the reachable area. The highlight
+        respects the dynamic map's walls and treats closed doors as blockers while open doors allow
+        movement through. With the DynamicMap minimap focused, press <strong>Shift</strong> once to
+        add an NPC Dash to the active NPC's movement; if you press Shift while dragging a token, the
+        Dash is applied when you drop it.
       </p>
       <p>
         Left-click a door icon on the DM minimap to open or close that door. The icon stays in place

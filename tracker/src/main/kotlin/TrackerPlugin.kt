@@ -1,7 +1,9 @@
 package com.tabletopcontrol.new_tracker
 
+import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.TokenMovementDashRequestedEvent
 import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
@@ -56,6 +58,16 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
     private val initiativeTieDialog = InitiativeTieDialog()
     private val webServer = PlayerWebServer(actorTracker)
+    private val subscriptions = mutableListOf<EventBus.Subscription>()
+
+    init {
+        subscriptions += EventBus.subscribe<TokenMovementDashRequestedEvent> { event ->
+            val actor = event.id?.let(actorTracker::findActor) ?: actorTracker.getCurrentActor()
+            if (actor?.actorType == ActorType.NPC) {
+                actorTracker.dashActorMovement(actor.id)
+            }
+        }
+    }
 
     companion object {
         private const val MUTED_SMALL_LABEL_STYLE = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;"
@@ -180,6 +192,8 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     }
 
     override fun onShutdown() {
+        subscriptions.forEach { it.unsubscribe() }
+        subscriptions.clear()
         webServer.stop()
     }
 

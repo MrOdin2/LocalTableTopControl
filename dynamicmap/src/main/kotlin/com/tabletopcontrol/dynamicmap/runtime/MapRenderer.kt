@@ -233,6 +233,9 @@ class MapRenderer(private val canvas: Canvas) {
     /** Whether DM-only measurement overlays should be rendered on this renderer instance. */
     var showDmOnlyMeasurements: Boolean = true
 
+    /** Whether NPC movement reachability overlays should be rendered on this renderer instance. */
+    var showNpcMovementReachabilityOverlay: Boolean = true
+
     /** Whether runtime light source markers should be drawn in addition to light halos. */
     var showDynamicLightMarkers: Boolean = true
 
@@ -258,8 +261,8 @@ class MapRenderer(private val canvas: Canvas) {
     /** Stable ID of the currently active combatant's token, or `null` when none is active. */
     private var activeTokenId: String? = null
 
-    /** Latest tracker-owned movement budget used to render the active PC's reachable cells. */
-    private var movementBudgetOverlay: TokenMovementBudgetChangedEvent? = null
+    /** Latest tracker-owned movement budget used to render the active token's reachable cells. */
+    private var movementBudgetOverlay: MovementBudgetOverlay? = null
 
     /** Active measurement overlays keyed by their stable IDs. */
     private val measurements = linkedMapOf<String, MeasurementOverlay>()
@@ -448,7 +451,7 @@ class MapRenderer(private val canvas: Canvas) {
         subscriptions += EventBus.subscribe<TokenRemovedEvent> { event ->
             val removed = tokens.find { it.id == event.id }
             tokens.removeIf { it.id == event.id }
-            if (movementBudgetOverlay?.id == event.id) {
+            if (movementBudgetOverlay?.budget?.id == event.id) {
                 movementBudgetOverlay = null
             }
             // Evict the removed token's image from the cache if no other token uses it.
@@ -472,7 +475,15 @@ class MapRenderer(private val canvas: Canvas) {
             redraw()
         }
         subscriptions += EventBus.subscribe<TokenMovementBudgetChangedEvent> { event ->
-            movementBudgetOverlay = event.takeIf { it.id != null && it.remainingMovementCells > 0 }
+            movementBudgetOverlay = event
+                .takeIf { it.id != null && it.remainingMovementCells > 0 }
+                ?.let { budget ->
+                    val token = tokens.firstOrNull { it.id == budget.id }
+                    MovementBudgetOverlay(
+                        budget = budget,
+                        frozenNpcOrigin = token?.takeUnless { it.isPlayerCharacter },
+                    )
+                }
             redraw()
         }
         subscriptions += EventBus.subscribe<TokensResetEvent> {
@@ -724,17 +735,24 @@ class MapRenderer(private val canvas: Canvas) {
 
     private fun drawDynamicMovementReachabilityOverlay() {
         val bundle = dynamicMapBundle ?: return
-        val budget = movementBudgetOverlay ?: return
+        val overlay = movementBudgetOverlay ?: return
+        val budget = overlay.budget
         val tokenId = budget.id ?: return
         if (budget.remainingMovementCells <= 0) return
 
-        val token = tokens.firstOrNull { it.id == tokenId && it.isPlayerCharacter } ?: return
+        val liveToken = tokens.firstOrNull { it.id == tokenId } ?: return
+        if (!liveToken.isPlayerCharacter && !showNpcMovementReachabilityOverlay) return
+        val reachabilityToken = if (liveToken.isPlayerCharacter) {
+            liveToken
+        } else {
+            overlay.frozenNpcOrigin ?: liveToken
+        }
         val cellPx = gridCalibration.effectiveCellSizeInPixels()
         if (cellPx <= 0.0) return
 
         val reachableCells = reachableMovementCells(
             bundle = bundle,
-            token = token,
+            token = reachabilityToken,
             remainingCells = budget.remainingMovementCells,
             openDoorIds = openDynamicDoorIds,
         )
@@ -745,8 +763,8 @@ class MapRenderer(private val canvas: Canvas) {
         val inset = maxOf(1.0, cellPx * 0.08)
 
         gc.save()
-        gc.fill = token.color.deriveColor(0.0, 0.9, 1.15, 0.28)
-        gc.stroke = token.color.deriveColor(0.0, 1.0, 1.0, 0.7)
+        gc.fill = liveToken.color.deriveColor(0.0, 0.9, 1.15, 0.28)
+        gc.stroke = liveToken.color.deriveColor(0.0, 1.0, 1.0, 0.7)
         gc.lineWidth = maxOf(1.0, cellPx * 0.035)
         reachableCells.forEach { (col, row) ->
             val x = originX + col * cellPx + inset
@@ -2307,6 +2325,11 @@ class MapRenderer(private val canvas: Canvas) {
         private val GRAYSCALE_EFFECT = ColorAdjust(0.0, -1.0, 0.0, 0.0)
     }
 }
+
+private data class MovementBudgetOverlay(
+    val budget: TokenMovementBudgetChangedEvent,
+    val frozenNpcOrigin: Token?,
+)
 
 internal fun rememberedSightlineMesh(
     currentMesh: DynamicSightlineMesh,

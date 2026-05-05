@@ -1,6 +1,7 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenMovementDashRequestedEvent
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
@@ -33,6 +34,8 @@ import javafx.scene.control.TextField
 import javafx.scene.control.ToggleButton
 import javafx.scene.control.ToggleGroup
 import javafx.scene.control.Tooltip
+import javafx.scene.input.KeyCode
+import javafx.scene.input.KeyEvent
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Pane
@@ -87,6 +90,7 @@ class MapUiController {
             hideTokensInFog = true
             usePersistentVision = true
             showDmOnlyMeasurements = false
+            showNpcMovementReachabilityOverlay = false
             showDynamicLightMarkers = false
             showHiddenDynamicDoorIcons = false
         }
@@ -222,6 +226,30 @@ class MapUiController {
         var dragStartY = 0.0
         var dragStartOffsetX = 0.0
         var dragStartOffsetY = 0.0
+        var shiftDashConsumed = false
+        var tokenDragActive = false
+        var dashAfterDrag = false
+
+        fun requestActiveNpcDash() {
+            EventBus.publish(TokenMovementDashRequestedEvent(id = tokenSyncService.snapshotActiveTokenId()))
+        }
+
+        canvas.isFocusTraversable = true
+        canvas.addEventFilter(KeyEvent.KEY_PRESSED) { event ->
+            if (event.code != KeyCode.SHIFT || shiftDashConsumed) return@addEventFilter
+            shiftDashConsumed = true
+            if (tokenDragActive) {
+                dashAfterDrag = true
+            } else {
+                requestActiveNpcDash()
+            }
+            event.consume()
+        }
+        canvas.addEventFilter(KeyEvent.KEY_RELEASED) { event ->
+            if (event.code == KeyCode.SHIFT) {
+                shiftDashConsumed = false
+            }
+        }
 
         val drawFogButton = ToggleButton("Draw Fog").apply {
             tooltip = Tooltip("Draw fog by clicking or dragging on the minimap")
@@ -269,6 +297,7 @@ class MapUiController {
         }
 
         canvas.setOnMousePressed { event ->
+            canvas.requestFocus()
             if (event.button == MouseButton.PRIMARY) {
                 when {
                     measurementTool != MeasurementTool.NONE -> {
@@ -301,6 +330,7 @@ class MapUiController {
                         val token = renderer.tokenAtCanvasCoords(event.x, event.y)
                         if (token != null) {
                             tokenSyncService.beginDrag(token, clickedCell)
+                            tokenDragActive = true
                         } else {
                             dragStartX = event.x
                             dragStartY = event.y
@@ -349,6 +379,12 @@ class MapUiController {
         canvas.setOnMouseReleased { event ->
             if (event.button == MouseButton.PRIMARY) {
                 tokenSyncService.endDrag()
+                val shouldDash = tokenDragActive && dashAfterDrag
+                tokenDragActive = false
+                dashAfterDrag = false
+                if (shouldDash) {
+                    requestActiveNpcDash()
+                }
                 activeMeasurementId = null
             }
         }

@@ -111,7 +111,7 @@ enum class TokenMoveDirection(
 /**
  * Event published when tracker-owned movement budget changes for the currently relevant token.
  *
- * Renderers can use this to show where a PC can still move this turn. A `null` [id] clears the
+ * Renderers can use this to show where the active combatant can still move this turn. A `null` [id] clears the
  * current movement overlay.
  *
  * @property id stable unique identifier of the combatant/token whose budget is active.
@@ -124,6 +124,17 @@ data class TokenMovementBudgetChangedEvent(
     val name: String?,
     val baseMovementCells: Int,
     val remainingMovementCells: Int,
+)
+
+/**
+ * Event published when a map-like UI asks the tracker to apply a Dash to the current movement budget.
+ *
+ * The tracker remains the movement source of truth. A `null` [id] means "dash the currently active
+ * combatant"; publishers may pass an id when they have one.
+ */
+data class TokenMovementDashRequestedEvent(
+    val id: String? = null,
+    val name: String? = null,
 )
 
 /**

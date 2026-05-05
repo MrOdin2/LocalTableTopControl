@@ -2,6 +2,7 @@ package com.tabletopcontrol.new_tracker.model
 
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenMovementBudgetChangedEvent
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -281,6 +282,33 @@ class ActorTrackerTest {
         tracker.next()
 
         assertEquals(6, tracker.movementBudget("hero")?.remainingMovementCells)
+    }
+
+    @Test
+    fun `active NPC publishes movement budget for map overlays`() {
+        val tracker = ActorTracker()
+        val movementEvents = mutableListOf<TokenMovementBudgetChangedEvent>()
+        EventBus.subscribe<TokenMovementBudgetChangedEvent> { movementEvents += it }
+
+        tracker.addActor(
+            Actor(
+                id = "guard",
+                name = "Guard",
+                initiative = 14,
+                actorType = ActorType.NPC,
+                features = ActorFeatures(movementRange = DistanceRange(30, DistanceUnit.FEET)),
+            ),
+        )
+
+        assertEquals(
+            TokenMovementBudgetChangedEvent(
+                id = "guard",
+                name = "Guard",
+                baseMovementCells = 6,
+                remainingMovementCells = 6,
+            ),
+            movementEvents.last(),
+        )
     }
 
     private fun actor(name: String, initiative: Int?): Actor =
