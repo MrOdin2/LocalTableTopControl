@@ -234,7 +234,7 @@ class AdvancedLightPlugin : DmPlugin {
         statusLabel: Label,
         refreshEditor: () -> Unit,
     ): ConnectionPanel {
-        val toggle = ToggleButton("Connection").apply {
+        val toggle = ToggleButton("Connection ▼").apply {
             tooltip = Tooltip("Show or hide serial connection settings")
         }
         val portCombo = ComboBox<String>().apply {
