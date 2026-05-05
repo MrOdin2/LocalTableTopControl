@@ -22,7 +22,7 @@ internal data class TrackerSceneState(
 )
 
 internal object TrackerSceneCodec {
-    private const val VERSION = 6
+    private const val VERSION = 5
     private const val PROPERTY_VERSION_WITHOUT_ACTOR_TYPE = 2
     private const val LEGACY_VERSION = 1
 
