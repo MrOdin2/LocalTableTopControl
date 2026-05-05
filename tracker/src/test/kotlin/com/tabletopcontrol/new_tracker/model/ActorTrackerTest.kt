@@ -70,6 +70,57 @@ class ActorTrackerTest {
     }
 
     @Test
+    fun `initiative tie resolution can include actors that join while resolver is open`() {
+        val tracker = ActorTracker()
+        val alpha = actor("Alpha", 15)
+        val bravo = actor("Bravo", null)
+        val charlie = actor("Charlie", null)
+        tracker.addActor(alpha)
+        tracker.addActor(bravo)
+        tracker.addActor(charlie)
+
+        tracker.updateActor(bravo.copy(initiative = 15)) { actorsAtInitiative, initiative, movedActorId ->
+            assertEquals(15, initiative)
+            assertEquals(bravo.id, movedActorId)
+            assertEquals(listOf("Alpha", "Bravo"), actorsAtInitiative.map(Actor::name))
+
+            tracker.updateActor(charlie.copy(initiative = 15)) { expandedActorsAtInitiative, expandedInitiative, expandedMovedActorId ->
+                assertEquals(15, expandedInitiative)
+                assertEquals(charlie.id, expandedMovedActorId)
+                assertEquals(listOf("Alpha", "Bravo", "Charlie"), expandedActorsAtInitiative.map(Actor::name))
+                expandedActorsAtInitiative
+            }
+
+            val expandedTie = tracker.actorList.filter { it.initiative == 15 }
+            listOf(
+                expandedTie.first { it.name == "Charlie" },
+                expandedTie.first { it.name == "Bravo" },
+                expandedTie.first { it.name == "Alpha" },
+            )
+        }
+
+        assertEquals(listOf("Charlie", "Bravo", "Alpha"), tracker.actorList.map(Actor::name))
+    }
+
+    @Test
+    fun `cancelled initiative tie keeps actors that joined while resolver was open`() {
+        val tracker = ActorTracker()
+        val alpha = actor("Alpha", 15)
+        val bravo = actor("Bravo", null)
+        val charlie = actor("Charlie", null)
+        tracker.addActor(alpha)
+        tracker.addActor(bravo)
+        tracker.addActor(charlie)
+
+        tracker.updateActor(bravo.copy(initiative = 15)) { _, _, _ ->
+            tracker.updateActor(charlie.copy(initiative = 15))
+            null
+        }
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), tracker.actorList.map(Actor::name))
+    }
+
+    @Test
     fun `adding a pc actor marks its token as player controlled`() {
         val tracker = ActorTracker()
         val tokenEvents = mutableListOf<TokenAddedEvent>()
@@ -78,6 +129,23 @@ class ActorTrackerTest {
         tracker.addActor(Actor(name = "Hero", actorType = ActorType.PC))
 
         assertEquals(true, tokenEvents.single().isPlayerCharacter)
+    }
+
+    @Test
+    fun `player initiative requirement ignores npcs without initiative`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(name = "Goblin", actorType = ActorType.NPC))
+
+        assertEquals(false, tracker.hasPlayerCharactersMissingInitiative())
+
+        val hero = Actor(name = "Hero", actorType = ActorType.PC)
+        tracker.addActor(hero)
+
+        assertEquals(true, tracker.hasPlayerCharactersMissingInitiative())
+
+        tracker.updateActor(hero.copy(initiative = 14))
+
+        assertEquals(false, tracker.hasPlayerCharactersMissingInitiative())
     }
 
     @Test

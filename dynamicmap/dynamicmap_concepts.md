@@ -119,6 +119,9 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.
+- Web companion movement requests use the relative `TokenMoveRequestedEvent`; DynamicMap resolves
+  those requests from its authoritative token positions and republishes the resulting absolute
+  `TokenMovedEvent`.
 
 ### Standard Map Feature Parity
 

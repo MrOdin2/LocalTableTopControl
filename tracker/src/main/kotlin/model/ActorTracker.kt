@@ -10,6 +10,7 @@ import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.scene.paint.Color
+import java.util.concurrent.CopyOnWriteArrayList
 
 typealias InitiativeTieResolver = (
     actorsAtInitiative: List<Actor>,
@@ -23,11 +24,22 @@ private val KEEP_EXISTING_TIE_ORDER: InitiativeTieResolver =
 class ActorTracker(
     val actorList: MutableList<Actor> = mutableListOf(),
 ){
+    class Subscription(
+        private val unsubscribeAction: () -> Unit,
+    ) {
+        fun unsubscribe() = unsubscribeAction()
+    }
 
     var currentlyActive: Int = 0
     var roundCount: Int = 0
 
     private var activeActors: Int = 0
+    private val changeListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    fun onChanged(listener: () -> Unit): Subscription {
+        changeListeners += listener
+        return Subscription { changeListeners -= listener }
+    }
 
     fun addActor(
         actor: Actor,
@@ -55,6 +67,7 @@ class ActorTracker(
             sortActorsByInitiative(actor.id, tieResolver)
         }
         normalizeCurrentSelection(currentActorId)
+        notifyChanged()
     }
 
     fun duplicateActor(
@@ -74,6 +87,7 @@ class ActorTracker(
         actorList.remove(actor)
         EventBus.publish(TokenRemovedEvent(actor.id, actor.name))
         normalizeCurrentSelection(currentActorId)
+        notifyChanged()
     }
 
     fun updateActor(
@@ -117,8 +131,10 @@ class ActorTracker(
 
                 sortActorsByInitiative(updatedActor.id, tieResolver)
                 normalizeCurrentSelection(currentActorId)
+                notifyChanged()
                 return true
             }
+            notifyChanged()
         }
         normalizeCurrentSelection()
         return false
@@ -132,9 +148,15 @@ class ActorTracker(
         EventBus.publish(TokensResetEvent())
         EventBus.publish(ActiveTokenChangedEvent(null, null)
         )
+        notifyChanged()
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
+
+    fun hasPlayerCharactersMissingInitiative(): Boolean =
+        actorList.any { actor ->
+            actor.actorType == ActorType.PC && actor.initiative == null
+        }
 
     internal fun snapshot(): TrackerSceneState =
         TrackerSceneState(
@@ -171,6 +193,7 @@ class ActorTracker(
             }
         }
         EventBus.publish(ActiveTokenChangedEvent(getCurrentActor()?.id, getCurrentActor()?.name))
+        notifyChanged()
     }
 
     private fun sortActorsByInitiative(
@@ -201,41 +224,49 @@ class ActorTracker(
             return
         }
 
-        val tiedActors = actorList.subList(insertIndex, insertIndex + tieCount).toList()
-        val defaultOrder = tiedActors + actor
-        val resolvedOrder = resolveTieOrder(defaultOrder, initiative, actor.id, tieResolver)
-
-        actorList.subList(insertIndex, insertIndex + tieCount).clear()
-        actorList.addAll(insertIndex, resolvedOrder)
+        actorList.add(insertIndex + tieCount, actor)
+        val tiedActors = actorList.subList(insertIndex, insertIndex + tieCount + 1).toList()
+        val resolvedOrder = tieResolver(tiedActors, initiative, actor.id) ?: return
+        applyTieOrder(initiative, resolvedOrder)
     }
 
-    private fun resolveTieOrder(
-        defaultOrder: List<Actor>,
+    private fun applyTieOrder(
         initiative: Int,
-        movedActorId: String,
-        tieResolver: InitiativeTieResolver,
-    ): List<Actor> {
-        val resolvedOrder = tieResolver(defaultOrder, initiative, movedActorId) ?: return defaultOrder
-        val expectedIds = defaultOrder.map(Actor::id)
+        resolvedOrder: List<Actor>,
+    ) {
+        val tieStart = actorList.indexOfFirst { it.initiative == initiative }
+        if (tieStart == -1) {
+            return
+        }
+        val tieCount = actorList.drop(tieStart).takeWhile { it.initiative == initiative }.size
+        if (tieCount == 0) {
+            return
+        }
+
+        val currentTieActors = actorList.subList(tieStart, tieStart + tieCount).toList()
+        val currentActorsById = currentTieActors.associateBy(Actor::id)
         val resolvedIds = resolvedOrder.map(Actor::id)
 
-        if (resolvedOrder.size != defaultOrder.size) {
-            return defaultOrder
+        if (resolvedIds.toSet().size != resolvedIds.size) {
+            return
         }
-        if (resolvedIds.toSet().size != expectedIds.size) {
-            return defaultOrder
-        }
-        if (resolvedIds.toSet() != expectedIds.toSet()) {
-            return defaultOrder
+        if (!currentActorsById.keys.containsAll(resolvedIds)) {
+            return
         }
 
-        return resolvedOrder
+        val resolvedIdSet = resolvedIds.toSet()
+        val finalOrder = resolvedIds.mapNotNull(currentActorsById::get) +
+            currentTieActors.filterNot { it.id in resolvedIdSet }
+
+        actorList.subList(tieStart, tieStart + tieCount).clear()
+        actorList.addAll(tieStart, finalOrder)
     }
 
     fun next(){
         if (activeActors == 0) {
             currentlyActive = 0
             roundCount = 0
+            notifyChanged()
             return
         }
 
@@ -248,6 +279,7 @@ class ActorTracker(
                 actorList[currentlyActive].name,
             ),
         )
+        notifyChanged()
     }
 
     fun getCurrentActor(): Actor? =
@@ -286,6 +318,10 @@ class ActorTracker(
                 imageOffsetY = settings.offsetY,
             ),
         )
+    }
+
+    private fun notifyChanged() {
+        changeListeners.forEach { listener -> listener() }
     }
 
     private fun Actor.darkvisionRangeCells(): Double? =
