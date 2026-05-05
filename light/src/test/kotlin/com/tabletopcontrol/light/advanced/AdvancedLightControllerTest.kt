@@ -74,4 +74,24 @@ class AdvancedLightControllerTest {
         assertEquals(LightEffect.FIRE, controller.currentSegments()[0].effect)
         assertEquals(LightEffect.NONE, controller.currentSegments()[1].effect)
     }
+
+    @Test
+    fun `coversAllKnownSegments detects full segment updates`() {
+        val controller = AdvancedLightController()
+        controller.loadFromDevice(
+            WledDeviceSnapshot(
+                segments = listOf(
+                    WledSegmentSnapshot(0, true, true, "#FFFFFF", 1.0, LightEffect.NONE, 128, 128),
+                    WledSegmentSnapshot(1, true, true, "#FFFFFF", 1.0, LightEffect.NONE, 128, 128),
+                ),
+            ),
+            AdvancedLightPreferences(),
+        )
+
+        val fullUpdate = controller.applyColorToSelected("#AA5500")
+        val partialUpdate = listOf(fullUpdate.first())
+
+        assertEquals(true, controller.coversAllKnownSegments(fullUpdate))
+        assertEquals(false, controller.coversAllKnownSegments(partialUpdate))
+    }
 }

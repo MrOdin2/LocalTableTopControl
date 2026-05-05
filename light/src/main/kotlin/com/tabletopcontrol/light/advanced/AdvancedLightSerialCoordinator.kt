@@ -6,6 +6,7 @@ import javafx.application.Platform
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal class AdvancedLightSerialCoordinator(
     private val sender: WledSerialSender = WledSerialSender(),
@@ -16,6 +17,9 @@ internal class AdvancedLightSerialCoordinator(
     private val debugListeners = CopyOnWriteArrayList<(String) -> Unit>()
     private val failureListeners =
         CopyOnWriteArrayList<(LightOperationResult.SerialFailure) -> Unit>()
+    private val queuedSegmentCommands = AdvancedLightSegmentSendQueue()
+    private val queueLock = Any()
+    private val queueDrainScheduled = AtomicBoolean(false)
     @Volatile
     private var debugLoggingEnabled = false
 
@@ -83,7 +87,9 @@ internal class AdvancedLightSerialCoordinator(
     }
 
     fun disconnectAsync(onComplete: (LightOperationResult) -> Unit) {
+        clearQueuedSegmentCommands()
         serialExecutor.execute {
+            clearQueuedSegmentCommands()
             sender.disconnect()
             appendDebug("DISCONNECTED")
             deliverOnFx { onComplete(LightOperationResult.Applied) }
@@ -97,8 +103,16 @@ internal class AdvancedLightSerialCoordinator(
         }
     }
 
-    fun sendSegmentsAsync(commands: List<AdvancedLightSegmentCommand>) {
+    fun sendSegmentsAsync(
+        commands: List<AdvancedLightSegmentCommand>,
+        splitCommands: Boolean = false,
+    ) {
         if (commands.isEmpty()) return
+        if (splitCommands) {
+            enqueueSegmentCommands(commands)
+            return
+        }
+
         serialExecutor.execute {
             if (!sender.isConnected) return@execute
             try {
@@ -111,6 +125,7 @@ internal class AdvancedLightSerialCoordinator(
     }
 
     fun shutdown() {
+        clearQueuedSegmentCommands()
         serialExecutor.shutdown()
 
         Thread({
@@ -123,6 +138,7 @@ internal class AdvancedLightSerialCoordinator(
                 serialExecutor.shutdownNow()
                 Thread.currentThread().interrupt()
             } finally {
+                clearQueuedSegmentCommands()
                 sender.disconnect()
             }
         }, "advanced-wled-serial-shutdown").apply {
@@ -152,6 +168,64 @@ internal class AdvancedLightSerialCoordinator(
                 result = LightOperationResult.SerialQueryFailed(error.messageOrClassName()),
                 snapshot = null,
             )
+        }
+    }
+
+    private fun enqueueSegmentCommands(commands: List<AdvancedLightSegmentCommand>) {
+        synchronized(queueLock) {
+            queuedSegmentCommands.offer(commands)
+        }
+        scheduleQueuedSegmentDrain()
+    }
+
+    private fun scheduleQueuedSegmentDrain() {
+        if (queueDrainScheduled.compareAndSet(false, true)) {
+            serialExecutor.execute { drainQueuedSegmentCommands() }
+        }
+    }
+
+    private fun drainQueuedSegmentCommands() {
+        while (true) {
+            val command = synchronized(queueLock) {
+                queuedSegmentCommands.poll()
+            }
+
+            if (command == null) {
+                queueDrainScheduled.set(false)
+                val shouldRestart = synchronized(queueLock) { !queuedSegmentCommands.isEmpty() }
+                if (shouldRestart && queueDrainScheduled.compareAndSet(false, true)) {
+                    continue
+                }
+                return
+            }
+
+            if (!sender.isConnected) {
+                clearQueuedSegmentCommands()
+                queueDrainScheduled.set(false)
+                return
+            }
+
+            try {
+                val sentJson = sender.sendSegmentJson(listOf(command))
+                appendDebug("TX $sentJson")
+            } catch (error: Exception) {
+                reportFailure(LightOperationResult.SerialWriteFailed(error.messageOrClassName()))
+            }
+
+            try {
+                Thread.sleep(INTER_SEGMENT_SEND_DELAY_MS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                clearQueuedSegmentCommands()
+                queueDrainScheduled.set(false)
+                return
+            }
+        }
+    }
+
+    private fun clearQueuedSegmentCommands() {
+        synchronized(queueLock) {
+            queuedSegmentCommands.clear()
         }
     }
 
@@ -192,4 +266,8 @@ internal class AdvancedLightSerialCoordinator(
         val result: LightOperationResult,
         val snapshot: WledDeviceSnapshot?,
     )
+
+    private companion object {
+        private const val INTER_SEGMENT_SEND_DELAY_MS: Long = 100
+    }
 }

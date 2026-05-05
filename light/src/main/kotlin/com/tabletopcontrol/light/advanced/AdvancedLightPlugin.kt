@@ -104,16 +104,21 @@ class AdvancedLightPlugin : DmPlugin {
         val table = TableView(rows).apply {
             columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
             placeholder = Label("Connect to WLED to load segments.")
-            prefHeight = 220.0
+            fixedCellSize = SEGMENT_TABLE_ROW_HEIGHT
+            prefHeight = segmentTableHeight(0)
+            maxHeight = Region.USE_PREF_SIZE
         }
 
         val nameColumn = TableColumn<AdvancedLightSegmentState, String>("Name").apply {
             setCellValueFactory { ReadOnlyStringWrapper(it.value.name) }
-            prefWidth = 140.0
+            minWidth = 0.0
+            prefWidth = 70.0
         }
         val powerColumn = TableColumn<AdvancedLightSegmentState, AdvancedLightSegmentState>("On").apply {
             setCellValueFactory { ReadOnlyObjectWrapper(it.value) }
+            minWidth = 44.0
             prefWidth = 54.0
+            maxWidth = 64.0
             setCellFactory {
                 object : TableCell<AdvancedLightSegmentState, AdvancedLightSegmentState>() {
                     private val check = CheckBox().apply {
@@ -142,7 +147,9 @@ class AdvancedLightPlugin : DmPlugin {
         }
         val selectedColumn = TableColumn<AdvancedLightSegmentState, AdvancedLightSegmentState>("Edit").apply {
             setCellValueFactory { ReadOnlyObjectWrapper(it.value) }
+            minWidth = 48.0
             prefWidth = 58.0
+            maxWidth = 68.0
             setCellFactory {
                 object : TableCell<AdvancedLightSegmentState, AdvancedLightSegmentState>() {
                     private val check = CheckBox().apply {
@@ -304,7 +311,10 @@ class AdvancedLightPlugin : DmPlugin {
                         controller.loadFromDevice(snapshot, preferences)
                         refreshTableFromController(table, rows)
                         refreshEditor()
-                        serialCoordinator.sendSegmentsAsync(controller.commandsForAllSegments())
+                        serialCoordinator.sendSegmentsAsync(
+                            controller.commandsForAllSegments(),
+                            splitCommands = true,
+                        )
                         connectButton.text = "Disconnect"
                         feedback.showSuccess(
                             statusLabel,
@@ -459,7 +469,10 @@ class AdvancedLightPlugin : DmPlugin {
         }
 
         fun applyCommands(commands: List<AdvancedLightSegmentCommand>) {
-            serialCoordinator.sendSegmentsAsync(commands)
+            serialCoordinator.sendSegmentsAsync(
+                commands,
+                splitCommands = controller.coversAllKnownSegments(commands),
+            )
             refreshTableFromController(table, rows)
             refreshEditor()
         }
@@ -564,6 +577,8 @@ class AdvancedLightPlugin : DmPlugin {
         rows: javafx.collections.ObservableList<AdvancedLightSegmentState>,
     ) {
         rows.setAll(controller.currentSegments())
+        table.prefHeight = segmentTableHeight(rows.size)
+        table.maxHeight = Region.USE_PREF_SIZE
         table.refresh()
     }
 
@@ -578,6 +593,11 @@ class AdvancedLightPlugin : DmPlugin {
     private fun percentLabel(value: Double): String = "${(value * 100.0).roundToInt()} %"
 
     private fun intPercentLabel(value: Int): String = "${(value * 100) / 255} %"
+
+    private fun segmentTableHeight(rowCount: Int): Double {
+        val visibleRows = rowCount.coerceAtLeast(1)
+        return SEGMENT_TABLE_HEADER_HEIGHT + visibleRows * SEGMENT_TABLE_ROW_HEIGHT + SEGMENT_TABLE_BORDER_HEIGHT
+    }
 
     private fun disposeViewListeners() {
         disposables.forEach { it() }
@@ -597,5 +617,8 @@ class AdvancedLightPlugin : DmPlugin {
     private companion object {
         private const val SWATCH_STYLE_BASE: String =
             "-fx-border-color: -tc-border; -fx-border-radius: 3; -fx-background-radius: 3;"
+        private const val SEGMENT_TABLE_ROW_HEIGHT: Double = 30.0
+        private const val SEGMENT_TABLE_HEADER_HEIGHT: Double = 34.0
+        private const val SEGMENT_TABLE_BORDER_HEIGHT: Double = 4.0
     }
 }

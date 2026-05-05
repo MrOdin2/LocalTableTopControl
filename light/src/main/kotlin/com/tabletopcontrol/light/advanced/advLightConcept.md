@@ -44,6 +44,8 @@ Add a second WLED-oriented DM plugin named **Advanced Light** while keeping the 
 - Segment command format:
   - send `{"seg":[...]}` with one object per edited segment
   - each object includes `id`, `on`, `bri`, `col`, `fx`, `sx`, and `ix`
+  - when an edit covers every known segment, send one segment command at a time with a 100ms delay between writes; this avoids WLED/serial edge cases where a full multi-segment array can be accepted but not visibly applied until a later segment toggle
+  - full-segment writes use a latest-value round-robin queue, so slider drags rotate through segment IDs and keep only the newest pending value per segment
 
 ## Persistence Plan
 

@@ -65,6 +65,11 @@ internal class AdvancedLightController {
     fun commandsForAllSegments(): List<AdvancedLightSegmentCommand> =
         segments.map { it.toCommand() }
 
+    fun coversAllKnownSegments(commands: List<AdvancedLightSegmentCommand>): Boolean {
+        if (commands.size <= 1 || segments.isEmpty()) return false
+        return commands.map { it.id }.toSet() == segments.map { it.id }.toSet()
+    }
+
     fun selectedSegments(): List<AdvancedLightSegmentState> =
         segments.filter { it.selectedForEdit }
 

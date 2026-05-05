@@ -294,6 +294,12 @@
         and serial errors. Leave it off during normal play and enable it when checking a cable,
         port, or WLED response.
       </p>
+      <p>
+        When every segment is checked for editing, Advanced Light sends the update as one small
+        command per segment with a short pause between commands. The debug console will show several
+        lines for that one change; this is expected and helps WLED apply full-table edits reliably.
+        During slider drags, only the newest pending value for each segment is kept.
+      </p>
     </section>
 
     <section id="power">
