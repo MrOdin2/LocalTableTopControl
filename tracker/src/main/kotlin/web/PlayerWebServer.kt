@@ -336,6 +336,47 @@ class PlayerWebServer(
         updateClients += client
         if (!sendApplicationUpdate(client)) {
             closeUpdateClient(client)
+            return
+        }
+        startHeartbeat(client)
+    }
+
+    /**
+     * Periodically writes an SSE comment so idle disconnects are detected and stale clients
+     * are removed from [updateClients].
+     */
+    private fun startHeartbeat(client: SseClient) {
+        val heartbeatThread = Thread {
+            while (updateClients.contains(client)) {
+                try {
+                    Thread.sleep(15_000)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    closeUpdateClient(client)
+                    return@Thread
+                }
+                if (!updateClients.contains(client)) {
+                    return@Thread
+                }
+                if (!sendHeartbeat(client)) {
+                    closeUpdateClient(client)
+                    return@Thread
+                }
+            }
+        }
+        heartbeatThread.isDaemon = true
+        heartbeatThread.name = "player-web-sse-heartbeat"
+        heartbeatThread.start()
+    }
+
+    /** Writes an SSE heartbeat comment. Browsers ignore comments, but failed writes detect disconnects. */
+    private fun sendHeartbeat(client: SseClient): Boolean {
+        return try {
+            client.output.write(": keep-alive\n\n".toByteArray(Charsets.UTF_8))
+            client.output.flush()
+            true
+        } catch (_: IOException) {
+            false
         }
     }
 
