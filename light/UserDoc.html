@@ -135,6 +135,7 @@
         <li><a href="#overview">Overview</a></li>
         <li><a href="#setup">Hardware Setup</a></li>
         <li><a href="#connection">Connecting</a></li>
+        <li><a href="#advanced-light">Advanced Light</a></li>
         <li><a href="#power">Power Control</a></li>
         <li><a href="#color">Colour</a></li>
         <li><a href="#effects">Effects</a>
@@ -243,6 +244,62 @@
         Make a note of the port name (e.g. <code>/dev/ttyUSB0</code>) so you can select it
         quickly next time.
       </div>
+    </section>
+
+    <section id="advanced-light">
+      <h2>Advanced Light</h2>
+      <p>
+        The <strong>Advanced Light</strong> panel is available as a separate DM plugin for WLED
+        devices that use more than one segment. Use it when different parts of your table lighting
+        should have their own colour, brightness, effect, or on/off state.
+      </p>
+      <p>
+        Click the slim <strong>Connection</strong> button to show the serial port settings. After
+        connecting, TabletopControl reads the segment list from WLED and fills the table with one
+        row per segment.
+      </p>
+
+      <h3>Segment Table</h3>
+      <p>
+        Each row shows the segment name, an <strong>On</strong> checkbox, and an
+        <strong>Edit</strong> checkbox. Segment names default to the WLED segment ID. Right-click a
+        row to rename it or move it up and down in the table.
+      </p>
+      <p>
+        The <strong>On</strong> checkbox affects only that row. The <strong>Edit</strong> checkbox
+        decides which rows are changed by the shared controls below the table.
+      </p>
+
+      <h3>Editing Checked Segments</h3>
+      <p>
+        The colour button opens the shared TabletopControl colour wheel. Brightness, effect, speed,
+        and intensity apply to every segment whose <strong>Edit</strong> checkbox is enabled.
+      </p>
+      <p>
+        The effect selector uses the same curated WLED effects as the simple lighting panel. The
+        compact <strong>Params</strong> dropdown beside it contains the speed and intensity sliders.
+      </p>
+
+      <h3>Remembered Segment Setup</h3>
+      <p>
+        Advanced Light remembers segment names, table order, selected colours, effects, brightness,
+        speed, and intensity between app sessions. When you reconnect to the same WLED setup, those
+        remembered choices are matched by segment ID and applied again.
+      </p>
+
+      <h3>Advanced Debug Console</h3>
+      <p>
+        The <strong>Debug console</strong> toggle shows the serial log for Advanced Light. It logs
+        connection messages, WLED segment queries, received JSON responses, sent segment updates,
+        and serial errors. Leave it off during normal play and enable it when checking a cable,
+        port, or WLED response.
+      </p>
+      <p>
+        When every segment is checked for editing, Advanced Light sends the update as one small
+        command per segment with a short pause between commands. The debug console will show several
+        lines for that one change; this is expected and helps WLED apply full-table edits reliably.
+        During slider drags, only the newest pending value for each segment is kept.
+      </p>
     </section>
 
     <section id="power">
