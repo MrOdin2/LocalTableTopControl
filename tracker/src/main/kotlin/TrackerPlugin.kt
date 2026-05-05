@@ -297,12 +297,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val borderStyle =
         if (actor.id == actorTracker.getCurrentActor()?.id) "-tc-card-active-border" else "-tc-card-border"
 
-        val cardChildren = buildList {
-            add(header)
-            add(stats)
-        }
-
-        return VBox(8.0, *cardChildren.toTypedArray()).apply {
+        return VBox(8.0, header, stats).apply {
             padding = Insets(12.0)
             style = """
                 -fx-background-color: -tc-surface;
