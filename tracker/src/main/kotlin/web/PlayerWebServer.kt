@@ -135,11 +135,11 @@ class PlayerWebServer(
         server = null
         trackerSubscription?.unsubscribe()
         trackerSubscription = null
+        subscriptions.forEach { it.unsubscribe() }
+        subscriptions.clear()
         closeUpdateClients()
         executor?.shutdownNow()
         executor = null
-        subscriptions.forEach { it.unsubscribe() }
-        subscriptions.clear()
         tokenPositions.clear()
     }
 
