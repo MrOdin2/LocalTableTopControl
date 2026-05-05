@@ -42,5 +42,7 @@ internal class AdvancedLightSegmentSendQueue {
 
     fun clear() {
         pendingById.clear()
+        order.clear()
+        nextIndex = 0
     }
 }
