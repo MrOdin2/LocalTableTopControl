@@ -5,18 +5,28 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenLightSource
+import com.tabletopcontrol.core.TokenMovementBudgetChangedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.scene.TrackerSceneState
 import javafx.scene.paint.Color
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.math.roundToInt
 
 typealias InitiativeTieResolver = (
     actorsAtInitiative: List<Actor>,
     initiative: Int,
     movedActorId: String,
 ) -> List<Actor>?
+
+data class ActorMovementBudget(
+    val baseMovementCells: Int,
+    val remainingMovementCells: Int,
+    val unit: DistanceUnit,
+    val baseAmount: Double,
+    val remainingAmount: Double,
+)
 
 private val KEEP_EXISTING_TIE_ORDER: InitiativeTieResolver =
     { actorsAtInitiative, _, _ -> actorsAtInitiative }
@@ -35,6 +45,7 @@ class ActorTracker(
 
     private var activeActors: Int = 0
     private val changeListeners = CopyOnWriteArrayList<() -> Unit>()
+    private val movementBudgets = mutableMapOf<String, Int>()
 
     fun onChanged(listener: () -> Unit): Subscription {
         changeListeners += listener
@@ -67,6 +78,7 @@ class ActorTracker(
             sortActorsByInitiative(actor.id, tieResolver)
         }
         normalizeCurrentSelection(currentActorId)
+        publishCurrentMovementBudget()
         notifyChanged()
     }
 
@@ -85,8 +97,10 @@ class ActorTracker(
             activeActors--
         }
         actorList.remove(actor)
+        movementBudgets.remove(actor.id)
         EventBus.publish(TokenRemovedEvent(actor.id, actor.name))
         normalizeCurrentSelection(currentActorId)
+        publishCurrentMovementBudget()
         notifyChanged()
     }
 
@@ -97,6 +111,7 @@ class ActorTracker(
         val index = actorList.indexOfFirst { it.id == updatedActor.id }
         if (index != -1) {
             val previousActor = actorList[index]
+            val movementRangeChanged = previousActor.features.movementRange != updatedActor.features.movementRange
             if (previousActor.imageSettings != updatedActor.imageSettings) {
                 publishImageEvent(updatedActor)
             }
@@ -122,6 +137,9 @@ class ActorTracker(
             }
             val currentActorId = getCurrentActor()?.id
             actorList[index] = updatedActor
+            if (movementRangeChanged) {
+                movementBudgets[updatedActor.id] = updatedActor.baseMovementCells()
+            }
             if (previousActor.initiative != updatedActor.initiative) {
                 if(previousActor.initiative != null && updatedActor.initiative == null) {
                     activeActors--
@@ -131,12 +149,19 @@ class ActorTracker(
 
                 sortActorsByInitiative(updatedActor.id, tieResolver)
                 normalizeCurrentSelection(currentActorId)
+                val newCurrentActor = getCurrentActor()
+                if (newCurrentActor?.id != currentActorId) {
+                    movementBudgets[newCurrentActor?.id] = newCurrentActor?.baseMovementCells()
+                }
+                publishCurrentMovementBudget()
                 notifyChanged()
                 return true
             }
+            publishCurrentMovementBudget()
             notifyChanged()
         }
         normalizeCurrentSelection()
+        publishCurrentMovementBudget()
         return false
     }
 
@@ -145,13 +170,70 @@ class ActorTracker(
         activeActors = 0
         currentlyActive = 0
         roundCount = 0
+        movementBudgets.clear()
         EventBus.publish(TokensResetEvent())
         EventBus.publish(ActiveTokenChangedEvent(null, null)
         )
+        publishCurrentMovementBudget()
         notifyChanged()
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
+
+    fun movementBudget(actorId: String): ActorMovementBudget? =
+        findActor(actorId)?.let(::movementBudget)
+
+    fun movementBudget(actor: Actor): ActorMovementBudget {
+        val range = actor.features.movementRange
+        val unit = range?.unit ?: DistanceUnit.FEET
+        val baseCells = actor.baseMovementCells()
+        val remainingCells = (movementBudgets[actor.id] ?: baseCells).coerceAtLeast(0)
+        return ActorMovementBudget(
+            baseMovementCells = baseCells,
+            remainingMovementCells = remainingCells,
+            unit = unit,
+            baseAmount = range?.amount?.toDouble() ?: movementCellsToAmount(baseCells, unit),
+            remainingAmount = movementCellsToAmount(remainingCells, unit),
+        )
+    }
+
+    fun updateActorMovementRange(
+        actorId: String,
+        amount: Int,
+        unit: DistanceUnit,
+    ): Boolean {
+        val actor = findActor(actorId) ?: return false
+        val updated = actor.copy(
+            features = actor.features.copy(
+                movementRange = DistanceRange(amount = amount.coerceAtLeast(0), unit = unit),
+            ),
+        )
+        movementBudgets[actorId] = updated.baseMovementCells()
+        updateActor(updated)
+        return true
+    }
+
+    fun dashActorMovement(actorId: String): Boolean {
+        val actor = findActor(actorId) ?: return false
+        val budget = movementBudget(actor)
+        movementBudgets[actor.id] = budget.remainingMovementCells + budget.baseMovementCells
+        publishCurrentMovementBudget()
+        notifyChanged()
+        return true
+    }
+
+    fun spendActorMovement(
+        actorId: String,
+        cells: Int,
+    ): Boolean {
+        if (cells <= 0) return true
+        val actor = findActor(actorId) ?: return false
+        val budget = movementBudget(actor)
+        movementBudgets[actor.id] = (budget.remainingMovementCells - cells).coerceAtLeast(0)
+        publishCurrentMovementBudget()
+        notifyChanged()
+        return true
+    }
 
     fun hasPlayerCharactersMissingInitiative(): Boolean =
         actorList.any { actor ->
@@ -177,6 +259,7 @@ class ActorTracker(
             ?: 0
 
         actorList.forEach { actor ->
+            movementBudgets[actor.id] = actor.baseMovementCells()
             EventBus.publish(
                 TokenAddedEvent(
                     actor.id,
@@ -193,6 +276,7 @@ class ActorTracker(
             }
         }
         EventBus.publish(ActiveTokenChangedEvent(getCurrentActor()?.id, getCurrentActor()?.name))
+        publishCurrentMovementBudget()
         notifyChanged()
     }
 
@@ -266,12 +350,14 @@ class ActorTracker(
         if (activeActors == 0) {
             currentlyActive = 0
             roundCount = 0
+            publishCurrentMovementBudget()
             notifyChanged()
             return
         }
 
         roundCount += if (currentlyActive == activeActors - 1) 1 else 0
         currentlyActive = (currentlyActive + 1) % activeActors
+        movementBudgets[actorList[currentlyActive].id] = actorList[currentlyActive].baseMovementCells()
 
         EventBus.publish(
             ActiveTokenChangedEvent(
@@ -279,6 +365,7 @@ class ActorTracker(
                 actorList[currentlyActive].name,
             ),
         )
+        publishCurrentMovementBudget()
         notifyChanged()
     }
 
@@ -320,6 +407,31 @@ class ActorTracker(
         )
     }
 
+    private fun publishCurrentMovementBudget() {
+        val actor = getCurrentActor()
+        if (actor == null) {
+            EventBus.publish(
+                TokenMovementBudgetChangedEvent(
+                    id = null,
+                    name = null,
+                    baseMovementCells = 0,
+                    remainingMovementCells = 0,
+                ),
+            )
+            return
+        }
+
+        val budget = movementBudget(actor)
+        EventBus.publish(
+            TokenMovementBudgetChangedEvent(
+                id = actor.id,
+                name = actor.name,
+                baseMovementCells = budget.baseMovementCells,
+                remainingMovementCells = budget.remainingMovementCells,
+            ),
+        )
+    }
+
     private fun notifyChanged() {
         changeListeners.forEach { listener -> listener() }
     }
@@ -345,6 +457,22 @@ class ActorTracker(
             colorHex = ColorHexCodec.colorToHex(source.color),
         )
     }
+
+    private fun Actor.baseMovementCells(): Int =
+        features.movementRange
+            ?.toGridCells()
+            ?.roundToInt()
+            ?.coerceAtLeast(0)
+            ?: 0
+
+    private fun movementCellsToAmount(
+        cells: Int,
+        unit: DistanceUnit,
+    ): Double =
+        when (unit) {
+            DistanceUnit.FEET -> cells * FEET_PER_GRID_CELL
+            DistanceUnit.METERS -> cells * METERS_PER_GRID_CELL
+        }
 
     private fun DistanceRange.toGridCells(): Double =
         when (unit) {

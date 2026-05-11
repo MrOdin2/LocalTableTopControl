@@ -12,6 +12,7 @@ import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.new_tracker.model.Actor
 import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.ActorType
+import com.tabletopcontrol.new_tracker.model.DistanceUnit
 import com.tabletopcontrol.new_tracker.model.InitiativeTieResolver
 import javafx.application.Platform
 import java.io.IOException
@@ -107,6 +108,8 @@ class PlayerWebServer(
             srv.createContext("/api/state", ::handleState)
             srv.createContext("/api/stats", ::handleStats)
             srv.createContext("/api/initiative", ::handleInitiative)
+            srv.createContext("/api/movement", ::handleMovement)
+            srv.createContext("/api/dash", ::handleDash)
             srv.createContext("/api/move", ::handleMove)
             srv.createContext("/api/events", ::handleEvents)
             srv.createContext("/", ::handleIndex)
@@ -277,7 +280,98 @@ class PlayerWebServer(
     }
 
     /**
-     * `PUT /api/move?player=<name>&dir=<n|s|e|w>` — moves the player's token one cell
+     * `PUT /api/movement?player=<name>&amount=<amount>&unit=<FEET|METERS>` - updates base movement.
+     */
+    private fun handleMovement(exchange: HttpExchange) {
+        if (exchange.requestMethod != "PUT") {
+            respond(exchange, 405, "Method Not Allowed")
+            return
+        }
+        val actorName = queryParam(exchange.requestURI, "player")
+        val amount = nonNegativeIntQueryParam(exchange.requestURI, "amount")
+        val requestedUnit = queryParam(exchange.requestURI, "unit")
+        val unit = requestedUnit?.let(::distanceUnitOrNull)
+        if (actorName == null || amount == null || (requestedUnit != null && unit == null)) {
+            respond(exchange, 400, "Missing or invalid 'player', 'amount', or 'unit' query parameter")
+            return
+        }
+
+        var status = 500
+        var body = "Update did not complete"
+        val completed = runOnApplicationThreadAndWait {
+            val actor = findPlayerActor(actorName)
+            if (actor == null) {
+                status = 404
+                body = "No PC actor named \"$actorName\""
+                return@runOnApplicationThreadAndWait
+            }
+            actorTracker.updateActorMovementRange(
+                actor.id,
+                amount,
+                unit ?: actor.features.movementRange?.unit ?: DistanceUnit.FEET,
+            )
+            onActorChanged?.invoke()
+            val updatedActor = actorTracker.findActor(actor.id) ?: actor
+            val (col, row) = tokenPositions[updatedActor.id] ?: Pair(0, 0)
+            status = 200
+            body = stateJson(updatedActor, col, row)
+        }
+
+        if (!completed) {
+            respond(exchange, 503, "Application update timed out")
+            return
+        }
+        if (status == 200) {
+            respondJson(exchange, status, body)
+        } else {
+            respond(exchange, status, body)
+        }
+    }
+
+    /**
+     * `PUT /api/dash?player=<name>` - adds base movement to this round's remaining movement.
+     */
+    private fun handleDash(exchange: HttpExchange) {
+        if (exchange.requestMethod != "PUT") {
+            respond(exchange, 405, "Method Not Allowed")
+            return
+        }
+        val actorName = queryParam(exchange.requestURI, "player")
+        if (actorName == null) {
+            respond(exchange, 400, "Missing 'player' query parameter")
+            return
+        }
+
+        var status = 500
+        var body = "Update did not complete"
+        val completed = runOnApplicationThreadAndWait {
+            val actor = findPlayerActor(actorName)
+            if (actor == null) {
+                status = 404
+                body = "No PC actor named \"$actorName\""
+                return@runOnApplicationThreadAndWait
+            }
+            actorTracker.dashActorMovement(actor.id)
+            onActorChanged?.invoke()
+            val updatedActor = actorTracker.findActor(actor.id) ?: actor
+            val (col, row) = tokenPositions[updatedActor.id] ?: Pair(0, 0)
+            status = 200
+            body = stateJson(updatedActor, col, row)
+        }
+
+        if (!completed) {
+            respond(exchange, 503, "Application update timed out")
+            return
+        }
+        if (status == 200) {
+            respondJson(exchange, status, body)
+        } else {
+            respond(exchange, status, body)
+        }
+    }
+
+    /**
+     * `PUT /api/move?player=<name>&dir=<n|s|e|w>` - moves the player's token one cell
      * in the requested direction and returns the updated state JSON.
      */
     private fun handleMove(exchange: HttpExchange) {
@@ -306,18 +400,25 @@ class PlayerWebServer(
                 return
             }
         }
+        var updatedActor = actor
         val completed = runOnApplicationThreadAndWait {
+            val before = tokenPositions[actor.id]
             EventBus.publish(TokenMoveRequestedEvent(actor.id, actor.name, direction))
+            val after = tokenPositions[actor.id]
+            if (after != null && after != before) {
+                actorTracker.spendActorMovement(actor.id, 1)
+            }
+            updatedActor = actorTracker.findActor(actor.id) ?: actor
         }
         if (!completed) {
             respond(exchange, 503, "Application move timed out")
             return
         }
-        val (col, row) = tokenPositions[actor.id] ?: run {
+        val (col, row) = tokenPositions[updatedActor.id] ?: run {
             respond(exchange, 409, "Token is not available on the active map")
             return
         }
-        respondJson(exchange, 200, stateJson(actor, col, row))
+        respondJson(exchange, 200, stateJson(updatedActor, col, row))
     }
 
     /** `GET /api/events` - server-sent applicationUpdate events for connected browsers. */
@@ -409,6 +510,9 @@ class PlayerWebServer(
     private fun nonNegativeIntQueryParam(uri: URI, name: String): Int? =
         queryParam(uri, name)?.toIntOrNull()?.takeIf { it >= 0 }
 
+    private fun distanceUnitOrNull(value: String): DistanceUnit? =
+        DistanceUnit.entries.firstOrNull { unit -> unit.name.equals(value, ignoreCase = true) }
+
     private fun findPlayerActor(actorName: String): Actor? =
         actorTracker.actorList.firstOrNull { actor ->
             actor.actorType == ActorType.PC && actor.name == actorName
@@ -435,8 +539,10 @@ class PlayerWebServer(
         actor: Actor,
         col: Int,
         row: Int,
-    ): String =
-        """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"initiative":${actor.initiative ?: "null"},"initiativeRequired":${initiativeEntryRequested && actor.initiative == null},"col":$col,"row":$row,"active":${actor.id == actorTracker.getCurrentActor()?.id},"color":"${ColorHexCodec.colorToHex(actor.color)}"}"""
+    ): String {
+        val movement = actorTracker.movementBudget(actor)
+        return """{"name":"${actor.name.jsonEscape()}","hp":${actor.hp},"ac":${actor.ac},"initiative":${actor.initiative ?: "null"},"initiativeRequired":${initiativeEntryRequested && actor.initiative == null},"col":$col,"row":$row,"active":${actor.id == actorTracker.getCurrentActor()?.id},"color":"${ColorHexCodec.colorToHex(actor.color)}","movementBaseCells":${movement.baseMovementCells},"movementRemainingCells":${movement.remainingMovementCells},"movementBaseAmount":${movement.baseAmount.jsonNumber()},"movementRemainingAmount":${movement.remainingAmount.jsonNumber()},"movementUnit":"${movement.unit.name}","movementUnitLabel":"${movement.unit.label}"}"""
+    }
 
     private fun publishApplicationUpdate() {
         executor?.execute {
@@ -497,6 +603,15 @@ class PlayerWebServer(
         .replace("\t", "\\t")
 
     private fun String.jsonString(): String = "\"${jsonEscape()}\""
+
+    private fun Double.jsonNumber(): String =
+        if (isFinite()) toString() else "0.0"
+
+    private val DistanceUnit.label: String
+        get() = when (this) {
+            DistanceUnit.FEET -> "ft"
+            DistanceUnit.METERS -> "m"
+        }
 
     private data class SseClient(
         val exchange: HttpExchange,
@@ -605,6 +720,48 @@ class PlayerWebServer(
       text-transform: uppercase;
     }
     .stat-editor input { margin-bottom: 0; }
+    .movement-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      margin-bottom: 1.25rem;
+    }
+    .movement-row {
+      display: grid;
+      grid-template-columns: 1fr 0.9fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+    .movement-editor label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+    .movement-editor input,
+    .movement-editor select { margin-bottom: 0; }
+    .movement-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .dash-btn {
+      min-height: 44px;
+      padding: 0 1rem;
+      background: #0f3460;
+      color: var(--text);
+      border: 2px solid #1e5799;
+      border-radius: var(--btn-radius);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .dash-btn:active { background: var(--accent); }
     .dpad {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -706,6 +863,22 @@ class PlayerWebServer(
       <label for="ac-input">AC<input id="ac-input" type="number" min="0" inputmode="numeric"/></label>
       <button class="btn-secondary" onclick="commitStats()">Set</button>
     </div>
+    <div class="movement-editor">
+      <div class="movement-row">
+        <label for="movement-input">Move<input id="movement-input" type="number" min="0" inputmode="numeric"/></label>
+        <label for="movement-unit">Unit
+          <select id="movement-unit">
+            <option value="FEET">ft</option>
+            <option value="METERS">m</option>
+          </select>
+        </label>
+        <button class="btn-secondary" onclick="commitMovement()">Set</button>
+      </div>
+      <div class="movement-summary">
+        <span id="movement-remaining"></span>
+        <button class="dash-btn" onclick="commitDash()">Dash</button>
+      </div>
+    </div>
     <div class="dpad">
       <div></div>
       <button class="dpad-btn" ontouchstart="handleMove('n')" onclick="handleMove('n')" aria-label="North">↑</button>
@@ -803,6 +976,37 @@ class PlayerWebServer(
     }
   }
 
+  async function commitMovement() {
+    if (!currentPlayer) return;
+    if (initiativeRequired) { setInitiativeStatus('Enter initiative first.'); return; }
+    const amount = nonNegativeInt(document.getElementById('movement-input').value);
+    const unit = document.getElementById('movement-unit').value;
+    if (amount === null) { setStatus('Movement must be 0 or higher.'); return; }
+    try {
+      const url = '/api/movement?player=' + encodeURIComponent(currentPlayer) +
+        '&amount=' + amount + '&unit=' + encodeURIComponent(unit);
+      const res = await fetch(url, { method: 'PUT' });
+      if (!res.ok) { setStatus('Movement update failed.'); return; }
+      updateDisplay(await res.json());
+      setStatus('');
+    } catch (e) {
+      setStatus('Error: ' + e.message);
+    }
+  }
+
+  async function commitDash() {
+    if (!currentPlayer) return;
+    if (initiativeRequired) { setInitiativeStatus('Enter initiative first.'); return; }
+    try {
+      const res = await fetch('/api/dash?player=' + encodeURIComponent(currentPlayer), { method: 'PUT' });
+      if (!res.ok) { setStatus('Dash failed.'); return; }
+      updateDisplay(await res.json());
+      setStatus('');
+    } catch (e) {
+      setStatus('Error: ' + e.message);
+    }
+  }
+
   function disconnect() {
     closeApplicationUpdates();
     hideInitiativeDialog();
@@ -819,6 +1023,10 @@ class PlayerWebServer(
     document.getElementById('actor-name').textContent = data.name;
     document.getElementById('hp-input').value = data.hp;
     document.getElementById('ac-input').value = data.ac;
+    document.getElementById('movement-input').value = formatMovementAmount(data.movementBaseAmount);
+    document.getElementById('movement-unit').value = data.movementUnit || 'FEET';
+    document.getElementById('movement-remaining').textContent =
+      'Left ' + formatMovementAmount(data.movementRemainingAmount) + ' ' + (data.movementUnitLabel || unitLabel(data.movementUnit));
     if (data.initiativeRequired) {
       showInitiativeDialog();
     } else if (initiativeRequired) {
@@ -902,6 +1110,16 @@ class PlayerWebServer(
     }
   }
 
+  function formatMovementAmount(value) {
+    const number = Number(value || 0);
+    if (Number.isInteger(number)) return String(number);
+    return number.toFixed(1).replace(/\.0$/, '');
+  }
+
+  function unitLabel(unit) {
+    return unit === 'METERS' ? 'm' : 'ft';
+  }
+
   function nonNegativeInt(value) {
     if (value === '') return null;
     const number = Number(value);
@@ -922,6 +1140,10 @@ class PlayerWebServer(
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') commitStats();
     });
+  });
+
+  document.getElementById('movement-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') commitMovement();
   });
 
   document.getElementById('initiative-input').addEventListener('keydown', function(e) {
