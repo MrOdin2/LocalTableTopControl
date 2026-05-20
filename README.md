@@ -118,4 +118,4 @@ The application will expose a lightweight HTTP interface so that external device
 
 ## License
 
-> _License information will be added._
+This project is licensed under the [MIT License](LICENSE).
