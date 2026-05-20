@@ -119,6 +119,19 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 - Dynamic maps keep their exported orientation; standard image-map rotation is disabled in the UI.
 - Standard image-map calibration is disabled because background, wall, and light geometry must stay aligned.
 - The old disabled image calibration and rotation buttons are not shown in DynamicMap settings.
+- Web companion movement requests use the relative `TokenMoveRequestedEvent`; DynamicMap resolves
+  those requests from its authoritative token positions and republishes the resulting absolute
+  `TokenMovedEvent`.
+- Tracker-owned movement budgets are published as `TokenMovementBudgetChangedEvent`. DynamicMap
+  renders the active token's reachable grid cells, using closed runtime walls and closed doors as
+  movement blockers while ignoring doors that are currently open. PC reachability follows the live
+  token position. NPC reachability is rendered only on the DM minimap and freezes from the token
+  position at the moment the budget event arrives, so fast DM drag/drop movement does not constantly
+  rewrite the overlay.
+- The DynamicMap DM minimap publishes `TokenMovementDashRequestedEvent` once per Shift key-down while
+  it has focus. During a token drag, the request is deferred until mouse release so the NPC Dash
+  overlay anchors at the dropped position. Tracker applies the request as an NPC-only Dash by adding
+  the actor's normal movement to the current round budget.
 
 ### Standard Map Feature Parity
 

@@ -1,7 +1,9 @@
 package com.tabletopcontrol.new_tracker
 
+import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.TokenMovementDashRequestedEvent
 import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
@@ -18,6 +20,7 @@ import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
 import com.tabletopcontrol.new_tracker.ui.ActorFeaturesDialog
 import com.tabletopcontrol.new_tracker.ui.AddActorDialog
 import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
+import com.tabletopcontrol.new_tracker.web.PlayerWebServer
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Node
@@ -38,6 +41,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
 import javafx.stage.Window
+import java.net.InetAddress
 
 class TrackerPlugin : DmPlugin, SceneParticipant {
 
@@ -53,6 +57,21 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     private val actorFeaturesDialog = ActorFeaturesDialog()
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
     private val initiativeTieDialog = InitiativeTieDialog()
+    private val webServer = PlayerWebServer(actorTracker)
+    private val subscriptions = mutableListOf<EventBus.Subscription>()
+
+    init {
+        subscriptions += EventBus.subscribe<TokenMovementDashRequestedEvent> { event ->
+            val actor = event.id?.let(actorTracker::findActor) ?: actorTracker.getCurrentActor()
+            if (actor?.actorType == ActorType.NPC) {
+                actorTracker.dashActorMovement(actor.id)
+            }
+        }
+    }
+
+    companion object {
+        private const val MUTED_SMALL_LABEL_STYLE = "-fx-text-fill: -tc-text-muted; -fx-font-size: 11px;"
+    }
 
     override fun createView(): Node {
 
@@ -76,10 +95,14 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val nextButton = Button("NEXT").apply {
             style = "-fx-base: -tc-accent;"
             setOnAction {
+                if (actorTracker.hasPlayerCharactersMissingInitiative()) {
+                    webServer.requestInitiatives()
+                    return@setOnAction
+                }
                 actorTracker.next()
                 refreshTrackerView(actorList, roundLabel)
-                }
             }
+        }
 
         val presetsButton = Button("Presets...").apply {
             setOnAction { event ->
@@ -90,9 +113,51 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             }
         }
 
-        val toolbar = HBox(8.0, addActorButton, nextButton, presetsButton, roundLabel).apply {
+        val webUrlLabel = Label().apply {
+            style = MUTED_SMALL_LABEL_STYLE
+            isVisible = false
+            isManaged = false
+        }
+
+        val webToggleButton = Button("Web: OFF").apply {
+            setOnAction {
+                if (webServer.isRunning) {
+                    webServer.stop()
+                    text = "Web: OFF"
+                    webUrlLabel.isVisible = false
+                    webUrlLabel.isManaged = false
+                } else {
+                    try {
+                        webServer.start()
+                        text = "Web: ON"
+                        val host = runCatching { InetAddress.getLocalHost().hostAddress }.getOrDefault("localhost")
+                        webUrlLabel.text = "http://$host:${webServer.port}"
+                        webUrlLabel.isVisible = true
+                        webUrlLabel.isManaged = true
+                    } catch (ex: Exception) {
+                        text = "Web: ERR"
+                        webUrlLabel.text = ex.message ?: "Failed to start"
+                        webUrlLabel.isVisible = true
+                        webUrlLabel.isManaged = true
+                    }
+                }
+            }
+            Tooltip.install(
+                this,
+                Tooltip("Start/stop the player web companion server (port ${webServer.port})"),
+            )
+        }
+
+//        val webBar = HBox(8.0, ).apply {
+//            alignment = Pos.CENTER_LEFT
+//            padding = Insets(0.0, 0.0, 4.0, 0.0)
+//        }
+
+        val toolbar = HBox(8.0, addActorButton, nextButton, presetsButton, roundLabel, webToggleButton, webUrlLabel).apply {
             alignment = Pos.CENTER_LEFT
         }
+
+
 
         val scrollPane = ScrollPane(actorList).apply {
             isFitToWidth = true
@@ -101,12 +166,18 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             style = "-fx-background-color: transparent;"
         }
 
-        val root = VBox(12.0, toolbar, scrollPane).apply {
+        val root = VBox(8.0, toolbar, scrollPane).apply {
             padding = Insets(12.0)
             style = "-fx-background-color: -tc-bg;"
             VBox.setVgrow(scrollPane, Priority.ALWAYS)
         }
 
+        webServer.onActorChanged = {
+            refreshTrackerView(actorList, roundLabel)
+        }
+        webServer.initiativeTieResolver = { actorsAtInitiative, initiative, movedActorId ->
+            initiativeTieResolver(actorList.scene?.window)(actorsAtInitiative, initiative, movedActorId)
+        }
         refreshTrackerView(actorList, roundLabel)
         return root
     }
@@ -118,6 +189,12 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             "Invalid tracker scene payload"
         }
         actorTracker.replaceAllActors(presetService.recoverSceneActors(state))
+    }
+
+    override fun onShutdown() {
+        subscriptions.forEach { it.unsubscribe() }
+        subscriptions.clear()
+        webServer.stop()
     }
 
 
@@ -137,7 +214,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     }
 
     private fun refreshTrackerView(actorList: VBox, roundLabel: Label) {
-        roundLabel.text = "Round: ${actorTracker.roundCount}"
+        roundLabel.text = "${actorTracker.roundCount} - Round"
         refreshActorList(actorList)
     }
 
