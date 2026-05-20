@@ -75,6 +75,69 @@ data class TokenRemovedEvent(val id: String, val name: String)
 data class TokenMovedEvent(val id: String, val name: String, val col: Int, val row: Int)
 
 /**
+ * Event published when a client wants the map-owning module to move a token by one grid cell.
+ *
+ * Unlike [TokenMovedEvent], this event is relative: subscribers that own token positions resolve it
+ * against their current authoritative state and then publish a normal [TokenMovedEvent].
+ *
+ * @property id stable unique identifier of the combatant/token to move.
+ * @property name optional combatant display name, useful for logging or debugging only.
+ * @property direction requested one-cell movement direction.
+ */
+data class TokenMoveRequestedEvent(
+    val id: String,
+    val name: String,
+    val direction: TokenMoveDirection,
+) {
+    private var claimed: Boolean = false
+
+    fun claim(): Boolean {
+        if (claimed) return false
+        claimed = true
+        return true
+    }
+}
+
+enum class TokenMoveDirection(
+    val colDelta: Int,
+    val rowDelta: Int,
+) {
+    NORTH(0, -1),
+    SOUTH(0, 1),
+    WEST(-1, 0),
+    EAST(1, 0),
+}
+
+/**
+ * Event published when tracker-owned movement budget changes for the currently relevant token.
+ *
+ * Renderers can use this to show where the active combatant can still move this turn. A `null` [id] clears the
+ * current movement overlay.
+ *
+ * @property id stable unique identifier of the combatant/token whose budget is active.
+ * @property name optional display name of the combatant, useful for UI/debugging only.
+ * @property baseMovementCells actor's normal per-round movement measured in grid cells.
+ * @property remainingMovementCells current movement remaining for this round measured in grid cells.
+ */
+data class TokenMovementBudgetChangedEvent(
+    val id: String?,
+    val name: String?,
+    val baseMovementCells: Int,
+    val remainingMovementCells: Int,
+)
+
+/**
+ * Event published when a map-like UI asks the tracker to apply a Dash to the current movement budget.
+ *
+ * The tracker remains the movement source of truth. A `null` [id] means "dash the currently active
+ * combatant"; publishers may pass an id when they have one.
+ */
+data class TokenMovementDashRequestedEvent(
+    val id: String? = null,
+    val name: String? = null,
+)
+
+/**
  * Event published when the active combatant changes in the initiative tracker,
  * so the map can update the active-token highlight.
  *

@@ -21,6 +21,7 @@ import javafx.scene.layout.VBox
 import javafx.stage.Window
 
 class InitiativeTieDialog {
+    private val activeSessions = mutableMapOf<Int, TieSession>()
 
     fun show(
         owner: Window?,
@@ -32,13 +33,32 @@ class InitiativeTieDialog {
             "Initiative tie dialog requires the moved actor to be part of the tie group."
         }
 
-        val orderedActors = actorsAtInitiative.toMutableList()
-        val listBox = VBox(6.0).apply {
+        activeSessions[initiative]?.let { session ->
+            session.merge(actorsAtInitiative)
+            return session.currentOrder()
+        }
+
+        val session = TieSession(actorsAtInitiative, initiative, movedActorId)
+        activeSessions[initiative] = session
+        return try {
+            session.show(owner, initiative)
+        } finally {
+            activeSessions.remove(initiative)
+        }
+    }
+
+    private inner class TieSession(
+        actorsAtInitiative: List<Actor>,
+        initiative: Int,
+        movedActorId: String,
+    ) {
+        private val orderedActors = actorsAtInitiative.toMutableList()
+        private val listBox = VBox(6.0).apply {
             isFillWidth = true
             prefWidth = DIALOG_CONTENT_WIDTH
             minWidth = DIALOG_CONTENT_WIDTH
         }
-        val listScrollPane = ScrollPane(listBox).apply {
+        private val listScrollPane = ScrollPane(listBox).apply {
             isFitToWidth = true
             prefViewportWidth = DIALOG_CONTENT_WIDTH
             prefViewportHeight = (orderedActors.size * 72.0).coerceIn(260.0, 420.0)
@@ -46,9 +66,9 @@ class InitiativeTieDialog {
             prefWidth = DIALOG_CONTENT_WIDTH
             maxWidth = DIALOG_CONTENT_WIDTH
         }
-        val indicator = DropIndicator()
+        private val indicator = DropIndicator()
 
-        fun resolveGhostNode(dragSource: Node): Node {
+        private fun resolveGhostNode(dragSource: Node): Node {
             var current: Node? = dragSource
             while (current != null && current.parent != listBox) {
                 current = current.parent
@@ -56,9 +76,9 @@ class InitiativeTieDialog {
             return current ?: dragSource
         }
 
-        lateinit var rebuildRows: () -> Unit
-        val dragContext = DragDropContext(
-            dataFormat = "tabletopcontrol/new-tracker-initiative-tie-$movedActorId",
+        private lateinit var rebuildRows: () -> Unit
+        private val dragContext = DragDropContext(
+            dataFormat = "tabletopcontrol/new-tracker-initiative-tie-$initiative-$movedActorId",
             autoScrollPane = listScrollPane,
             ghostFactory = { dragSource -> resolveGhostNode(dragSource) },
             onReorder = { fromIndex, toIndex ->
@@ -69,65 +89,86 @@ class InitiativeTieDialog {
             },
         )
 
-        rebuildRows = {
-            val rows = orderedActors.mapIndexed { index, actor ->
-                val handle = GrabHandle()
-                val nameLabel = Label(actor.name).apply {
+        init {
+            rebuildRows = {
+                val rows = orderedActors.mapIndexed { index, actor ->
+                    val handle = GrabHandle()
+                    val nameLabel = Label(actor.name).apply {
+                        isWrapText = true
+                        minWidth = 0.0
+                        maxWidth = Double.MAX_VALUE
+                        HBox.setHgrow(this, Priority.ALWAYS)
+                    }
+                    val row = HBox(8.0, handle, nameLabel).apply {
+                        alignment = Pos.TOP_LEFT
+                        maxWidth = Double.MAX_VALUE
+                        padding = Insets(10.0, 12.0, 10.0, 12.0)
+                        style = """
+                            -fx-background-color: -tc-surface;
+                            -fx-border-color: -tc-card-border;
+                            -fx-border-radius: 6;
+                            -fx-background-radius: 6;
+                        """.trimIndent().replace("\n", " ")
+                    }
+                    DragDropSupport.installDragSource(handle, index, dragContext)
+                    DragDropSupport.installDropTarget(row, index, dragContext, indicator)
+                    row
+                }
+
+                val endDropTarget = Region().apply {
+                    minHeight = 18.0
+                    prefHeight = 18.0
+                    maxWidth = Double.MAX_VALUE
+                    isPickOnBounds = true
+                }
+                DragDropSupport.installDropTarget(endDropTarget, orderedActors.size, dragContext, indicator)
+
+                listBox.children.setAll(listOf(indicator) + rows + endDropTarget)
+            }
+
+            rebuildRows()
+        }
+
+        fun merge(actorsAtInitiative: List<Actor>) {
+            val actorIds = actorsAtInitiative.map(Actor::id).toSet()
+            val actorsById = actorsAtInitiative.associateBy(Actor::id)
+            orderedActors.removeAll { it.id !in actorIds }
+            orderedActors.replaceAll { actor -> actorsById[actor.id] ?: actor }
+
+            val orderedActorIds = orderedActors.map(Actor::id).toSet()
+            orderedActors += actorsAtInitiative.filterNot { it.id in orderedActorIds }
+            listScrollPane.prefViewportHeight = (orderedActors.size * 72.0).coerceIn(260.0, 420.0)
+            rebuildRows()
+        }
+
+        fun currentOrder(): List<Actor> = orderedActors.toList()
+
+        fun show(
+            owner: Window?,
+            initiative: Int,
+        ): List<Actor>? {
+            val content = VBox(
+                8.0,
+                Label("Multiple actors have initiative $initiative. Drag the names into the order you want.").apply {
                     isWrapText = true
-                    minWidth = 0.0
-                    maxWidth = Double.MAX_VALUE
-                    HBox.setHgrow(this, Priority.ALWAYS)
-                }
-                val row = HBox(8.0, handle, nameLabel).apply {
-                    alignment = Pos.TOP_LEFT
-                    maxWidth = Double.MAX_VALUE
-                    padding = Insets(10.0, 12.0, 10.0, 12.0)
-                    style = """
-                        -fx-background-color: -tc-surface;
-                        -fx-border-color: -tc-card-border;
-                        -fx-border-radius: 6;
-                        -fx-background-radius: 6;
-                    """.trimIndent().replace("\n", " ")
-                }
-                DragDropSupport.installDragSource(handle, index, dragContext)
-                DragDropSupport.installDropTarget(row, index, dragContext, indicator)
-                row
+                },
+                Label("Use the grab handle to drag. Drop onto a row to place before it, or use the space at the bottom to move an actor to the end.").apply {
+                    isWrapText = true
+                    style = "-fx-text-fill: -tc-text-muted;"
+                },
+                listScrollPane,
+            ).apply {
+                padding = Insets(4.0, 0.0, 0.0, 0.0)
+                prefWidth = DIALOG_CONTENT_WIDTH
+                maxWidth = DIALOG_CONTENT_WIDTH
             }
 
-            val endDropTarget = Region().apply {
-                minHeight = 18.0
-                prefHeight = 18.0
-                maxWidth = Double.MAX_VALUE
-                isPickOnBounds = true
+            val dialog = createTallDialog(owner, content)
+            dialog.setResultConverter { button ->
+                DialogFlows.resultForButton(button) { orderedActors.toList() }
             }
-            DragDropSupport.installDropTarget(endDropTarget, orderedActors.size, dragContext, indicator)
-
-            listBox.children.setAll(listOf(indicator) + rows + endDropTarget)
+            return dialog.showAndWait().orElse(null)
         }
-
-        rebuildRows()
-
-        val content = VBox(
-            8.0,
-            Label("Multiple actors have initiative $initiative. Drag the names into the order you want.").apply {
-                isWrapText = true
-            },
-            Label("Use the grab handle to drag. Drop onto a row to place before it, or use the space at the bottom to move an actor to the end.").apply {
-                isWrapText = true
-                style = "-fx-text-fill: -tc-text-muted;"
-            },
-            listScrollPane,
-        ).apply {
-            padding = Insets(4.0, 0.0, 0.0, 0.0)
-            prefWidth = DIALOG_CONTENT_WIDTH
-            maxWidth = DIALOG_CONTENT_WIDTH
-        }
-
-        val dialog = createTallDialog(owner, content)
-        dialog.setResultConverter { button ->
-            DialogFlows.resultForButton(button) { orderedActors.toList() }
-        }
-        return dialog.showAndWait().orElse(null)
     }
 
     private fun createTallDialog(

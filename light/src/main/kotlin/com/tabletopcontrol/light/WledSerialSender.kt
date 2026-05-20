@@ -1,8 +1,11 @@
 package com.tabletopcontrol.light
 
 import com.fazecast.jSerialComm.SerialPort
+import com.tabletopcontrol.light.advanced.AdvancedLightJson
+import com.tabletopcontrol.light.advanced.AdvancedLightSegmentCommand
 import java.io.Closeable
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
  * Sends [WLED JSON API](https://kno.wled.ge/interfaces/json-api/) commands to a
@@ -70,7 +73,11 @@ class WledSerialSender : Closeable {
         disconnect()
         val sp = SerialPort.getCommPort(portName)
         sp.baudRate = baudRate
-        sp.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, WRITE_TIMEOUT_MS)
+        sp.setComPortTimeouts(
+            SerialPort.TIMEOUT_READ_SEMI_BLOCKING or SerialPort.TIMEOUT_WRITE_BLOCKING,
+            READ_TIMEOUT_MS,
+            WRITE_TIMEOUT_MS,
+        )
         if (!sp.openPort()) {
             throw IOException("Failed to open serial port: $portName")
         }
@@ -219,6 +226,27 @@ class WledSerialSender : Closeable {
         return json
     }
 
+    /**
+     * Sends WLED's verbose query command and returns the first complete JSON
+     * object received from the serial stream.
+     */
+    @Throws(IOException::class)
+    internal fun queryDeviceStateJson(): String {
+        val json = """{"v":true}"""
+        writeJson(json)
+        return readFirstJsonObject(DEFAULT_RESPONSE_TIMEOUT_MS)
+    }
+
+    /**
+     * Sends one command that updates one or more WLED segments.
+     */
+    @Throws(IOException::class)
+    internal fun sendSegmentJson(commands: List<AdvancedLightSegmentCommand>): String {
+        val json = AdvancedLightJson.buildSegmentCommand(commands)
+        writeJson(json)
+        return json
+    }
+
     @Throws(IOException::class)
     private fun writeJson(json: String) {
         val p = port ?: throw IOException("Not connected to a serial port")
@@ -226,6 +254,49 @@ class WledSerialSender : Closeable {
         val bytes = (json + "\n").toByteArray(Charsets.UTF_8)
         p.outputStream.write(bytes)
         p.outputStream.flush()
+    }
+
+    @Throws(IOException::class)
+    private fun readFirstJsonObject(timeoutMillis: Int): String {
+        val p = port ?: throw IOException("Not connected to a serial port")
+        if (!p.isOpen) throw IOException("Serial port is not open")
+
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis.toLong())
+        val buffer = ByteArray(1)
+        val builder = StringBuilder()
+        var started = false
+        var depth = 0
+        var inString = false
+        var escaped = false
+
+        while (System.nanoTime() < deadline) {
+            val bytesRead = p.readBytes(buffer, 1)
+            if (bytesRead <= 0) continue
+
+            val char = (buffer[0].toInt() and 0xFF).toChar()
+            if (!started) {
+                if (char != '{') continue
+                started = true
+                depth = 1
+                builder.append(char)
+                continue
+            }
+
+            builder.append(char)
+            when {
+                escaped -> escaped = false
+                char == '\\' && inString -> escaped = true
+                char == '"' -> inString = !inString
+                !inString && char == '{' -> depth++
+                !inString && char == '}' -> {
+                    depth--
+                    if (depth == 0) return builder.toString()
+                }
+            }
+        }
+
+        val prefix = if (builder.isEmpty()) "" else ": ${builder.take(80)}"
+        throw IOException("Timed out waiting for WLED JSON response$prefix")
     }
 
     /**
@@ -296,5 +367,7 @@ class WledSerialSender : Closeable {
             get() = LightController.DEFAULT_EFFECT_INTENSITY
 
         private const val WRITE_TIMEOUT_MS: Int = 2_000
+        private const val READ_TIMEOUT_MS: Int = 50
+        private const val DEFAULT_RESPONSE_TIMEOUT_MS: Int = 3_000
     }
 }

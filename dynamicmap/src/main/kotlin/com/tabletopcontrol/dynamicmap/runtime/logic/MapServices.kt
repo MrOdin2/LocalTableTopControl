@@ -4,6 +4,7 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
+import com.tabletopcontrol.core.TokenMoveRequestedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
@@ -934,6 +935,18 @@ class MapTokenSyncService {
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
             val current = tokens[event.id] ?: return@subscribe
             tokens[event.id] = current.copy(col = event.col, row = event.row)
+        }
+        subscriptions += EventBus.subscribe<TokenMoveRequestedEvent> { event ->
+            val current = tokens[event.id] ?: return@subscribe
+            if (!event.claim()) return@subscribe
+            EventBus.publish(
+                TokenMovedEvent(
+                    id = current.id,
+                    name = current.name,
+                    col = (current.col + event.direction.colDelta).coerceAtLeast(0),
+                    row = (current.row + event.direction.rowDelta).coerceAtLeast(0),
+                ),
+            )
         }
         subscriptions += EventBus.subscribe<ActiveTokenChangedEvent> { event ->
             activeTokenId = event.id

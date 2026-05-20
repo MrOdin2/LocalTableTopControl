@@ -4,6 +4,8 @@ import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
+import com.tabletopcontrol.core.TokenMoveDirection
+import com.tabletopcontrol.core.TokenMoveRequestedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.TokensResetEvent
@@ -102,6 +104,23 @@ class MapTokenSyncServiceTest {
         service.dispose()
 
         assertEquals(listOf(TokenMovedEvent("1", "Ogre", 8, 9)), publishedMoves)
+    }
+
+    @Test
+    fun `relative move request publishes absolute move from current token position`() {
+        val service = MapTokenSyncService()
+        val mirrorService = MapTokenSyncService()
+        val publishedMoves = mutableListOf<TokenMovedEvent>()
+
+        EventBus.publish(TokenAddedEvent("1", "Goblin", Color.RED))
+        EventBus.publish(TokenMovedEvent("1", "Goblin", 4, 6))
+        EventBus.subscribe<TokenMovedEvent> { publishedMoves += it }
+
+        EventBus.publish(TokenMoveRequestedEvent("1", "Goblin", TokenMoveDirection.SOUTH))
+        mirrorService.dispose()
+        service.dispose()
+
+        assertEquals(listOf(TokenMovedEvent("1", "Goblin", 4, 7)), publishedMoves)
     }
 
     @Test

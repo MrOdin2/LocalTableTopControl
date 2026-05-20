@@ -2,6 +2,7 @@ package com.tabletopcontrol.new_tracker.model
 
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenMovementBudgetChangedEvent
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -70,6 +71,57 @@ class ActorTrackerTest {
     }
 
     @Test
+    fun `initiative tie resolution can include actors that join while resolver is open`() {
+        val tracker = ActorTracker()
+        val alpha = actor("Alpha", 15)
+        val bravo = actor("Bravo", null)
+        val charlie = actor("Charlie", null)
+        tracker.addActor(alpha)
+        tracker.addActor(bravo)
+        tracker.addActor(charlie)
+
+        tracker.updateActor(bravo.copy(initiative = 15)) { actorsAtInitiative, initiative, movedActorId ->
+            assertEquals(15, initiative)
+            assertEquals(bravo.id, movedActorId)
+            assertEquals(listOf("Alpha", "Bravo"), actorsAtInitiative.map(Actor::name))
+
+            tracker.updateActor(charlie.copy(initiative = 15)) { expandedActorsAtInitiative, expandedInitiative, expandedMovedActorId ->
+                assertEquals(15, expandedInitiative)
+                assertEquals(charlie.id, expandedMovedActorId)
+                assertEquals(listOf("Alpha", "Bravo", "Charlie"), expandedActorsAtInitiative.map(Actor::name))
+                expandedActorsAtInitiative
+            }
+
+            val expandedTie = tracker.actorList.filter { it.initiative == 15 }
+            listOf(
+                expandedTie.first { it.name == "Charlie" },
+                expandedTie.first { it.name == "Bravo" },
+                expandedTie.first { it.name == "Alpha" },
+            )
+        }
+
+        assertEquals(listOf("Charlie", "Bravo", "Alpha"), tracker.actorList.map(Actor::name))
+    }
+
+    @Test
+    fun `cancelled initiative tie keeps actors that joined while resolver was open`() {
+        val tracker = ActorTracker()
+        val alpha = actor("Alpha", 15)
+        val bravo = actor("Bravo", null)
+        val charlie = actor("Charlie", null)
+        tracker.addActor(alpha)
+        tracker.addActor(bravo)
+        tracker.addActor(charlie)
+
+        tracker.updateActor(bravo.copy(initiative = 15)) { _, _, _ ->
+            tracker.updateActor(charlie.copy(initiative = 15))
+            null
+        }
+
+        assertEquals(listOf("Alpha", "Bravo", "Charlie"), tracker.actorList.map(Actor::name))
+    }
+
+    @Test
     fun `adding a pc actor marks its token as player controlled`() {
         val tracker = ActorTracker()
         val tokenEvents = mutableListOf<TokenAddedEvent>()
@@ -78,6 +130,23 @@ class ActorTrackerTest {
         tracker.addActor(Actor(name = "Hero", actorType = ActorType.PC))
 
         assertEquals(true, tokenEvents.single().isPlayerCharacter)
+    }
+
+    @Test
+    fun `player initiative requirement ignores npcs without initiative`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(name = "Goblin", actorType = ActorType.NPC))
+
+        assertEquals(false, tracker.hasPlayerCharactersMissingInitiative())
+
+        val hero = Actor(name = "Hero", actorType = ActorType.PC)
+        tracker.addActor(hero)
+
+        assertEquals(true, tracker.hasPlayerCharactersMissingInitiative())
+
+        tracker.updateActor(hero.copy(initiative = 14))
+
+        assertEquals(false, tracker.hasPlayerCharactersMissingInitiative())
     }
 
     @Test
@@ -185,6 +254,61 @@ class ActorTrackerTest {
 
         assertEquals(1, tokenEvents.size)
         assertEquals(true, tokenEvents.single().isPlayerCharacter)
+    }
+
+    @Test
+    fun `movement dash stacks and resets when the actor becomes active again`() {
+        val tracker = ActorTracker()
+        tracker.addActor(
+            Actor(
+                id = "hero",
+                name = "Hero",
+                initiative = 12,
+                actorType = ActorType.PC,
+                features = ActorFeatures(movementRange = DistanceRange(30, DistanceUnit.FEET)),
+            ),
+        )
+        tracker.addActor(Actor(id = "guard", name = "Guard", initiative = 10))
+
+        assertEquals(6, tracker.movementBudget("hero")?.remainingMovementCells)
+
+        tracker.dashActorMovement("hero")
+        tracker.dashActorMovement("hero")
+        tracker.spendActorMovement("hero", 2)
+
+        assertEquals(16, tracker.movementBudget("hero")?.remainingMovementCells)
+
+        tracker.next()
+        tracker.next()
+
+        assertEquals(6, tracker.movementBudget("hero")?.remainingMovementCells)
+    }
+
+    @Test
+    fun `active NPC publishes movement budget for map overlays`() {
+        val tracker = ActorTracker()
+        val movementEvents = mutableListOf<TokenMovementBudgetChangedEvent>()
+        EventBus.subscribe<TokenMovementBudgetChangedEvent> { movementEvents += it }
+
+        tracker.addActor(
+            Actor(
+                id = "guard",
+                name = "Guard",
+                initiative = 14,
+                actorType = ActorType.NPC,
+                features = ActorFeatures(movementRange = DistanceRange(30, DistanceUnit.FEET)),
+            ),
+        )
+
+        assertEquals(
+            TokenMovementBudgetChangedEvent(
+                id = "guard",
+                name = "Guard",
+                baseMovementCells = 6,
+                remainingMovementCells = 6,
+            ),
+            movementEvents.last(),
+        )
     }
 
     private fun actor(name: String, initiative: Int?): Actor =
