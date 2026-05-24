@@ -263,7 +263,7 @@
       <p>
         Each row shows the segment name, an <strong>On</strong> checkbox, and an
         <strong>Edit</strong> checkbox. Segment names default to the WLED segment ID. Right-click a
-        row to rename it or move it up and down in the table.
+        row to rename it, set a permanent segment brightness, or move it up and down in the table.
       </p>
       <p>
         The <strong>On</strong> checkbox affects only that row. The <strong>Edit</strong> checkbox
@@ -272,8 +272,14 @@
 
       <h3>Editing Checked Segments</h3>
       <p>
-        The colour button opens the shared TabletopControl colour wheel. Brightness, effect, speed,
-        and intensity apply to every segment whose <strong>Edit</strong> checkbox is enabled.
+        The colour button opens the shared TabletopControl colour wheel. The shared brightness,
+        effect, speed, and intensity controls apply to every segment whose <strong>Edit</strong>
+        checkbox is enabled.
+      </p>
+      <p>
+        A segment's right-click <strong>Brightness</strong> setting is a permanent dimming value.
+        It scales the shared brightness before anything is sent to WLED. For example, a segment set
+        to 50% receives half of the shared brightness value.
       </p>
       <p>
         The effect selector uses the same curated WLED effects as the simple lighting panel. The
@@ -282,9 +288,10 @@
 
       <h3>Remembered Segment Setup</h3>
       <p>
-        Advanced Light remembers segment names, table order, selected colours, effects, brightness,
-        speed, and intensity between app sessions. When you reconnect to the same WLED setup, those
-        remembered choices are matched by segment ID and applied again.
+        Advanced Light remembers segment names, table order, selected colours, effects, shared
+        brightness, permanent segment brightness, speed, and intensity between app sessions. When
+        you reconnect to the same WLED setup, those remembered choices are matched by segment ID
+        and applied again.
       </p>
 
       <h3>Advanced Debug Console</h3>

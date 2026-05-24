@@ -9,7 +9,7 @@ Add a second WLED-oriented DM plugin named **Advanced Light** while keeping the 
 - The plugin lives in the existing `light` Gradle module and is registered as an additional `DmPlugin` service provider.
 - Runtime remains offline and JavaFX-only. No web UI, WebView, or network dependency is introduced.
 - The existing `LightEffect` list remains the supported effect dropdown for the first implementation. WLED effects returned by ID that are not represented there fall back to `None` in the UI.
-- Segment names, row order, color, effect, brightness, speed, and intensity are persisted under the standard TabletopControl config directory via `AppConfigPaths` and `SafeConfigIO`.
+- Segment names, row order, color, effect, controller brightness, permanent brightness scale, speed, and intensity are persisted under the standard TabletopControl config directory via `AppConfigPaths` and `SafeConfigIO`.
 - On connect, the plugin sends `{"v":true}`, extracts the JSON object even if leading serial text such as `ADA` appears, fills the table from `state.seg`, merges persisted per-ID preferences, then sends the merged segment state back so remembered segment settings are applied.
 
 ## UI Plan
@@ -24,10 +24,10 @@ Add a second WLED-oriented DM plugin named **Advanced Light** while keeping the 
   - persisted display name, defaulting to the segment ID
   - on/off checkbox, sent directly to that segment
   - edit selection checkbox, used by the shared controls
-  - right-click context menu for rename, move up, and move down
+  - right-click context menu for rename, per-segment brightness scale, move up, and move down
 - Shared editing controls apply to all rows with **Edit** checked:
   - color chooser using the core color wheel
-  - brightness slider
+  - controller-side brightness slider
   - effect dropdown using the basic light plugin's effect list
   - compact effect-parameter dropdown containing speed and intensity sliders
 - A debug toggle shows or hides the serial console. When enabled, it logs transmitted JSON, received JSON query payloads, and serial failures.
@@ -43,7 +43,8 @@ Add a second WLED-oriented DM plugin named **Advanced Light** while keeping the 
   - this tolerates an `ADA` prefix or similar serial banner text
 - Segment command format:
   - send `{"seg":[...]}` with one object per edited segment
-  - each object includes `id`, `on`, `bri`, `col`, `fx`, `sx`, and `ix`
+  - each object includes `id`, `on`, calculated `bri`, `col`, `fx`, `sx`, and `ix`
+  - `bri` is calculated as controller brightness multiplied by the segment brightness scale; WLED never receives the unscaled controller-side value
   - when an edit covers every known segment, send one segment command at a time with a 100ms delay between writes; this avoids WLED/serial edge cases where a full multi-segment array can be accepted but not visibly applied until a later segment toggle
   - full-segment writes use a latest-value round-robin queue, so slider drags rotate through segment IDs and keep only the newest pending value per segment
 
@@ -59,6 +60,7 @@ Fields:
 - `segment.<id>.color=#RRGGBB`
 - `segment.<id>.effect=<LightEffect enum name>`
 - `segment.<id>.brightness=<0.0..1.0>`
+- `segment.<id>.brightnessScale=<0.0..1.0>`
 - `segment.<id>.speed=<0..255>`
 - `segment.<id>.intensity=<0..255>`
 

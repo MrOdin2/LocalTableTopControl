@@ -45,6 +45,9 @@ internal class AdvancedLightController {
     fun setSegmentPower(id: Int, on: Boolean): List<AdvancedLightSegmentCommand> =
         replaceSegmentAndCommand(id) { it.copy(on = on) }
 
+    fun setSegmentBrightnessScale(id: Int, scale: Double): List<AdvancedLightSegmentCommand> =
+        replaceSegmentAndCommand(id) { it.copy(brightnessScale = scale.coerceIn(0.0, 1.0)) }
+
     fun applyColorToSelected(hex: String): List<AdvancedLightSegmentCommand> {
         if (!AdvancedLightJson.isValidHexColor(hex)) return emptyList()
         return replaceSelectedAndCommand { it.copy(color = hex.uppercase()) }
@@ -82,6 +85,7 @@ internal class AdvancedLightController {
                     color = segment.color,
                     effect = segment.effect,
                     brightness = segment.brightness,
+                    brightnessScale = segment.brightnessScale,
                     effectSpeed = segment.effectSpeed,
                     effectIntensity = segment.effectIntensity,
                 )
