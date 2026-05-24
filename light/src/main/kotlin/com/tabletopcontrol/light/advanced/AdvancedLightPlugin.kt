@@ -209,6 +209,29 @@ class AdvancedLightPlugin : DmPlugin {
                 }
             }
         }
+        val brightness = MenuItem("Brightness: ${percentLabel(segment.brightnessScale)}...").apply {
+            setOnAction {
+                val dialog = TextInputDialog((segment.brightnessScale * 100.0).roundToInt().toString()).apply {
+                    title = "Segment Brightness"
+                    headerText = segment.name
+                    contentText = "Brightness (0-100%):"
+                    table.scene?.window?.let(::initOwner)
+                }
+                val result = dialog.showAndWait()
+                if (result.isPresent) {
+                    val percent = result.get().trim().replace("%", "").toDoubleOrNull()
+                    if (percent != null) {
+                        val commands = controller.setSegmentBrightnessScale(
+                            segment.id,
+                            percent.coerceIn(0.0, 100.0) / 100.0,
+                        )
+                        serialCoordinator.sendSegmentsAsync(commands)
+                        refreshTableFromController(table, rows)
+                        onRowsChanged()
+                    }
+                }
+            }
+        }
         val moveUp = MenuItem("Move Up").apply {
             isDisable = rows.indexOf(segment) <= 0
             setOnAction {
@@ -225,7 +248,7 @@ class AdvancedLightPlugin : DmPlugin {
                 onRowsChanged()
             }
         }
-        return ContextMenu(rename, moveUp, moveDown)
+        return ContextMenu(rename, brightness, moveUp, moveDown)
     }
 
     private fun buildConnectionPanel(

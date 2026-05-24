@@ -34,6 +34,7 @@ internal object AdvancedLightPreferencesStore {
                 setProperty(prefix + "color", segment.color)
                 setProperty(prefix + "effect", segment.effect.name)
                 setProperty(prefix + "brightness", segment.brightness.toString())
+                setProperty(prefix + "brightnessScale", segment.brightnessScale.toString())
                 setProperty(prefix + "speed", segment.effectSpeed.toString())
                 setProperty(prefix + "intensity", segment.effectIntensity.toString())
             }
@@ -72,6 +73,9 @@ internal object AdvancedLightPreferencesStore {
                 effect = properties.getProperty(prefix + "effect")
                     ?.let { value -> runCatching { LightEffect.valueOf(value) }.getOrNull() },
                 brightness = properties.getProperty(prefix + "brightness")
+                    ?.toDoubleOrNull()
+                    ?.coerceIn(0.0, 1.0),
+                brightnessScale = properties.getProperty(prefix + "brightnessScale")
                     ?.toDoubleOrNull()
                     ?.coerceIn(0.0, 1.0),
                 effectSpeed = properties.getProperty(prefix + "speed")
