@@ -40,6 +40,7 @@ class AdvancedLightControllerTest {
                     color = "#123456",
                     effect = LightEffect.CANDLE,
                     brightness = 0.7,
+                    brightnessScale = 0.5,
                     effectSpeed = 90,
                     effectIntensity = 91,
                 ),
@@ -53,6 +54,31 @@ class AdvancedLightControllerTest {
         assertEquals("#123456", controller.currentSegments().first().color)
         assertEquals(LightEffect.CANDLE, controller.currentSegments().first().effect)
         assertEquals(0.7, controller.currentSegments().first().brightness)
+        assertEquals(0.5, controller.currentSegments().first().brightnessScale)
+    }
+
+    @Test
+    fun `segment brightness scale changes only WLED command brightness`() {
+        val controller = AdvancedLightController()
+        controller.loadFromDevice(
+            WledDeviceSnapshot(
+                segments = listOf(
+                    WledSegmentSnapshot(0, true, true, "#FFFFFF", 0.8, LightEffect.NONE, 128, 128),
+                ),
+            ),
+            AdvancedLightPreferences(),
+        )
+
+        val scaleCommands = controller.setSegmentBrightnessScale(0, 0.5)
+
+        assertEquals(0.8, controller.currentSegments().single().brightness)
+        assertEquals(0.5, controller.currentSegments().single().brightnessScale)
+        assertEquals(0.4, scaleCommands.single().brightness, 0.0001)
+
+        val sliderCommands = controller.applyBrightnessToSelected(0.6)
+
+        assertEquals(0.6, controller.currentSegments().single().brightness)
+        assertEquals(0.3, sliderCommands.single().brightness, 0.0001)
     }
 
     @Test
