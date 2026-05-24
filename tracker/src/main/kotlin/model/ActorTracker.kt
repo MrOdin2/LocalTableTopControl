@@ -151,7 +151,7 @@ class ActorTracker(
                 normalizeCurrentSelection(currentActorId)
                 val newCurrentActor = getCurrentActor()
                 if (newCurrentActor?.id != currentActorId) {
-                    movementBudgets[newCurrentActor?.id] = newCurrentActor?.baseMovementCells()
+                    movementBudgets[newCurrentActor?.id as String] = newCurrentActor.baseMovementCells()
                 }
                 publishCurrentMovementBudget()
                 notifyChanged()
