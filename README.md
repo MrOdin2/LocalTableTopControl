@@ -25,6 +25,7 @@ No flashy animations, no heavy 3D models; just the tools you actually need at th
   - Music tracks
   - Ambient loops and soundscapes
   - Sound effects via a customizable soundboard (up to 32 buttons)
+- **Hotkeys** — configurable F-key/button cues with lights, music, sound files, waits, and chained hotkeys.
 - **Initiative Tracker** — manage turn order for players and enemies.
 - **Monster HP Tracker** — track hit points for encounters.
 - **Split-Pane Layout** — display multiple plugin panels simultaneously without switching tabs.

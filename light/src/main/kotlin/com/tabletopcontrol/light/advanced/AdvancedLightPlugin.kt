@@ -1,6 +1,9 @@
 package com.tabletopcontrol.light.advanced
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.LightControlEvent
+import com.tabletopcontrol.core.LightControlTarget
 import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.light.LightEffect
@@ -48,6 +51,8 @@ class AdvancedLightPlugin : DmPlugin {
     private val serialCoordinator = AdvancedLightSerialCoordinator()
     private val feedback = LightOperatorFeedbackPresenter()
     private val disposables = mutableListOf<() -> Unit>()
+    private val commandSubscription = EventBus.subscribe<LightControlEvent>(::applyHotkeyCommand)
+    private var refreshView: (() -> Unit)? = null
 
     override fun createView(): Node {
         disposeViewListeners()
@@ -66,6 +71,7 @@ class AdvancedLightPlugin : DmPlugin {
             table.refresh()
             editorContext.refresh()
         }
+        refreshView = ::refreshRows
         refreshRows()
 
         val root = VBox(8.0).apply {
@@ -92,9 +98,30 @@ class AdvancedLightPlugin : DmPlugin {
     }
 
     override fun onShutdown() {
+        commandSubscription.unsubscribe()
         controller.currentSegments().takeIf { it.isNotEmpty() }?.let(AdvancedLightPreferencesStore::save)
+        refreshView = null
         disposeViewListeners()
         serialCoordinator.shutdown()
+    }
+
+    private fun applyHotkeyCommand(command: LightControlEvent) {
+        val target = command.target as? LightControlTarget.Segments ?: return
+        val effect = command.effectId?.let { effectFromWledId(it) }
+        val commands = controller.applyControl(
+            ids = target.ids,
+            power = command.power,
+            color = command.colorHex,
+            effect = effect,
+            brightness = command.brightness,
+            effectSpeed = command.effectSpeed,
+            effectIntensity = command.effectIntensity,
+        )
+        serialCoordinator.sendSegmentsAsync(
+            commands,
+            splitCommands = controller.coversAllKnownSegments(commands),
+        )
+        refreshView?.invoke()
     }
 
     private fun buildSegmentTable(

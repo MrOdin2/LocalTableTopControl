@@ -27,6 +27,7 @@ object HelpManager {
         "userdocs/audio/UserDoc.html",
         "userdocs/tracker/UserDoc.html",
         "userdocs/light/UserDoc.html",
+        "userdocs/hotkey/UserDoc.html",
         "userdocs/dynamicmap_builder/UserDoc.html",
     )
 

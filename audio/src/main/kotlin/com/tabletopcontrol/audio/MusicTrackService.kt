@@ -145,6 +145,48 @@ internal class MusicTrackService(
         }
     }
 
+    fun play(track: MusicTrackState): MusicTrackPlaybackResult {
+        val controller = track.controller ?: return playbackFailure(
+            track = track,
+            failure = MusicTrackPlaybackFailure.NoActiveTrack(track.uri),
+        )
+        if (!controller.isUsable()) {
+            return playbackFailure(
+                track = track,
+                failure = MusicTrackPlaybackFailure.Unavailable(track.uri, controller.status()),
+            )
+        }
+        track.reachedEnd = false
+        if (controller.status() != MediaTrackStatus.PLAYING) controller.play()
+        return playbackSuccess(track, MusicTrackPlaybackAction.PLAY)
+    }
+
+    fun playUri(uri: String, stopOthers: Boolean = false): Boolean {
+        initializeIfNeeded()
+        if (stopOthers) stopAll()
+
+        val track = trackStates.firstOrNull { it.uri == uri } ?: trackStates.first()
+        val controller = track.controller
+        if (controller?.isUsable() == true && track.uri == uri) {
+            play(track)
+            return true
+        }
+
+        track.playWhenReady = true
+        if (track.uri == uri && track.pendingController != null) return true
+        val result = if (track.uri == uri) restoreTrack(track) else loadSelectedTrack(track, uri)
+        if (result is MusicTrackLoadResult.Failed) track.playWhenReady = false
+        return result !is MusicTrackLoadResult.Failed
+    }
+
+    fun stopUri(uri: String): Boolean {
+        initializeIfNeeded()
+        val track = trackStates.firstOrNull { it.uri == uri } ?: return false
+        track.playWhenReady = false
+        if (track.pendingController != null && track.controller == null) return true
+        return stop(track) is MusicTrackPlaybackResult.Success
+    }
+
     fun stop(track: MusicTrackState): MusicTrackPlaybackResult {
         val controller = track.controller ?: return playbackFailure(
             track = track,
@@ -275,6 +317,10 @@ internal class MusicTrackService(
                 track.reachedEnd = false
                 previousController?.dispose()
                 bindActiveController(track, controller)
+                if (track.playWhenReady) {
+                    track.playWhenReady = false
+                    controller.play()
+                }
                 if (persistOnActivation) {
                     persistSettings()
                 }
@@ -357,6 +403,7 @@ internal class MusicTrackService(
     ): MusicTrackLoadResult.Failed {
         track.pendingController = null
         pendingController.dispose()
+        track.playWhenReady = false
 
         val restoredPreviousTrack = previousController?.hasPlayer() == true
         track.controller = previousController
@@ -457,6 +504,7 @@ internal class MusicTrackService(
         track.controller?.dispose()
         track.controller = null
         track.reachedEnd = false
+        track.playWhenReady = false
     }
 }
 
@@ -469,6 +517,7 @@ internal class MusicTrackState internal constructor(
     internal var pendingController: MediaTrackController? = null
     internal var loadGeneration: Long = 0
     internal var reachedEnd: Boolean = false
+    internal var playWhenReady: Boolean = false
 }
 
 internal data class MusicTrackSnapshot(

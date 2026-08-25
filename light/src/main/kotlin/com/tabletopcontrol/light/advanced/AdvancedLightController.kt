@@ -68,6 +68,32 @@ internal class AdvancedLightController {
     fun commandsForAllSegments(): List<AdvancedLightSegmentCommand> =
         segments.map { it.toCommand() }
 
+    fun applyControl(
+        ids: Set<Int>,
+        power: Boolean?,
+        color: String?,
+        effect: LightEffect?,
+        brightness: Double?,
+        effectSpeed: Int?,
+        effectIntensity: Int?,
+    ): List<AdvancedLightSegmentCommand> {
+        val targetAll = ids.isEmpty()
+        val commands = mutableListOf<AdvancedLightSegmentCommand>()
+        segments = segments.map { segment ->
+            if (!targetAll && segment.id !in ids) return@map segment
+
+            segment.copy(
+                on = power ?: segment.on,
+                color = color?.takeIf(AdvancedLightJson::isValidHexColor)?.uppercase() ?: segment.color,
+                effect = effect ?: segment.effect,
+                brightness = brightness?.coerceIn(0.0, 1.0) ?: segment.brightness,
+                effectSpeed = effectSpeed?.coerceIn(0, 255) ?: segment.effectSpeed,
+                effectIntensity = effectIntensity?.coerceIn(0, 255) ?: segment.effectIntensity,
+            ).also { commands += it.toCommand() }
+        }
+        return commands
+    }
+
     fun coversAllKnownSegments(commands: List<AdvancedLightSegmentCommand>): Boolean {
         if (commands.size <= 1 || segments.isEmpty()) return false
         return commands.map { it.id }.toSet() == segments.map { it.id }.toSet()

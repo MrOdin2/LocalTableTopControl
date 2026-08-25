@@ -120,4 +120,34 @@ class AdvancedLightControllerTest {
         assertEquals(true, controller.coversAllKnownSegments(fullUpdate))
         assertEquals(false, controller.coversAllKnownSegments(partialUpdate))
     }
+
+    @Test
+    fun `hotkey control updates only targeted segment fields`() {
+        val controller = AdvancedLightController()
+        controller.loadFromDevice(
+            WledDeviceSnapshot(
+                segments = listOf(
+                    WledSegmentSnapshot(0, true, false, "#FFFFFF", 1.0, LightEffect.NONE, 128, 128),
+                    WledSegmentSnapshot(1, true, false, "#FFFFFF", 1.0, LightEffect.NONE, 128, 128),
+                ),
+            ),
+            AdvancedLightPreferences(),
+        )
+
+        val commands = controller.applyControl(
+            ids = setOf(1),
+            power = false,
+            color = "#AA0000",
+            effect = LightEffect.LIGHTNING,
+            brightness = 0.4,
+            effectSpeed = 200,
+            effectIntensity = 210,
+        )
+
+        assertEquals(listOf(1), commands.map { it.id })
+        assertEquals(LightEffect.NONE, controller.currentSegments()[0].effect)
+        assertEquals(LightEffect.LIGHTNING, controller.currentSegments()[1].effect)
+        assertEquals(false, controller.currentSegments()[1].on)
+        assertEquals("#AA0000", controller.currentSegments()[1].color)
+    }
 }
