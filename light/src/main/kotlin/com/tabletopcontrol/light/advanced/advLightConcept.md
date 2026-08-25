@@ -9,7 +9,9 @@ Add a second WLED-oriented DM plugin named **Advanced Light** while keeping the 
 - The plugin lives in the existing `light` Gradle module and is registered as an additional `DmPlugin` service provider.
 - Runtime remains offline and JavaFX-only. No web UI, WebView, or network dependency is introduced.
 - The existing `LightEffect` list remains the supported effect dropdown for the first implementation. WLED effects returned by ID that are not represented there fall back to `None` in the UI.
-- Segment names, row order, color, effect, controller brightness, permanent brightness scale, speed, and intensity are persisted under the standard TabletopControl config directory via `AppConfigPaths` and `SafeConfigIO`.
+- Segment names, row order, color, effect, controller brightness, permanent brightness scale, speed, intensity, tracker token assignments, and turn-cue settings are persisted under the standard TabletopControl config directory via `AppConfigPaths` and `SafeConfigIO`.
+- Tracker integration reuses the core `ActiveTokenChangedEvent`; Advanced Light never references the Tracker plugin directly.
+- Tracker-driven cues are disabled by default and use WLED's own effects, so no real-time JavaFX animation loop is needed.
 - On connect, the plugin sends `{"v":true}`, extracts the JSON object even if leading serial text such as `ADA` appears, fills the table from `state.seg`, merges persisted per-ID preferences, then sends the merged segment state back so remembered segment settings are applied.
 
 ## UI Plan
@@ -24,7 +26,10 @@ Add a second WLED-oriented DM plugin named **Advanced Light** while keeping the 
   - persisted display name, defaulting to the segment ID
   - on/off checkbox, sent directly to that segment
   - edit selection checkbox, used by the shared controls
-  - right-click context menu for rename, per-segment brightness scale, move up, and move down
+  - right-click context menu for rename, per-segment brightness scale, PC token assignment/unassignment, turn-cue configuration, move up, and move down
+- A global **Enable tracker turn cues** checkbox opts the installation into current-turn lighting.
+- The token picker is populated from the current scene's PC `TokenAddedEvent` records and stores stable token IDs only on the segment preference.
+- A per-segment cue selects color, brightness, WLED effect, speed, intensity, and either whole-turn or timed restoration.
 - Shared editing controls apply to all rows with **Edit** checked:
   - color chooser using the core color wheel
   - controller-side brightness slider
@@ -63,6 +68,15 @@ Fields:
 - `segment.<id>.brightnessScale=<0.0..1.0>`
 - `segment.<id>.speed=<0..255>`
 - `segment.<id>.intensity=<0..255>`
+- `trackerTurnCuesEnabled=<true|false>`
+- `segment.<id>.flags.tabletopcontrol.assignedTokens=<token-id,...>`
+- `segment.<id>.turnCue.effect=<LightEffect enum name>`
+- `segment.<id>.turnCue.color=#RRGGBB`
+- `segment.<id>.turnCue.brightness=<0.0..1.0>`
+- `segment.<id>.turnCue.speed=<0..255>`
+- `segment.<id>.turnCue.intensity=<0..255>`
+- `segment.<id>.turnCue.duration=<WHOLE_TURN|TIMED>`
+- `segment.<id>.turnCue.durationMillis=<100..60000>`
 
 ## Implementation Checklist
 
@@ -78,6 +92,7 @@ Fields:
 - [x] Service registration.
 - [x] User documentation update.
 - [x] Targeted Gradle tests.
+- [x] Tracker current-turn assignment and opt-in cue support.
 
 ## Later Enhancements
 

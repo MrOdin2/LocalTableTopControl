@@ -34,7 +34,7 @@ class MapSettingsServiceTest {
     }
 
     @Test
-    fun `publishCurrentSettings does not replay a map image after it has been cleared`() {
+    fun `publishCurrentSettings replays the empty arena after a map has been cleared`() {
         val service = MapSettingsService(savedSettings = emptySavedSettings())
         val replayedEvents = mutableListOf<Any>()
 
@@ -50,7 +50,8 @@ class MapSettingsServiceTest {
 
         service.publishCurrentSettings()
 
-        assertTrue(replayedEvents.none { it is MapLoadEvent || it is MapClearEvent })
+        assertEquals(listOf(MapClearEvent), replayedEvents.filterIsInstance<MapClearEvent>())
+        assertTrue(replayedEvents.none { it is MapLoadEvent })
         assertEquals(listOf(MapBackgroundEvent(service.backgroundColor)), replayedEvents.filterIsInstance<MapBackgroundEvent>())
     }
 

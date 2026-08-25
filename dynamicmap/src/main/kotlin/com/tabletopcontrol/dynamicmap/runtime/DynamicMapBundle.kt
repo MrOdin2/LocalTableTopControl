@@ -19,6 +19,8 @@ data class DynamicMapBundle(
     val walls: List<DynamicMapRuntimeWall>,
     val lights: List<DynamicMapRuntimeLight>,
     val sunlightAreas: List<DynamicMapRuntimeSunlightArea>,
+    /** `true` only for the runtime-only arena used while no bundle is loaded. */
+    val isFallbackArena: Boolean = false,
 ) {
     fun createBackgroundImage(): Image? {
         val bytes = backgroundBytes ?: return null
@@ -26,6 +28,41 @@ data class DynamicMapBundle(
             Image(ByteArrayInputStream(bytes))
         }.getOrNull()?.takeUnless { it.isError }
     }
+}
+
+/**
+ * The playable DynamicMap state before a gameplay bundle has been loaded.
+ *
+ * It deliberately does not represent an on-disk source that can be persisted or shown as a loaded
+ * map. The arena supplies the normal DynamicMap geometry and lighting contracts without adding
+ * walls, texture, doors, or coloured lights.
+ */
+internal object EmptyDynamicMapArena {
+    const val COLS: Int = 200
+    const val ROWS: Int = 200
+
+    val bundle: DynamicMapBundle = DynamicMapBundle(
+        sourcePath = "dynamicmap:empty-arena",
+        displayPath = "",
+        cols = COLS,
+        rows = ROWS,
+        backgroundEntry = null,
+        backgroundBytes = null,
+        backgroundCalibration = DynamicMapRuntimeBackgroundCalibration(),
+        walls = emptyList(),
+        lights = emptyList(),
+        sunlightAreas = listOf(
+            DynamicMapRuntimeSunlightArea(
+                points = listOf(
+                    DynamicMapRuntimePoint(0.0, 0.0),
+                    DynamicMapRuntimePoint(COLS.toDouble(), 0.0),
+                    DynamicMapRuntimePoint(COLS.toDouble(), ROWS.toDouble()),
+                    DynamicMapRuntimePoint(0.0, ROWS.toDouble()),
+                ),
+            ),
+        ),
+        isFallbackArena = true,
+    )
 }
 
 data class DynamicMapRuntimeBackgroundCalibration(

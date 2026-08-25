@@ -1,6 +1,9 @@
 package com.tabletopcontrol.audio
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.MusicControlEvent
+import com.tabletopcontrol.core.MusicControlOperation
 import com.tabletopcontrol.core.persistence.LocalFiles
 import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
@@ -51,6 +54,7 @@ class MusicPlugin : DmPlugin, SceneParticipant {
     }
 
     private val trackService = MusicTrackService()
+    private val commandSubscription = EventBus.subscribe<MusicControlEvent>(::applyHotkeyCommand)
     private val trackBindings = mutableMapOf<MusicTrackState, TrackCardBindings>()
     private val trackListener = object : MusicTrackService.Listener {
         override fun onTrackSnapshotChanged(track: MusicTrackState, snapshot: MusicTrackSnapshot) {
@@ -111,9 +115,22 @@ class MusicPlugin : DmPlugin, SceneParticipant {
     }
 
     override fun onShutdown() {
+        commandSubscription.unsubscribe()
         trackService.listener = null
         trackBindings.clear()
         trackService.shutdown()
+    }
+
+    private fun applyHotkeyCommand(command: MusicControlEvent) {
+        trackService.initializeIfNeeded()
+        when (command.operation) {
+            MusicControlOperation.START -> command.trackUri?.let { trackService.playUri(it) }
+            MusicControlOperation.SWITCH -> command.trackUri?.let { trackService.playUri(it, stopOthers = true) }
+            MusicControlOperation.STOP -> {
+                val uri = command.trackUri
+                if (uri == null) trackService.stopAll() else trackService.stopUri(uri)
+            }
+        }
     }
 
     override fun captureSceneState(): String = MusicSettingsSerializer.serialize(trackService.exportSettings())

@@ -11,6 +11,7 @@ import com.tabletopcontrol.new_tracker.model.ActorTracker
 import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
+import com.tabletopcontrol.new_tracker.model.Effect
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -76,6 +77,39 @@ class PlayerWebServerTest {
                 pcResponse.body(),
             )
             assertEquals(404, npcResponse.statusCode())
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `effects endpoint exposes only player-visible effects`() {
+        val server = PlayerWebServer(
+            actorTracker = ActorTracker(
+                mutableListOf(
+                    Actor(
+                        name = "Aria",
+                        actorType = ActorType.PC,
+                        effects = listOf(
+                            Effect(id = "bless", name = "Blessed", icon = "✦", durationRounds = 2),
+                            Effect(id = "secret", name = "Secret mark", visibleToPlayers = false),
+                        ),
+                    ),
+                ),
+            ),
+            port = freePort(),
+        )
+
+        try {
+            server.start()
+
+            val response = get(server.port, "/api/effects?player=Aria")
+
+            assertEquals(200, response.statusCode())
+            assertEquals(
+                """[{"id":"bless","name":"Blessed","icon":"✦","durationRounds":2,"description":null}]""",
+                response.body(),
+            )
         } finally {
             server.stop()
         }

@@ -119,6 +119,13 @@ internal class DynamicSightlineMesh(
                 hiddenArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())),
             )
 
+        fun fullyVisible(cols: Int, rows: Int): DynamicSightlineMesh =
+            fromVisibleArea(
+                cols = cols,
+                rows = rows,
+                visibleArea = Area(Rectangle2D.Double(0.0, 0.0, cols.toDouble(), rows.toDouble())),
+            )
+
         fun fromVisibleArea(
             cols: Int,
             rows: Int,

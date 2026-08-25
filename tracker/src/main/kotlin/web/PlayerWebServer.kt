@@ -106,6 +106,7 @@ class PlayerWebServer(
             val srv = HttpServer.create(InetSocketAddress(port), 0)
             srv.createContext("/api/players", ::handlePlayers)
             srv.createContext("/api/state", ::handleState)
+            srv.createContext("/api/effects", ::handleEffects)
             srv.createContext("/api/stats", ::handleStats)
             srv.createContext("/api/initiative", ::handleInitiative)
             srv.createContext("/api/movement", ::handleMovement)
@@ -187,6 +188,35 @@ class PlayerWebServer(
         }
         val (col, row) = tokenPositions[actor.id] ?: Pair(0, 0)
         respondJson(exchange, 200, stateJson(actor, col, row))
+    }
+
+    /**
+     * `GET /api/effects?player=<name>` - returns only effects the DM has chosen to share.
+     *
+     * This is deliberately read-only: the tracker remains the place where the DM applies,
+     * edits, and removes conditions.
+     */
+    private fun handleEffects(exchange: HttpExchange) {
+        if (exchange.requestMethod != "GET") {
+            respond(exchange, 405, "Method Not Allowed")
+            return
+        }
+        val actorName = queryParam(exchange.requestURI, "player")
+        if (actorName == null) {
+            respond(exchange, 400, "Missing 'player' query parameter")
+            return
+        }
+        val actor = findPlayerActor(actorName)
+        if (actor == null) {
+            respond(exchange, 404, "No PC actor named \"$actorName\"")
+            return
+        }
+        val json = actor.effects
+            .filter { it.visibleToPlayers }
+            .joinToString(prefix = "[", postfix = "]") { effect ->
+                """{"id":${effect.id.jsonString()},"name":${effect.name.jsonString()},"icon":${effect.icon?.jsonString() ?: "null"},"durationRounds":${effect.durationRounds ?: "null"},"description":${effect.description?.jsonString() ?: "null"}}"""
+            }
+        respondJson(exchange, 200, json)
     }
 
     /**

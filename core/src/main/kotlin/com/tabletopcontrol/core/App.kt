@@ -29,6 +29,7 @@ import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.StackPane
 import javafx.scene.paint.Color
+import javafx.scene.input.KeyEvent
 import javafx.stage.Screen
 import javafx.stage.Stage
 import javafx.stage.StageStyle
@@ -76,6 +77,7 @@ class App : Application() {
 
         val tableScene = buildTableScene(plugins)
         val dmScene = buildDmScene(plugins, primaryStage)
+        installPluginShortcuts(dmScene, plugins)
 
         ThemeManager.registerScene(tableScene)
         ThemeManager.registerScene(dmScene)
@@ -92,6 +94,20 @@ class App : Application() {
             scene = dmScene
             setOnCloseRequest { primaryStage.close() }
             show()
+        }
+    }
+
+    private fun installPluginShortcuts(scene: Scene, plugins: List<DmPlugin>) {
+        val participants = plugins.filterIsInstance<KeyboardShortcutParticipant>()
+        if (participants.isEmpty()) return
+
+        scene.addEventFilter(KeyEvent.KEY_PRESSED) { event ->
+            if (!event.isConsumed && participants.any { it.handleKeyPressed(event) }) {
+                event.consume()
+            }
+        }
+        scene.addEventFilter(KeyEvent.KEY_RELEASED) { event ->
+            participants.forEach { it.handleKeyReleased(event) }
         }
     }
 

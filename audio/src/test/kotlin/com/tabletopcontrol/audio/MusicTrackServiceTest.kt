@@ -160,6 +160,22 @@ class MusicTrackServiceTest {
         assertInstanceOf(MusicTrackPlaybackFailure.PlayerError::class.java, failure.failure)
     }
 
+    @Test
+    fun `play uri loads and starts a track when it becomes ready`() {
+        val controllerFactory = FakeControllerFactory()
+        val service = MusicTrackService(FakeSettingsStore(), controllerFactory::createController)
+        val player = FakeManagedMediaPlayer()
+        controllerFactory.enqueue("file:///battle.mp3", player)
+
+        assertTrue(service.playUri("file:///battle.mp3"))
+        assertEquals(MediaTrackStatus.UNKNOWN, player.currentStatus)
+
+        player.fireReady()
+
+        assertEquals(MediaTrackStatus.PLAYING, player.currentStatus)
+        assertEquals("file:///battle.mp3", service.tracks.single().uri)
+    }
+
     private class FakeSettingsStore(
         private val loaded: MusicSettings = MusicSettings(),
     ) : MusicTrackSettingsStore {

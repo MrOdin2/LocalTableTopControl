@@ -1,6 +1,9 @@
 package com.tabletopcontrol.light
 
 import com.tabletopcontrol.core.DmPlugin
+import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.LightControlEvent
+import com.tabletopcontrol.core.LightControlTarget
 import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.light.ui.LightDebugConsoleSection
 import com.tabletopcontrol.light.ui.LightEffectParamsSection
@@ -33,6 +36,7 @@ class LightPlugin : DmPlugin, SceneParticipant {
     private val serialCoordinator = LightSerialCoordinator(controller)
     private val feedback = LightOperatorFeedbackPresenter()
     private val activeSections = mutableListOf<LightSection>()
+    private val commandSubscription = EventBus.subscribe<LightControlEvent>(::applyHotkeyCommand)
 
     override fun createView(): Node {
         disposeSections()
@@ -77,6 +81,7 @@ class LightPlugin : DmPlugin, SceneParticipant {
     }
 
     override fun onShutdown() {
+        commandSubscription.unsubscribe()
         disposeSections()
         serialCoordinator.shutdown()
     }
@@ -93,5 +98,18 @@ class LightPlugin : DmPlugin, SceneParticipant {
     private fun disposeSections() {
         activeSections.forEach { it.dispose() }
         activeSections.clear()
+    }
+
+    private fun applyHotkeyCommand(command: LightControlEvent) {
+        if (command.target != LightControlTarget.Global) return
+
+        command.power?.let(controller::setPower)
+        command.colorHex?.let(controller::setColor)
+        command.effectId?.let { effectId ->
+            LightEffect.entries.firstOrNull { it.wledEffectId == effectId }?.let(controller::setEffect)
+        }
+        command.brightness?.let(controller::setBrightness)
+        command.effectSpeed?.let(controller::setEffectSpeed)
+        command.effectIntensity?.let(controller::setEffectIntensity)
     }
 }

@@ -3,6 +3,7 @@ package com.tabletopcontrol.dynamicmap.runtime.logic
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenEffectsChangedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMoveRequestedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
@@ -98,6 +99,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
     fun publishCurrentSettings() {
         currentDynamicMap?.let { EventBus.publish(DynamicMapLoadEvent(it)) }
             ?: currentMapImageUri?.let { EventBus.publish(MapLoadEvent(it)) }
+            ?: EventBus.publish(MapClearEvent)
         EventBus.publish(MapCalibrationEvent(mapCalibration))
         EventBus.publish(GridCalibrationEvent(gridCalibration))
         EventBus.publish(MapBackgroundEvent(backgroundColor))
@@ -847,6 +849,7 @@ class MapTokenSyncService {
                     imageOffsetY = token.imageOffsetY,
                 ),
             )
+            EventBus.publish(TokenEffectsChangedEvent(token.id, token.effects))
         }
         EventBus.publish(ActiveTokenChangedEvent(activeTokenId, null))
     }
@@ -931,6 +934,10 @@ class MapTokenSyncService {
             if (draggedTokenId == event.id) {
                 endDrag()
             }
+        }
+        subscriptions += EventBus.subscribe<TokenEffectsChangedEvent> { event ->
+            val current = tokens[event.tokenId] ?: return@subscribe
+            tokens[event.tokenId] = current.copy(effects = event.effects.toList())
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
             val current = tokens[event.id] ?: return@subscribe

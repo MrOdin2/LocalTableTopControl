@@ -10,6 +10,7 @@ import com.tabletopcontrol.new_tracker.model.DEFAULT_LIGHT_SOURCE_COLOR
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
+import com.tabletopcontrol.new_tracker.model.Effect
 import java.io.StringReader
 import java.io.StringWriter
 import java.util.Base64
@@ -22,7 +23,7 @@ internal data class TrackerSceneState(
 )
 
 internal object TrackerSceneCodec {
-    private const val VERSION = 5
+    private const val VERSION = 6
     private const val PROPERTY_VERSION_WITHOUT_ACTOR_TYPE = 2
     private const val LEGACY_VERSION = 1
 
@@ -62,6 +63,16 @@ internal object TrackerSceneCodec {
                 setProperty("$prefix.imageScaleY", actor.imageSettings.scaleY.toString())
                 setProperty("$prefix.imageOffsetX", actor.imageSettings.offsetX.toString())
                 setProperty("$prefix.imageOffsetY", actor.imageSettings.offsetY.toString())
+                setProperty("$prefix.effects.count", actor.effects.size.toString())
+                actor.effects.forEachIndexed { effectIndex, effect ->
+                    val effectPrefix = "$prefix.effects.$effectIndex"
+                    setProperty("$effectPrefix.id", effect.id)
+                    setProperty("$effectPrefix.name", effect.name)
+                    effect.icon?.let { setProperty("$effectPrefix.icon", it) }
+                    effect.durationRounds?.let { setProperty("$effectPrefix.durationRounds", it.toString()) }
+                    effect.description?.let { setProperty("$effectPrefix.description", it) }
+                    setProperty("$effectPrefix.visibleToPlayers", effect.visibleToPlayers.toString())
+                }
             }
         }
 
@@ -107,6 +118,7 @@ internal object TrackerSceneCodec {
                             movementRange = readDistanceRange(props, prefix, "movement"),
                             lightSource = readLightSource(props, prefix),
                         ),
+                        effects = readEffects(props, prefix),
                         color = color,
                         imageSettings = ActorImageSettings(
                             uri = props.getProperty("$prefix.imageUri"),
@@ -143,6 +155,38 @@ internal object TrackerSceneCodec {
         )
     }
 
+    private fun readEffects(
+        props: Properties,
+        prefix: String,
+    ): List<Effect> {
+        val effectCount = props.getProperty("$prefix.effects.count")
+            ?.toIntOrNull()
+            ?.coerceIn(0, MAX_EFFECTS_PER_ACTOR)
+            ?: return emptyList()
+        return buildList {
+            for (effectIndex in 0 until effectCount) {
+                val effectPrefix = "$prefix.effects.$effectIndex"
+                val name = props.getProperty("$effectPrefix.name")?.trim()?.takeIf(String::isNotEmpty) ?: continue
+                val durationRounds = props.getProperty("$effectPrefix.durationRounds")
+                    ?.toIntOrNull()
+                    ?.takeIf { it > 0 }
+                add(
+                    Effect(
+                        id = props.getProperty("$effectPrefix.id")?.takeIf(String::isNotBlank)
+                            ?: java.util.UUID.randomUUID().toString(),
+                        name = name,
+                        icon = props.getProperty("$effectPrefix.icon")?.takeIf(String::isNotBlank),
+                        durationRounds = durationRounds,
+                        description = props.getProperty("$effectPrefix.description")?.takeIf(String::isNotBlank),
+                        visibleToPlayers = props.getProperty("$effectPrefix.visibleToPlayers")
+                            ?.toBooleanStrictOrNull()
+                            ?: true,
+                    ),
+                )
+            }
+        }
+    }
+
     private fun readDistanceRange(
         props: Properties,
         prefix: String,
@@ -155,6 +199,8 @@ internal object TrackerSceneCodec {
         val unit = DistanceUnit.fromPersistence(props.getProperty("$prefix.${key}Unit"))
         return DistanceRange(amount = amount, unit = unit)
     }
+
+    private const val MAX_EFFECTS_PER_ACTOR = 100
 
     internal fun serializeLegacy(state: TrackerSceneState): String {
         val encoder = Base64.getUrlEncoder().withoutPadding()

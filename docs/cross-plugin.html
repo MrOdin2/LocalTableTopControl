@@ -147,19 +147,23 @@
             <li><a href="#token-color">Colour Sync</a></li>
             <li><a href="#token-size">Size Sync</a></li>
             <li><a href="#token-image">Token Images</a></li>
+            <li><a href="#token-effects">Status Effects</a></li>
             <li><a href="#token-placement">Positioning Tokens</a></li>
             <li><a href="#token-removal">Removing Tokens</a></li>
             <li><a href="#token-names">Showing Token Names</a></li>
           </ul>
         </li>
+        <li><a href="#tracker-light">Tracker ↔ Advanced Light</a></li>
         <li><a href="#dynamicmap-runtime">DynamicMap Runtime</a></li>
         <li><a href="#dynamicmap-builder">Dynamic Map Builder Panes</a></li>
+        <li><a href="#hotkeys">Hotkeys with Lights and Audio</a></li>
         <li><a href="#workflow">Recommended Workflow</a></li>
       </ul>
     </div>
     <div class="other-docs">
       <h2>Plugin Docs</h2>
       <ul>
+        <li><a href="../hotkey/UserDoc.html">⌨️ Hotkeys</a></li>
         <li><a href="../map/UserDoc.html">🗺️ Map</a></li>
         <li><a href="../dynamicmap/UserDoc.html">DynamicMap</a></li>
         <li><a href="../audio/UserDoc.html">🎵 Audio</a></li>
@@ -181,7 +185,7 @@
       </p>
       <p>
         The link between them is <strong>one-way</strong>: the Tracker publishes information
-        (combatant added, moved, image changed, removed) and the active map runtime listens and updates the
+        (combatant added, moved, image changed, effects changed, removed) and the active map runtime listens and updates the
         table screen accordingly. You control everything from the Tracker side.
       </p>
     </section>
@@ -194,7 +198,7 @@
       </p>
       <ul>
         <li>Map image, calibration, token positions, fog of war, and open DynamicMap doors.</li>
-        <li>Tracker actors with their live HP, AC, initiative, and token settings.</li>
+        <li>Tracker actors with their live HP, AC, initiative, token settings, and active effects.</li>
         <li>Music tracks and volume settings.</li>
         <li>Soundboard button assignments and order.</li>
         <li>Ambient light colour, effect, speed, intensity, and brightness.</li>
@@ -298,6 +302,25 @@
         or rectangular images work too — the circular clip just crops the edges.
       </div>
 
+      <h3 id="token-effects">Status Effects</h3>
+      <p>
+        Effects added through an actor's <strong>Effects</strong> button in Tracker appear as small
+        icon markers beside that actor's token in both Map and DynamicMap. The Tracker remains the source of truth: editing,
+        removing, or expiring an effect updates the map immediately without any manual token work.
+      </p>
+      <div class="flow">
+        <div class="step">Add or edit effect in Tracker</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Map refreshes its token marker</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Player table shows shared effects</div>
+      </div>
+      <p>
+        Effects marked <strong>DM only</strong> stay visible on either DM minimap but are never drawn on
+        either player-facing table screen. Timed effects count down at the beginning of each new round
+        when the DM advances <strong>NEXT</strong>, and scenes restore the effects with their actors.
+      </p>
+
       <h3 id="token-placement">Positioning Tokens on the Map</h3>
       <p>
         Token positions are managed through the <strong>minimap</strong> on the DM panel of the
@@ -340,11 +363,38 @@
       </p>
     </section>
 
+    <section id="tracker-light">
+      <h2>Tracker ↔ Advanced Light Integration</h2>
+      <p>
+        Tracker publishes the same current-turn update used by the map's active-token marker whenever
+        the active combatant changes or <strong>NEXT</strong> starts another turn. Advanced Light can
+        listen to that shared update and apply a configured WLED cue to segments assigned to the active
+        PC token. Neither plugin depends directly on the other.
+      </p>
+      <div class="flow">
+        <div class="step">Tracker starts a PC turn</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Shared current-turn update</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Assigned WLED segments react</div>
+      </div>
+      <p>
+        The GM opts in with <strong>Enable tracker turn cues</strong> in Advanced Light. Token
+        assignment, unassignment, and cue configuration all live in the Advanced Light segment
+        table's right-click menu, so Tracker tokens are never modified. Whole-turn cues restore when
+        the turn changes; play-once cues restore after their configured duration. NPC turns and
+        unassigned PC turns leave the normal segment lighting in place.
+      </p>
+      <p>
+        See the <a href="../light/UserDoc.html#tracker-turn-cues">Lighting guide</a> for setup details.
+      </p>
+    </section>
+
     <section id="dynamicmap-runtime">
       <h2>DynamicMap Runtime</h2>
       <p>
         DynamicMap receives the same tracker token events as the standard Map plugin. Combatants,
-        token colours, token sizes, token images, active-turn highlighting, and token removal stay
+        token colours, token sizes, token images, status effects, active-turn highlighting, and token removal stay
         synchronized through the shared event bus.
       </p>
       <p>
@@ -414,6 +464,27 @@
         Selecting an item in the outline highlights the same wall, light, or sunlight area in the main builder view,
         so the workspace behaves like one connected editor even though the tools live in separate panes.
       </p>
+    </section>
+
+    <section id="hotkeys">
+      <h2>Hotkeys with Lights and Audio</h2>
+      <p>
+        The Hotkeys plugin can coordinate the Lights, Advanced Light, and Music plugins from one
+        button or keyboard shortcut. The receiving plugins do not need to occupy a visible pane;
+        they receive each command through TabletopControl's shared event system.
+      </p>
+      <p>
+        Light actions can address the global light or numbered WLED segments. Music actions can
+        start, stop, or switch file-based tracks. Sound-effect actions use the Hotkeys plugin's own
+        file loader, so they do not depend on an active Soundboard pane or on a Soundboard button
+        assignment.
+      </p>
+      <p>
+        Consecutive actions start as one step. Insert a Wait action to continue later with another
+        step, such as flashing the lights and playing thunder after a short delay. Hotkeys may call
+        other hotkeys; circular calls are stopped automatically.
+      </p>
+      <p>See the <a href="../hotkey/UserDoc.html">Hotkeys guide</a> for setup details.</p>
     </section>
 
     <section id="workflow">

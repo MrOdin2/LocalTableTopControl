@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "com.tabletopcontrol"
-    version = "1.4.2" // THIS IS OUR VERSION NUMBER
+    version = "1.5.0" // THIS IS OUR VERSION NUMBER
 
     repositories {
         mavenCentral()

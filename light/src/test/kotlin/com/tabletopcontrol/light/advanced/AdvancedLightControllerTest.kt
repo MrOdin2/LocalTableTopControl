@@ -120,4 +120,74 @@ class AdvancedLightControllerTest {
         assertEquals(true, controller.coversAllKnownSegments(fullUpdate))
         assertEquals(false, controller.coversAllKnownSegments(partialUpdate))
     }
+
+    @Test
+    fun `hotkey control updates only targeted segment fields`() {
+        val controller = AdvancedLightController()
+        controller.loadFromDevice(
+            WledDeviceSnapshot(
+                segments = listOf(
+                    WledSegmentSnapshot(0, true, false, "#FFFFFF", 1.0, LightEffect.NONE, 128, 128),
+                    WledSegmentSnapshot(1, true, false, "#FFFFFF", 1.0, LightEffect.NONE, 128, 128),
+                ),
+            ),
+            AdvancedLightPreferences(),
+        )
+
+        val commands = controller.applyControl(
+            ids = setOf(1),
+            power = false,
+            color = "#AA0000",
+            effect = LightEffect.LIGHTNING,
+            brightness = 0.4,
+            effectSpeed = 200,
+            effectIntensity = 210,
+        )
+
+        assertEquals(listOf(1), commands.map { it.id })
+        assertEquals(LightEffect.NONE, controller.currentSegments()[0].effect)
+        assertEquals(LightEffect.LIGHTNING, controller.currentSegments()[1].effect)
+        assertEquals(false, controller.currentSegments()[1].on)
+        assertEquals("#AA0000", controller.currentSegments()[1].color)
+    }
+
+    @Test
+    fun `turn cue command uses assigned token configuration without replacing base state`() {
+        val controller = AdvancedLightController()
+        controller.loadFromDevice(
+            WledDeviceSnapshot(
+                segments = listOf(
+                    WledSegmentSnapshot(3, false, false, "#112233", 0.4, LightEffect.CANDLE, 20, 30),
+                ),
+            ),
+            AdvancedLightPreferences(
+                trackerTurnCuesEnabled = true,
+                segments = mapOf(
+                    3 to AdvancedLightSegmentPreference(
+                        brightnessScale = 0.5,
+                        assignedTokenIds = setOf("hero-uuid"),
+                        turnCue = AdvancedLightTurnCue(
+                            effect = LightEffect.HEARTBEAT,
+                            color = "#FF8800",
+                            brightness = 0.8,
+                            effectSpeed = 77,
+                            effectIntensity = 188,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val segment = controller.turnCueSegmentsForToken("hero-uuid").single()
+        val command = segment.toTurnCueCommand()
+
+        assertEquals(true, controller.trackerTurnCuesEnabled())
+        assertEquals(true, command.on)
+        assertEquals("#FF8800", command.color)
+        assertEquals(LightEffect.HEARTBEAT, command.effect)
+        assertEquals(0.4, command.brightness, 0.0001)
+        assertEquals(false, controller.currentSegments().single().on)
+        assertEquals("#112233", controller.currentSegments().single().color)
+        assertEquals(LightEffect.CANDLE, controller.currentSegments().single().effect)
+    }
 }
