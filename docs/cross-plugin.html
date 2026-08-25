@@ -153,6 +153,7 @@
             <li><a href="#token-names">Showing Token Names</a></li>
           </ul>
         </li>
+        <li><a href="#tracker-light">Tracker ↔ Advanced Light</a></li>
         <li><a href="#dynamicmap-runtime">DynamicMap Runtime</a></li>
         <li><a href="#dynamicmap-builder">Dynamic Map Builder Panes</a></li>
         <li><a href="#hotkeys">Hotkeys with Lights and Audio</a></li>
@@ -359,6 +360,33 @@
       <p>
         The name shown on the token always matches the name on the combatant's card in the
         tracker. Editing the name in the tracker updates the map label automatically.
+      </p>
+    </section>
+
+    <section id="tracker-light">
+      <h2>Tracker ↔ Advanced Light Integration</h2>
+      <p>
+        Tracker publishes the same current-turn update used by the map's active-token marker whenever
+        the active combatant changes or <strong>NEXT</strong> starts another turn. Advanced Light can
+        listen to that shared update and apply a configured WLED cue to segments assigned to the active
+        PC token. Neither plugin depends directly on the other.
+      </p>
+      <div class="flow">
+        <div class="step">Tracker starts a PC turn</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Shared current-turn update</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Assigned WLED segments react</div>
+      </div>
+      <p>
+        The GM opts in with <strong>Enable tracker turn cues</strong> in Advanced Light. Token
+        assignment, unassignment, and cue configuration all live in the Advanced Light segment
+        table's right-click menu, so Tracker tokens are never modified. Whole-turn cues restore when
+        the turn changes; play-once cues restore after their configured duration. NPC turns and
+        unassigned PC turns leave the normal segment lighting in place.
+      </p>
+      <p>
+        See the <a href="../light/UserDoc.html#tracker-turn-cues">Lighting guide</a> for setup details.
       </p>
     </section>
 

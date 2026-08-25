@@ -57,7 +57,7 @@ class ActorTracker(
         actor: Actor,
         tieResolver: InitiativeTieResolver = KEEP_EXISTING_TIE_ORDER,
     ) {
-        val currentActorId = getCurrentActor()?.id
+        val previousActiveActorId = getCurrentActor()?.id
         actor.color = TOKEN_COLORS[actorList.size]
         actorList.add(actor)
         EventBus.publish(
@@ -79,7 +79,8 @@ class ActorTracker(
             activeActors++
             sortActorsByInitiative(actor.id, tieResolver)
         }
-        normalizeCurrentSelection(currentActorId)
+        normalizeCurrentSelection(previousActiveActorId)
+        publishActiveTokenIfChanged(previousActiveActorId)
         publishCurrentMovementBudget()
         notifyChanged()
     }
@@ -94,14 +95,16 @@ class ActorTracker(
     }
 
     fun removeActor(actor: Actor) {
-        val currentActorId = getCurrentActor()?.id?.takeUnless { it == actor.id }
+        val previousActiveActorId = getCurrentActor()?.id
+        val preferredActorId = previousActiveActorId?.takeUnless { it == actor.id }
         if(actor.initiative != null){
             activeActors--
         }
         actorList.remove(actor)
         movementBudgets.remove(actor.id)
         EventBus.publish(TokenRemovedEvent(actor.id, actor.name))
-        normalizeCurrentSelection(currentActorId)
+        normalizeCurrentSelection(preferredActorId)
+        publishActiveTokenIfChanged(previousActiveActorId)
         publishCurrentMovementBudget()
         notifyChanged()
     }
@@ -156,8 +159,11 @@ class ActorTracker(
                 normalizeCurrentSelection(currentActorId)
                 val newCurrentActor = getCurrentActor()
                 if (newCurrentActor?.id != currentActorId) {
-                    movementBudgets[newCurrentActor?.id as String] = newCurrentActor.baseMovementCells()
+                    newCurrentActor?.let { actor ->
+                        movementBudgets[actor.id] = actor.baseMovementCells()
+                    }
                 }
+                publishActiveTokenIfChanged(currentActorId)
                 publishCurrentMovementBudget()
                 notifyChanged()
                 return true
@@ -177,8 +183,7 @@ class ActorTracker(
         roundCount = 0
         movementBudgets.clear()
         EventBus.publish(TokensResetEvent())
-        EventBus.publish(ActiveTokenChangedEvent(null, null)
-        )
+        EventBus.publish(ActiveTokenChangedEvent(null, null))
         publishCurrentMovementBudget()
         notifyChanged()
     }
@@ -501,6 +506,12 @@ class ActorTracker(
                 remainingMovementCells = budget.remainingMovementCells,
             ),
         )
+    }
+
+    private fun publishActiveTokenIfChanged(previousActiveActorId: String?) {
+        val currentActor = getCurrentActor()
+        if (currentActor?.id == previousActiveActorId) return
+        EventBus.publish(ActiveTokenChangedEvent(currentActor?.id, currentActor?.name))
     }
 
     private fun notifyChanged() {
