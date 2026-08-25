@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hotkeys – TabletopControl User Docs</title>
+  <style>
+    :root { --accent:#1565c0; --accent-light:#e3f0fb; --bg:#f4f4f4; --surface:#fff; --border:#d0d0d0; --text:#212121; --muted:#666; --radius:6px; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+    header { background:var(--accent); color:#fff; padding:1.25rem 2rem; }
+    header h1, header p { margin:0; }
+    header p { opacity:.85; }
+    nav { background:var(--surface); border-bottom:1px solid var(--border); padding:.5rem 2rem; }
+    nav a, a { color:var(--accent); }
+    .layout { display:flex; max-width:1050px; margin:2rem auto; gap:2rem; padding:0 1.5rem; }
+    aside { width:210px; flex-shrink:0; }
+    aside div { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1rem; position:sticky; top:1rem; }
+    aside h2 { font-size:.8rem; text-transform:uppercase; color:var(--muted); margin:0 0 .7rem; }
+    aside ul { list-style:none; padding:0; margin:0; }
+    aside li { margin:.35rem 0; }
+    main { flex:1; min-width:0; }
+    section { margin-bottom:2.4rem; }
+    h2 { color:var(--accent); border-bottom:2px solid var(--accent-light); padding-bottom:.3rem; }
+    table { width:100%; border-collapse:collapse; margin:.75rem 0; }
+    th { background:var(--accent); color:#fff; text-align:left; }
+    th, td { padding:.55rem .7rem; border-bottom:1px solid var(--border); vertical-align:top; }
+    tr:nth-child(even) td { background:var(--accent-light); }
+    .tip { background:var(--accent-light); border-left:4px solid var(--accent); padding:.75rem 1rem; margin:1rem 0; }
+    kbd, code { background:#e9ecef; border:1px solid #adb5bd; border-radius:3px; padding:.08em .4em; }
+    footer { border-top:1px solid var(--border); color:var(--muted); text-align:center; padding:1.5rem; }
+    @media (max-width:760px) { .layout { display:block; } aside { width:auto; margin-bottom:1rem; } aside div { position:static; } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>⌨ Hotkeys</h1>
+  <p>One button or keypress can run a complete scene cue.</p>
+</header>
+<nav><a href="../docs/index.html">Home</a> › Hotkeys</nav>
+<div class="layout">
+  <aside><div>
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#matrix">Button Matrix</a></li>
+      <li><a href="#configure">Configure a Hotkey</a></li>
+      <li><a href="#actions">Available Actions</a></li>
+      <li><a href="#sequence">Steps and Waits</a></li>
+      <li><a href="#trigger">Triggering</a></li>
+      <li><a href="#saving">Saving</a></li>
+    </ul>
+  </div></aside>
+  <main>
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>The Hotkeys plugin gives you a matrix of named cue buttons. Clicking a button and pressing its assigned shortcut run exactly the same actions. This is useful for ambience changes, dramatic effects, combat starts, and other cues that would otherwise need several panels and clicks.</p>
+      <p>The first launch creates twelve buttons assigned to <kbd>F1</kbd> through <kbd>F12</kbd>. They have no actions until you configure them.</p>
+    </section>
+    <section id="matrix">
+      <h2>Button Matrix</h2>
+      <p>Use <strong>Columns</strong> to choose a matrix width from 2 to 8 columns. <strong>+ Add Hotkey</strong> adds another button; up to 64 buttons can be kept in the matrix.</p>
+      <p>Each button shows its optional icon, name, and assigned shortcut. A user-selected button colour is automatically given readable contrasting text.</p>
+    </section>
+    <section id="configure">
+      <h2>Configure a Hotkey</h2>
+      <ol>
+        <li>Right-click a hotkey button and choose <strong>Configure...</strong>.</li>
+        <li>Enter a name and, optionally, a short icon or emoji and button colour.</li>
+        <li>Choose <kbd>F1</kbd>–<kbd>F12</kbd> directly, leave the shortcut unassigned, or choose <strong>Custom shortcut</strong> and capture a key combination.</li>
+        <li>Add, edit, remove, and reorder actions. Each hotkey supports up to 16 actions, including waits.</li>
+        <li>Choose <strong>OK</strong> to save the changes.</li>
+      </ol>
+      <p>Custom shortcuts support bare function keys through <kbd>F24</kbd>. Other keys must include Ctrl, Alt, or Meta so normal typing is not captured accidentally. A shortcut cannot be assigned to two hotkeys.</p>
+      <div class="tip"><strong>Tip:</strong> Right-click also offers <strong>Clear Actions</strong> and <strong>Remove Hotkey</strong>.</div>
+    </section>
+    <section id="actions">
+      <h2>Available Actions</h2>
+      <table>
+        <tr><th>Action</th><th>What you can configure</th></tr>
+        <tr><td>Control Light / Segment</td><td>Choose the global light, all advanced-light segments, or specific segment numbers. Change any combination of power, colour, effect, brightness, effect speed, and effect intensity.</td></tr>
+        <tr><td>Play Sound File</td><td>Choose an audio file and playback volume. Hotkeys load and play this file themselves, so no Soundboard pane or configured Soundboard button is required.</td></tr>
+        <tr><td>Control Music Track</td><td>Start a chosen track, switch to it after stopping other music, stop one chosen track, or stop all music.</td></tr>
+        <tr><td>Trigger Another Hotkey</td><td>Run another configured hotkey as part of the cue.</td></tr>
+        <tr><td>Wait</td><td>Pause this sequence for up to ten minutes before continuing with the next step.</td></tr>
+      </table>
+    </section>
+    <section id="sequence">
+      <h2>Steps and Waits</h2>
+      <p>Actions are read from top to bottom. Consecutive non-wait actions form one step and are started together. A <strong>Wait</strong> ends that step; when the delay finishes, all following actions up to the next wait form the next step.</p>
+      <p>For example: add “global light on”, then Wait 0.2 seconds, then “global light off” and “play thunder”. The final light and sound actions start together after the delay.</p>
+      <p>You may trigger another hotkey, but circular chains are stopped automatically. If A triggers B and B tries to trigger A again, the repeated trigger is ignored instead of looping.</p>
+    </section>
+    <section id="trigger">
+      <h2>Triggering Hotkeys</h2>
+      <p>Left-click a matrix button or press its assigned shortcut while the DM window is active. Shortcuts keep working when another plugin pane is visible and do not require the Hotkeys pane to be open.</p>
+      <p>Holding a key does not repeatedly start the cue; release it before triggering that shortcut again.</p>
+    </section>
+    <section id="saving">
+      <h2>Saving</h2>
+      <p>Hotkey names, appearance, shortcuts, actions, order, and matrix columns are saved automatically in <code>~/.tabletopcontrol/hotkeys.conf</code>.</p>
+      <p>Hotkeys also participate in TabletopControl scenes. Saving a scene captures the current Hotkey setup, and loading it replaces the matrix with the scene's saved setup.</p>
+    </section>
+  </main>
+</div>
+<footer>TabletopControl User Documentation — <a href="../docs/index.html">Home</a></footer>
+</body>
+</html>
