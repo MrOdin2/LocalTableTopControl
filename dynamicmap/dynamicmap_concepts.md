@@ -35,6 +35,11 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
 
 ### Runtime Rendering
 
+- When no gameplay bundle is loaded, DynamicMap renders a 200 by 200 empty arena instead of
+  disabling its runtime renderer. The fallback arena has no background texture, walls, doors, or
+  point lights and is fully covered by sunlight, so it has no dynamic darkness or sightline cover.
+  It is runtime-only: it is not shown as a loaded bundle, stored in scenes, or written to settings.
+  Manual fog, grid controls, tokens, measurements, and movement overlays remain available.
 - The loaded bundle provides map columns, rows, soft, hard, door, or feature walls, lights, sunlight/outside areas, optional background texture,
   and background calibration.
 - Loading a bundle centers the grid origin so exported cell coordinates run from `(0, 0)`

@@ -98,6 +98,7 @@ class MapSettingsService(savedSettings: MapSavedSettings = MapSettingsSerializer
     fun publishCurrentSettings() {
         currentDynamicMap?.let { EventBus.publish(DynamicMapLoadEvent(it)) }
             ?: currentMapImageUri?.let { EventBus.publish(MapLoadEvent(it)) }
+            ?: EventBus.publish(MapClearEvent)
         EventBus.publish(MapCalibrationEvent(mapCalibration))
         EventBus.publish(GridCalibrationEvent(gridCalibration))
         EventBus.publish(MapBackgroundEvent(backgroundColor))

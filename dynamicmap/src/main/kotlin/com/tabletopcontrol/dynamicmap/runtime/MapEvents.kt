@@ -73,8 +73,9 @@ internal data class DynamicSightlineMeshUpdatedEvent(
 /**
  * Event fired when the DM removes the current map image.
  *
- * Renderers should clear any previously loaded image and show only the plain
- * background colour, grid, fog, tokens, and measurements.
+ * Renderers replace any previously loaded image with DynamicMap's empty, fully sunlit arena.
+ * It has no walls, doors, texture, or coloured lights; grid, manual fog, tokens, and measurements
+ * remain available.
  */
 data object MapClearEvent
 

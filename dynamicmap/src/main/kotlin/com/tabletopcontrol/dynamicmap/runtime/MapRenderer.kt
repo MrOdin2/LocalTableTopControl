@@ -85,8 +85,8 @@ class MapRenderer(private val canvas: Canvas) {
     var mapImage: Image? = null
         private set
 
-    /** Currently loaded Dynamic Map bundle, or `null` when the plugin is empty. */
-    var dynamicMapBundle: DynamicMapBundle? = null
+    /** Active Dynamic Map bundle, or the empty arena while no gameplay bundle is loaded. */
+    var dynamicMapBundle: DynamicMapBundle? = EmptyDynamicMapArena.bundle
         private set
 
     private var dynamicMapBackgroundImage: Image? = null
@@ -112,11 +112,13 @@ class MapRenderer(private val canvas: Canvas) {
     /** Fog-of-war cell state, or `null` when fog of war is not active. */
     var fogOfWar: FogOfWarState? = null
 
-    /** Cached DynamicMap player line-of-sight triangle mesh, or `null` when no dynamic bundle is loaded. */
-    private var dynamicSightlineMesh: DynamicSightlineMesh? = null
+    /** Cached DynamicMap player line-of-sight triangle mesh. */
+    private var dynamicSightlineMesh: DynamicSightlineMesh? =
+        DynamicSightlineMesh.fullyVisible(EmptyDynamicMapArena.COLS, EmptyDynamicMapArena.ROWS)
 
     /** Accumulated DynamicMap areas that have been seen by PCs at least once. */
-    private var dynamicSeenSightlineMesh: DynamicSightlineMesh? = null
+    private var dynamicSeenSightlineMesh: DynamicSightlineMesh? =
+        DynamicSightlineMesh.fullyVisible(EmptyDynamicMapArena.COLS, EmptyDynamicMapArena.ROWS)
 
     /** Static authored light mask used for visibility clipping and visible light tint. */
     private var dynamicLightMask: DynamicLightMask? = null
@@ -607,8 +609,13 @@ class MapRenderer(private val canvas: Canvas) {
         dynamicMapBackgroundImage = bundle.createBackgroundImage()
         mapImage = null
         mapRotationDegrees = 0
-        dynamicSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
-        dynamicSeenSightlineMesh = DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
+        val initialSightlineMesh = if (bundle.isFallbackArena) {
+            DynamicSightlineMesh.fullyVisible(bundle.cols, bundle.rows)
+        } else {
+            DynamicSightlineMesh.hidden(bundle.cols, bundle.rows)
+        }
+        dynamicSightlineMesh = initialSightlineMesh
+        dynamicSeenSightlineMesh = initialSightlineMesh
         dynamicLightMask = null
         dynamicDarkvisionMesh = null
         openDynamicDoorIds.clear()
@@ -619,21 +626,10 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     /**
-     * Removes the current map image and redraws the canvas using the plain
-     * background colour and any remaining overlays.
+     * Removes the current map image and redraws the canvas as the empty, fully sunlit arena.
      */
     fun clearImage() {
-        mapImage = null
-        dynamicMapBundle = null
-        dynamicMapBackgroundImage = null
-        dynamicSightlineMesh = null
-        dynamicSeenSightlineMesh = null
-        dynamicLightMask = null
-        dynamicDarkvisionMesh = null
-        openDynamicDoorIds.clear()
-        dynamicSightlineLayerVersion++
-        clearLayerCaches()
-        redraw()
+        loadDynamicMap(EmptyDynamicMapArena.bundle)
     }
 
     /**
@@ -2183,6 +2179,7 @@ class MapRenderer(private val canvas: Canvas) {
     }
 
     private fun isTokenVisibleInDynamicSightline(token: Token): Boolean {
+        if (dynamicMapBundle?.isFallbackArena == true) return true
         val mesh = dynamicSightlineMesh ?: return true
         return mesh.intersectsToken(token)
     }

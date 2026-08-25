@@ -10,6 +10,7 @@ import com.tabletopcontrol.dynamicmap.runtime.DynamicMapDoorStateChangedEvent
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapLoadEvent
 import com.tabletopcontrol.dynamicmap.runtime.DynamicMapRuntimeWall
 import com.tabletopcontrol.dynamicmap.runtime.DynamicSightlineMeshUpdatedEvent
+import com.tabletopcontrol.dynamicmap.runtime.EmptyDynamicMapArena
 import com.tabletopcontrol.dynamicmap.runtime.MapClearEvent
 import com.tabletopcontrol.dynamicmap.runtime.MapLoadEvent
 import com.tabletopcontrol.dynamicmap.runtime.blocksDimLightWhenClosed
@@ -79,7 +80,7 @@ internal class MapDynamicSightlineService {
             clearDynamicMap()
         }
         subscriptions += EventBus.subscribe<MapClearEvent> {
-            clearDynamicMap()
+            activateEmptyArena()
         }
         subscriptions += EventBus.subscribe<TokenAddedEvent> { event ->
             val previous = tokens[event.id]
@@ -181,9 +182,21 @@ internal class MapDynamicSightlineService {
         publishOnFx(DynamicSightlineMeshUpdatedEvent(nextRevision, null))
     }
 
+    private fun activateEmptyArena() {
+        if (disposed) return
+        openDoorIds.clear()
+        rebuildGeometryAndLightMask(EmptyDynamicMapArena.bundle)
+        clearSeenArea()
+        publishEmptyArenaVisibility(EmptyDynamicMapArena.bundle)
+    }
+
     private fun scheduleCompute() {
         if (disposed) return
         val bundle = currentBundle ?: return
+        if (bundle.isFallbackArena) {
+            publishEmptyArenaVisibility(bundle)
+            return
+        }
         val snapshotTopologyVersion = topologyVersion
         val blockingWalls = bundle.closedRuntimeWalls(openDoorIds)
         val geometry = currentGeometry ?: DynamicSightlineGeometry.forMap(
@@ -241,6 +254,19 @@ internal class MapDynamicSightlineService {
                 ),
             )
         }
+    }
+
+    private fun publishEmptyArenaVisibility(bundle: DynamicMapBundle) {
+        val mesh = DynamicSightlineMesh.fullyVisible(bundle.cols, bundle.rows)
+        val nextRevision = revision.incrementAndGet()
+        publishOnFx(
+            DynamicSightlineMeshUpdatedEvent(
+                revision = nextRevision,
+                mesh = mesh,
+                seenMesh = mesh,
+                lightMask = currentLightMask,
+            ),
+        )
     }
 
     private fun applyStaticLightingAndDarkvision(
