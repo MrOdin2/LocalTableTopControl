@@ -1,0 +1,1262 @@
+{
+  "audio/build.gradle.kts": {
+    "mtime": 1772832737.5633433,
+    "ast_hash": "db719b9ce6b14c3d7a495b138964f39b",
+    "semantic_hash": "db719b9ce6b14c3d7a495b138964f39b"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/AudioEngine.kt": {
+    "mtime": 1772400126.1029181,
+    "ast_hash": "b6f281d919a77937c884b32ea3106182",
+    "semantic_hash": "b6f281d919a77937c884b32ea3106182"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/MusicLimits.kt": {
+    "mtime": 1783349899.983057,
+    "ast_hash": "7c25d199bf3a518de1483a9fbd577d17",
+    "semantic_hash": "7c25d199bf3a518de1483a9fbd577d17"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/MusicPlugin.kt": {
+    "mtime": 1783349899.9845603,
+    "ast_hash": "8141ee8ddb61fb3cf1003824c88bd6ac",
+    "semantic_hash": "8141ee8ddb61fb3cf1003824c88bd6ac"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/MusicSettingsSerializer.kt": {
+    "mtime": 1783349899.985565,
+    "ast_hash": "a0cac46bcc13da71890e5f70c39cb5ed",
+    "semantic_hash": "a0cac46bcc13da71890e5f70c39cb5ed"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/MusicTrackService.kt": {
+    "mtime": 1783349899.985565,
+    "ast_hash": "ee783519e4d0ad76d108e2c15453b8fe",
+    "semantic_hash": "ee783519e4d0ad76d108e2c15453b8fe"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardLimits.kt": {
+    "mtime": 1783349899.9865634,
+    "ast_hash": "5a209ada74b5fa066132f3c6e0460a7c",
+    "semantic_hash": "5a209ada74b5fa066132f3c6e0460a7c"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardPlugin.kt": {
+    "mtime": 1783349899.9875634,
+    "ast_hash": "ddbac29f75b8941d7002319af7e5e52f",
+    "semantic_hash": "ddbac29f75b8941d7002319af7e5e52f"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardSettingsStore.kt": {
+    "mtime": 1783349899.9875634,
+    "ast_hash": "6464d90f20d1e1e4d8bab6daa41f96d5",
+    "semantic_hash": "6464d90f20d1e1e4d8bab6daa41f96d5"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardSlotDialogs.kt": {
+    "mtime": 1783349899.9885633,
+    "ast_hash": "38fd2ca36f505730527ac85a33f8793a",
+    "semantic_hash": "38fd2ca36f505730527ac85a33f8793a"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardSlotModels.kt": {
+    "mtime": 1783349899.9885633,
+    "ast_hash": "4a8a9bb31afc07f30bdba350c0ec5382",
+    "semantic_hash": "4a8a9bb31afc07f30bdba350c0ec5382"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardSlotService.kt": {
+    "mtime": 1783349899.9895632,
+    "ast_hash": "63060163f3daa173741b95946c6c5a79",
+    "semantic_hash": "63060163f3daa173741b95946c6c5a79"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/SoundboardSlotVisuals.kt": {
+    "mtime": 1783349899.9895632,
+    "ast_hash": "bd7914b8678b7503e69f6664e4caf519",
+    "semantic_hash": "bd7914b8678b7503e69f6664e4caf519"
+  },
+  "audio/src/main/kotlin/com/tabletopcontrol/audio/shared/MediaTrackController.kt": {
+    "mtime": 1783349899.9905634,
+    "ast_hash": "793240300242deb96503a6e71f4f7235",
+    "semantic_hash": "793240300242deb96503a6e71f4f7235"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/AudioEngineTest.kt": {
+    "mtime": 1772400126.1049204,
+    "ast_hash": "f9b8402566b1af13d9b66b6c6560eecb",
+    "semantic_hash": "f9b8402566b1af13d9b66b6c6560eecb"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/MusicSettingsSerializerTest.kt": {
+    "mtime": 1783349899.9905634,
+    "ast_hash": "b566099471da0ee9ecead8a2db433a00",
+    "semantic_hash": "b566099471da0ee9ecead8a2db433a00"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/MusicTrackServiceTest.kt": {
+    "mtime": 1783349899.9920652,
+    "ast_hash": "4a577c35039235ccc33bcc3c96a6f49a",
+    "semantic_hash": "4a577c35039235ccc33bcc3c96a6f49a"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/SoundboardPluginTest.kt": {
+    "mtime": 1783349899.9930673,
+    "ast_hash": "ca3f4996f785d67f25cd977653a2ed66",
+    "semantic_hash": "ca3f4996f785d67f25cd977653a2ed66"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/SoundboardSettingsStoreTest.kt": {
+    "mtime": 1783349899.9930673,
+    "ast_hash": "3ed3061679fe08da19284b4d476cc067",
+    "semantic_hash": "3ed3061679fe08da19284b4d476cc067"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/SoundboardSlotServiceTest.kt": {
+    "mtime": 1783349899.9930673,
+    "ast_hash": "620f4fd824ad37e72a425250ac463fe6",
+    "semantic_hash": "620f4fd824ad37e72a425250ac463fe6"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/SoundboardSlotVisualsTest.kt": {
+    "mtime": 1783349899.9940686,
+    "ast_hash": "105bf904ddc151c530ca09c96319cabe",
+    "semantic_hash": "105bf904ddc151c530ca09c96319cabe"
+  },
+  "audio/src/test/kotlin/com/tabletopcontrol/audio/shared/MediaTrackControllerTest.kt": {
+    "mtime": 1783349899.9954555,
+    "ast_hash": "06e386f44f05fb79ba6358b94ec0b75e",
+    "semantic_hash": "06e386f44f05fb79ba6358b94ec0b75e"
+  },
+  "build.gradle.kts": {
+    "mtime": 1783349899.9961593,
+    "ast_hash": "83b3fb31a39bb46978b9f827a5e0cbce",
+    "semantic_hash": "83b3fb31a39bb46978b9f827a5e0cbce"
+  },
+  "canvas/build.gradle.kts": {
+    "mtime": 1783349899.9981608,
+    "ast_hash": "5719889ead9790c4db3dbe7958ee406a",
+    "semantic_hash": "5719889ead9790c4db3dbe7958ee406a"
+  },
+  "canvas/src/main/kotlin/com/tabletopcontrol/canvas/CanvasDmView.kt": {
+    "mtime": 1783349900.002173,
+    "ast_hash": "b5eaffc8c7a8bedfc026f70ea01d03a1",
+    "semantic_hash": "b5eaffc8c7a8bedfc026f70ea01d03a1"
+  },
+  "canvas/src/main/kotlin/com/tabletopcontrol/canvas/CanvasEvents.kt": {
+    "mtime": 1783349900.002173,
+    "ast_hash": "30aeef4deb275fb2c135152b2dc87169",
+    "semantic_hash": "30aeef4deb275fb2c135152b2dc87169"
+  },
+  "canvas/src/main/kotlin/com/tabletopcontrol/canvas/CanvasItem.kt": {
+    "mtime": 1783349900.0036817,
+    "ast_hash": "71e6a54988db9e2d44843fe9c0224066",
+    "semantic_hash": "71e6a54988db9e2d44843fe9c0224066"
+  },
+  "canvas/src/main/kotlin/com/tabletopcontrol/canvas/CanvasModel.kt": {
+    "mtime": 1783349900.0046852,
+    "ast_hash": "7f37aebc46cf5e0ecfefbe60c307a744",
+    "semantic_hash": "7f37aebc46cf5e0ecfefbe60c307a744"
+  },
+  "canvas/src/main/kotlin/com/tabletopcontrol/canvas/CanvasPlugin.kt": {
+    "mtime": 1783349900.0046852,
+    "ast_hash": "49aa0643c1596f3c7a84da542f538c10",
+    "semantic_hash": "49aa0643c1596f3c7a84da542f538c10"
+  },
+  "canvas/src/main/kotlin/com/tabletopcontrol/canvas/CanvasTableOverlay.kt": {
+    "mtime": 1783349900.0056865,
+    "ast_hash": "2ebbf4af1d12b9c4e42d1c9cfc4426d1",
+    "semantic_hash": "2ebbf4af1d12b9c4e42d1c9cfc4426d1"
+  },
+  "canvas/src/test/kotlin/com/tabletopcontrol/canvas/CanvasModelTest.kt": {
+    "mtime": 1783349900.0106852,
+    "ast_hash": "c02657401678a8f529d06364c5363152",
+    "semantic_hash": "c02657401678a8f529d06364c5363152"
+  },
+  "core/build.gradle.kts": {
+    "mtime": 1783349900.0121891,
+    "ast_hash": "c28f247ebc3832ee4c6004c3a3feeaf2",
+    "semantic_hash": "c28f247ebc3832ee4c6004c3a3feeaf2"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/App.kt": {
+    "mtime": 1783349900.0131934,
+    "ast_hash": "27ee7fa1b6fc92e7dc4bcbfcabeac585",
+    "semantic_hash": "27ee7fa1b6fc92e7dc4bcbfcabeac585"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/DmLayoutManager.kt": {
+    "mtime": 1783349900.0141935,
+    "ast_hash": "7cdf32c9b20cea5c3746cddb73ed3580",
+    "semantic_hash": "7cdf32c9b20cea5c3746cddb73ed3580"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/DmPlugin.kt": {
+    "mtime": 1783349900.0151937,
+    "ast_hash": "8e4228d4414c98319154adf270f25f64",
+    "semantic_hash": "8e4228d4414c98319154adf270f25f64"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/DmWorkspace.kt": {
+    "mtime": 1783349900.0161939,
+    "ast_hash": "b28f24c0427b171165559b6bf9eced6a",
+    "semantic_hash": "b28f24c0427b171165559b6bf9eced6a"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/EventBus.kt": {
+    "mtime": 1772807855.608356,
+    "ast_hash": "ea2c7043a8d2cc4a3d9d5348175d03b5",
+    "semantic_hash": "ea2c7043a8d2cc4a3d9d5348175d03b5"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/HelpManager.kt": {
+    "mtime": 1783349900.0171926,
+    "ast_hash": "9c4373057522e77044164a0ab300a912",
+    "semantic_hash": "9c4373057522e77044164a0ab300a912"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/LayoutSerializer.kt": {
+    "mtime": 1783349900.0171926,
+    "ast_hash": "626ab3b4d34607c06feee4050d7a89d6",
+    "semantic_hash": "626ab3b4d34607c06feee4050d7a89d6"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/PaneNode.kt": {
+    "mtime": 1775048311.013813,
+    "ast_hash": "de7994d8f9f8082ebcd9fcab32c688d1",
+    "semantic_hash": "de7994d8f9f8082ebcd9fcab32c688d1"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/PluginLoader.kt": {
+    "mtime": 1772400126.1112688,
+    "ast_hash": "ea89801e685849a288bf1c4a4ca1ab8f",
+    "semantic_hash": "ea89801e685849a288bf1c4a4ca1ab8f"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ThemeConfig.kt": {
+    "mtime": 1774806817.1553125,
+    "ast_hash": "096de6290221daed0b03f8a79944079b",
+    "semantic_hash": "096de6290221daed0b03f8a79944079b"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ThemeEvents.kt": {
+    "mtime": 1774805185.8923385,
+    "ast_hash": "08588b14aaccf7791f72075e40ae234d",
+    "semantic_hash": "08588b14aaccf7791f72075e40ae234d"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ThemeManager.kt": {
+    "mtime": 1783349900.018696,
+    "ast_hash": "7d6f503a2ed457e7415a19a7783a0a10",
+    "semantic_hash": "7d6f503a2ed457e7415a19a7783a0a10"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/TokenEvents.kt": {
+    "mtime": 1787663123.9619746,
+    "ast_hash": "c59dd5e854decae7421910ac07cf74a1",
+    "semantic_hash": "c59dd5e854decae7421910ac07cf74a1"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/TokenSize.kt": {
+    "mtime": 1783349900.019701,
+    "ast_hash": "f29c2ae9109673665ae7c9ac96a64007",
+    "semantic_hash": "f29c2ae9109673665ae7c9ac96a64007"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/persistence/AppConfigPaths.kt": {
+    "mtime": 1783349900.0207005,
+    "ast_hash": "dd05e03745831968eb85d309980006c9",
+    "semantic_hash": "dd05e03745831968eb85d309980006c9"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/persistence/ConfigFiles.kt": {
+    "mtime": 1783349900.0207005,
+    "ast_hash": "07cbfe91e4cf770e329bab934653bff7",
+    "semantic_hash": "07cbfe91e4cf770e329bab934653bff7"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/persistence/LocalFiles.kt": {
+    "mtime": 1783349900.0222046,
+    "ast_hash": "5947688a5dea0caa9305f4269ae4feb5",
+    "semantic_hash": "5947688a5dea0caa9305f4269ae4feb5"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/persistence/SafeConfigIO.kt": {
+    "mtime": 1783349900.0222046,
+    "ast_hash": "8513b7169f646b2dec3590c403864ab8",
+    "semantic_hash": "8513b7169f646b2dec3590c403864ab8"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/scene/SceneBrowserDialog.kt": {
+    "mtime": 1783349900.02321,
+    "ast_hash": "1ade2f699f0c386a450ac653d85e2aa9",
+    "semantic_hash": "1ade2f699f0c386a450ac653d85e2aa9"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/scene/SceneLibrary.kt": {
+    "mtime": 1783349900.024209,
+    "ast_hash": "5123b61bccbbe11f41e5d02067606177",
+    "semantic_hash": "5123b61bccbbe11f41e5d02067606177"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/scene/SceneManager.kt": {
+    "mtime": 1783349900.024209,
+    "ast_hash": "22df6e4ebd4c4a4615f5e6cb8fd7abb1",
+    "semantic_hash": "22df6e4ebd4c4a4615f5e6cb8fd7abb1"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/scene/SceneParticipant.kt": {
+    "mtime": 1783349900.0252087,
+    "ast_hash": "3c81ea3d6de341b3ead306e23e3fa597",
+    "semantic_hash": "3c81ea3d6de341b3ead306e23e3fa597"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/ContextMenuRenderer.kt": {
+    "mtime": 1783349900.0262086,
+    "ast_hash": "c113aa419c971817cdd825a56e240b8e",
+    "semantic_hash": "c113aa419c971817cdd825a56e240b8e"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/DragDropContext.kt": {
+    "mtime": 1783349900.0272088,
+    "ast_hash": "f06591cf625a1f383bf17b146d0ddeba",
+    "semantic_hash": "f06591cf625a1f383bf17b146d0ddeba"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/DragDropSupport.kt": {
+    "mtime": 1783349900.0272088,
+    "ast_hash": "d759e4ec1b6265bb01d691ac03920f13",
+    "semantic_hash": "d759e4ec1b6265bb01d691ac03920f13"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/DropIndicator.kt": {
+    "mtime": 1783349900.028209,
+    "ast_hash": "af4fdcc3f76a274ff226aa98e3c9ea84",
+    "semantic_hash": "af4fdcc3f76a274ff226aa98e3c9ea84"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/GrabHandle.kt": {
+    "mtime": 1783349900.029382,
+    "ast_hash": "e7d79fa4459c3d90a7e480d3d2d09a6d",
+    "semantic_hash": "e7d79fa4459c3d90a7e480d3d2d09a6d"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/InputHelpers.kt": {
+    "mtime": 1783349900.0313823,
+    "ast_hash": "fafc7116dd5013d430419e495322d27d",
+    "semantic_hash": "fafc7116dd5013d430419e495322d27d"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/MenuAction.kt": {
+    "mtime": 1783349900.0323822,
+    "ast_hash": "866512f8a9888a84113f4e8af5aff13e",
+    "semantic_hash": "866512f8a9888a84113f4e8af5aff13e"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/MenuContributor.kt": {
+    "mtime": 1783349900.0323822,
+    "ast_hash": "d4dee6d91dfa3534b7e7423a9ddf6ad1",
+    "semantic_hash": "d4dee6d91dfa3534b7e7423a9ddf6ad1"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/MenuSection.kt": {
+    "mtime": 1783349900.0339954,
+    "ast_hash": "2fbf11cc43d28c9bd7f357d32309aff5",
+    "semantic_hash": "2fbf11cc43d28c9bd7f357d32309aff5"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/color/ColorContrast.kt": {
+    "mtime": 1783349900.0350015,
+    "ast_hash": "640e8c0601466df82f0e42ac22e3edda",
+    "semantic_hash": "640e8c0601466df82f0e42ac22e3edda"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/color/ColorEditorDialog.kt": {
+    "mtime": 1783349900.0350015,
+    "ast_hash": "25a38f0e6fa78e4bc32579297f0735d8",
+    "semantic_hash": "25a38f0e6fa78e4bc32579297f0735d8"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/color/ColorEditorPopover.kt": {
+    "mtime": 1783349900.0360014,
+    "ast_hash": "15df678687d0152680de95a6214f50bd",
+    "semantic_hash": "15df678687d0152680de95a6214f50bd"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/color/ColorHexCodec.kt": {
+    "mtime": 1783349900.0360014,
+    "ast_hash": "66e77d78b69f61f33f6d9d6832326b25",
+    "semantic_hash": "66e77d78b69f61f33f6d9d6832326b25"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/color/RecentColorsStore.kt": {
+    "mtime": 1783349900.037,
+    "ast_hash": "4ad8c507703acc077c099bed1d0b5bad",
+    "semantic_hash": "4ad8c507703acc077c099bed1d0b5bad"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/dialog/AudioFileChooserDialog.kt": {
+    "mtime": 1783349900.0380006,
+    "ast_hash": "ca0732f79856316c94b544835b2364ab",
+    "semantic_hash": "ca0732f79856316c94b544835b2364ab"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/dialog/DialogFlows.kt": {
+    "mtime": 1783349900.0380006,
+    "ast_hash": "3ecf20542beb4393e6682b72c9d4412e",
+    "semantic_hash": "3ecf20542beb4393e6682b72c9d4412e"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/dialog/FileChooserHistoryStore.kt": {
+    "mtime": 1783349900.0390005,
+    "ast_hash": "db6f7903edd7ee48ccf486ef1c2e2c90",
+    "semantic_hash": "db6f7903edd7ee48ccf486ef1c2e2c90"
+  },
+  "core/src/main/kotlin/com/tabletopcontrol/core/ui/reorder/ReorderSupport.kt": {
+    "mtime": 1783349900.04,
+    "ast_hash": "760db236bdbe76d18af8309ef6a501de",
+    "semantic_hash": "760db236bdbe76d18af8309ef6a501de"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/AppDisplayFormattingTest.kt": {
+    "mtime": 1783349900.0409992,
+    "ast_hash": "26df4b84c22f8db3acdf5d1ce9f4476c",
+    "semantic_hash": "26df4b84c22f8db3acdf5d1ce9f4476c"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/DmLayoutManagerContextMenuTest.kt": {
+    "mtime": 1783349900.0419986,
+    "ast_hash": "11a6a241f250b7fb6b6e6a36d152b209",
+    "semantic_hash": "11a6a241f250b7fb6b6e6a36d152b209"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/EventBusTest.kt": {
+    "mtime": 1772807855.6103556,
+    "ast_hash": "31367d85e855f82c7cf13dc1730c6344",
+    "semantic_hash": "31367d85e855f82c7cf13dc1730c6344"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/LayoutSerializerPersistenceTest.kt": {
+    "mtime": 1783349900.0425005,
+    "ast_hash": "82a4bda0c3217f3c4cc2e4eb42f61411",
+    "semantic_hash": "82a4bda0c3217f3c4cc2e4eb42f61411"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/LayoutSerializerTest.kt": {
+    "mtime": 1775048311.0153158,
+    "ast_hash": "c645a5efdcbab1a3a3551a6ff5529dc3",
+    "semantic_hash": "c645a5efdcbab1a3a3551a6ff5529dc3"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ThemeManagerTest.kt": {
+    "mtime": 1783349900.0425005,
+    "ast_hash": "90600979ca10cbac8b44c748654b1eb7",
+    "semantic_hash": "90600979ca10cbac8b44c748654b1eb7"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/TokenImageChangedEventTest.kt": {
+    "mtime": 1774710413.244051,
+    "ast_hash": "8e94cbd93800e786911d31e430bcb3f4",
+    "semantic_hash": "8e94cbd93800e786911d31e430bcb3f4"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/persistence/AppConfigPathsTest.kt": {
+    "mtime": 1783349900.0435028,
+    "ast_hash": "3bc4d3b6f6be98f5726f596cc1900055",
+    "semantic_hash": "3bc4d3b6f6be98f5726f596cc1900055"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/persistence/LocalFilesTest.kt": {
+    "mtime": 1783349900.0445044,
+    "ast_hash": "097305d7e02c2c0585d19881dba51924",
+    "semantic_hash": "097305d7e02c2c0585d19881dba51924"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/persistence/SafeConfigIOTest.kt": {
+    "mtime": 1783349900.0455194,
+    "ast_hash": "f063d4c4aa24a7cd900aef0add4c0615",
+    "semantic_hash": "f063d4c4aa24a7cd900aef0add4c0615"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/scene/SceneLibraryTest.kt": {
+    "mtime": 1783349900.0465195,
+    "ast_hash": "dcd4c9f337329e586083ba28101ce00e",
+    "semantic_hash": "dcd4c9f337329e586083ba28101ce00e"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/scene/SceneManagerTest.kt": {
+    "mtime": 1783349900.0465195,
+    "ast_hash": "dd31ff60362be68f0740426016481781",
+    "semantic_hash": "dd31ff60362be68f0740426016481781"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/ContextMenuRendererLogicTest.kt": {
+    "mtime": 1783349900.0495186,
+    "ast_hash": "dee7768cdd0ef02ef6c500e677cdd811",
+    "semantic_hash": "dee7768cdd0ef02ef6c500e677cdd811"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/MenuActionTest.kt": {
+    "mtime": 1783349900.0520222,
+    "ast_hash": "f81f8252266be24391bbf0209aff37a1",
+    "semantic_hash": "f81f8252266be24391bbf0209aff37a1"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/MenuSectionTest.kt": {
+    "mtime": 1783349900.0530274,
+    "ast_hash": "9547e22cc041d438ff2c0df66678cc59",
+    "semantic_hash": "9547e22cc041d438ff2c0df66678cc59"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/color/ColorContrastTest.kt": {
+    "mtime": 1783349900.0540273,
+    "ast_hash": "18443bcaa7460aebe5eca22dbe40daf8",
+    "semantic_hash": "18443bcaa7460aebe5eca22dbe40daf8"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/color/ColorHexCodecTest.kt": {
+    "mtime": 1783349900.0550685,
+    "ast_hash": "9336e2b5c8d8806dd990afa09d7d25ae",
+    "semantic_hash": "9336e2b5c8d8806dd990afa09d7d25ae"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/color/RecentColorsStoreTest.kt": {
+    "mtime": 1783349900.0570686,
+    "ast_hash": "c364a034676fc883afb6d9038caeb280",
+    "semantic_hash": "c364a034676fc883afb6d9038caeb280"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/dialog/DialogFlowsTest.kt": {
+    "mtime": 1783349900.0610676,
+    "ast_hash": "c22443ccf4c770e91902af1f986f84b8",
+    "semantic_hash": "c22443ccf4c770e91902af1f986f84b8"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/dialog/FileChooserHistoryStoreTest.kt": {
+    "mtime": 1783349900.0632143,
+    "ast_hash": "e33a44f5cb6e04effb7fc5314e852d81",
+    "semantic_hash": "e33a44f5cb6e04effb7fc5314e852d81"
+  },
+  "core/src/test/kotlin/com/tabletopcontrol/core/ui/reorder/ReorderSupportTest.kt": {
+    "mtime": 1783349900.067215,
+    "ast_hash": "208587843006561e7515727938869102",
+    "semantic_hash": "208587843006561e7515727938869102"
+  },
+  "dynamicmap/build.gradle.kts": {
+    "mtime": 1783349900.0848205,
+    "ast_hash": "5719889ead9790c4db3dbe7958ee406a",
+    "semantic_hash": "5719889ead9790c4db3dbe7958ee406a"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/DynamicMapBundle.kt": {
+    "mtime": 1787661719.6260004,
+    "ast_hash": "2636c8f7de19de6f00299052d1d11138",
+    "semantic_hash": "2636c8f7de19de6f00299052d1d11138"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/DynamicMapPlugin.kt": {
+    "mtime": 1783349900.1019607,
+    "ast_hash": "93b988a20554e6f16751556e10a771fb",
+    "semantic_hash": "93b988a20554e6f16751556e10a771fb"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapEvents.kt": {
+    "mtime": 1787661208.5495653,
+    "ast_hash": "7372fd002d504da71f3010e12219f646",
+    "semantic_hash": "7372fd002d504da71f3010e12219f646"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapOperationModels.kt": {
+    "mtime": 1783349900.1050403,
+    "ast_hash": "20b90f95fd3af81d809d8dc65f7cc104",
+    "semantic_hash": "20b90f95fd3af81d809d8dc65f7cc104"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapRenderer.kt": {
+    "mtime": 1787664470.9916832,
+    "ast_hash": "006c6b78d8428df5b4418bc42d3f922b",
+    "semantic_hash": "006c6b78d8428df5b4418bc42d3f922b"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapSceneCodec.kt": {
+    "mtime": 1783349900.1100397,
+    "ast_hash": "5d31a320735107c447b6cdecd83f4a15",
+    "semantic_hash": "5d31a320735107c447b6cdecd83f4a15"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapSettingsSerializer.kt": {
+    "mtime": 1783349900.1121855,
+    "ast_hash": "9da6f885c16619c4883d19f7f6763364",
+    "semantic_hash": "9da6f885c16619c4883d19f7f6763364"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapUiController.kt": {
+    "mtime": 1787664469.4991198,
+    "ast_hash": "2be8834813475a20ad06a58d455f74df",
+    "semantic_hash": "2be8834813475a20ad06a58d455f74df"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/MeasurementOverlay.kt": {
+    "mtime": 1783349900.1141906,
+    "ast_hash": "79e1a5f0e24b1a01b7afe5afd2b6a787",
+    "semantic_hash": "79e1a5f0e24b1a01b7afe5afd2b6a787"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/DynamicDarkvisionMask.kt": {
+    "mtime": 1783349900.11519,
+    "ast_hash": "a6ac073b861a80c3db9200cc6683217e",
+    "semantic_hash": "a6ac073b861a80c3db9200cc6683217e"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/DynamicLightMask.kt": {
+    "mtime": 1783349900.11519,
+    "ast_hash": "6492a05c741fc821e4e9c7a9bb636b39",
+    "semantic_hash": "6492a05c741fc821e4e9c7a9bb636b39"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/DynamicMovementReachability.kt": {
+    "mtime": 1783349900.11619,
+    "ast_hash": "9ec93ccae8564e3e849ef62b7b45c724",
+    "semantic_hash": "9ec93ccae8564e3e849ef62b7b45c724"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/DynamicSightlineMesh.kt": {
+    "mtime": 1787661176.782151,
+    "ast_hash": "062ac194938863026e456a481c691af2",
+    "semantic_hash": "062ac194938863026e456a481c691af2"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/FogOfWarState.kt": {
+    "mtime": 1783349900.1171906,
+    "ast_hash": "19b9e3691e64a551796d892dcdd7ea60",
+    "semantic_hash": "19b9e3691e64a551796d892dcdd7ea60"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/GridCalibration.kt": {
+    "mtime": 1783349900.1171906,
+    "ast_hash": "bad5711f64db5c790de5c3025573d759",
+    "semantic_hash": "bad5711f64db5c790de5c3025573d759"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/GridConfig.kt": {
+    "mtime": 1783349900.1186943,
+    "ast_hash": "1a1c248485a14e7e00f232bf1c17f7a2",
+    "semantic_hash": "1a1c248485a14e7e00f232bf1c17f7a2"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/GuidedCalibration.kt": {
+    "mtime": 1783349900.1186943,
+    "ast_hash": "6374ef5ccc3d8d238f0cefcec836fe7d",
+    "semantic_hash": "6374ef5ccc3d8d238f0cefcec836fe7d"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/MapCalibration.kt": {
+    "mtime": 1783349900.119699,
+    "ast_hash": "bd6a701a8b56ee047c6a7cd0e1285564",
+    "semantic_hash": "bd6a701a8b56ee047c6a7cd0e1285564"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/MapDynamicSightlineService.kt": {
+    "mtime": 1787661188.3272238,
+    "ast_hash": "820c7c948239a774068b934d3a64a4c6",
+    "semantic_hash": "820c7c948239a774068b934d3a64a4c6"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/MapServices.kt": {
+    "mtime": 1787664467.9136791,
+    "ast_hash": "e416f49a341bb2d1cf156c3ff5e5a5ea",
+    "semantic_hash": "e416f49a341bb2d1cf156c3ff5e5a5ea"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/TableMapOffset.kt": {
+    "mtime": 1783349900.120699,
+    "ast_hash": "14a002af52f5c07b311acfac46cff35a",
+    "semantic_hash": "14a002af52f5c07b311acfac46cff35a"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/Token.kt": {
+    "mtime": 1787664466.3279939,
+    "ast_hash": "574b76035e77c4dc0694bea733ebd66a",
+    "semantic_hash": "574b76035e77c4dc0694bea733ebd66a"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/TokenFootprints.kt": {
+    "mtime": 1783349900.122203,
+    "ast_hash": "1e3dff332138d305942b56163ea767ed",
+    "semantic_hash": "1e3dff332138d305942b56163ea767ed"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/ui/MapCalibrationDialogs.kt": {
+    "mtime": 1783349900.1232073,
+    "ast_hash": "f7ef5233c8db9df97546c172c599a65b",
+    "semantic_hash": "f7ef5233c8db9df97546c172c599a65b"
+  },
+  "dynamicmap/src/main/kotlin/com/tabletopcontrol/dynamicmap/runtime/ui/MapMeasurementDialogs.kt": {
+    "mtime": 1783349900.1247108,
+    "ast_hash": "34e4b5b04deb2bb2b0073ee01edb57b4",
+    "semantic_hash": "34e4b5b04deb2bb2b0073ee01edb57b4"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/DynamicDarkvisionMaskTest.kt": {
+    "mtime": 1783349900.130026,
+    "ast_hash": "c7e25fdf430afd382fc70d1145ae7984",
+    "semantic_hash": "c7e25fdf430afd382fc70d1145ae7984"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/DynamicLightMaskTest.kt": {
+    "mtime": 1783349900.130026,
+    "ast_hash": "43e202c127f18a9d89e65380715a88c7",
+    "semantic_hash": "43e202c127f18a9d89e65380715a88c7"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/DynamicMapBundleLoaderTest.kt": {
+    "mtime": 1783349900.1310265,
+    "ast_hash": "c357522cc96d123f7c38e92a86b5f3c6",
+    "semantic_hash": "c357522cc96d123f7c38e92a86b5f3c6"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/DynamicSightlineMeshTest.kt": {
+    "mtime": 1783349900.1320257,
+    "ast_hash": "26888ace0574048c8465ccdf25fe06ff",
+    "semantic_hash": "26888ace0574048c8465ccdf25fe06ff"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/EmptyDynamicMapArenaTest.kt": {
+    "mtime": 1787661232.788093,
+    "ast_hash": "720ea635ffce9c73b9263e986ceee0cc",
+    "semantic_hash": "720ea635ffce9c73b9263e986ceee0cc"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/FogOfWarStateTest.kt": {
+    "mtime": 1783349900.1325333,
+    "ast_hash": "f9915fdfeff5631457fe58173eb9ed2d",
+    "semantic_hash": "f9915fdfeff5631457fe58173eb9ed2d"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/GridCalibrationTest.kt": {
+    "mtime": 1783349900.1325333,
+    "ast_hash": "34f17c921bb1db69e1eda33ebe1c6e86",
+    "semantic_hash": "34f17c921bb1db69e1eda33ebe1c6e86"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/GridConfigTest.kt": {
+    "mtime": 1783349900.133534,
+    "ast_hash": "b96a4d23455a3ec1a98351808db76151",
+    "semantic_hash": "b96a4d23455a3ec1a98351808db76151"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/GuidedCalibrationTest.kt": {
+    "mtime": 1783349900.133534,
+    "ast_hash": "ba330cb7c7df0b9f761152024dd9e264",
+    "semantic_hash": "ba330cb7c7df0b9f761152024dd9e264"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapCalibrationServiceTest.kt": {
+    "mtime": 1783349900.1345344,
+    "ast_hash": "48d0988eadc60dd352bacb38ce74709a",
+    "semantic_hash": "48d0988eadc60dd352bacb38ce74709a"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapCalibrationTest.kt": {
+    "mtime": 1783349900.1345344,
+    "ast_hash": "1e1b8d82a7fa6b0d15eb39db15462ae1",
+    "semantic_hash": "1e1b8d82a7fa6b0d15eb39db15462ae1"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapFogOfWarServiceTest.kt": {
+    "mtime": 1783349900.1356423,
+    "ast_hash": "b578a7380ae437c26d126af6bffa0ff4",
+    "semantic_hash": "b578a7380ae437c26d126af6bffa0ff4"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapMeasurementServiceTest.kt": {
+    "mtime": 1783349900.1356423,
+    "ast_hash": "a00efaf0134417f03952c1f7ae3788e7",
+    "semantic_hash": "a00efaf0134417f03952c1f7ae3788e7"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapRendererHelpersTest.kt": {
+    "mtime": 1787664516.466361,
+    "ast_hash": "8602096bfb63fe96896fb7d5fc9137ef",
+    "semantic_hash": "8602096bfb63fe96896fb7d5fc9137ef"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapRendererImageCacheTest.kt": {
+    "mtime": 1783349900.1366444,
+    "ast_hash": "607151ef7e99f8113e27eb296b713c63",
+    "semantic_hash": "607151ef7e99f8113e27eb296b713c63"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapSceneCodecTest.kt": {
+    "mtime": 1783349900.1376452,
+    "ast_hash": "19b8326f480efaab36681b3093cd46e1",
+    "semantic_hash": "19b8326f480efaab36681b3093cd46e1"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapSettingsSerializerTest.kt": {
+    "mtime": 1783349900.1376452,
+    "ast_hash": "462db498c95692e183bf42a529fcda95",
+    "semantic_hash": "462db498c95692e183bf42a529fcda95"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapSettingsServiceTest.kt": {
+    "mtime": 1787661209.8575134,
+    "ast_hash": "eb81b30e6654e600e65768f73eca2169",
+    "semantic_hash": "eb81b30e6654e600e65768f73eca2169"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MapTokenSyncServiceTest.kt": {
+    "mtime": 1787664515.0420463,
+    "ast_hash": "c3e4a0b57c0778eb454d3a4bca31668a",
+    "semantic_hash": "c3e4a0b57c0778eb454d3a4bca31668a"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/MeasurementOverlayTest.kt": {
+    "mtime": 1783349900.1406424,
+    "ast_hash": "2aaf4bfe4510d2b3a39f753a6c7e53e7",
+    "semantic_hash": "2aaf4bfe4510d2b3a39f753a6c7e53e7"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/TokenFootprintsTest.kt": {
+    "mtime": 1783349900.1406424,
+    "ast_hash": "aca5715b14a5799df50b738f875f94df",
+    "semantic_hash": "aca5715b14a5799df50b738f875f94df"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/TokenTest.kt": {
+    "mtime": 1783349900.1406424,
+    "ast_hash": "4eca94926065a2312c03a7f840efce40",
+    "semantic_hash": "4eca94926065a2312c03a7f840efce40"
+  },
+  "dynamicmap/src/test/kotlin/com/tabletopcontrol/dynamicmap/runtime/logic/DynamicMovementReachabilityTest.kt": {
+    "mtime": 1783349900.1421468,
+    "ast_hash": "066631f6415545f325291f369dfc129d",
+    "semantic_hash": "066631f6415545f325291f369dfc129d"
+  },
+  "dynamicmap_builder/build.gradle.kts": {
+    "mtime": 1783349900.1441507,
+    "ast_hash": "02275ae86f6c3aa09f1374e11d237b78",
+    "semantic_hash": "02275ae86f6c3aa09f1374e11d237b78"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapBuilderController.kt": {
+    "mtime": 1783349900.1486545,
+    "ast_hash": "40b55eaae16f1cc7c23d4938fabb73e4",
+    "semantic_hash": "40b55eaae16f1cc7c23d4938fabb73e4"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapBuilderPlugin.kt": {
+    "mtime": 1783349900.1486545,
+    "ast_hash": "f714fa86fe54767235241d8a7fc290f6",
+    "semantic_hash": "f714fa86fe54767235241d8a7fc290f6"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapBuilderView.kt": {
+    "mtime": 1783349900.150156,
+    "ast_hash": "1e7e2a307f2e6b63d3a285bb5485699b",
+    "semantic_hash": "1e7e2a307f2e6b63d3a285bb5485699b"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapCalibration.kt": {
+    "mtime": 1783349900.150156,
+    "ast_hash": "0cca32d15e130e7558a3e413ff581a4f",
+    "semantic_hash": "0cca32d15e130e7558a3e413ff581a4f"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapCalibrationDialogs.kt": {
+    "mtime": 1783349900.1511583,
+    "ast_hash": "542eb19bc6c313e225d67af54d65269d",
+    "semantic_hash": "542eb19bc6c313e225d67af54d65269d"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapConstructionSiteStore.kt": {
+    "mtime": 1783349900.1521583,
+    "ast_hash": "1d36f2a95f3abeb9eb754a1973b3c299",
+    "semantic_hash": "1d36f2a95f3abeb9eb754a1973b3c299"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapConstructionSiteToolbar.kt": {
+    "mtime": 1783349900.1526597,
+    "ast_hash": "d238d618bb239278fe484b9948f33087",
+    "semantic_hash": "d238d618bb239278fe484b9948f33087"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapDraftSerializer.kt": {
+    "mtime": 1783349900.1526597,
+    "ast_hash": "387afc1142320b22118d255a0976ccfa",
+    "semantic_hash": "387afc1142320b22118d255a0976ccfa"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapEvents.kt": {
+    "mtime": 1783349900.1536617,
+    "ast_hash": "5bb6d672d96e52d8b9458aeb77e254cd",
+    "semantic_hash": "5bb6d672d96e52d8b9458aeb77e254cd"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapGameplayExporter.kt": {
+    "mtime": 1783349900.1536617,
+    "ast_hash": "abf87e6946548dc107fec258cf537026",
+    "semantic_hash": "abf87e6946548dc107fec258cf537026"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapGeometry.kt": {
+    "mtime": 1783349900.1546636,
+    "ast_hash": "d413cf99c2dca663508dd79f6cb969c2",
+    "semantic_hash": "d413cf99c2dca663508dd79f6cb969c2"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapLightBrowserPlugin.kt": {
+    "mtime": 1783349900.155664,
+    "ast_hash": "8f425d0be355f2f40aef9cfdf6f98eb5",
+    "semantic_hash": "8f425d0be355f2f40aef9cfdf6f98eb5"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapModel.kt": {
+    "mtime": 1783349900.155664,
+    "ast_hash": "5cd4e31c309fb4172b720a66ed12a1b4",
+    "semantic_hash": "5cd4e31c309fb4172b720a66ed12a1b4"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapOutlineBrowserPlugin.kt": {
+    "mtime": 1783349900.156664,
+    "ast_hash": "48b9ce8d1cfc9eda69adc0733cc98e01",
+    "semantic_hash": "48b9ce8d1cfc9eda69adc0733cc98e01"
+  },
+  "dynamicmap_builder/src/main/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapWallToolsPlugin.kt": {
+    "mtime": 1783349900.157664,
+    "ast_hash": "fd9f4aa9a7690b6b28666309a86e952c",
+    "semantic_hash": "fd9f4aa9a7690b6b28666309a86e952c"
+  },
+  "dynamicmap_builder/src/test/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapConstructionSiteStoreTest.kt": {
+    "mtime": 1783349900.1621687,
+    "ast_hash": "6e473099176e1efd85eee8ce0c17eb00",
+    "semantic_hash": "6e473099176e1efd85eee8ce0c17eb00"
+  },
+  "dynamicmap_builder/src/test/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapDraftSerializerTest.kt": {
+    "mtime": 1783349900.1621687,
+    "ast_hash": "7b3af0b24d1602e9bd2992b0e7861bd5",
+    "semantic_hash": "7b3af0b24d1602e9bd2992b0e7861bd5"
+  },
+  "dynamicmap_builder/src/test/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapGameplayExporterTest.kt": {
+    "mtime": 1783349900.1631715,
+    "ast_hash": "d027f19b75952733dcec97784426190b",
+    "semantic_hash": "d027f19b75952733dcec97784426190b"
+  },
+  "dynamicmap_builder/src/test/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapGeometryTest.kt": {
+    "mtime": 1783349900.1641715,
+    "ast_hash": "e4835da10161ced8e092f9f506d47a34",
+    "semantic_hash": "e4835da10161ced8e092f9f506d47a34"
+  },
+  "dynamicmap_builder/src/test/kotlin/com/tabletopcontrol/dynamicmap/DynamicMapModelTest.kt": {
+    "mtime": 1783349900.1641715,
+    "ast_hash": "c4a763cd18dfbebf9759f7b87c22dcca",
+    "semantic_hash": "c4a763cd18dfbebf9759f7b87c22dcca"
+  },
+  "gradlew": {
+    "mtime": 1772400126.1162686,
+    "ast_hash": "b60a94c7e112b22b5f03b88ba3566178",
+    "semantic_hash": "b60a94c7e112b22b5f03b88ba3566178"
+  },
+  "light/build.gradle.kts": {
+    "mtime": 1774805185.8973396,
+    "ast_hash": "392522ba21a6aa2f18055d0f15fe98cc",
+    "semantic_hash": "392522ba21a6aa2f18055d0f15fe98cc"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightController.kt": {
+    "mtime": 1783349900.1671758,
+    "ast_hash": "6b9a8367628b318f3cce7e6e4913dbc6",
+    "semantic_hash": "6b9a8367628b318f3cce7e6e4913dbc6"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightEffect.kt": {
+    "mtime": 1775213356.015908,
+    "ast_hash": "deb2c69090e0534b59d86367276022d1",
+    "semantic_hash": "deb2c69090e0534b59d86367276022d1"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightOperationResult.kt": {
+    "mtime": 1783349900.1671758,
+    "ast_hash": "fd67e3bb106eaf7e2b138ef61a12a8f8",
+    "semantic_hash": "fd67e3bb106eaf7e2b138ef61a12a8f8"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightPlugin.kt": {
+    "mtime": 1783349900.1686816,
+    "ast_hash": "93416d87e0e0af7dd21c4b3676356d67",
+    "semantic_hash": "93416d87e0e0af7dd21c4b3676356d67"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightSceneCodec.kt": {
+    "mtime": 1783349900.1696856,
+    "ast_hash": "501fbfee8256d68269e9911eab3c1831",
+    "semantic_hash": "501fbfee8256d68269e9911eab3c1831"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightSerialCoordinator.kt": {
+    "mtime": 1783349900.1696856,
+    "ast_hash": "7ac50519dc4e8d4708608496a335dc3d",
+    "semantic_hash": "7ac50519dc4e8d4708608496a335dc3d"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/LightStateSnapshot.kt": {
+    "mtime": 1783349900.1706855,
+    "ast_hash": "647eb59349bf54abfa8f10b816264990",
+    "semantic_hash": "647eb59349bf54abfa8f10b816264990"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/WledSerialSender.kt": {
+    "mtime": 1783349900.1706855,
+    "ast_hash": "a03476021e32db4777bd39a332aaaaf3",
+    "semantic_hash": "a03476021e32db4777bd39a332aaaaf3"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightController.kt": {
+    "mtime": 1783349900.1721892,
+    "ast_hash": "aa8f828c89c787fc863ba44e70662a07",
+    "semantic_hash": "aa8f828c89c787fc863ba44e70662a07"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightJson.kt": {
+    "mtime": 1783349900.1731944,
+    "ast_hash": "8cb86eaff784e82dab4bbd1acc9a637b",
+    "semantic_hash": "8cb86eaff784e82dab4bbd1acc9a637b"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightModels.kt": {
+    "mtime": 1783349900.1731944,
+    "ast_hash": "403514c68668ef0f365b8c070df657eb",
+    "semantic_hash": "403514c68668ef0f365b8c070df657eb"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightPlugin.kt": {
+    "mtime": 1783349900.174698,
+    "ast_hash": "6fefda454d7f5d8ab3eb75fe8fdad316",
+    "semantic_hash": "6fefda454d7f5d8ab3eb75fe8fdad316"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightPreferencesStore.kt": {
+    "mtime": 1783349900.1757028,
+    "ast_hash": "0caeef909cc04435683f595d15effdaa",
+    "semantic_hash": "0caeef909cc04435683f595d15effdaa"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightSegmentSendQueue.kt": {
+    "mtime": 1783349900.1757028,
+    "ast_hash": "5553f3d3f54e77c0f2ccf0caabaae33f",
+    "semantic_hash": "5553f3d3f54e77c0f2ccf0caabaae33f"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightSerialCoordinator.kt": {
+    "mtime": 1783349900.1757028,
+    "ast_hash": "d1c1b7fb2f6146aa2e9d3d6838a717a7",
+    "semantic_hash": "d1c1b7fb2f6146aa2e9d3d6838a717a7"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightDebugConsoleSection.kt": {
+    "mtime": 1783349900.1772058,
+    "ast_hash": "e4fa1303258b37c37dfec093960c2206",
+    "semantic_hash": "e4fa1303258b37c37dfec093960c2206"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightEffectParamsSection.kt": {
+    "mtime": 1783349900.1782103,
+    "ast_hash": "c64a435cbaa1bc5e794c76b943015a65",
+    "semantic_hash": "c64a435cbaa1bc5e794c76b943015a65"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightMainControlsSection.kt": {
+    "mtime": 1783349900.1792114,
+    "ast_hash": "1b4edf99d83058302cf58a9feb667a84",
+    "semantic_hash": "1b4edf99d83058302cf58a9feb667a84"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightOperatorFeedbackPresenter.kt": {
+    "mtime": 1783349900.1792114,
+    "ast_hash": "269a0e163c0b832ee32239488ab1beb6",
+    "semantic_hash": "269a0e163c0b832ee32239488ab1beb6"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightPresetSection.kt": {
+    "mtime": 1783349900.1802106,
+    "ast_hash": "21780052504c34a14a59d291e32a5678",
+    "semantic_hash": "21780052504c34a14a59d291e32a5678"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightSection.kt": {
+    "mtime": 1783349900.1802106,
+    "ast_hash": "e3432c189521a9f24d0f3bbade76ad81",
+    "semantic_hash": "e3432c189521a9f24d0f3bbade76ad81"
+  },
+  "light/src/main/kotlin/com/tabletopcontrol/light/ui/LightSerialSection.kt": {
+    "mtime": 1783349900.1812105,
+    "ast_hash": "08bc7e8448c6768feebee6cde0375e30",
+    "semantic_hash": "08bc7e8448c6768feebee6cde0375e30"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/LightControllerTest.kt": {
+    "mtime": 1783349900.1836054,
+    "ast_hash": "d453512b1569278bab64bcf7f1b88c00",
+    "semantic_hash": "d453512b1569278bab64bcf7f1b88c00"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/LightSceneCodecTest.kt": {
+    "mtime": 1783349900.1836054,
+    "ast_hash": "ffafb9ae55f072fb874b8f43e78a6e6a",
+    "semantic_hash": "ffafb9ae55f072fb874b8f43e78a6e6a"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/WledSerialSenderTest.kt": {
+    "mtime": 1783349900.1846097,
+    "ast_hash": "732a3aa0f59a76ef3f66a6b45680dff6",
+    "semantic_hash": "732a3aa0f59a76ef3f66a6b45680dff6"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightControllerTest.kt": {
+    "mtime": 1783349900.1856098,
+    "ast_hash": "395c64b8ce073db0ee5786e73dc0b901",
+    "semantic_hash": "395c64b8ce073db0ee5786e73dc0b901"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightJsonTest.kt": {
+    "mtime": 1783349900.1866102,
+    "ast_hash": "925b1a07d7570bf440b945f879cc2024",
+    "semantic_hash": "925b1a07d7570bf440b945f879cc2024"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightPreferencesStoreTest.kt": {
+    "mtime": 1783349900.18761,
+    "ast_hash": "69bd95eb4c5dc85612acb79908b5bfbb",
+    "semantic_hash": "69bd95eb4c5dc85612acb79908b5bfbb"
+  },
+  "light/src/test/kotlin/com/tabletopcontrol/light/advanced/AdvancedLightSegmentSendQueueTest.kt": {
+    "mtime": 1783349900.188609,
+    "ast_hash": "a46cf5cbbed8d3de10b2f5dbd57d4182",
+    "semantic_hash": "a46cf5cbbed8d3de10b2f5dbd57d4182"
+  },
+  "map/build.gradle.kts": {
+    "mtime": 1772400126.1172688,
+    "ast_hash": "5719889ead9790c4db3dbe7958ee406a",
+    "semantic_hash": "5719889ead9790c4db3dbe7958ee406a"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapEvents.kt": {
+    "mtime": 1783349900.1906095,
+    "ast_hash": "197be22a6aa240003cec761e72801a8a",
+    "semantic_hash": "197be22a6aa240003cec761e72801a8a"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapOperationModels.kt": {
+    "mtime": 1783349900.1906095,
+    "ast_hash": "52388d3a52874968d369d4dd368cee9b",
+    "semantic_hash": "52388d3a52874968d369d4dd368cee9b"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapPlugin.kt": {
+    "mtime": 1783349900.1921146,
+    "ast_hash": "b3aae7a2ede2bbb9203a0bd92917b51a",
+    "semantic_hash": "b3aae7a2ede2bbb9203a0bd92917b51a"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapRenderer.kt": {
+    "mtime": 1787663314.6605248,
+    "ast_hash": "9080d547782f8a6bd60ac61366ec5a05",
+    "semantic_hash": "9080d547782f8a6bd60ac61366ec5a05"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapSceneCodec.kt": {
+    "mtime": 1783349900.1936257,
+    "ast_hash": "2e871461af5b5c3698c6bd34d4a082e0",
+    "semantic_hash": "2e871461af5b5c3698c6bd34d4a082e0"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapSettingsSerializer.kt": {
+    "mtime": 1783349900.1946301,
+    "ast_hash": "bd080f9a2f8d12e6c820317aec0a3a78",
+    "semantic_hash": "bd080f9a2f8d12e6c820317aec0a3a78"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MapUiController.kt": {
+    "mtime": 1787663313.3198576,
+    "ast_hash": "eae85809563b06d4d17d05ab8273c513",
+    "semantic_hash": "eae85809563b06d4d17d05ab8273c513"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/MeasurementOverlay.kt": {
+    "mtime": 1783349900.1956308,
+    "ast_hash": "bc8ad282bd05f3a52e7e1b064f6c7ff7",
+    "semantic_hash": "bc8ad282bd05f3a52e7e1b064f6c7ff7"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/FogOfWarState.kt": {
+    "mtime": 1783349900.1966307,
+    "ast_hash": "424582c2ca109b67cd4ef0964495a3a7",
+    "semantic_hash": "424582c2ca109b67cd4ef0964495a3a7"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/GridCalibration.kt": {
+    "mtime": 1783349900.1966307,
+    "ast_hash": "3732d6158432de8e4459021adde036d6",
+    "semantic_hash": "3732d6158432de8e4459021adde036d6"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/GridConfig.kt": {
+    "mtime": 1783349900.1976304,
+    "ast_hash": "14cdcecbf343bf6bcfbd796a82393a79",
+    "semantic_hash": "14cdcecbf343bf6bcfbd796a82393a79"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/GuidedCalibration.kt": {
+    "mtime": 1783349900.1986303,
+    "ast_hash": "130efa3b527f8ee79723190c15ac6391",
+    "semantic_hash": "130efa3b527f8ee79723190c15ac6391"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/MapCalibration.kt": {
+    "mtime": 1783349900.1986303,
+    "ast_hash": "082306cbccc7ca39a0250987d08cf3c4",
+    "semantic_hash": "082306cbccc7ca39a0250987d08cf3c4"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/MapServices.kt": {
+    "mtime": 1787663311.944896,
+    "ast_hash": "3289fbdef5fe5cfac46856c687a6779a",
+    "semantic_hash": "3289fbdef5fe5cfac46856c687a6779a"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/TableMapOffset.kt": {
+    "mtime": 1783349900.1996331,
+    "ast_hash": "517f0e1e46a2f87a4030c730016e8ffe",
+    "semantic_hash": "517f0e1e46a2f87a4030c730016e8ffe"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/Token.kt": {
+    "mtime": 1787663310.661575,
+    "ast_hash": "6a7993698eb10581c6706b90033c4d72",
+    "semantic_hash": "6a7993698eb10581c6706b90033c4d72"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/logic/TokenFootprints.kt": {
+    "mtime": 1783349900.200632,
+    "ast_hash": "3f5f12658eb30d8000a67c6c29651e14",
+    "semantic_hash": "3f5f12658eb30d8000a67c6c29651e14"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/ui/MapCalibrationDialogs.kt": {
+    "mtime": 1783349900.2021341,
+    "ast_hash": "82f991c2376f5ab79346afb0a2630b09",
+    "semantic_hash": "82f991c2376f5ab79346afb0a2630b09"
+  },
+  "map/src/main/kotlin/com/tabletopcontrol/map/ui/MapMeasurementDialogs.kt": {
+    "mtime": 1783349900.2021341,
+    "ast_hash": "f9d224bc9816bcdfcc6c523c0c82f4af",
+    "semantic_hash": "f9d224bc9816bcdfcc6c523c0c82f4af"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/FogOfWarStateTest.kt": {
+    "mtime": 1783349900.2041378,
+    "ast_hash": "1d97134720888d930bd3202e745b363a",
+    "semantic_hash": "1d97134720888d930bd3202e745b363a"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/GridCalibrationTest.kt": {
+    "mtime": 1783349900.2051375,
+    "ast_hash": "1b960eba5138eb944445f4279555830c",
+    "semantic_hash": "1b960eba5138eb944445f4279555830c"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/GridConfigTest.kt": {
+    "mtime": 1783349900.2061381,
+    "ast_hash": "70c52e43c6279f9acaf2ff812a4a7ec6",
+    "semantic_hash": "70c52e43c6279f9acaf2ff812a4a7ec6"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/GuidedCalibrationTest.kt": {
+    "mtime": 1783349900.2061381,
+    "ast_hash": "d4687a14d0e500398c4cd4f4700a9b20",
+    "semantic_hash": "d4687a14d0e500398c4cd4f4700a9b20"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapCalibrationServiceTest.kt": {
+    "mtime": 1783349900.2071376,
+    "ast_hash": "9b156f34c382e458b902b1cbaf845e54",
+    "semantic_hash": "9b156f34c382e458b902b1cbaf845e54"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapCalibrationTest.kt": {
+    "mtime": 1783349900.2081378,
+    "ast_hash": "af28f2e7a8aa4e5dbafe0a1719f540a8",
+    "semantic_hash": "af28f2e7a8aa4e5dbafe0a1719f540a8"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapFogOfWarServiceTest.kt": {
+    "mtime": 1783349900.2081378,
+    "ast_hash": "aaa9141f49173b48ed0c4c1307f3e6b9",
+    "semantic_hash": "aaa9141f49173b48ed0c4c1307f3e6b9"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapMeasurementServiceTest.kt": {
+    "mtime": 1783349900.2091386,
+    "ast_hash": "8dc56dfbdc588eb7f58f4d1b9293b468",
+    "semantic_hash": "8dc56dfbdc588eb7f58f4d1b9293b468"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapRendererHelpersTest.kt": {
+    "mtime": 1787663408.1660018,
+    "ast_hash": "d17ba46b33b429d351f76f50180a1af0",
+    "semantic_hash": "d17ba46b33b429d351f76f50180a1af0"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapRendererImageCacheTest.kt": {
+    "mtime": 1783349900.2101383,
+    "ast_hash": "0ea7ebfb3c619c9e70ce264942d6acf2",
+    "semantic_hash": "0ea7ebfb3c619c9e70ce264942d6acf2"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapSceneCodecTest.kt": {
+    "mtime": 1783349900.2101383,
+    "ast_hash": "47e48aabea1c40e3cc3b99d0fc614766",
+    "semantic_hash": "47e48aabea1c40e3cc3b99d0fc614766"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapSettingsSerializerTest.kt": {
+    "mtime": 1783349900.211368,
+    "ast_hash": "ad0ea9b6e71e9a37cda908e9f055ae24",
+    "semantic_hash": "ad0ea9b6e71e9a37cda908e9f055ae24"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapSettingsServiceTest.kt": {
+    "mtime": 1783349900.2123675,
+    "ast_hash": "86cce88b35f2d9054d46a77b371d137f",
+    "semantic_hash": "86cce88b35f2d9054d46a77b371d137f"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MapTokenSyncServiceTest.kt": {
+    "mtime": 1787663406.8259952,
+    "ast_hash": "adaf015d58ab66f895477435b2e28f5e",
+    "semantic_hash": "adaf015d58ab66f895477435b2e28f5e"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/MeasurementOverlayTest.kt": {
+    "mtime": 1783349900.2128744,
+    "ast_hash": "3401889c6aca1919d9d65a191cad5db8",
+    "semantic_hash": "3401889c6aca1919d9d65a191cad5db8"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/TokenFootprintsTest.kt": {
+    "mtime": 1783349900.213876,
+    "ast_hash": "02656a5cd0f7e3914f11aabf2ea78854",
+    "semantic_hash": "02656a5cd0f7e3914f11aabf2ea78854"
+  },
+  "map/src/test/kotlin/com/tabletopcontrol/map/TokenTest.kt": {
+    "mtime": 1783349900.2148755,
+    "ast_hash": "db9bc97da80cac5a6e30736f53fcf337",
+    "semantic_hash": "db9bc97da80cac5a6e30736f53fcf337"
+  },
+  "settings.gradle.kts": {
+    "mtime": 1783349900.2148755,
+    "ast_hash": "30d6b255b1019d274393bf04c26bbc8a",
+    "semantic_hash": "30d6b255b1019d274393bf04c26bbc8a"
+  },
+  "tracker/build.gradle.kts": {
+    "mtime": 1776696382.5978162,
+    "ast_hash": "5719889ead9790c4db3dbe7958ee406a",
+    "semantic_hash": "5719889ead9790c4db3dbe7958ee406a"
+  },
+  "tracker/src/main/kotlin/ImageHandling/ImageHandling.kt": {
+    "mtime": 1783349900.2173767,
+    "ast_hash": "d514f0ce599f2f4783575aac63505da6",
+    "semantic_hash": "d514f0ce599f2f4783575aac63505da6"
+  },
+  "tracker/src/main/kotlin/TrackerPlugin.kt": {
+    "mtime": 1787663225.6108713,
+    "ast_hash": "68f3305dbf915c59e26cce03adefe725",
+    "semantic_hash": "68f3305dbf915c59e26cce03adefe725"
+  },
+  "tracker/src/main/kotlin/model/Actor.kt": {
+    "mtime": 1787663126.9713168,
+    "ast_hash": "cba6dc673b1cfa13979644b4bf6e11ac",
+    "semantic_hash": "cba6dc673b1cfa13979644b4bf6e11ac"
+  },
+  "tracker/src/main/kotlin/model/ActorTracker.kt": {
+    "mtime": 1787663613.4677947,
+    "ast_hash": "122366459fe3868373175784d1366d1e",
+    "semantic_hash": "122366459fe3868373175784d1366d1e"
+  },
+  "tracker/src/main/kotlin/model/Effect.kt": {
+    "mtime": 1787663125.4892967,
+    "ast_hash": "8558d9e6920f4daf24a2be83b109c88e",
+    "semantic_hash": "8558d9e6920f4daf24a2be83b109c88e"
+  },
+  "tracker/src/main/kotlin/preset/ActorPresetService.kt": {
+    "mtime": 1787663271.9036472,
+    "ast_hash": "664bbdfcf88d29df1d941823ad8e6963",
+    "semantic_hash": "664bbdfcf88d29df1d941823ad8e6963"
+  },
+  "tracker/src/main/kotlin/preset/PresetLibrary.kt": {
+    "mtime": 1787663270.6072698,
+    "ast_hash": "96b4b3bcf023aca6ad8e23ed1646d5ba",
+    "semantic_hash": "96b4b3bcf023aca6ad8e23ed1646d5ba"
+  },
+  "tracker/src/main/kotlin/scene/TrackerSceneCodec.kt": {
+    "mtime": 1787663249.7783303,
+    "ast_hash": "37f29ee24317c5fe7063c61765776a32",
+    "semantic_hash": "37f29ee24317c5fe7063c61765776a32"
+  },
+  "tracker/src/main/kotlin/ui/ActorEffectsDialog.kt": {
+    "mtime": 1787663561.1411111,
+    "ast_hash": "dac1b8e048aca6918c41372c35b80ce2",
+    "semantic_hash": "dac1b8e048aca6918c41372c35b80ce2"
+  },
+  "tracker/src/main/kotlin/ui/ActorFeaturesDialog.kt": {
+    "mtime": 1783349900.223395,
+    "ast_hash": "b23b0f2c529cc99a419b5be5f883d1aa",
+    "semantic_hash": "b23b0f2c529cc99a419b5be5f883d1aa"
+  },
+  "tracker/src/main/kotlin/ui/ActorPresetLibraryDialog.kt": {
+    "mtime": 1783349900.2243967,
+    "ast_hash": "125067e982a97824f11bd6d26406669b",
+    "semantic_hash": "125067e982a97824f11bd6d26406669b"
+  },
+  "tracker/src/main/kotlin/ui/AddActorDialog.kt": {
+    "mtime": 1783349900.2253957,
+    "ast_hash": "f32bea8818b19763143ed64c8f242a71",
+    "semantic_hash": "f32bea8818b19763143ed64c8f242a71"
+  },
+  "tracker/src/main/kotlin/ui/InitiativeTieDialog.kt": {
+    "mtime": 1783349900.2253957,
+    "ast_hash": "83c128c0bfc3821928fec0e3f31e682d",
+    "semantic_hash": "83c128c0bfc3821928fec0e3f31e682d"
+  },
+  "tracker/src/main/kotlin/web/PlayerWebServer.kt": {
+    "mtime": 1787663339.2686489,
+    "ast_hash": "81d9695a19fe726cc67a7228aa4f3430",
+    "semantic_hash": "81d9695a19fe726cc67a7228aa4f3430"
+  },
+  "tracker/src/test/kotlin/com/tabletopcontrol/new_tracker/model/ActorTrackerTest.kt": {
+    "mtime": 1787663370.1547048,
+    "ast_hash": "a15f823ff9a216a363e994f0bf0c12e3",
+    "semantic_hash": "a15f823ff9a216a363e994f0bf0c12e3"
+  },
+  "tracker/src/test/kotlin/com/tabletopcontrol/new_tracker/preset/ActorPresetServiceTest.kt": {
+    "mtime": 1783349900.2309048,
+    "ast_hash": "798c7f5514174e6b04b72d48248757ae",
+    "semantic_hash": "798c7f5514174e6b04b72d48248757ae"
+  },
+  "tracker/src/test/kotlin/com/tabletopcontrol/new_tracker/preset/PresetLibraryTest.kt": {
+    "mtime": 1783349900.2309048,
+    "ast_hash": "45530d6292d9f8bf81a797a3b8772cda",
+    "semantic_hash": "45530d6292d9f8bf81a797a3b8772cda"
+  },
+  "tracker/src/test/kotlin/com/tabletopcontrol/new_tracker/scene/TrackerSceneCodecTest.kt": {
+    "mtime": 1787663371.461819,
+    "ast_hash": "de100a6047a64ac6d7d34323af887a52",
+    "semantic_hash": "de100a6047a64ac6d7d34323af887a52"
+  },
+  "tracker/src/test/kotlin/com/tabletopcontrol/new_tracker/web/PlayerWebServerTest.kt": {
+    "mtime": 1787663409.5234342,
+    "ast_hash": "40e4eef4851204bb7f244682dcb7d75e",
+    "semantic_hash": "40e4eef4851204bb7f244682dcb7d75e"
+  }
+}
