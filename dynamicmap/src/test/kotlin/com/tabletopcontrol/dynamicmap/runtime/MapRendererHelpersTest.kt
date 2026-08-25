@@ -1,5 +1,6 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
+import com.tabletopcontrol.core.TokenEffect
 import com.tabletopcontrol.dynamicmap.runtime.logic.DynamicSightlineMesh
 import com.tabletopcontrol.dynamicmap.runtime.logic.TableMapOffset
 import javafx.scene.paint.Color
@@ -70,5 +71,20 @@ class MapRendererHelpersTest {
         assertNotNull(remembered)
         assertFalse(remembered!!.containsPoint(1.0, 1.0))
         assertTrue(remembered.containsPoint(3.0, 1.0))
+    }
+
+    @Test
+    fun `player renderer hides DM-only token effects`() {
+        val publicEffect = TokenEffect(id = "public", name = "Blessed", visibleToPlayers = true)
+        val privateEffect = TokenEffect(id = "private", name = "Secret mark", visibleToPlayers = false)
+
+        assertEquals(
+            listOf(publicEffect),
+            effectsVisibleToRenderer(listOf(publicEffect, privateEffect), showDmOnlyEffects = false),
+        )
+        assertEquals(
+            listOf(publicEffect, privateEffect),
+            effectsVisibleToRenderer(listOf(publicEffect, privateEffect), showDmOnlyEffects = true),
+        )
     }
 }

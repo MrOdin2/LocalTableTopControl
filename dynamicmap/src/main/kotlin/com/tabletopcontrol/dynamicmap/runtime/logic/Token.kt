@@ -1,6 +1,7 @@
 package com.tabletopcontrol.dynamicmap.runtime.logic
 
 import com.tabletopcontrol.core.TokenLightSource
+import com.tabletopcontrol.core.TokenEffect
 import com.tabletopcontrol.core.TokenSize
 import javafx.scene.paint.Color
 
@@ -47,4 +48,5 @@ data class Token(
     val imageScaleY: Double = 1.0,
     val imageOffsetX: Double = 0.0,
     val imageOffsetY: Double = 0.0,
+    val effects: List<TokenEffect> = emptyList(),
 )

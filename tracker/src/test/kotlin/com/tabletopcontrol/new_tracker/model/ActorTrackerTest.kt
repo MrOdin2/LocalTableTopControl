@@ -2,6 +2,8 @@ package com.tabletopcontrol.new_tracker.model
 
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenEffect
+import com.tabletopcontrol.core.TokenEffectsChangedEvent
 import com.tabletopcontrol.core.TokenMovementBudgetChangedEvent
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.AfterEach
@@ -309,6 +311,73 @@ class ActorTrackerTest {
             ),
             movementEvents.last(),
         )
+    }
+
+    @Test
+    fun `changing actor effects publishes a token effect event`() {
+        val tracker = ActorTracker()
+        val actor = Actor(id = "goblin", name = "Goblin")
+        tracker.addActor(actor)
+        val events = mutableListOf<TokenEffectsChangedEvent>()
+        EventBus.subscribe<TokenEffectsChangedEvent> { events += it }
+
+        val effect = Effect(
+            id = "poisoned",
+            name = "Poisoned",
+            icon = "☠",
+            durationRounds = 2,
+            visibleToPlayers = false,
+        )
+        val changed = tracker.addActorEffect(actor.id, effect)
+
+        assertEquals(true, changed)
+        assertEquals(listOf(effect), tracker.findActor(actor.id)?.effects)
+        assertEquals(
+            TokenEffectsChangedEvent(
+                tokenId = actor.id,
+                effects = listOf(
+                    TokenEffect(
+                        id = "poisoned",
+                        name = "Poisoned",
+                        icon = "☠",
+                        durationRounds = 2,
+                        visibleToPlayers = false,
+                    ),
+                ),
+            ),
+            events.single(),
+        )
+    }
+
+    @Test
+    fun `NEXT decrements timed effects when it starts a new round`() {
+        val tracker = ActorTracker()
+        tracker.addActor(
+            Actor(
+                id = "hero",
+                name = "Hero",
+                initiative = 15,
+                effects = listOf(
+                    Effect(id = "bless", name = "Blessed", icon = "✦", durationRounds = 2),
+                    Effect(id = "mark", name = "Marked"),
+                ),
+            ),
+        )
+        tracker.addActor(Actor(id = "guard", name = "Guard", initiative = 10))
+        val effectEvents = mutableListOf<TokenEffectsChangedEvent>()
+        EventBus.subscribe<TokenEffectsChangedEvent> { effectEvents += it }
+
+        tracker.next()
+        assertEquals(2, tracker.findActor("hero")?.effects?.first { it.id == "bless" }?.durationRounds)
+
+        tracker.next()
+        assertEquals(1, tracker.findActor("hero")?.effects?.first { it.id == "bless" }?.durationRounds)
+        assertEquals(1, effectEvents.size)
+
+        tracker.next()
+        tracker.next()
+        assertEquals(listOf("mark"), tracker.findActor("hero")?.effects?.map(Effect::id))
+        assertEquals(2, effectEvents.size)
     }
 
     private fun actor(name: String, initiative: Int?): Actor =

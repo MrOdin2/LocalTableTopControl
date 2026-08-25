@@ -175,3 +175,46 @@ data class TokenImageChangedEvent(
     val imageOffsetX: Double = 0.0,
     val imageOffsetY: Double = 0.0,
 )
+
+/**
+ * Display information for a status effect attached to a token.
+ *
+ * Tracker-like plugins own the full effect record, including any private notes. Map-like
+ * plugins receive this intentionally small projection so they can render an icon without
+ * depending on a tracker implementation.
+ */
+data class TokenEffect(
+    val id: String,
+    val name: String,
+    val icon: String? = null,
+    val durationRounds: Int? = null,
+    val visibleToPlayers: Boolean = true,
+) {
+    init {
+        require(name.isNotBlank()) { "Token effect name cannot be blank." }
+        require(durationRounds == null || durationRounds > 0) {
+            "Token effect duration must be positive when present."
+        }
+    }
+}
+
+/**
+ * Published whenever a token's status effects change.
+ *
+ * The map uses the stable [tokenId] to update its local visual state. Effects marked
+ * [TokenEffect.visibleToPlayers] false remain available to the DM renderer but are not
+ * rendered by player-facing map instances.
+ */
+data class TokenEffectsChangedEvent(
+    val tokenId: String,
+    val effects: List<TokenEffect>,
+)
+
+/**
+ * Requests tracker-like plugins to replay their current effect state.
+ *
+ * Map scene restoration resets its token cache after tracker scene restoration, so this
+ * request lets the tracker republish the authoritative effect display state without a direct
+ * dependency between the two plugins.
+ */
+class TokenEffectsReplayRequestedEvent

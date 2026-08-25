@@ -147,6 +147,7 @@
             <li><a href="#token-color">Colour Sync</a></li>
             <li><a href="#token-size">Size Sync</a></li>
             <li><a href="#token-image">Token Images</a></li>
+            <li><a href="#token-effects">Status Effects</a></li>
             <li><a href="#token-placement">Positioning Tokens</a></li>
             <li><a href="#token-removal">Removing Tokens</a></li>
             <li><a href="#token-names">Showing Token Names</a></li>
@@ -181,7 +182,7 @@
       </p>
       <p>
         The link between them is <strong>one-way</strong>: the Tracker publishes information
-        (combatant added, moved, image changed, removed) and the active map runtime listens and updates the
+        (combatant added, moved, image changed, effects changed, removed) and the active map runtime listens and updates the
         table screen accordingly. You control everything from the Tracker side.
       </p>
     </section>
@@ -194,7 +195,7 @@
       </p>
       <ul>
         <li>Map image, calibration, token positions, fog of war, and open DynamicMap doors.</li>
-        <li>Tracker actors with their live HP, AC, initiative, and token settings.</li>
+        <li>Tracker actors with their live HP, AC, initiative, token settings, and active effects.</li>
         <li>Music tracks and volume settings.</li>
         <li>Soundboard button assignments and order.</li>
         <li>Ambient light colour, effect, speed, intensity, and brightness.</li>
@@ -298,6 +299,25 @@
         or rectangular images work too — the circular clip just crops the edges.
       </div>
 
+      <h3 id="token-effects">Status Effects</h3>
+      <p>
+        Effects added through an actor's <strong>Effects</strong> button in Tracker appear as small
+        icon markers beside that actor's token in both Map and DynamicMap. The Tracker remains the source of truth: editing,
+        removing, or expiring an effect updates the map immediately without any manual token work.
+      </p>
+      <div class="flow">
+        <div class="step">Add or edit effect in Tracker</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Map refreshes its token marker</div>
+        <div class="arrow">&rarr;</div>
+        <div class="step">Player table shows shared effects</div>
+      </div>
+      <p>
+        Effects marked <strong>DM only</strong> stay visible on either DM minimap but are never drawn on
+        either player-facing table screen. Timed effects count down at the beginning of each new round
+        when the DM advances <strong>NEXT</strong>, and scenes restore the effects with their actors.
+      </p>
+
       <h3 id="token-placement">Positioning Tokens on the Map</h3>
       <p>
         Token positions are managed through the <strong>minimap</strong> on the DM panel of the
@@ -344,7 +364,7 @@
       <h2>DynamicMap Runtime</h2>
       <p>
         DynamicMap receives the same tracker token events as the standard Map plugin. Combatants,
-        token colours, token sizes, token images, active-turn highlighting, and token removal stay
+        token colours, token sizes, token images, status effects, active-turn highlighting, and token removal stay
         synchronized through the shared event bus.
       </p>
       <p>

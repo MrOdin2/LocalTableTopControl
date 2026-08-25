@@ -3,6 +3,8 @@ package com.tabletopcontrol.dynamicmap.runtime
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenEffect
+import com.tabletopcontrol.core.TokenEffectsChangedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMoveDirection
 import com.tabletopcontrol.core.TokenMoveRequestedEvent
@@ -88,6 +90,24 @@ class MapTokenSyncServiceTest {
 
         assertEquals(1, publishedMoves.size)
         assertEquals(TokenMovedEvent("1", "Goblin", 2, 2), publishedMoves.single())
+    }
+
+    @Test
+    fun `token effects are retained and replayed with token state`() {
+        val service = MapTokenSyncService()
+        val effects = listOf(
+            TokenEffect(id = "unconscious", name = "Unconscious", icon = "☾", durationRounds = 2),
+        )
+        EventBus.publish(TokenAddedEvent("1", "Goblin", Color.RED))
+        EventBus.publish(TokenEffectsChangedEvent("1", effects))
+        val replayedEffects = mutableListOf<TokenEffectsChangedEvent>()
+        EventBus.subscribe<TokenEffectsChangedEvent> { replayedEffects += it }
+
+        service.replayState()
+        service.dispose()
+
+        assertEquals(effects, service.snapshotTokens().single().effects)
+        assertEquals(listOf(TokenEffectsChangedEvent("1", effects)), replayedEffects)
     }
 
     @Test
