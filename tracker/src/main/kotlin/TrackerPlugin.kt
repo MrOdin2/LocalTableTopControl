@@ -4,6 +4,7 @@ import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenSize
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.TokenMovementDashRequestedEvent
+import com.tabletopcontrol.core.TokenEffectsReplayRequestedEvent
 import com.tabletopcontrol.core.scene.SceneParticipant
 import com.tabletopcontrol.core.ui.InputHelpers
 import com.tabletopcontrol.core.ui.InputHelpers.Companion.allowOnlyNonNegativeIntegers
@@ -18,6 +19,7 @@ import com.tabletopcontrol.new_tracker.scene.TrackerSceneCodec
 import com.tabletopcontrol.new_tracker.preset.ActorPresetService
 import com.tabletopcontrol.new_tracker.ui.ActorPresetLibraryDialog
 import com.tabletopcontrol.new_tracker.ui.ActorFeaturesDialog
+import com.tabletopcontrol.new_tracker.ui.ActorEffectsDialog
 import com.tabletopcontrol.new_tracker.ui.AddActorDialog
 import com.tabletopcontrol.new_tracker.ui.InitiativeTieDialog
 import com.tabletopcontrol.new_tracker.web.PlayerWebServer
@@ -37,6 +39,7 @@ import javafx.scene.control.TextField
 import javafx.scene.control.ToggleGroup
 import javafx.scene.control.Tooltip
 import javafx.scene.layout.HBox
+import javafx.scene.layout.FlowPane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.Region
 import javafx.scene.layout.VBox
@@ -55,6 +58,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
     private val presetService = ActorPresetService(actorTracker)
     private val addActorDialog = AddActorDialog(actorTracker)
     private val actorFeaturesDialog = ActorFeaturesDialog()
+    private val actorEffectsDialog = ActorEffectsDialog()
     private val presetLibraryDialog = ActorPresetLibraryDialog(presetService)
     private val initiativeTieDialog = InitiativeTieDialog()
     private val webServer = PlayerWebServer(actorTracker)
@@ -66,6 +70,9 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             if (actor?.actorType == ActorType.NPC) {
                 actorTracker.dashActorMovement(actor.id)
             }
+        }
+        subscriptions += EventBus.subscribe<TokenEffectsReplayRequestedEvent> {
+            actorTracker.replayTokenEffects()
         }
     }
 
@@ -280,6 +287,20 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             onRefresh = { refreshActorList(actorList) },
         )
 
+        val effectsButton = Button("Effects (${actor.effects.size})").apply {
+            tooltip = Tooltip("Add, edit, or remove this actor's active effects")
+            setOnAction {
+                val owner = scene?.window
+                actorTracker.findActor(actor.id)?.let { currentActor ->
+                    val updatedEffects = actorEffectsDialog.show(owner, currentActor) ?: return@let
+                    if (updatedEffects != currentActor.effects) {
+                        actorTracker.setActorEffects(currentActor.id, updatedEffects)
+                        refreshActorList(actorList)
+                    }
+                }
+            }
+        }
+
         val saveButton = Button("SAVE").apply {
             tooltip = Tooltip("Save this actor as a preset")
             setOnAction {
@@ -303,6 +324,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             InputHelpers.labeledField("Initiative", initiativeField),
             pictureButton,
             saveButton,
+            effectsButton,
             actorFeatureSummary(actor),
         ).apply {
             alignment = Pos.CENTER_LEFT
@@ -311,7 +333,7 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
         val borderStyle =
         if (actor.id == actorTracker.getCurrentActor()?.id) "-tc-card-active-border" else "-tc-card-border"
 
-        return VBox(8.0, header, stats).apply {
+        return VBox(8.0, header, stats, actorEffectBadges(actor)).apply {
             padding = Insets(12.0)
             style = """
                 -fx-background-color: -tc-surface;
@@ -323,9 +345,10 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             Tooltip.install(
                 this,
                 Tooltip(
-                    "Right-click to change actor features, type, or token size. " +
+                        "Right-click to change actor features, type, or token size. " +
                         "Current: ${actor.actorType.shortLabel}, ${actor.tokenSize.menuLabel}, " +
-                        actor.features.summaryText,
+                        actor.features.summaryText +
+                        ". Effects: " + actor.effects.joinToString { it.badgeText }.ifBlank { "none" },
                 ),
             )
             setOnContextMenuRequested { event ->
@@ -353,6 +376,29 @@ class TrackerPlugin : DmPlugin, SceneParticipant {
             isManaged = actor.features.hasAny
             style = "-fx-text-fill: -tc-text-muted;"
             Tooltip.install(this, Tooltip(actor.features.summaryText))
+        }
+
+    private fun actorEffectBadges(actor: Actor): FlowPane =
+        FlowPane(6.0, 6.0).apply {
+            isVisible = actor.effects.isNotEmpty()
+            isManaged = actor.effects.isNotEmpty()
+            children.setAll(
+                actor.effects.map { effect ->
+                    Label(effect.badgeText).apply {
+                        style = "-fx-background-color: -tc-bg; -fx-text-fill: -tc-text; " +
+                            "-fx-background-radius: 10; -fx-padding: 2 7 2 7; -fx-font-size: 11px;"
+                        tooltip = Tooltip(
+                            buildString {
+                                append(effect.name)
+                                append(" — ")
+                                append(effect.durationLabel)
+                                if (!effect.visibleToPlayers) append(" — DM only")
+                                effect.description?.let { append("\n$it") }
+                            },
+                        )
+                    }
+                },
+            )
         }
 
     private fun buildActorContextMenu(

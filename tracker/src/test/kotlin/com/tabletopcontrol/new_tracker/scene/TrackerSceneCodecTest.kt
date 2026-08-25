@@ -8,6 +8,7 @@ import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.ActorImageSettings
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
+import com.tabletopcontrol.new_tracker.model.Effect
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -33,6 +34,16 @@ class TrackerSceneCodecTest {
                             brightRange = DistanceRange(20, DistanceUnit.FEET),
                             dimRange = DistanceRange(12, DistanceUnit.METERS),
                             color = Color.web("#FFD37A"),
+                        ),
+                    ),
+                    effects = listOf(
+                        Effect(
+                            id = "effect-1",
+                            name = "Poisoned",
+                            icon = "☠",
+                            durationRounds = 3,
+                            description = "Disadvantage on attacks",
+                            visibleToPlayers = false,
                         ),
                     ),
                     color = Color.DARKRED,
@@ -85,7 +96,7 @@ class TrackerSceneCodecTest {
 
         val serialized = TrackerSceneCodec.serialize(state)
 
-        assertTrue(serialized.contains("version=5"))
+        assertTrue(serialized.contains("version=6"))
         assertTrue(serialized.contains("actor.0.name=Goblin Boss"))
         assertTrue(serialized.contains("actor.0.actorType=PC"))
         assertTrue(serialized.contains("actor.0.darkvisionRange=60"))
@@ -94,6 +105,7 @@ class TrackerSceneCodecTest {
         assertTrue(serialized.contains("actor.0.lightDimUnit=METERS"))
         assertTrue(serialized.contains("actor.0.lightColor=\\#FFD37A"))
         assertTrue(serialized.contains("actor.0.imageUri=file\\:///tokens/goblin.png"))
+        assertTrue(serialized.contains("actor.0.effects.count=0"))
     }
 
     @Test

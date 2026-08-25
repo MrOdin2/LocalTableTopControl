@@ -13,6 +13,7 @@ import com.tabletopcontrol.new_tracker.model.ActorType
 import com.tabletopcontrol.new_tracker.model.DEFAULT_LIGHT_SOURCE_COLOR
 import com.tabletopcontrol.new_tracker.model.DistanceRange
 import com.tabletopcontrol.new_tracker.model.DistanceUnit
+import com.tabletopcontrol.new_tracker.model.Effect
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -50,6 +51,7 @@ object PresetLibrary {
         val tokenSize: TokenSize = TokenSize.MEDIUM,
         val actorType: ActorType = ActorType.NPC,
         val features: ActorFeatures = ActorFeatures(),
+        val effects: List<Effect> = emptyList(),
         val folder: String = "",
         val imageUri: String? = null,
         val imageBase64: String? = null,
@@ -241,6 +243,16 @@ object PresetLibrary {
             appendLine("lightDimUnit=${source.dimRange.unit.name}")
             appendLine("lightColor=${ColorHexCodec.colorToHex(source.color)}")
         }
+        appendLine("effects.count=${preset.effects.size}")
+        preset.effects.forEachIndexed { index, effect ->
+            val prefix = "effect.$index"
+            appendLine("$prefix.id=${effect.id}")
+            appendLine("$prefix.name=${effect.name.replace('\n', ' ').replace('\r', ' ')}")
+            effect.icon?.let { appendLine("$prefix.icon=${it.replace('\n', ' ').replace('\r', ' ')}") }
+            effect.durationRounds?.let { appendLine("$prefix.durationRounds=$it") }
+            effect.description?.let { appendLine("$prefix.description=${it.replace('\n', ' ').replace('\r', ' ')}") }
+            appendLine("$prefix.visibleToPlayers=${effect.visibleToPlayers}")
+        }
         preset.imageUri?.let { appendLine("imageUri=$it") }
         appendLine("imageScaleX=${preset.imageScaleX}")
         appendLine("imageScaleY=${preset.imageScaleY}")
@@ -278,6 +290,7 @@ object PresetLibrary {
                 movementRange = readDistanceRange(props, "movement"),
                 lightSource = readLightSource(props),
             ),
+            effects = readEffects(props),
             imageUri = props["imageUri"]?.takeIf { it.isNotBlank() },
             imageBase64 = props["imageBase64"]?.takeIf { it.isNotBlank() },
             imageScaleX = props["imageScaleX"]?.toDoubleOrNull() ?: 1.0,
@@ -300,6 +313,27 @@ object PresetLibrary {
         )
     }
 
+    private fun readEffects(props: Map<String, String>): List<Effect> {
+        val count = props["effects.count"]?.toIntOrNull()?.coerceIn(0, MAX_EFFECTS_PER_PRESET) ?: return emptyList()
+        return buildList {
+            for (index in 0 until count) {
+                val prefix = "effect.$index"
+                val name = props["$prefix.name"]?.trim()?.takeIf(String::isNotEmpty) ?: continue
+                add(
+                    Effect(
+                        id = props["$prefix.id"]?.takeIf(String::isNotBlank)
+                            ?: java.util.UUID.randomUUID().toString(),
+                        name = name,
+                        icon = props["$prefix.icon"]?.takeIf(String::isNotBlank),
+                        durationRounds = props["$prefix.durationRounds"]?.toIntOrNull()?.takeIf { it > 0 },
+                        description = props["$prefix.description"]?.takeIf(String::isNotBlank),
+                        visibleToPlayers = props["$prefix.visibleToPlayers"]?.toBooleanStrictOrNull() ?: true,
+                    ),
+                )
+            }
+        }
+    }
+
     private fun readDistanceRange(
         props: Map<String, String>,
         key: String,
@@ -311,6 +345,8 @@ object PresetLibrary {
         val unit = DistanceUnit.fromPersistence(props["${key}Unit"])
         return DistanceRange(amount = amount, unit = unit)
     }
+
+    private const val MAX_EFFECTS_PER_PRESET = 100
 
     internal fun loadAndScaleImage(
         uri: String,

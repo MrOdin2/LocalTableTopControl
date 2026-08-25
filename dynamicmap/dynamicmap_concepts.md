@@ -137,6 +137,11 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   it has focus. During a token drag, the request is deferred until mouse release so the NPC Dash
   overlay anchors at the dropped position. Tracker applies the request as an NPC-only Dash by adding
   the actor's normal movement to the current round budget.
+- Tracker effects are published through `TokenEffectsChangedEvent`. DynamicMap stores the display
+  projection with each token and draws up to four compact effect icons beside fully visible tokens.
+  The DM minimap shows all effects; the player-facing table view filters out effects marked DM-only.
+  DynamicMap requests an effect replay after restoring its token scene state so Tracker remains the
+  single source of truth for effect persistence.
 
 ### Standard Map Feature Parity
 
@@ -145,7 +150,7 @@ standard map feature parity, scene persistence, or cross-plugin expectations.
   - grid visibility and colour
   - grid calibration
   - fog of war paint, erase, reveal-all, and hide-all
-  - tracker token sync, token dragging, token image rendering, and token names
+  - tracker token sync, token dragging, token image rendering, token names, and status-effect icons
   - measurement overlays with line, cone, rectangle, circle, units, labels, and table mirroring
   - whole-table map nudge and center controls
   - scene capture and restore

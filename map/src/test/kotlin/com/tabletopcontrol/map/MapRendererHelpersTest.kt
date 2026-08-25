@@ -1,5 +1,6 @@
 package com.tabletopcontrol.map
 
+import com.tabletopcontrol.core.TokenEffect
 import com.tabletopcontrol.map.logic.TableMapOffset
 import javafx.scene.paint.Color
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -46,5 +47,20 @@ class MapRendererHelpersTest {
         assertNotEquals(base.hue, outline.hue)
         assertTrue(outline.opacity < base.opacity)
         assertTrue(outline.opacity in 0.22..0.5)
+    }
+
+    @Test
+    fun `player renderer hides DM-only token effects`() {
+        val publicEffect = TokenEffect(id = "public", name = "Blessed", visibleToPlayers = true)
+        val privateEffect = TokenEffect(id = "private", name = "Secret mark", visibleToPlayers = false)
+
+        assertEquals(
+            listOf(publicEffect),
+            effectsVisibleToRenderer(listOf(publicEffect, privateEffect), showDmOnlyEffects = false),
+        )
+        assertEquals(
+            listOf(publicEffect, privateEffect),
+            effectsVisibleToRenderer(listOf(publicEffect, privateEffect), showDmOnlyEffects = true),
+        )
     }
 }

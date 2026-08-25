@@ -9,11 +9,14 @@ import javafx.scene.text.TextAlignment
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenEffect
+import com.tabletopcontrol.core.TokenEffectsChangedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenMovedEvent
 import com.tabletopcontrol.core.TokenRemovedEvent
 import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.persistence.LocalFiles
+import com.tabletopcontrol.core.ui.color.ColorContrast
 import com.tabletopcontrol.map.logic.FogOfWarState
 import com.tabletopcontrol.map.logic.GridCalibration
 import com.tabletopcontrol.map.logic.GridConfig
@@ -173,6 +176,9 @@ class MapRenderer(private val canvas: Canvas) {
     /** Whether DM-only measurement overlays should be rendered on this renderer instance. */
     var showDmOnlyMeasurements: Boolean = true
 
+    /** Whether effects marked DM-only should be drawn by this renderer instance. */
+    var showDmOnlyTokenEffects: Boolean = true
+
     /** Current list of tokens to draw on the map. */
     private val tokens = mutableListOf<Token>()
 
@@ -300,6 +306,13 @@ class MapRenderer(private val canvas: Canvas) {
                 imageCache.remove(uri)
             }
             redraw()
+        }
+        subscriptions += EventBus.subscribe<TokenEffectsChangedEvent> { event ->
+            val index = tokens.indexOfFirst { it.id == event.tokenId }
+            if (index >= 0) {
+                tokens[index] = tokens[index].copy(effects = event.effects.toList())
+                redraw()
+            }
         }
         subscriptions += EventBus.subscribe<TokenMovedEvent> { event ->
             val idx = tokens.indexOfFirst { it.id == event.id }
@@ -768,6 +781,10 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.restore()
             }
 
+            if (!isPartiallyHidden) {
+                drawTokenEffects(token, drawBounds)
+            }
+
             if (showTokenNames && token.name.isNotBlank() && !isPartiallyHidden) {
                 val tokenNameFont = Font.font(
                     (cellPx * token.size.footprintTiles * TOKEN_NAME_FONT_SCALE)
@@ -785,6 +802,35 @@ class MapRenderer(private val canvas: Canvas) {
                 gc.fillText(token.name, drawBounds.centerX, textY)
             }
         }
+    }
+
+    /** Draws compact effect markers at the top edge of a fully visible token. */
+    private fun drawTokenEffects(
+        token: Token,
+        drawBounds: com.tabletopcontrol.map.logic.TokenDrawBounds,
+    ) {
+        val effects = effectsVisibleToRenderer(token.effects, showDmOnlyTokenEffects)
+        if (effects.isEmpty()) return
+
+        val badgeDiameter = (drawBounds.size * EFFECT_BADGE_SIZE_SCALE).coerceAtLeast(MIN_EFFECT_BADGE_SIZE)
+        val iconFont = Font.font((badgeDiameter * EFFECT_ICON_FONT_SCALE).coerceAtLeast(MIN_EFFECT_ICON_FONT_SIZE))
+        gc.save()
+        gc.textAlign = TextAlignment.CENTER
+        effects.take(MAX_EFFECT_BADGES_PER_TOKEN).forEachIndexed { index, effect ->
+            val centerX = drawBounds.right - badgeDiameter / 2.0 - index * badgeDiameter * EFFECT_BADGE_OVERLAP
+            val centerY = drawBounds.top + badgeDiameter / 2.0
+            gc.fill = token.color
+            gc.fillOval(
+                centerX - badgeDiameter / 2.0,
+                centerY - badgeDiameter / 2.0,
+                badgeDiameter,
+                badgeDiameter,
+            )
+            gc.fill = Color.web(ColorContrast.textColorHexForBackground(token.color))
+            gc.font = iconFont
+            gc.fillText(effect.displayIcon(), centerX, centerY + iconFont.size * EFFECT_ICON_BASELINE_OFFSET)
+        }
+        gc.restore()
     }
 
     /** Draws measurement overlays (line, cone, rectangle, circle) above tokens. */
@@ -1056,6 +1102,13 @@ class MapRenderer(private val canvas: Canvas) {
         private const val TOKEN_NAME_SHADOW_OFFSET = 1.0
         private const val ACTIVE_TOKEN_OUTLINE_WIDTH_SCALE = 0.10
         private const val TOKEN_OUTLINE_WIDTH_SCALE = 0.025
+        private const val EFFECT_BADGE_SIZE_SCALE = 0.28
+        private const val EFFECT_BADGE_OVERLAP = 0.72
+        private const val MIN_EFFECT_BADGE_SIZE = 10.0
+        private const val EFFECT_ICON_FONT_SCALE = 0.58
+        private const val MIN_EFFECT_ICON_FONT_SIZE = 7.0
+        private const val EFFECT_ICON_BASELINE_OFFSET = 0.34
+        private const val MAX_EFFECT_BADGES_PER_TOKEN = 4
         private const val MEASUREMENT_FILL_OPACITY = 0.18
         private const val DEFAULT_MEASUREMENT_CELL_SIZE_IN_UNITS = 5.0
         private const val TABLE_VIEWPORT_OUTLINE_LINE_WIDTH = 1.5
@@ -1105,3 +1158,13 @@ internal fun tableViewportOutlineColor(base: Color): Color {
     val opacity = (base.opacity * 0.75).coerceIn(0.22, 0.5)
     return Color.hsb(shiftedHue, saturation, brightness, opacity)
 }
+
+/** Filters effect markers for a DM or player-facing map renderer. */
+internal fun effectsVisibleToRenderer(
+    effects: List<TokenEffect>,
+    showDmOnlyEffects: Boolean,
+): List<TokenEffect> =
+    if (showDmOnlyEffects) effects else effects.filter(TokenEffect::visibleToPlayers)
+
+private fun TokenEffect.displayIcon(): String =
+    icon?.trim()?.takeIf(String::isNotEmpty) ?: name.trim().take(1).uppercase()

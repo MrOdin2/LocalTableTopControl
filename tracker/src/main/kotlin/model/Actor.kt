@@ -13,6 +13,7 @@ data class Actor(
     val tokenSize: TokenSize = TokenSize.MEDIUM,
     val actorType: ActorType = ActorType.NPC,
     val features: ActorFeatures = ActorFeatures(),
+    val effects: List<Effect> = emptyList(),
     var color: Color = Color.GRAY,
     val imageSettings: ActorImageSettings = ActorImageSettings(),
 ) {

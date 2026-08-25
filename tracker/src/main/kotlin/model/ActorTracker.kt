@@ -3,6 +3,7 @@ package com.tabletopcontrol.new_tracker.model
 import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenEffectsChangedEvent
 import com.tabletopcontrol.core.TokenImageChangedEvent
 import com.tabletopcontrol.core.TokenLightSource
 import com.tabletopcontrol.core.TokenMovementBudgetChangedEvent
@@ -73,6 +74,7 @@ class ActorTracker(
         if (actor.imageSettings.uri != null) {
             publishImageEvent(actor)
         }
+        publishEffectsEvent(actor)
         if(actor.initiative != null){
             activeActors++
             sortActorsByInitiative(actor.id, tieResolver)
@@ -114,6 +116,9 @@ class ActorTracker(
             val movementRangeChanged = previousActor.features.movementRange != updatedActor.features.movementRange
             if (previousActor.imageSettings != updatedActor.imageSettings) {
                 publishImageEvent(updatedActor)
+            }
+            if (previousActor.effects != updatedActor.effects) {
+                publishEffectsEvent(updatedActor)
             }
             if (
                 previousActor.name != updatedActor.name ||
@@ -179,6 +184,41 @@ class ActorTracker(
     }
 
     fun findActor(actorId: String): Actor? = actorList.firstOrNull { it.id == actorId }
+
+    fun setActorEffects(
+        actorId: String,
+        effects: List<Effect>,
+    ): Boolean {
+        if (effects.map(Effect::id).distinct().size != effects.size) return false
+        val actor = findActor(actorId) ?: return false
+        val updatedEffects = effects.toList()
+        updateActor(actor.copy(effects = updatedEffects))
+        return findActor(actorId)?.effects == updatedEffects
+    }
+
+    fun addActorEffect(
+        actorId: String,
+        effect: Effect,
+    ): Boolean {
+        val actor = findActor(actorId) ?: return false
+        if (actor.effects.any { it.id == effect.id }) return false
+        return setActorEffects(actorId, actor.effects + effect)
+    }
+
+    fun removeActorEffect(
+        actorId: String,
+        effectId: String,
+    ): Boolean {
+        val actor = findActor(actorId) ?: return false
+        val remaining = actor.effects.filterNot { it.id == effectId }
+        if (remaining.size == actor.effects.size) return false
+        return setActorEffects(actorId, remaining)
+    }
+
+    /** Republishes the authoritative effect state after a map cache is restored. */
+    fun replayTokenEffects() {
+        actorList.forEach(::publishEffectsEvent)
+    }
 
     fun movementBudget(actorId: String): ActorMovementBudget? =
         findActor(actorId)?.let(::movementBudget)
@@ -274,6 +314,7 @@ class ActorTracker(
             if (actor.imageSettings.uri != null) {
                 publishImageEvent(actor)
             }
+            publishEffectsEvent(actor)
         }
         EventBus.publish(ActiveTokenChangedEvent(getCurrentActor()?.id, getCurrentActor()?.name))
         publishCurrentMovementBudget()
@@ -355,7 +396,11 @@ class ActorTracker(
             return
         }
 
-        roundCount += if (currentlyActive == activeActors - 1) 1 else 0
+        val advancesRound = currentlyActive == activeActors - 1
+        if (advancesRound) {
+            roundCount++
+            decrementRoundEffects()
+        }
         currentlyActive = (currentlyActive + 1) % activeActors
         movementBudgets[actorList[currentlyActive].id] = actorList[currentlyActive].baseMovementCells()
 
@@ -405,6 +450,32 @@ class ActorTracker(
                 imageOffsetY = settings.offsetY,
             ),
         )
+    }
+
+    private fun publishEffectsEvent(actor: Actor) {
+        EventBus.publish(
+            TokenEffectsChangedEvent(
+                tokenId = actor.id,
+                effects = actor.effects.map(Effect::toTokenEffect),
+            ),
+        )
+    }
+
+    private fun decrementRoundEffects() {
+        actorList.forEachIndexed { index, actor ->
+            val updatedEffects = actor.effects.mapNotNull { effect ->
+                when (effect.durationRounds) {
+                    null -> effect
+                    1 -> null
+                    else -> effect.copy(durationRounds = effect.durationRounds - 1)
+                }
+            }
+            if (updatedEffects != actor.effects) {
+                val updatedActor = actor.copy(effects = updatedEffects)
+                actorList[index] = updatedActor
+                publishEffectsEvent(updatedActor)
+            }
+        }
     }
 
     private fun publishCurrentMovementBudget() {

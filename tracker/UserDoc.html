@@ -67,7 +67,7 @@
     <h2>Overview</h2>
     <p>
       New Tracker lets you keep a simple combat list with editable actor names, hit points,
-      armour class, initiative, PC/NPC type, and token pictures.
+      armour class, initiative, PC/NPC type, token pictures, and status effects.
     </p>
     <p>
       The active actor is highlighted, and the tracker updates the linked map token details
@@ -87,6 +87,7 @@
       <li>See any configured darkvision, light source, or movement range at a glance.</li>
       <li>Duplicate or delete the actor.</li>
       <li>Assign a token picture and adjust its scale or offset.</li>
+      <li>Use <strong>Effects (0)</strong> to add, edit, or remove active conditions.</li>
     </ul>
     <p>
       Right-click an actor card to mark that actor as a <strong>PC</strong> or
@@ -115,6 +116,17 @@
       Use <strong>NEXT</strong> to advance to the next actor with an initiative value.
     </p>
     <p>
+      Each actor card has an <strong>Effects</strong> button and displays active effects as compact
+      badges. In the Effects dialog, choose a common condition such as Blinded, Grappled, Poisoned,
+      or Stunned, or enter a custom name, icon, duration, and note. A blank duration remains until
+      you remove it; timed effects count down whenever <strong>NEXT</strong> starts a new round and
+      disappear when their duration reaches zero.
+    </p>
+    <p>
+      Turn off <strong>Show on the player-facing map</strong> for a DM-only effect. DM-only effects
+      remain visible in the tracker and DM minimap but are hidden from the table screen and player API.
+    </p>
+    <p>
       If multiple actors share the same initiative, New Tracker opens a drag-and-drop list
       so you can arrange that tied group in the exact order you want.
     </p>
@@ -128,8 +140,8 @@
     <h2>Preset Library</h2>
     <p>
       Use <strong>SAVE</strong> on any actor card to store that actor as a reusable preset.
-      The preset keeps the actor's name, HP, AC, PC/NPC type, darkvision, light source, and movement
-      settings, token size, and token picture settings.
+      The preset keeps the actor's name, HP, AC, PC/NPC type, darkvision, light source, movement
+      settings, token size, token picture settings, and any configured effects.
     </p>
     <p>
       If you save using a name that already exists in the preset folder, New Tracker asks
@@ -172,8 +184,8 @@
     <p>
       Use <strong>Scenes...</strong> from the main toolbar to save the current encounter as a
       reusable scene. The tracker portion keeps the live actor list, including current HP, AC,
-      initiative, PC/NPC type, darkvision, light source, and movement settings, token size, token picture
-      settings, and the active round.
+      initiative, PC/NPC type, darkvision, light source, movement settings, effects, token size, token
+      picture settings, and the active round.
     </p>
     <p>
       Loading a scene replaces the current tracker setup after a confirmation dialog, which makes
@@ -276,6 +288,10 @@
           <td style="padding:0.5rem; border:1px solid var(--border);">JSON object with fields <code>name</code>, <code>hp</code>, <code>ac</code>, <code>initiative</code>, <code>inInitiative</code>, <code>tokenX</code>, <code>tokenY</code>, <code>activeTurnColor</code>, <code>movementAmount</code>, <code>movementUnit</code>, <code>remainingMovement</code>, and <code>usedMovement</code>.</td>
         </tr>
         <tr>
+          <td style="padding:0.5rem; border:1px solid var(--border);"><code>GET /api/effects?player=&lt;name&gt;</code></td>
+          <td style="padding:0.5rem; border:1px solid var(--border);">JSON array of this PC's effects that are marked visible to players. It never returns DM-only effects.</td>
+        </tr>
+        <tr>
           <td style="padding:0.5rem; border:1px solid var(--border);"><code>PUT /api/stats?player=&lt;name&gt;&amp;hp=&lt;hp&gt;&amp;ac=&lt;ac&gt;</code></td>
           <td style="padding:0.5rem; border:1px solid var(--border);">Update the PC actor's HP and AC; returns updated state JSON.</td>
         </tr>
@@ -309,6 +325,7 @@
       <li>Connected pages listen for live application updates and re-read their selected actor from the tracker.</li>
       <li>Token positions are tracked in memory; they reset when the server is restarted.</li>
       <li>Only actors marked as <strong>PC</strong> are visible in the player list.</li>
+      <li>Effects are managed by the DM in Tracker; the API only exposes effects the DM has marked visible.</li>
       <li>Token movement via the web companion is subject to the same grid-cell boundaries as DM movement.</li>
     </ul>
   </section>

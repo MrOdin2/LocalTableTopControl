@@ -1,6 +1,7 @@
 package com.tabletopcontrol.dynamicmap.runtime
 
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenEffectsReplayRequestedEvent
 import com.tabletopcontrol.core.TokenMovementDashRequestedEvent
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.MenuAction
@@ -90,6 +91,7 @@ class MapUiController {
             hideTokensInFog = true
             usePersistentVision = true
             showDmOnlyMeasurements = false
+            showDmOnlyTokenEffects = false
             showNpcMovementReachabilityOverlay = false
             showDynamicLightMarkers = false
             showHiddenDynamicDoorIcons = false
@@ -164,6 +166,7 @@ class MapUiController {
         }
         fogOfWarService.applySnapshot(state.fog)
         tokenSyncService.replaceState(state.tokens, state.activeTokenId)
+        EventBus.publish(TokenEffectsReplayRequestedEvent())
         restoreOpenDynamicDoors(state.openDynamicDoorIds)
     }
 

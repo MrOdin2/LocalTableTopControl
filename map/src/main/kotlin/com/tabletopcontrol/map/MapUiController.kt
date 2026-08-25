@@ -1,6 +1,7 @@
 package com.tabletopcontrol.map
 
 import com.tabletopcontrol.core.EventBus
+import com.tabletopcontrol.core.TokenEffectsReplayRequestedEvent
 import com.tabletopcontrol.core.ui.ContextMenuRenderer
 import com.tabletopcontrol.core.ui.MenuAction
 import com.tabletopcontrol.core.ui.MenuSection
@@ -59,6 +60,7 @@ class MapUiController {
         val renderer = MapRenderer(canvas).apply {
             hideTokensInFog = true
             showDmOnlyMeasurements = false
+            showDmOnlyTokenEffects = false
         }
         hydrateRenderer(canvas, renderer)
         return object : Pane() {
@@ -119,6 +121,7 @@ class MapUiController {
         settingsService.applySceneState(state)
         fogOfWarService.applySnapshot(state.fog)
         tokenSyncService.replaceState(state.tokens, state.activeTokenId)
+        EventBus.publish(TokenEffectsReplayRequestedEvent())
     }
 
     private fun hydrateRenderer(canvas: Canvas, renderer: MapRenderer) {
