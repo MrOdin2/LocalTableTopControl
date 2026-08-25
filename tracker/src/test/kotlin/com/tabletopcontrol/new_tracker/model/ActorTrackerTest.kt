@@ -1,5 +1,6 @@
 package com.tabletopcontrol.new_tracker.model
 
+import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.TokenAddedEvent
 import com.tabletopcontrol.core.TokenEffect
@@ -132,6 +133,44 @@ class ActorTrackerTest {
         tracker.addActor(Actor(name = "Hero", actorType = ActorType.PC))
 
         assertEquals(true, tokenEvents.single().isPlayerCharacter)
+    }
+
+    @Test
+    fun `first initiative actor publishes the canonical current turn event`() {
+        val tracker = ActorTracker()
+        val events = mutableListOf<ActiveTokenChangedEvent>()
+        EventBus.subscribe<ActiveTokenChangedEvent> { events += it }
+
+        tracker.addActor(Actor(id = "hero", name = "Hero", initiative = 15, actorType = ActorType.PC))
+
+        assertEquals(listOf(ActiveTokenChangedEvent("hero", "Hero")), events)
+    }
+
+    @Test
+    fun `removing the active actor publishes the replacement current turn`() {
+        val tracker = ActorTracker()
+        val hero = Actor(id = "hero", name = "Hero", initiative = 15, actorType = ActorType.PC)
+        val guard = Actor(id = "guard", name = "Guard", initiative = 10)
+        tracker.addActor(hero)
+        tracker.addActor(guard)
+        val events = mutableListOf<ActiveTokenChangedEvent>()
+        EventBus.subscribe<ActiveTokenChangedEvent> { events += it }
+
+        tracker.removeActor(hero)
+
+        assertEquals(listOf(ActiveTokenChangedEvent("guard", "Guard")), events)
+    }
+
+    @Test
+    fun `NEXT republishes the current turn for a single actor`() {
+        val tracker = ActorTracker()
+        tracker.addActor(Actor(id = "hero", name = "Hero", initiative = 15, actorType = ActorType.PC))
+        val events = mutableListOf<ActiveTokenChangedEvent>()
+        EventBus.subscribe<ActiveTokenChangedEvent> { events += it }
+
+        tracker.next()
+
+        assertEquals(listOf(ActiveTokenChangedEvent("hero", "Hero")), events)
     }
 
     @Test

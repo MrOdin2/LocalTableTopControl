@@ -4,13 +4,21 @@ import com.tabletopcontrol.light.LightEffect
 
 internal class AdvancedLightController {
     private var segments: List<AdvancedLightSegmentState> = emptyList()
+    private var trackerTurnCuesEnabled: Boolean = false
 
     fun currentSegments(): List<AdvancedLightSegmentState> = segments
+
+    fun trackerTurnCuesEnabled(): Boolean = trackerTurnCuesEnabled
+
+    fun setTrackerTurnCuesEnabled(enabled: Boolean) {
+        trackerTurnCuesEnabled = enabled
+    }
 
     fun loadFromDevice(
         snapshot: WledDeviceSnapshot,
         preferences: AdvancedLightPreferences,
     ) {
+        trackerTurnCuesEnabled = preferences.trackerTurnCuesEnabled
         val byId = snapshot.segments.associateBy { it.id }
         val orderedIds = preferences.order.filter { it in byId } +
             snapshot.segments.map { it.id }.filterNot { it in preferences.order }
@@ -48,6 +56,31 @@ internal class AdvancedLightController {
     fun setSegmentBrightnessScale(id: Int, scale: Double): List<AdvancedLightSegmentCommand> =
         replaceSegmentAndCommand(id) { it.copy(brightnessScale = scale.coerceIn(0.0, 1.0)) }
 
+    fun assignTokens(id: Int, tokenIds: Set<String>) {
+        val normalizedIds = tokenIds.map(String::trim).filter(String::isNotBlank).toSet()
+        replaceSegment(id) { it.copy(assignedTokenIds = normalizedIds) }
+    }
+
+    fun unassignTokens(id: Int, tokenIds: Set<String>) {
+        replaceSegment(id) { segment ->
+            segment.copy(assignedTokenIds = segment.assignedTokenIds - tokenIds)
+        }
+    }
+
+    fun configureTurnCue(id: Int, turnCue: AdvancedLightTurnCue) {
+        val normalizedCue = turnCue.copy(
+            color = turnCue.color.takeIf(AdvancedLightJson::isValidHexColor)?.uppercase() ?: "#FFD37A",
+            brightness = turnCue.brightness.coerceIn(0.0, 1.0),
+            effectSpeed = turnCue.effectSpeed.coerceIn(0, 255),
+            effectIntensity = turnCue.effectIntensity.coerceIn(0, 255),
+            durationMillis = turnCue.durationMillis.coerceIn(
+                AdvancedLightTurnCue.MIN_DURATION_MILLIS,
+                AdvancedLightTurnCue.MAX_DURATION_MILLIS,
+            ),
+        )
+        replaceSegment(id) { it.copy(turnCue = normalizedCue) }
+    }
+
     fun applyColorToSelected(hex: String): List<AdvancedLightSegmentCommand> {
         if (!AdvancedLightJson.isValidHexColor(hex)) return emptyList()
         return replaceSelectedAndCommand { it.copy(color = hex.uppercase()) }
@@ -67,6 +100,12 @@ internal class AdvancedLightController {
 
     fun commandsForAllSegments(): List<AdvancedLightSegmentCommand> =
         segments.map { it.toCommand() }
+
+    fun commandsForSegments(ids: Set<Int>): List<AdvancedLightSegmentCommand> =
+        segments.filter { it.id in ids }.map { it.toCommand() }
+
+    fun turnCueSegmentsForToken(tokenId: String): List<AdvancedLightSegmentState> =
+        segments.filter { tokenId in it.assignedTokenIds }
 
     fun applyControl(
         ids: Set<Int>,
@@ -104,6 +143,7 @@ internal class AdvancedLightController {
 
     fun preferencesSnapshot(): AdvancedLightPreferences =
         AdvancedLightPreferences(
+            trackerTurnCuesEnabled = trackerTurnCuesEnabled,
             order = segments.map { it.id },
             segments = segments.associate { segment ->
                 segment.id to AdvancedLightSegmentPreference(
@@ -114,6 +154,8 @@ internal class AdvancedLightController {
                     brightnessScale = segment.brightnessScale,
                     effectSpeed = segment.effectSpeed,
                     effectIntensity = segment.effectIntensity,
+                    assignedTokenIds = segment.assignedTokenIds,
+                    turnCue = segment.turnCue,
                 )
             },
         )

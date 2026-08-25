@@ -42,6 +42,16 @@ class AdvancedLightPreferencesStoreTest {
                     effect = LightEffect.LIGHTNING,
                     effectSpeed = 44,
                     effectIntensity = 199,
+                    assignedTokenIds = setOf("hero-uuid", "ranger-uuid"),
+                    turnCue = AdvancedLightTurnCue(
+                        effect = LightEffect.FADE,
+                        color = "#FFAA33",
+                        brightness = 0.8,
+                        effectSpeed = 77,
+                        effectIntensity = 188,
+                        duration = AdvancedLightTurnCueDuration.TIMED,
+                        durationMillis = 2_500,
+                    ),
                 ),
                 AdvancedLightSegmentState(
                     id = 2,
@@ -67,9 +77,28 @@ class AdvancedLightPreferencesStoreTest {
                 brightnessScale = 0.55,
                 effectSpeed = 44,
                 effectIntensity = 199,
+                assignedTokenIds = setOf("hero-uuid", "ranger-uuid"),
+                turnCue = AdvancedLightTurnCue(
+                    effect = LightEffect.FADE,
+                    color = "#FFAA33",
+                    brightness = 0.8,
+                    effectSpeed = 77,
+                    effectIntensity = 188,
+                    duration = AdvancedLightTurnCueDuration.TIMED,
+                    durationMillis = 2_500,
+                ),
             ),
             loaded.segments[7],
         )
         assertEquals("Right", loaded.segments[2]?.name)
+    }
+
+    @Test
+    fun `global tracker turn cue opt in is persisted`() {
+        AdvancedLightPreferencesStore.save(
+            AdvancedLightPreferences(trackerTurnCuesEnabled = true),
+        )
+
+        assertEquals(true, AdvancedLightPreferencesStore.load().trackerTurnCuesEnabled)
     }
 }

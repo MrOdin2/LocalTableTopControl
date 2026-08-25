@@ -135,7 +135,11 @@
         <li><a href="#overview">Overview</a></li>
         <li><a href="#setup">Hardware Setup</a></li>
         <li><a href="#connection">Connecting</a></li>
-        <li><a href="#advanced-light">Advanced Light</a></li>
+        <li><a href="#advanced-light">Advanced Light</a>
+          <ul>
+            <li><a href="#tracker-turn-cues">Tracker Turn Cues</a></li>
+          </ul>
+        </li>
         <li><a href="#power">Power Control</a></li>
         <li><a href="#color">Colour</a></li>
         <li><a href="#effects">Effects</a>
@@ -293,6 +297,38 @@
         you reconnect to the same WLED setup, those remembered choices are matched by segment ID
         and applied again.
       </p>
+
+      <h3 id="tracker-turn-cues">Tracker Turn Cues</h3>
+      <p>
+        Advanced Light can make one or more WLED segments react when a player character becomes
+        active in the Initiative Tracker. This feature is off by default. Enable
+        <strong>Enable tracker turn cues</strong> in the Advanced Light panel when you want to use it.
+      </p>
+      <ol>
+        <li>Add the player characters to Tracker and connect Advanced Light to WLED.</li>
+        <li>Right-click a segment and choose <strong>Assign token(s)...</strong>.</li>
+        <li>Select one or more PC tokens from the current scene and click <strong>Assign</strong>.</li>
+        <li>
+          Right-click the segment again and choose <strong>Configure turn cue...</strong> to select
+          its colour, brightness, WLED effect, speed, intensity, and duration.
+        </li>
+      </ol>
+      <p>
+        Choose <strong>Whole turn</strong> to keep the cue active until Tracker advances to another
+        combatant. Choose <strong>Play once</strong> for a short pulse or glow that restores the
+        segment automatically after the configured number of seconds. In both modes, the segment's
+        normal colour, brightness, power, and effect are restored when the cue ends.
+      </p>
+      <p>
+        Assignments are stored with the Advanced Light segment by the token's stable ID; token data
+        is not modified. Use the segment's <strong>Unassign token(s)...</strong> context-menu command
+        to remove one or more links. Only PC tokens from the current scene are offered for new
+        assignments, and an NPC turn never activates a player cue.
+      </p>
+      <div class="tip">
+        <strong>Tip:</strong> One player token can drive several segments, and one segment can be
+        assigned to several player tokens. This is useful for player-position lights around a table.
+      </div>
 
       <h3>Advanced Debug Console</h3>
       <p>

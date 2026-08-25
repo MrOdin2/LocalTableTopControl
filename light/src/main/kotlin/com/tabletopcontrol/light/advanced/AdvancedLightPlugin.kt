@@ -1,9 +1,13 @@
 package com.tabletopcontrol.light.advanced
 
+import com.tabletopcontrol.core.ActiveTokenChangedEvent
 import com.tabletopcontrol.core.DmPlugin
 import com.tabletopcontrol.core.EventBus
 import com.tabletopcontrol.core.LightControlEvent
 import com.tabletopcontrol.core.LightControlTarget
+import com.tabletopcontrol.core.TokenAddedEvent
+import com.tabletopcontrol.core.TokenRemovedEvent
+import com.tabletopcontrol.core.TokensResetEvent
 import com.tabletopcontrol.core.ui.color.ColorEditorDialog
 import com.tabletopcontrol.core.ui.color.ColorHexCodec
 import com.tabletopcontrol.light.LightEffect
@@ -26,6 +30,7 @@ import javafx.scene.control.MenuButton
 import javafx.scene.control.MenuItem
 import javafx.scene.control.ScrollPane
 import javafx.scene.control.Separator
+import javafx.scene.control.SeparatorMenuItem
 import javafx.scene.control.Slider
 import javafx.scene.control.TableCell
 import javafx.scene.control.TableColumn
@@ -47,12 +52,25 @@ import kotlin.math.roundToInt
 class AdvancedLightPlugin : DmPlugin {
     override val displayName: String = "Advanced Light"
 
+    private var storedPreferences = AdvancedLightPreferencesStore.load()
     private val controller = AdvancedLightController()
     private val serialCoordinator = AdvancedLightSerialCoordinator()
+    private val turnCueCoordinator = AdvancedLightTurnCueCoordinator(controller, ::sendTurnCueCommands)
     private val feedback = LightOperatorFeedbackPresenter()
     private val disposables = mutableListOf<() -> Unit>()
+    private val playerTokens = linkedMapOf<String, TrackedPlayerToken>()
+    private var currentTurnTokenId: String? = null
     private val commandSubscription = EventBus.subscribe<LightControlEvent>(::applyHotkeyCommand)
+    private val tokenAddedSubscription = EventBus.subscribe<TokenAddedEvent>(::registerPlayerToken)
+    private val tokenRemovedSubscription = EventBus.subscribe<TokenRemovedEvent>(::removePlayerToken)
+    private val tokensResetSubscription = EventBus.subscribe<TokensResetEvent> { resetPlayerTokens() }
+    private val currentTurnSubscription = EventBus.subscribe<ActiveTokenChangedEvent>(::applyCurrentTurn)
     private var refreshView: (() -> Unit)? = null
+
+    init {
+        controller.setTrackerTurnCuesEnabled(storedPreferences.trackerTurnCuesEnabled)
+        turnCueCoordinator.setEnabled(storedPreferences.trackerTurnCuesEnabled)
+    }
 
     override fun createView(): Node {
         disposeViewListeners()
@@ -61,6 +79,7 @@ class AdvancedLightPlugin : DmPlugin {
         var refreshEditorCallback: () -> Unit = {}
         val table = buildSegmentTable(rows) { refreshEditorCallback() }
         val statusLabel = Label()
+        val trackerTurnCueToggle = buildTrackerTurnCueToggle()
         val editorContext = buildEditorControls(table, rows)
         refreshEditorCallback = editorContext.refresh
         val connectionPanel = buildConnectionPanel(table, rows, statusLabel) { editorContext.refresh() }
@@ -81,6 +100,7 @@ class AdvancedLightPlugin : DmPlugin {
                     alignment = Pos.CENTER_LEFT
                     HBox.setHgrow(children.first(), Priority.ALWAYS)
                 },
+                trackerTurnCueToggle,
                 connectionPanel.panel,
                 statusLabel,
                 table,
@@ -99,10 +119,80 @@ class AdvancedLightPlugin : DmPlugin {
 
     override fun onShutdown() {
         commandSubscription.unsubscribe()
-        controller.currentSegments().takeIf { it.isNotEmpty() }?.let(AdvancedLightPreferencesStore::save)
+        tokenAddedSubscription.unsubscribe()
+        tokenRemovedSubscription.unsubscribe()
+        tokensResetSubscription.unsubscribe()
+        currentTurnSubscription.unsubscribe()
+        persistPreferences()
         refreshView = null
         disposeViewListeners()
+        turnCueCoordinator.shutdown()
         serialCoordinator.shutdown()
+    }
+
+    private fun buildTrackerTurnCueToggle(): CheckBox =
+        CheckBox("Enable tracker turn cues").apply {
+            isSelected = controller.trackerTurnCuesEnabled()
+            tooltip = Tooltip("Let assigned Advanced Light segments react to the active PC in Tracker")
+            selectedProperty().addListener { _, _, selected ->
+                controller.setTrackerTurnCuesEnabled(selected)
+                turnCueCoordinator.setEnabled(selected)
+                persistPreferences()
+            }
+        }
+
+    private fun registerPlayerToken(event: TokenAddedEvent) {
+        val wasPlayerToken = playerTokens.containsKey(event.id)
+        if (event.isPlayerCharacter) {
+            playerTokens[event.id] = TrackedPlayerToken(event.id, event.name)
+        } else {
+            playerTokens.remove(event.id)
+        }
+        if (event.id == currentTurnTokenId && wasPlayerToken != event.isPlayerCharacter) {
+            applyCurrentTurnToken()
+        }
+    }
+
+    private fun removePlayerToken(event: TokenRemovedEvent) {
+        playerTokens.remove(event.id)
+        if (event.id == currentTurnTokenId) {
+            currentTurnTokenId = null
+            applyCurrentTurnToken()
+        }
+    }
+
+    private fun resetPlayerTokens() {
+        playerTokens.clear()
+        currentTurnTokenId = null
+        applyCurrentTurnToken()
+    }
+
+    private fun applyCurrentTurn(event: ActiveTokenChangedEvent) {
+        currentTurnTokenId = event.id
+        applyCurrentTurnToken()
+    }
+
+    private fun applyCurrentTurnToken() {
+        val playerTokenId = currentTurnTokenId?.takeIf(playerTokens::containsKey)
+        turnCueCoordinator.activeTokenChanged(playerTokenId)
+    }
+
+    private fun sendTurnCueCommands(commands: List<AdvancedLightSegmentCommand>) {
+        serialCoordinator.sendSegmentsAsync(
+            commands,
+            splitCommands = controller.coversAllKnownSegments(commands),
+        )
+    }
+
+    private fun persistPreferences() {
+        storedPreferences = if (controller.currentSegments().isEmpty()) {
+            storedPreferences.copy(
+                trackerTurnCuesEnabled = controller.trackerTurnCuesEnabled(),
+            )
+        } else {
+            controller.preferencesSnapshot()
+        }
+        AdvancedLightPreferencesStore.save(storedPreferences)
     }
 
     private fun applyHotkeyCommand(command: LightControlEvent) {
@@ -259,6 +349,58 @@ class AdvancedLightPlugin : DmPlugin {
                 }
             }
         }
+        val assignTokens = MenuItem("Assign token(s)...").apply {
+            setOnAction {
+                val selectedTokenIds = AdvancedLightTurnCueDialogs.showTokenPicker(
+                    owner = table.scene?.window,
+                    title = "Assign PC Tokens",
+                    header = "${segment.name} reacts on these turns",
+                    candidates = playerTokens.values.toList(),
+                    initiallySelected = segment.assignedTokenIds,
+                    confirmText = "Assign",
+                    emptyMessage = "No PC tokens are available in the current scene.",
+                ) ?: return@setOnAction
+                val unavailableAssignments = segment.assignedTokenIds - playerTokens.keys
+                controller.assignTokens(segment.id, unavailableAssignments + selectedTokenIds)
+                persistPreferences()
+                refreshTableFromController(table, rows)
+                turnCueCoordinator.refresh()
+                onRowsChanged()
+            }
+        }
+        val unassignTokens = MenuItem("Unassign token(s)...").apply {
+            isDisable = segment.assignedTokenIds.isEmpty()
+            setOnAction {
+                val assignedTokens = segment.assignedTokenIds.map { tokenId ->
+                    playerTokens[tokenId] ?: TrackedPlayerToken(tokenId, "Unavailable token")
+                }
+                val selectedTokenIds = AdvancedLightTurnCueDialogs.showTokenPicker(
+                    owner = table.scene?.window,
+                    title = "Unassign PC Tokens",
+                    header = "Remove assignments from ${segment.name}",
+                    candidates = assignedTokens,
+                    initiallySelected = segment.assignedTokenIds,
+                    confirmText = "Unassign",
+                    emptyMessage = "This segment has no assigned tokens.",
+                ) ?: return@setOnAction
+                controller.unassignTokens(segment.id, selectedTokenIds)
+                persistPreferences()
+                refreshTableFromController(table, rows)
+                turnCueCoordinator.refresh()
+                onRowsChanged()
+            }
+        }
+        val configureTurnCue = MenuItem("Configure turn cue...").apply {
+            setOnAction {
+                val cue = AdvancedLightTurnCueDialogs.showTurnCueDialog(table.scene?.window, segment)
+                    ?: return@setOnAction
+                controller.configureTurnCue(segment.id, cue)
+                persistPreferences()
+                refreshTableFromController(table, rows)
+                turnCueCoordinator.refresh()
+                onRowsChanged()
+            }
+        }
         val moveUp = MenuItem("Move Up").apply {
             isDisable = rows.indexOf(segment) <= 0
             setOnAction {
@@ -275,7 +417,17 @@ class AdvancedLightPlugin : DmPlugin {
                 onRowsChanged()
             }
         }
-        return ContextMenu(rename, brightness, moveUp, moveDown)
+        return ContextMenu(
+            rename,
+            brightness,
+            SeparatorMenuItem(),
+            assignTokens,
+            unassignTokens,
+            configureTurnCue,
+            SeparatorMenuItem(),
+            moveUp,
+            moveDown,
+        )
     }
 
     private fun buildConnectionPanel(
@@ -350,7 +502,7 @@ class AdvancedLightPlugin : DmPlugin {
             feedback.showInfo(statusLabel, "Connecting and reading WLED segments...")
             val portName = if (portCombo.isEditable) portCombo.editor.text else portCombo.value
             val preferences = if (controller.currentSegments().isEmpty()) {
-                AdvancedLightPreferencesStore.load()
+                storedPreferences
             } else {
                 controller.preferencesSnapshot()
             }
@@ -359,12 +511,15 @@ class AdvancedLightPlugin : DmPlugin {
                 when {
                     result == LightOperationResult.Applied && snapshot != null -> {
                         controller.loadFromDevice(snapshot, preferences)
+                        storedPreferences = controller.preferencesSnapshot()
                         refreshTableFromController(table, rows)
                         refreshEditor()
                         serialCoordinator.sendSegmentsAsync(
                             controller.commandsForAllSegments(),
                             splitCommands = true,
                         )
+                        turnCueCoordinator.setEnabled(controller.trackerTurnCuesEnabled())
+                        turnCueCoordinator.refresh()
                         connectButton.text = "Disconnect"
                         feedback.showSuccess(
                             statusLabel,

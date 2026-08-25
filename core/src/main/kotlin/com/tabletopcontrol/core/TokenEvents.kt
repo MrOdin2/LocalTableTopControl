@@ -138,11 +138,15 @@ data class TokenMovementDashRequestedEvent(
 )
 
 /**
- * Event published when the active combatant changes in the initiative tracker,
- * so the map can update the active-token highlight.
+ * Canonical current-turn signal published by tracker-like plugins.
  *
- * @property id   stable unique identifier of the now-active combatant,
- *                or `null` when the tracker is empty.
+ * The tracker publishes this event whenever the active combatant changes, when restored/reset state
+ * establishes a current combatant, and whenever NEXT starts another turn (including a new turn for
+ * the same sole combatant). Map plugins use it for the active-token marker and other plugins may use
+ * it for turn cues without depending directly on Tracker.
+ *
+ * @property id   stable token/combatant UUID of the now-active combatant,
+ *                or `null` when no turn is active.
  * @property name optional display name of the now-active combatant, for UI purposes only.
  */
 data class ActiveTokenChangedEvent(val id: String?, val name: String?)
